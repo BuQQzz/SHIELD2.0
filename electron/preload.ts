@@ -32,6 +32,7 @@ export interface LlamaAPI {
   }>;
   isModelLoaded: () => Promise<{ success: boolean; loaded?: boolean; error?: string }>;
   clearHistory: () => Promise<{ success: boolean; error?: string }>;
+  stopGeneration: () => Promise<{ success: boolean; error?: string }>;
 }
 
 // Expose protected methods to renderer process
@@ -50,6 +51,7 @@ const llamaAPI: LlamaAPI = {
   getModelInfo: () => ipcRenderer.invoke("llama:getModelInfo"),
   isModelLoaded: () => ipcRenderer.invoke("llama:isModelLoaded"),
   clearHistory: () => ipcRenderer.invoke("llama:clearHistory"),
+  stopGeneration: () => ipcRenderer.invoke("llama:stopGeneration"),
 };
 
 contextBridge.exposeInMainWorld("llama", llamaAPI);

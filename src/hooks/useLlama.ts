@@ -148,6 +148,18 @@ export function useLlama() {
     }
   }, []);
 
+  const stopGeneration = useCallback(async () => {
+    if (!window.llama) {
+      console.warn("[useLlama] stopGeneration called but window.llama not available");
+      return;
+    }
+    try {
+      await window.llama.stopGeneration();
+    } catch (err) {
+      console.error("[useLlama] stopGeneration failed:", err);
+    }
+  }, []);
+
   return {
     isInitialized,
     isModelLoaded,
@@ -158,5 +170,6 @@ export function useLlama() {
     sendMessage,
     sendStreamingMessage,
     clearHistory,
+    stopGeneration,
   };
 }

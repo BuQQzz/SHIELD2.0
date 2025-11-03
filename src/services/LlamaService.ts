@@ -21,6 +21,7 @@ export interface ChatOptions {
   temperature?: number;
   maxTokens?: number;
   onToken?: (token: string) => void;
+  signal?: AbortSignal;
 }
 
 export interface ModelConfig {
@@ -39,6 +40,7 @@ export class LlamaService {
   private context: LlamaContext | null = null;
   private session: LlamaChatSession | null = null;
   private currentModelConfig: ModelConfig | null = null;
+  private currentAbortController: AbortController | null = null;
 
   /**
    * Initialize llama.cpp
@@ -97,15 +99,24 @@ export class LlamaService {
       throw new Error("No model loaded. Call loadModel() first");
     }
 
-    const response = await this.session.prompt(message, {
-      temperature: options.temperature ?? 0.7,
-      maxTokens: options.maxTokens ?? 512,
-      onTextChunk: options.onToken
-        ? (chunk: string) => options.onToken!(chunk)
-        : undefined,
-    });
+    // Create abort controller for this request
+    this.currentAbortController = new AbortController();
+    const signal = options.signal || this.currentAbortController.signal;
 
-    return response;
+    try {
+      const response = await this.session.prompt(message, {
+        temperature: options.temperature ?? 0.7,
+        maxTokens: options.maxTokens ?? 512,
+        onTextChunk: options.onToken
+          ? (chunk: string) => options.onToken!(chunk)
+          : undefined,
+        signal,
+      });
+
+      return response;
+    } finally {
+      this.currentAbortController = null;
+    }
   }
 
   /**
@@ -137,6 +148,16 @@ export class LlamaService {
   clearHistory(): void {
     if (this.session) {
       this.session.setChatHistory([]);
+    }
+  }
+
+  /**
+   * Stop the current generation
+   */
+  stopGeneration(): void {
+    if (this.currentAbortController) {
+      this.currentAbortController.abort();
+      this.currentAbortController = null;
     }
   }
 

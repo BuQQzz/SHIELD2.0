@@ -172,6 +172,19 @@ function setupIpcHandlers() {
       };
     }
   });
+
+  // Stop generation
+  ipcMain.handle("llama:stopGeneration", async () => {
+    try {
+      llamaService.stopGeneration();
+      return { success: true };
+    } catch (error) {
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : "Unknown error",
+      };
+    }
+  });
 }
 
 // App lifecycle

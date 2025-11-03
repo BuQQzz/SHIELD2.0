@@ -47,7 +47,6 @@ function App() {
   const [isGenerating, setIsGenerating] = useState(false);
   const [streamingContent, setStreamingContent] = useState("");
   const [currentModelId, setCurrentModelId] = useState<string>("qwen-7b");
-  const abortControllerRef = useRef<AbortController | null>(null);
   const streamingContentRef = useRef("");
 
   const {
@@ -59,6 +58,7 @@ function App() {
     loadModel,
     sendStreamingMessage,
     clearHistory,
+    stopGeneration,
   } = useLlama();
 
   // Auto-load model ONLY when initialized and user hasn't loaded one yet
@@ -157,12 +157,27 @@ function App() {
     }
   };
 
-  const handleStopGenerating = () => {
-    if (abortControllerRef.current) {
-      abortControllerRef.current.abort();
+  const handleStopGenerating = async () => {
+    try {
+      await stopGeneration();
+      setIsGenerating(false);
+      
+      // Finalize with whatever content we have so far
+      if (streamingContentRef.current) {
+        const assistantMessage: Message = {
+          id: (Date.now() + 1).toString(),
+          role: "assistant",
+          content: streamingContentRef.current,
+          timestamp: new Date(),
+        };
+        setMessages((prev) => [...prev, assistantMessage]);
+      }
+      
+      setStreamingContent("");
+      streamingContentRef.current = "";
+    } catch (err) {
+      console.error("Error stopping generation:", err);
     }
-    setIsGenerating(false);
-    setStreamingContent("");
   };
 
   const handleClearHistory = async () => {
