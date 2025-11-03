@@ -1,0 +1,3 @@
+# Placeholder for model files
+# Add your .gguf model files here
+# These files are not tracked by git (see .gitignore)
