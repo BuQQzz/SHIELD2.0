@@ -1,7 +1,6 @@
 "use client";
 
 import { Shield, Loader2 } from "lucide-react";
-import { Button } from "@/components/ui/button";
 import { motion } from "framer-motion";
 
 const SUGGESTED_PROMPTS = [
@@ -75,20 +74,19 @@ export function ChatPlaceholder({
           </h2>
           <div className="grid gap-3 sm:grid-cols-2">
             {SUGGESTED_PROMPTS.map((prompt, index) => (
-              <motion.div
+              <motion.button
                 key={index}
                 initial={{ opacity: 0, x: -10 }}
                 animate={{ opacity: 1, x: 0 }}
                 transition={{ duration: 0.3, delay: 0.5 + index * 0.1 }}
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.98 }}
+                onClick={() => onPromptClick?.(prompt)}
+                className="h-auto justify-start whitespace-normal rounded-md bg-background p-4 text-left transition-all hover:bg-accent"
+                style={{ boxShadow: '0 1px 3px rgba(0, 0, 0, 0.12)' }}
               >
-                <Button
-                  variant="outline"
-                  className="h-auto justify-start whitespace-normal p-4 text-left hover:scale-105 transition-transform"
-                  onClick={() => onPromptClick?.(prompt)}
-                >
-                  {prompt}
-                </Button>
-              </motion.div>
+                {prompt}
+              </motion.button>
             ))}
           </div>
         </motion.div>

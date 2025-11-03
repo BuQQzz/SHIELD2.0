@@ -1,7 +1,6 @@
 "use client";
 
 import { Menu, MoreVertical, Settings, Loader2 } from "lucide-react";
-import { Button } from "@/components/ui/button";
 import { useChatStore } from "@/stores/chat-store";
 import { ModelSelector, type ModelOption } from "./ModelSelector";
 
@@ -25,18 +24,17 @@ export function ChatHeader({
   const { sidebarOpen, toggleSidebar } = useChatStore();
 
   return (
-    <header className="flex h-14 items-center justify-between border-b border-border bg-background px-4">
+    <header className="flex h-14 items-center justify-between bg-background px-4 mb-2">
       {/* Left Section */}
       <div className="flex items-center gap-2">
         {!sidebarOpen && (
-          <Button
-            variant="ghost"
-            size="icon"
+          <button
             onClick={toggleSidebar}
-            className="md:flex"
+            className="md:flex rounded-md p-2 transition-all hover:bg-accent"
+            style={{ boxShadow: '0 1px 3px rgba(0, 0, 0, 0.12)' }}
           >
             <Menu className="h-5 w-5" />
-          </Button>
+          </button>
         )}
         <div className="flex flex-col">
           <h1 className="text-lg font-semibold">SHIELD 2.0</h1>
@@ -64,12 +62,18 @@ export function ChatHeader({
             isLoading={isLoading}
           />
         )}
-        <Button variant="ghost" size="icon">
+        <button
+          className="rounded-md p-2 transition-all hover:bg-accent"
+          style={{ boxShadow: '0 1px 3px rgba(0, 0, 0, 0.12)' }}
+        >
           <Settings className="h-5 w-5" />
-        </Button>
-        <Button variant="ghost" size="icon">
+        </button>
+        <button
+          className="rounded-md p-2 transition-all hover:bg-accent"
+          style={{ boxShadow: '0 1px 3px rgba(0, 0, 0, 0.12)' }}
+        >
           <MoreVertical className="h-5 w-5" />
-        </Button>
+        </button>
       </div>
     </header>
   );

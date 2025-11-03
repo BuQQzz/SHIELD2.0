@@ -2,7 +2,6 @@
 
 import { useState, useRef, KeyboardEvent } from "react";
 import { Send, Square } from "lucide-react";
-import { Button } from "@/components/ui/button";
 import { motion } from "framer-motion";
 
 interface ChatInputProps {
@@ -46,9 +45,12 @@ export function ChatInput({
   };
 
   return (
-    <div className="border-t border-border bg-background p-4">
+    <div className="bg-background p-4">
       <div className="mx-auto max-w-3xl">
-        <div className="relative flex items-end gap-2 rounded-lg border border-input bg-background p-2 focus-within:ring-2 focus-within:ring-ring">
+        <div 
+          className="relative flex items-end gap-2 rounded-lg bg-background p-2 focus-within:ring-2 focus-within:ring-ring"
+          style={{ boxShadow: '0 2px 6px rgba(0, 0, 0, 0.12)' }}
+        >
           <textarea
             ref={textareaRef}
             value={input}
@@ -61,27 +63,25 @@ export function ChatInput({
           />
 
           {isGenerating ? (
-            <motion.div whileTap={{ scale: 0.95 }}>
-              <Button
-                size="icon"
-                variant="ghost"
-                onClick={onStop}
-                className="shrink-0"
-              >
-                <Square className="h-5 w-5" />
-              </Button>
-            </motion.div>
+            <motion.button
+              whileTap={{ scale: 0.95 }}
+              onClick={onStop}
+              className="shrink-0 rounded-md p-2 transition-all hover:bg-accent"
+              style={{ boxShadow: '0 1px 3px rgba(0, 0, 0, 0.12)' }}
+            >
+              <Square className="h-5 w-5" />
+            </motion.button>
           ) : (
-            <motion.div whileTap={{ scale: 0.95 }} whileHover={{ scale: 1.05 }}>
-              <Button
-                size="icon"
-                onClick={handleSubmit}
-                disabled={!input.trim() || disabled}
-                className="shrink-0"
-              >
-                <Send className="h-5 w-5" />
-              </Button>
-            </motion.div>
+            <motion.button
+              whileTap={{ scale: 0.95 }}
+              whileHover={{ scale: 1.05 }}
+              onClick={handleSubmit}
+              disabled={!input.trim() || disabled}
+              className="shrink-0 rounded-md bg-primary p-2 text-primary-foreground transition-all hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed"
+              style={{ boxShadow: '0 1px 3px rgba(0, 0, 0, 0.12)' }}
+            >
+              <Send className="h-5 w-5" />
+            </motion.button>
           )}
         </div>
 

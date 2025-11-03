@@ -1,7 +1,6 @@
 "use client";
 
-import { Shield, Menu, Settings, Plus, Search, Trash2 } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { Shield, Settings, Plus, Search, Trash2, PanelLeft, PanelRight } from "lucide-react";
 import { useChatStore } from "@/stores/chat-store";
 import { motion, AnimatePresence } from "framer-motion";
 
@@ -10,81 +9,139 @@ interface SidebarProps {
 }
 
 export function Sidebar({ onClearHistory }: SidebarProps) {
-  const { sidebarOpen, toggleSidebar } = useChatStore();
+  const { sidebarOpen, sidebarCollapsed, toggleSidebarCollapse } = useChatStore();
 
   return (
     <AnimatePresence mode="wait">
       {sidebarOpen && (
         <motion.div
-          initial={{ x: -260, opacity: 0 }}
-          animate={{ x: 0, opacity: 1 }}
-          exit={{ x: -260, opacity: 0 }}
+          initial={{ x: sidebarCollapsed ? -64 : -260, opacity: 0 }}
+          animate={{ 
+            x: 0, 
+            opacity: 1,
+            width: sidebarCollapsed ? 64 : 260
+          }}
+          exit={{ x: sidebarCollapsed ? -64 : -260, opacity: 0 }}
           transition={{ duration: 0.3, ease: "easeInOut" }}
-          className="flex h-full w-[260px] flex-col bg-background border-r border-border"
+          className="flex h-full flex-col bg-background"
         >
-      {/* Header */}
-      <div className="flex items-center justify-between border-b border-border p-4">
-        <div className="flex items-center gap-2">
-          <Shield className="h-6 w-6 text-primary" />
-          <span className="font-semibold">SHIELD 2.0</span>
-        </div>
-        <Button
-          variant="ghost"
-          size="icon"
-          onClick={toggleSidebar}
-          className="md:hidden"
-        >
-          <Menu className="h-5 w-5" />
-        </Button>
-      </div>
-
-      {/* New Chat Button */}
-      <div className="p-3 space-y-2">
-        <Button className="w-full" variant="default">
-          <Plus className="mr-2 h-4 w-4" />
-          New Chat
-        </Button>
-        {onClearHistory && (
-          <Button
-            className="w-full"
-            variant="outline"
-            onClick={onClearHistory}
-          >
-            <Trash2 className="mr-2 h-4 w-4" />
-            Clear History
-          </Button>
-        )}
-      </div>
-
-      {/* Search */}
-      <div className="px-3 pb-3">
-        <div className="relative">
-          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-          <input
-            type="text"
-            placeholder="Search chats..."
-            className="w-full rounded-md border border-input bg-background py-2 pl-9 pr-3 text-sm outline-none ring-offset-background placeholder:text-muted-foreground focus-visible:ring-2 focus-visible:ring-ring"
-          />
-        </div>
-      </div>
-
-      {/* Chat History */}
-      <div className="flex-1 overflow-y-auto px-3">
-        <div className="space-y-1">
-          {/* Placeholder for chat items */}
-          <div className="rounded-lg p-3 text-sm text-muted-foreground hover:bg-accent">
-            No chats yet
+          {/* Header */}
+          <div className="flex items-center justify-between p-4 mb-2">
+            {!sidebarCollapsed ? (
+              <>
+                <div className="flex items-center gap-2">
+                  <Shield className="h-6 w-6 text-primary" />
+                  <span className="font-semibold">SHIELD 2.0</span>
+                </div>
+                <button
+                  onClick={toggleSidebarCollapse}
+                  title="Collapse sidebar"
+                  className="rounded-md p-1.5 transition-all hover:bg-accent"
+                  style={{ boxShadow: '0 1px 3px rgba(0, 0, 0, 0.12)' }}
+                >
+                  <PanelLeft className="h-5 w-5 text-muted-foreground" />
+                </button>
+              </>
+            ) : (
+              <button
+                onClick={toggleSidebarCollapse}
+                title="Expand sidebar"
+                className="mx-auto rounded-md p-1.5 transition-all hover:bg-accent"
+                style={{ boxShadow: '0 1px 3px rgba(0, 0, 0, 0.12)' }}
+              >
+                <PanelRight className="h-5 w-5 text-muted-foreground" />
+              </button>
+            )}
           </div>
-        </div>
-      </div>
 
-      {/* Footer */}
-      <div className="border-t border-border p-3">
-        <Button variant="ghost" className="w-full justify-start">
-          <Settings className="mr-2 h-4 w-4" />
-          Settings
-        </Button>
-      </div>
+          {/* Collapsed View - Icon Only */}
+          {sidebarCollapsed ? (
+            <div className="flex flex-col items-center gap-2 p-2">
+              <button
+                className="rounded-md p-2.5 transition-all hover:bg-accent"
+                style={{ boxShadow: '0 1px 3px rgba(0, 0, 0, 0.12)' }}
+                title="New Chat"
+              >
+                <Plus className="h-4 w-4" />
+              </button>
+              {onClearHistory && (
+                <button
+                  onClick={onClearHistory}
+                  className="rounded-md p-2.5 transition-all hover:bg-accent"
+                  style={{ boxShadow: '0 1px 3px rgba(0, 0, 0, 0.12)' }}
+                  title="Clear History"
+                >
+                  <Trash2 className="h-4 w-4" />
+                </button>
+              )}
+              <div className="flex-1" />
+              <button
+                className="rounded-md p-2.5 transition-all hover:bg-accent"
+                style={{ boxShadow: '0 1px 3px rgba(0, 0, 0, 0.12)' }}
+                title="Settings"
+              >
+                <Settings className="h-4 w-4" />
+              </button>
+            </div>
+          ) : (
+            <>
+              {/* Expanded View - Full Sidebar */}
+              {/* New Chat Button */}
+              <div className="p-3 space-y-2">
+                <button
+                  className="w-full rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-all hover:bg-primary/90"
+                  style={{ boxShadow: '0 1px 3px rgba(0, 0, 0, 0.12)' }}
+                >
+                  <Plus className="mr-2 inline h-4 w-4" />
+                  New Chat
+                </button>
+                {onClearHistory && (
+                  <button
+                    onClick={onClearHistory}
+                    className="w-full rounded-md bg-background px-4 py-2 text-sm font-medium transition-all hover:bg-accent"
+                    style={{ boxShadow: '0 1px 3px rgba(0, 0, 0, 0.12)' }}
+                  >
+                    <Trash2 className="mr-2 inline h-4 w-4" />
+                    Clear History
+                  </button>
+                )}
+              </div>
+
+              {/* Search */}
+              <div className="px-3 pb-3">
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                  <input
+                    type="text"
+                    placeholder="Search chats..."
+                    className="w-full rounded-md bg-background py-2 pl-9 pr-3 text-sm outline-none placeholder:text-muted-foreground focus-visible:ring-2 focus-visible:ring-ring"
+                    style={{ boxShadow: '0 1px 3px rgba(0, 0, 0, 0.12)' }}
+                  />
+                </div>
+              </div>
+
+              {/* Chat History */}
+              <div className="flex-1 overflow-y-auto px-3">
+                <div className="space-y-1">
+                  {/* Placeholder for chat items */}
+                  <div className="rounded-lg p-3 text-sm text-muted-foreground hover:bg-accent transition-all" style={{ boxShadow: '0 1px 3px rgba(0, 0, 0, 0.08)' }}>
+                    No chats yet
+                  </div>
+                </div>
+              </div>
+
+              {/* Footer */}
+              <div className="p-3 pt-4">
+                <button
+                  className="w-full rounded-md px-4 py-2 text-sm font-medium text-left transition-all hover:bg-accent"
+                  style={{ boxShadow: '0 1px 3px rgba(0, 0, 0, 0.12)' }}
+                >
+                  <Settings className="mr-2 inline h-4 w-4" />
+                  Settings
+                </button>
+              </div>
+            </>
+          )}
         </motion.div>
       )}
     </AnimatePresence>
