@@ -1,6 +1,6 @@
 "use client";
 
-import { Menu, MoreVertical, Settings, Loader2, Upload, Trash2, FileJson, FileText } from "lucide-react";
+import { Menu, MoreVertical, Loader2, Upload, Trash2, FileJson, FileText } from "lucide-react";
 import { useChatStore } from "@/stores/chat-store";
 import { useConversationStore } from "@/stores/conversation-store";
 import { ModelSelector, type ModelOption } from "./ModelSelector";
@@ -19,7 +19,6 @@ interface ChatHeaderProps {
   onModelSelect?: (model: ModelOption) => void;
   availableModels?: ModelOption[];
   currentModelId?: string;
-  onOpenSettings?: () => void;
   onClearHistory?: () => void;
 }
 
@@ -30,7 +29,6 @@ export function ChatHeader({
   onModelSelect,
   availableModels = [],
   currentModelId,
-  onOpenSettings,
   onClearHistory,
 }: ChatHeaderProps) {
   const { sidebarOpen, toggleSidebar } = useChatStore();
@@ -105,13 +103,6 @@ export function ChatHeader({
             isLoading={isLoading}
           />
         )}
-        <button
-          onClick={onOpenSettings}
-          className="rounded-md p-2 transition-all hover:bg-accent"
-          style={{ boxShadow: "0 1px 3px rgba(0, 0, 0, 0.12)" }}
-        >
-          <Settings className="h-5 w-5" />
-        </button>
 
         {/* Options Menu */}
         <DropdownMenu>
