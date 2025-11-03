@@ -1,11 +1,11 @@
-'use client'
+"use client";
 
-import { Menu, MoreVertical, Settings } from 'lucide-react'
-import { Button } from '@/components/ui/button'
-import { useChatStore } from '@/stores/chat-store'
+import { Menu, MoreVertical, Settings } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { useChatStore } from "@/stores/chat-store";
 
 export function ChatHeader() {
-  const { sidebarOpen, toggleSidebar } = useChatStore()
+  const { sidebarOpen, toggleSidebar } = useChatStore();
 
   return (
     <header className="flex h-14 items-center justify-between border-b border-border bg-background px-4">
@@ -34,5 +34,5 @@ export function ChatHeader() {
         </Button>
       </div>
     </header>
-  )
+  );
 }

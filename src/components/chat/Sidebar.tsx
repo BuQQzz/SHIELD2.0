@@ -1,13 +1,13 @@
-'use client'
+"use client";
 
-import { Shield, Menu, Settings, Plus, Search } from 'lucide-react'
-import { Button } from '@/components/ui/button'
-import { useChatStore } from '@/stores/chat-store'
+import { Shield, Menu, Settings, Plus, Search } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { useChatStore } from "@/stores/chat-store";
 
 export function Sidebar() {
-  const { sidebarOpen, toggleSidebar } = useChatStore()
+  const { sidebarOpen, toggleSidebar } = useChatStore();
 
-  if (!sidebarOpen) return null
+  if (!sidebarOpen) return null;
 
   return (
     <div className="flex h-full w-[260px] flex-col bg-background">
@@ -65,5 +65,5 @@ export function Sidebar() {
         </Button>
       </div>
     </div>
-  )
+  );
 }

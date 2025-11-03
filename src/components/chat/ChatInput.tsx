@@ -1,42 +1,46 @@
-'use client'
+"use client";
 
-import { useState, useRef, KeyboardEvent } from 'react'
-import { Send, Square } from 'lucide-react'
-import { Button } from '@/components/ui/button'
+import { useState, useRef, KeyboardEvent } from "react";
+import { Send, Square } from "lucide-react";
+import { Button } from "@/components/ui/button";
 
 interface ChatInputProps {
-  onSend: (message: string) => void
-  isGenerating?: boolean
-  onStop?: () => void
+  onSend: (message: string) => void;
+  isGenerating?: boolean;
+  onStop?: () => void;
 }
 
-export function ChatInput({ onSend, isGenerating = false, onStop }: ChatInputProps) {
-  const [input, setInput] = useState('')
-  const textareaRef = useRef<HTMLTextAreaElement>(null)
+export function ChatInput({
+  onSend,
+  isGenerating = false,
+  onStop,
+}: ChatInputProps) {
+  const [input, setInput] = useState("");
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   const handleSubmit = () => {
     if (input.trim() && !isGenerating) {
-      onSend(input.trim())
-      setInput('')
+      onSend(input.trim());
+      setInput("");
       if (textareaRef.current) {
-        textareaRef.current.style.height = 'auto'
+        textareaRef.current.style.height = "auto";
       }
     }
-  }
+  };
 
   const handleKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault()
-      handleSubmit()
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      handleSubmit();
     }
-  }
+  };
 
   const handleInput = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
-    setInput(e.target.value)
+    setInput(e.target.value);
     // Auto-resize textarea
-    e.target.style.height = 'auto'
-    e.target.style.height = `${e.target.scrollHeight}px`
-  }
+    e.target.style.height = "auto";
+    e.target.style.height = `${e.target.scrollHeight}px`;
+  };
 
   return (
     <div className="border-t border-border bg-background p-4">
@@ -52,7 +56,7 @@ export function ChatInput({ onSend, isGenerating = false, onStop }: ChatInputPro
             className="max-h-32 min-h-[40px] flex-1 resize-none bg-transparent px-2 py-2 text-sm outline-none placeholder:text-muted-foreground"
             disabled={isGenerating}
           />
-          
+
           {isGenerating ? (
             <Button
               size="icon"
@@ -73,11 +77,11 @@ export function ChatInput({ onSend, isGenerating = false, onStop }: ChatInputPro
             </Button>
           )}
         </div>
-        
+
         <p className="mt-2 text-center text-xs text-muted-foreground">
           All processing happens locally. Your privacy is protected.
         </p>
       </div>
     </div>
-  )
+  );
 }

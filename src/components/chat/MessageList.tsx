@@ -1,32 +1,32 @@
-'use client'
+"use client";
 
-import { useRef, useEffect } from 'react'
-import { cn } from '@/lib/utils'
+import { useRef, useEffect } from "react";
+import { cn } from "@/lib/utils";
 
 interface Message {
-  id: string
-  role: 'user' | 'assistant'
-  content: string
-  timestamp: Date
+  id: string;
+  role: "user" | "assistant";
+  content: string;
+  timestamp: Date;
 }
 
 interface MessageListProps {
-  messages: Message[]
+  messages: Message[];
 }
 
 export function MessageList({ messages }: MessageListProps) {
-  const messagesEndRef = useRef<HTMLDivElement>(null)
+  const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
-  }
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  };
 
   useEffect(() => {
-    scrollToBottom()
-  }, [messages])
+    scrollToBottom();
+  }, [messages]);
 
   if (messages.length === 0) {
-    return null
+    return null;
   }
 
   return (
@@ -36,16 +36,16 @@ export function MessageList({ messages }: MessageListProps) {
           <div
             key={message.id}
             className={cn(
-              'flex',
-              message.role === 'user' ? 'justify-end' : 'justify-start'
+              "flex",
+              message.role === "user" ? "justify-end" : "justify-start",
             )}
           >
             <div
               className={cn(
-                'max-w-[80%] rounded-lg px-4 py-2',
-                message.role === 'user'
-                  ? 'bg-primary text-primary-foreground'
-                  : 'bg-muted'
+                "max-w-[80%] rounded-lg px-4 py-2",
+                message.role === "user"
+                  ? "bg-primary text-primary-foreground"
+                  : "bg-muted",
               )}
             >
               <p className="text-sm">{message.content}</p>
@@ -55,5 +55,5 @@ export function MessageList({ messages }: MessageListProps) {
         <div ref={messagesEndRef} />
       </div>
     </div>
-  )
+  );
 }

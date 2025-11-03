@@ -1,14 +1,14 @@
-'use client'
+"use client";
 
-import { Shield } from 'lucide-react'
-import { Button } from '@/components/ui/button'
+import { Shield } from "lucide-react";
+import { Button } from "@/components/ui/button";
 
 const SUGGESTED_PROMPTS = [
-  'Help me organize my files',
-  'What can you help me with?',
-  'Search my documents for...',
-  'Explain how you work',
-]
+  "Help me organize my files",
+  "What can you help me with?",
+  "Search my documents for...",
+  "Explain how you work",
+];
 
 export function ChatPlaceholder() {
   return (
@@ -45,10 +45,10 @@ export function ChatPlaceholder() {
       {/* Info */}
       <div className="mt-12 max-w-md text-center text-xs text-muted-foreground">
         <p>
-          All AI processing happens locally on your machine. Your data never leaves
-          your device.
+          All AI processing happens locally on your machine. Your data never
+          leaves your device.
         </p>
       </div>
     </div>
-  )
+  );
 }
