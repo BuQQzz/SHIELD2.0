@@ -1,6 +1,8 @@
 import { cn } from "@/lib/utils";
-import { Bot, User } from "lucide-react";
+import { Bot, User, Copy, Check } from "lucide-react";
 import { motion } from "framer-motion";
+import { MessageContent } from "./MessageContent";
+import { useState } from "react";
 
 interface MessageProps {
   role: "user" | "assistant";
@@ -10,6 +12,17 @@ interface MessageProps {
 
 export function ChatMessage({ role, content, isStreaming }: MessageProps) {
   const isUser = role === "user";
+  const [copied, setCopied] = useState(false);
+
+  const handleCopy = async () => {
+    try {
+      await navigator.clipboard.writeText(content);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch (err) {
+      console.error("Failed to copy:", err);
+    }
+  };
 
   return (
     <motion.div
@@ -17,7 +30,7 @@ export function ChatMessage({ role, content, isStreaming }: MessageProps) {
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.3, ease: "easeOut" }}
       className={cn(
-        "flex gap-3 p-4 rounded-lg",
+        "flex gap-3 p-4 rounded-lg group",
         isUser ? "bg-muted/50" : "bg-background"
       )}
     >
@@ -32,11 +45,27 @@ export function ChatMessage({ role, content, isStreaming }: MessageProps) {
         {isUser ? <User className="h-4 w-4" /> : <Bot className="h-4 w-4" />}
       </div>
       <div className="flex-1 space-y-2 overflow-hidden">
-        <p className="text-sm font-medium">
-          {isUser ? "You" : "SHIELD Assistant"}
-        </p>
-        <div className="text-sm text-muted-foreground whitespace-pre-wrap break-words">
-          {content}
+        <div className="flex items-center justify-between">
+          <p className="text-sm font-medium">
+            {isUser ? "You" : "SHIELD Assistant"}
+          </p>
+          <motion.button
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.95 }}
+            onClick={handleCopy}
+            className="opacity-0 group-hover:opacity-100 transition-opacity p-1.5 rounded-md hover:bg-muted"
+            style={{ boxShadow: "0 1px 3px rgba(0, 0, 0, 0.12)" }}
+            aria-label="Copy message"
+          >
+            {copied ? (
+              <Check className="h-4 w-4 text-green-500" />
+            ) : (
+              <Copy className="h-4 w-4 text-muted-foreground" />
+            )}
+          </motion.button>
+        </div>
+        <div className="text-sm text-muted-foreground prose prose-sm max-w-none dark:prose-invert">
+          <MessageContent content={content} />
           {isStreaming && (
             <motion.span
               animate={{ opacity: [1, 0] }}

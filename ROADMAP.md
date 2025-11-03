@@ -62,9 +62,9 @@ SHIELD 2.0 is a privacy-first, local AI chatbot for Windows with tool integratio
 - [x] Create sleek borderless design with subtle shadow styling
 - [x] Add stop/cancel generation button
 - [x] Implement model download progress indicator
-- [ ] Add markdown rendering in chat messages
-- [ ] Implement code syntax highlighting
-- [ ] Add copy message functionality
+- [x] Add markdown rendering in chat messages
+- [x] Implement code syntax highlighting
+- [x] Add copy message functionality
 
 **Dependencies:** None  
 **Blockers:** None  
@@ -77,6 +77,11 @@ SHIELD 2.0 is a privacy-first, local AI chatbot for Windows with tool integratio
 - ✅ Collapsible sidebar (260px ↔ 64px) with PanelLeft/Right icons
 - ✅ Borderless design with consistent shadow styling (0 1px 3px rgba)
 - ✅ Smooth transitions and hover effects throughout
+- ✅ Stop/cancel generation with clean abort handling
+- ✅ Model loading progress with dynamic status messages
+- ✅ Markdown rendering with GitHub Flavored Markdown (react-markdown)
+- ✅ Code syntax highlighting with oneDark theme (react-syntax-highlighter)
+- ✅ Copy button on all messages with visual feedback
 
 #### 2. Conversation Management
 **Priority:** MEDIUM | **Status:** Not Started
