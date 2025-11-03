@@ -1,6 +1,13 @@
 "use client";
 
-import { useState, useRef, KeyboardEvent, useEffect } from "react";
+import {
+  useState,
+  useRef,
+  KeyboardEvent,
+  useEffect,
+  forwardRef,
+  useImperativeHandle,
+} from "react";
 import { Send, Square } from "lucide-react";
 import { motion } from "framer-motion";
 
@@ -11,21 +18,26 @@ interface ChatInputProps {
   disabled?: boolean;
 }
 
-export function ChatInput({
-  onSend,
-  isGenerating = false,
-  onStop,
-  disabled = false,
-}: ChatInputProps) {
-  const [input, setInput] = useState("");
-  const textareaRef = useRef<HTMLTextAreaElement>(null);
+export interface ChatInputRef {
+  focus: () => void;
+}
 
-  // Auto-focus on mount and when not generating
-  useEffect(() => {
-    if (!isGenerating && !disabled && textareaRef.current) {
-      textareaRef.current.focus();
-    }
-  }, [isGenerating, disabled]);
+export const ChatInput = forwardRef<ChatInputRef, ChatInputProps>(
+  function ChatInput({ onSend, isGenerating = false, onStop, disabled = false }, ref) {
+    const [input, setInput] = useState("");
+    const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+    // Expose focus method via ref
+    useImperativeHandle(ref, () => ({
+      focus: () => textareaRef.current?.focus(),
+    }));
+
+    // Auto-focus on mount and when not generating
+    useEffect(() => {
+      if (!isGenerating && !disabled && textareaRef.current) {
+        textareaRef.current.focus();
+      }
+    }, [isGenerating, disabled]);
 
   const handleSubmit = () => {
     if (input.trim() && !isGenerating && !disabled) {
@@ -100,4 +112,4 @@ export function ChatInput({
       </div>
     </div>
   );
-}
+});

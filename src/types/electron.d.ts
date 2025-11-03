@@ -104,6 +104,7 @@ export interface AppSettings {
     systemPrompt: string;
     autoSave: boolean;
     confirmDelete: boolean;
+    theme: "light" | "dark" | "system";
   };
   privacy: {
     telemetry: boolean;

@@ -6,12 +6,14 @@ import { Sidebar } from "./components/chat/Sidebar";
 import { ChatHeader } from "./components/chat/ChatHeader";
 import { ChatPlaceholder } from "./components/chat/ChatPlaceholder";
 import { MessageList } from "./components/chat/MessageList";
-import { ChatInput } from "./components/chat/ChatInput";
+import { ChatInput, type ChatInputRef } from "./components/chat/ChatInput";
 import { SettingsDialog } from "./components/settings/SettingsDialog";
+import { ThemeProvider } from "./components/theme/ThemeProvider";
 import { useLlama, type Message } from "./hooks/useLlama";
 import { useConversationStore } from "./stores/conversation-store";
 import { useConversationSync } from "./hooks/useConversationSync";
 import { useSettingsStore } from "./store/settingsStore";
+import { useKeyboardShortcuts } from "./hooks/useKeyboardShortcuts";
 import { createMessageHandler } from "./handlers/messageHandler";
 import { AVAILABLE_MODELS } from "./config/models";
 import type { ModelOption } from "./components/chat/ModelSelector";
@@ -24,6 +26,7 @@ function App() {
   const [currentModelId, setCurrentModelId] = useState<string>("qwen-7b");
   const [settingsOpen, setSettingsOpen] = useState(false);
   const streamingContentRef = useRef("");
+  const inputRef = useRef<ChatInputRef>(null);
 
   const {
     isInitialized,
@@ -48,6 +51,47 @@ function App() {
   } = useConversationStore();
 
   const { settings, loadSettings } = useSettingsStore();
+
+  // Keyboard shortcuts
+  useKeyboardShortcuts([
+    {
+      key: "n",
+      ctrl: true,
+      description: "New conversation",
+      callback: () => {
+        if (!isGenerating) {
+          handleNewChat();
+        }
+      },
+    },
+    {
+      key: "k",
+      ctrl: true,
+      description: "Focus input",
+      callback: () => {
+        inputRef.current?.focus();
+      },
+    },
+    {
+      key: ",",
+      ctrl: true,
+      description: "Open settings",
+      callback: () => {
+        setSettingsOpen(true);
+      },
+    },
+    {
+      key: "Escape",
+      description: "Close settings/stop generation",
+      callback: () => {
+        if (settingsOpen) {
+          setSettingsOpen(false);
+        } else if (isGenerating) {
+          handleStopGenerating();
+        }
+      },
+    },
+  ]);
 
   // Load settings on mount
   useEffect(() => {
@@ -309,6 +353,7 @@ function App() {
           />
         )}
         <ChatInput
+          ref={inputRef}
           onSend={handleSendMessage}
           isGenerating={isGenerating}
           onStop={handleStopGenerating}
@@ -321,4 +366,12 @@ function App() {
   );
 }
 
-export default App;
+function AppWithTheme() {
+  return (
+    <ThemeProvider defaultTheme="system" storageKey="shield-ui-theme">
+      <App />
+    </ThemeProvider>
+  );
+}
+
+export default AppWithTheme;

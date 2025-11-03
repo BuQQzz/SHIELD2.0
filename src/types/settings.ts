@@ -11,6 +11,7 @@ export interface SystemSettings {
   systemPrompt: string;
   autoSave: boolean;
   confirmDelete: boolean;
+  theme: "light" | "dark" | "system";
 }
 
 export interface PrivacySettings {
@@ -37,6 +38,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
     systemPrompt: "You are a helpful AI assistant.",
     autoSave: true,
     confirmDelete: true,
+    theme: "system",
   },
   privacy: {
     telemetry: false,
