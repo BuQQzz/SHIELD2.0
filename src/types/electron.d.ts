@@ -9,6 +9,32 @@ export interface ChatOptions {
   maxTokens?: number;
 }
 
+export interface Message {
+  id: string;
+  role: "user" | "assistant";
+  content: string;
+  timestamp: Date;
+}
+
+export interface Conversation {
+  id: string;
+  title: string;
+  messages: Message[];
+  createdAt: Date;
+  updatedAt: Date;
+  modelId?: string;
+}
+
+export interface ConversationMetadata {
+  id: string;
+  title: string;
+  preview: string;
+  messageCount: number;
+  createdAt: Date;
+  updatedAt: Date;
+  modelId?: string;
+}
+
 export interface LlamaAPI {
   initialize: () => Promise<{ success: boolean; error?: string }>;
   loadModel: (
@@ -37,9 +63,18 @@ export interface LlamaAPI {
   stopGeneration: () => Promise<{ success: boolean; error?: string }>;
 }
 
+export interface ConversationAPI {
+  save: (conversation: Conversation) => Promise<{ success: boolean; error?: string }>;
+  load: (conversationId: string) => Promise<{ conversation?: Conversation; error?: string }>;
+  list: () => Promise<{ conversations: ConversationMetadata[]; error?: string }>;
+  delete: (conversationId: string) => Promise<{ success: boolean; error?: string }>;
+  search: (query: string) => Promise<{ conversations: ConversationMetadata[]; error?: string }>;
+}
+
 declare global {
   interface Window {
     llama: LlamaAPI;
+    conversations: ConversationAPI;
   }
 }
 

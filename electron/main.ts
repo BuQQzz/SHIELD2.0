@@ -2,6 +2,7 @@ import { app, BrowserWindow, ipcMain } from "electron";
 import path from "path";
 import { fileURLToPath } from "url";
 import { getLlamaService } from "../src/services/LlamaService.js";
+import { ConversationStorageService } from "./services/ConversationStorageService.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -15,6 +16,7 @@ app.commandLine.appendSwitch("disable-software-rasterizer");
 // Keep a global reference to prevent garbage collection
 let mainWindow: BrowserWindow | null = null;
 const llamaService = getLlamaService();
+const conversationStorage = new ConversationStorageService();
 
 /**
  * Create the main application window
@@ -184,6 +186,27 @@ function setupIpcHandlers() {
         error: error instanceof Error ? error.message : "Unknown error",
       };
     }
+  });
+
+  // Conversation storage handlers
+  ipcMain.handle("conversations:save", async (_event, conversation) => {
+    return await conversationStorage.saveConversation(conversation);
+  });
+
+  ipcMain.handle("conversations:load", async (_event, conversationId) => {
+    return await conversationStorage.loadConversation(conversationId);
+  });
+
+  ipcMain.handle("conversations:list", async () => {
+    return await conversationStorage.listConversations();
+  });
+
+  ipcMain.handle("conversations:delete", async (_event, conversationId) => {
+    return await conversationStorage.deleteConversation(conversationId);
+  });
+
+  ipcMain.handle("conversations:search", async (_event, query) => {
+    return await conversationStorage.searchConversations(query);
   });
 }
 

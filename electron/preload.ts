@@ -1,4 +1,5 @@
 import { contextBridge, ipcRenderer } from "electron";
+import type { Conversation, ConversationMetadata } from "../src/types/conversation";
 
 export interface ModelConfig {
   name: string;
@@ -35,6 +36,14 @@ export interface LlamaAPI {
   stopGeneration: () => Promise<{ success: boolean; error?: string }>;
 }
 
+export interface ConversationAPI {
+  save: (conversation: Conversation) => Promise<{ success: boolean; error?: string }>;
+  load: (conversationId: string) => Promise<{ conversation?: Conversation; error?: string }>;
+  list: () => Promise<{ conversations: ConversationMetadata[]; error?: string }>;
+  delete: (conversationId: string) => Promise<{ success: boolean; error?: string }>;
+  search: (query: string) => Promise<{ conversations: ConversationMetadata[]; error?: string }>;
+}
+
 // Expose protected methods to renderer process
 const llamaAPI: LlamaAPI = {
   initialize: () => ipcRenderer.invoke("llama:initialize"),
@@ -56,12 +65,23 @@ const llamaAPI: LlamaAPI = {
 
 contextBridge.exposeInMainWorld("llama", llamaAPI);
 
+const conversationAPI: ConversationAPI = {
+  save: (conversation) => ipcRenderer.invoke("conversations:save", conversation),
+  load: (conversationId) => ipcRenderer.invoke("conversations:load", conversationId),
+  list: () => ipcRenderer.invoke("conversations:list"),
+  delete: (conversationId) => ipcRenderer.invoke("conversations:delete", conversationId),
+  search: (query) => ipcRenderer.invoke("conversations:search", query),
+};
+
+contextBridge.exposeInMainWorld("conversations", conversationAPI);
+
 // Log that preload executed successfully
-console.log("[preload] window.llama exposed successfully");
+console.log("[preload] window.llama and window.conversations exposed successfully");
 
 // Type declaration for TypeScript
 declare global {
   interface Window {
     llama: LlamaAPI;
+    conversations: ConversationAPI;
   }
 }
