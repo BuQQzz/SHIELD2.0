@@ -322,10 +322,7 @@ function App() {
   return (
     <ChatLayout
       sidebar={
-        <Sidebar
-          onClearHistory={handleClearHistory}
-          onNewChat={handleNewChat}
-        />
+        <Sidebar onNewChat={handleNewChat} />
       }
     >
       <div className="flex h-full flex-col">
@@ -337,6 +334,7 @@ function App() {
           currentModelId={currentModelId}
           onModelSelect={handleModelSelect}
           onOpenSettings={() => setSettingsOpen(true)}
+          onClearHistory={handleClearHistory}
         />
         {messages.length === 0 && !streamingContent ? (
           <ChatPlaceholder
