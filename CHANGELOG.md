@@ -7,6 +7,50 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **Markdown rendering** with GitHub Flavored Markdown support (react-markdown + remark-gfm)
+  - Enhanced heading styles (H1-H6) with larger, bolder typography
+  - Bold and italic text formatting
+  - Code blocks with syntax highlighting (react-syntax-highlighter)
+  - Inline code with styled backticks
+  - Tables, lists, blockquotes, and links support
+  - OneDark theme for code syntax highlighting
+- **Copy message functionality** with visual feedback
+  - Copy button appears on message hover
+  - Check icon confirmation for 2 seconds after copy
+  - Clipboard API integration
+- **Model loading progress indicator**
+  - Dynamic status messages showing model name
+  - Loading spinner with clear feedback
+- **Stop/cancel generation button**
+  - AbortController integration for clean cancellation
+  - Silent error handling for user-initiated stops
+  - Partial response preservation on abort
+- **Collapsible sidebar** with icon-only minimal view
+  - Smooth 260px ↔ 64px width transitions
+  - PanelLeft/PanelRight toggle icons
+  - Icon-only mode with New Chat, Clear History, Settings buttons
+- **Borderless design system** with shadow-based depth
+  - Consistent `0 1px 3px rgba(0, 0, 0, 0.12)` shadow styling
+  - Removed all borders throughout UI
+  - Native button elements for consistency
+- **Framer Motion animations** throughout application
+  - Message fade-in and slide-up animations
+  - Streaming cursor with pulsing animation
+  - Sidebar slide transitions
+  - Button hover and tap effects
+  - Model selector dropdown animations
+- **Model selector UI** with 3 model options
+  - Qwen 7B (4.4GB) - Excellent multilingual
+  - Llama 3B (1.9GB) - Fast, smaller model
+  - Mistral 7B (4.1GB) - Good general purpose
+
+### Fixed
+- Color rendering issues in Electron (hardware-accelerated rendering fix)
+- Chat layout not expanding when sidebar collapses
+- "This operation was aborted" error messages appearing to users
+- Border persistence when sidebar collapsed
+
 ### Changed
 - **MAJOR: Upgraded to React 19.2.0** from 18.3.1
   - Added support for Actions, `useActionState`, `useOptimistic` hooks

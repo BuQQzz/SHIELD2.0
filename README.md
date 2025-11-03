@@ -23,6 +23,13 @@ SHIELD 2.0 is an experimental AI assistant that runs entirely on your local Wind
 - ✅ Complete llama.cpp integration with streaming inference
 - ✅ Electron desktop application with IPC bridge
 - ✅ Modern React chat interface with real-time responses
+- ✅ Model selector UI (Qwen 7B, Llama 3B, Mistral 7B)
+- ✅ Framer Motion animations throughout
+- ✅ Markdown rendering with syntax highlighting
+- ✅ Copy message functionality
+- ✅ Collapsible sidebar with icon-only mode
+- ✅ Borderless design with shadow-based depth
+- ✅ Stop/cancel generation
 - ✅ Model downloading and caching system
 - ✅ Privacy-first local AI processing
 
@@ -156,9 +163,14 @@ See [.github/copilot-instructions.md](.github/copilot-instructions.md) for compl
 The SHIELD 2.0 chat interface provides a clean, intuitive experience:
 
 1. **Start a Conversation**: Type in the input box or click a suggested prompt
-2. **Real-time Streaming**: Watch responses appear token-by-token
-3. **Clear History**: Click the "Clear History" button in the sidebar to reset
-4. **Model Status**: Check the header for current model and loading state
+2. **Real-time Streaming**: Watch responses appear token-by-token with animated cursor
+3. **Markdown Support**: Messages render with headings, bold text, lists, code blocks, and more
+4. **Copy Messages**: Hover over any message and click the copy button
+5. **Stop Generation**: Click the stop button to cancel ongoing responses
+6. **Collapsible Sidebar**: Toggle between full (260px) and minimal (64px icon-only) view
+7. **Clear History**: Click the "Clear History" button in the sidebar to reset
+8. **Model Selection**: Choose between Qwen 7B, Llama 3B, or Mistral 7B models
+9. **Model Status**: Check the header for current model and loading state
 
 ### Example Interactions
 
@@ -186,7 +198,21 @@ Future updates will add model selection UI for:
 
 - `Enter` - Send message
 - `Shift + Enter` - New line in input
-- `Escape` - Stop generation (when implemented)
+- `Hover over message` - Show copy button
+- Click sidebar toggle - Collapse/expand sidebar
+
+### UI Features
+
+- **Smooth Animations**: Framer Motion animations for all interactions
+- **Borderless Design**: Clean, modern interface with subtle shadow effects
+- **Responsive Layout**: Adapts to different window sizes
+- **Icon-Only Sidebar**: Collapse sidebar to maximize chat space
+- **Message Formatting**: Full markdown support with syntax highlighting
+  - Headings (H1-H6) with bold, large typography
+  - Bold (`**text**`) and italic (`*text*`) formatting
+  - Code blocks with OneDark syntax highlighting
+  - Inline code, tables, lists, blockquotes, links
+  - Copy any message with one click
 
 For detailed API documentation, see [docs/COMPONENT-API.md](docs/COMPONENT-API.md).
 
@@ -213,30 +239,42 @@ This is an experimental personal project. Contributions, ideas, and feedback are
 
 See [ROADMAP.md](ROADMAP.md) for detailed development plan.
 
-**Current Phase**: Core Chat Interface ✅
+**Current Phase**: UI/UX Improvements ✅ **COMPLETED**
 
 ### Completed
-- [x] Project scaffolding and modern framework setup
+- [x] Project scaffolding and modern framework setup (React 19, Vite 7, Tailwind 4)
 - [x] llama.cpp integration with node-llama-cpp
 - [x] Model downloading system (Hugging Face)
 - [x] Inference testing and validation
 - [x] Electron desktop application with IPC
 - [x] Core chat interface with streaming responses
 - [x] Message history and conversation management
+- [x] **Model selector UI** (Qwen 7B, Llama 3B, Mistral 7B)
+- [x] **Framer Motion animations** (messages, cursor, sidebar, buttons)
+- [x] **Collapsible sidebar** (260px ↔ 64px icon-only mode)
+- [x] **Borderless design** with shadow-based depth
+- [x] **Stop/cancel generation** with clean abort handling
+- [x] **Model loading progress** with dynamic status messages
+- [x] **Markdown rendering** with GitHub Flavored Markdown
+- [x] **Code syntax highlighting** with OneDark theme
+- [x] **Copy message functionality** with visual feedback
+- [x] **Enhanced heading styles** (large, bold H1-H6)
 
 ### In Progress
-- [ ] Model selector UI (switch between models)
-- [ ] Persistent chat sessions
-- [ ] Conversation history search
+- [ ] Persistent chat sessions (save/load)
+- [ ] Multiple conversation threads
 
 ### Planned
+- [ ] Persistent chat sessions (save/load conversations)
+- [ ] Multiple conversation threads
+- [ ] Conversation search functionality
 - [ ] Windows tool integration (MCP servers)
 - [ ] Permission system for system operations
 - [ ] File operations and navigation
-- [ ] Markdown rendering in chat
-- [ ] Code syntax highlighting
-- [ ] Export chat history
+- [ ] Export chat history (JSON, Markdown, PDF)
 - [ ] System tray integration
+- [ ] Dark mode toggle
+- [ ] Settings UI (temperature, context length, etc.)
 
 ## License
 
