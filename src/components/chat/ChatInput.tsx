@@ -3,7 +3,6 @@
 import { useState, useRef, KeyboardEvent } from 'react'
 import { Send, Square } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { cn } from '@/lib/utils'
 
 interface ChatInputProps {
   onSend: (message: string) => void

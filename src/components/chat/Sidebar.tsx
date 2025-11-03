@@ -3,7 +3,6 @@
 import { Shield, Menu, Settings, Plus, Search } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { useChatStore } from '@/stores/chat-store'
-import { cn } from '@/lib/utils'
 
 export function Sidebar() {
   const { sidebarOpen, toggleSidebar } = useChatStore()
