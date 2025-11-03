@@ -60,7 +60,7 @@ SHIELD 2.0 is a privacy-first, local AI chatbot for Windows with tool integratio
 - [x] Add smooth Framer Motion animations throughout UI
 - [x] Implement collapsible sidebar with icon-only minimal view
 - [x] Create sleek borderless design with subtle shadow styling
-- [ ] Add stop/cancel generation button
+- [x] Add stop/cancel generation button
 - [ ] Implement model download progress indicator
 - [ ] Add markdown rendering in chat messages
 - [ ] Implement code syntax highlighting
