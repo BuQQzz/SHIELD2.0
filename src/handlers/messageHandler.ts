@@ -1,0 +1,121 @@
+import type { Message } from "../hooks/useLlama";
+
+interface MessageHandlerProps {
+  isModelLoaded: boolean;
+  currentConversation: {
+    id: string;
+    messages: Message[];
+  } | null;
+  setMessages: React.Dispatch<React.SetStateAction<Message[]>>;
+  setIsGenerating: (value: boolean) => void;
+  setStreamingContent: (value: string) => void;
+  streamingContentRef: React.MutableRefObject<string>;
+  sendStreamingMessage: (
+    message: string,
+    onToken: (token: string) => void,
+    options?: { temperature?: number; maxTokens?: number }
+  ) => Promise<string>;
+  addMessage: (message: Message) => void;
+  generateTitle: (userMessage: string) => Promise<string | null>;
+  updateTitle: (title: string) => void;
+  saveCurrentConversation: () => Promise<void>;
+}
+
+export function createMessageHandler({
+  isModelLoaded,
+  currentConversation,
+  setMessages,
+  setIsGenerating,
+  setStreamingContent,
+  streamingContentRef,
+  sendStreamingMessage,
+  addMessage,
+  generateTitle,
+  updateTitle,
+  saveCurrentConversation,
+}: MessageHandlerProps) {
+  return async (content: string) => {
+    if (!isModelLoaded) {
+      alert("Please wait for the model to load");
+      return;
+    }
+
+    const userMessage: Message = {
+      id: Date.now().toString(),
+      role: "user",
+      content,
+      timestamp: new Date(),
+    };
+
+    setMessages((prev) => [...prev, userMessage]);
+    addMessage(userMessage);
+    setIsGenerating(true);
+    setStreamingContent("");
+    streamingContentRef.current = "";
+
+    const assistantMessageId = (Date.now() + 1).toString();
+
+    try {
+      await sendStreamingMessage(
+        content,
+        (token) => {
+          streamingContentRef.current += token;
+          setStreamingContent(streamingContentRef.current);
+        },
+        {
+          temperature: 0.7,
+          maxTokens: 512,
+        }
+      );
+
+      const finalContent = streamingContentRef.current;
+      const assistantMessage: Message = {
+        id: assistantMessageId,
+        role: "assistant",
+        content: finalContent,
+        timestamp: new Date(),
+      };
+
+      setMessages((prev) => [...prev, assistantMessage]);
+      addMessage(assistantMessage);
+      setStreamingContent("");
+      streamingContentRef.current = "";
+
+      // Generate title for first message in conversation
+      if (currentConversation && currentConversation.messages.length === 0) {
+        console.log("[App] Generating title for new conversation");
+        const generatedTitle = await generateTitle(content);
+        if (generatedTitle) {
+          console.log("[App] Setting conversation title:", generatedTitle);
+          updateTitle(generatedTitle);
+        }
+      }
+
+      await saveCurrentConversation();
+    } catch (err) {
+      const isAbortError =
+        err instanceof Error &&
+        (err.name === "AbortError" || err.message.includes("abort"));
+
+      if (isAbortError) {
+        if (streamingContentRef.current) {
+          const assistantMessage: Message = {
+            id: assistantMessageId,
+            role: "assistant",
+            content: streamingContentRef.current,
+            timestamp: new Date(),
+          };
+          setMessages((prev) => [...prev, assistantMessage]);
+          addMessage(assistantMessage);
+          await saveCurrentConversation();
+        }
+        setStreamingContent("");
+        streamingContentRef.current = "";
+      } else {
+        console.error("Error generating response:", err);
+      }
+    } finally {
+      setIsGenerating(false);
+    }
+  };
+}
