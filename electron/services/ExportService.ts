@@ -1,6 +1,5 @@
 import { dialog } from "electron";
 import * as fs from "fs/promises";
-import * as path from "path";
 import type { Conversation } from "../../src/types/electron";
 
 export class ExportService {
@@ -126,7 +125,7 @@ export class ExportService {
       }
 
       // Remove export metadata if present
-      const { exportedAt, version, ...conversation } = data;
+      const { exportedAt: _exportedAt, version: _version, ...conversation } = data;
 
       return conversation as Conversation;
     } catch (error) {
@@ -138,17 +137,23 @@ export class ExportService {
   /**
    * Validate conversation structure
    */
-  private static isValidConversation(data: any): boolean {
+  private static isValidConversation(data: unknown): boolean {
     if (!data || typeof data !== "object") return false;
-    if (!data.id || !data.title || !Array.isArray(data.messages)) return false;
-    if (!data.createdAt || !data.updatedAt) return false;
+    
+    const obj = data as Record<string, unknown>;
+    
+    if (!obj.id || !obj.title || !Array.isArray(obj.messages)) return false;
+    if (!obj.createdAt || !obj.updatedAt) return false;
 
     // Validate messages
-    for (const msg of data.messages) {
-      if (!msg.id || !msg.role || !msg.content || !msg.timestamp) {
+    for (const msg of obj.messages) {
+      if (!msg || typeof msg !== "object") return false;
+      const message = msg as Record<string, unknown>;
+      
+      if (!message.id || !message.role || !message.content || !message.timestamp) {
         return false;
       }
-      if (msg.role !== "user" && msg.role !== "assistant") {
+      if (message.role !== "user" && message.role !== "assistant") {
         return false;
       }
     }
