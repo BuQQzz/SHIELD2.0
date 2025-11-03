@@ -1,7 +1,6 @@
 "use client";
 
 import { Check, ChevronDown, Loader2 } from "lucide-react";
-import { Button } from "@/components/ui/button";
 import { motion } from "framer-motion";
 import {
   DropdownMenu,
@@ -40,11 +39,10 @@ export function ModelSelector({
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button
-          variant="outline"
-          size="sm"
+        <button
           disabled={disabled || isLoading}
-          className="gap-2"
+          className="inline-flex items-center justify-center gap-2 rounded-md bg-background px-3 py-2 text-sm font-medium transition-all hover:bg-accent disabled:pointer-events-none disabled:opacity-50"
+          style={{ boxShadow: "0 1px 3px rgba(0, 0, 0, 0.12)" }}
         >
           {isLoading ? (
             <>
@@ -57,7 +55,7 @@ export function ModelSelector({
               <ChevronDown className="h-4 w-4 opacity-50" />
             </>
           )}
-        </Button>
+        </button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-72">
         {models.map((model, index) => (

@@ -123,7 +123,7 @@ export function Sidebar({ onNewChat, onOpenSettings }: SidebarProps) {
               
               {/* Settings Icon at Bottom */}
               {onOpenSettings && (
-                <div className="flex flex-col items-center p-2 border-t">
+                <div className="flex flex-col items-center p-2">
                   <button
                     onClick={onOpenSettings}
                     className="rounded-md p-2.5 transition-all hover:bg-accent"
@@ -177,7 +177,7 @@ export function Sidebar({ onNewChat, onOpenSettings }: SidebarProps) {
 
               {/* Settings Footer */}
               {onOpenSettings && (
-                <div className="p-3 border-t">
+                <div className="p-3">
                   <button
                     onClick={onOpenSettings}
                     className="w-full rounded-md bg-background px-4 py-2 text-sm font-medium transition-all hover:bg-accent"
