@@ -8,6 +8,7 @@ import { ChatPlaceholder } from "./components/chat/ChatPlaceholder";
 import { MessageList } from "./components/chat/MessageList";
 import { ChatInput, type ChatInputRef } from "./components/chat/ChatInput";
 import { SettingsDialog } from "./components/settings/SettingsDialog";
+import { TemplateSelector } from "./components/chat/TemplateSelector";
 import { ThemeProvider } from "./components/theme/ThemeProvider";
 import { useLlama, type Message } from "./hooks/useLlama";
 import { useConversationStore } from "./stores/conversation-store";
@@ -18,6 +19,7 @@ import { createMessageHandler } from "./handlers/messageHandler";
 import { createContinuationHandler } from "./handlers/continuationHandler";
 import { AVAILABLE_MODELS } from "./config/models";
 import type { ModelOption } from "./components/chat/ModelSelector";
+import type { ChatTemplate } from "./config/chatTemplates";
 import "./App.css";
 
 function App() {
@@ -26,6 +28,7 @@ function App() {
   const [streamingContent, setStreamingContent] = useState("");
   const [currentModelId, setCurrentModelId] = useState<string>("qwen-7b");
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [templateSelectorOpen, setTemplateSelectorOpen] = useState(false);
   const streamingContentRef = useRef("");
   const inputRef = useRef<ChatInputRef>(null);
 
@@ -360,11 +363,40 @@ function App() {
     }
   };
 
+  const handleTemplateSelect = async (template: ChatTemplate) => {
+    // Create new conversation
+    createNewConversation();
+    
+    // Apply template settings
+    const { updateSettings } = useSettingsStore.getState();
+    updateSettings({
+      system: {
+        ...settings.system,
+        systemPrompt: template.systemPrompt,
+      },
+      model: {
+        ...settings.model,
+        ...template.settings,
+      },
+    });
+    
+    // Apply system prompt to active session
+    if (setSystemPrompt) {
+      await setSystemPrompt(template.systemPrompt);
+    }
+    
+    // Clear any existing messages and focus input
+    setMessages([]);
+    clearHistory();
+    inputRef.current?.focus();
+  };
+
   return (
     <ChatLayout
       sidebar={
         <Sidebar
           onNewChat={handleNewChat}
+          onNewFromTemplate={() => setTemplateSelectorOpen(true)}
           onOpenSettings={() => setSettingsOpen(true)}
         />
       }
@@ -409,6 +441,13 @@ function App() {
         onOpenChange={setSettingsOpen}
         onApplySystemPrompt={setSystemPrompt}
       />
+      
+      {templateSelectorOpen && (
+        <TemplateSelector
+          onSelect={handleTemplateSelect}
+          onClose={() => setTemplateSelectorOpen(false)}
+        />
+      )}
     </ChatLayout>
   );
 }

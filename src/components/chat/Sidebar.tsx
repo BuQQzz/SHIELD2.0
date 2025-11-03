@@ -7,6 +7,7 @@ import {
   PanelLeft,
   PanelRight,
   Settings,
+  Sparkles,
 } from "lucide-react";
 import { useChatStore } from "@/stores/chat-store";
 import { useConversationStore } from "@/stores/conversation-store";
@@ -16,10 +17,11 @@ import { useEffect, useState } from "react";
 
 interface SidebarProps {
   onNewChat?: () => void;
+  onNewFromTemplate?: () => void;
   onOpenSettings?: () => void;
 }
 
-export function Sidebar({ onNewChat, onOpenSettings }: SidebarProps) {
+export function Sidebar({ onNewChat, onNewFromTemplate, onOpenSettings }: SidebarProps) {
   const { sidebarOpen, sidebarCollapsed, toggleSidebarCollapse } =
     useChatStore();
   const {
@@ -139,15 +141,25 @@ export function Sidebar({ onNewChat, onOpenSettings }: SidebarProps) {
             <>
               {/* Expanded View - Full Sidebar */}
               {/* New Chat Button */}
-              <div className="p-3 space-y-2">
-                <button
-                  onClick={handleNewChat}
-                  className="w-full rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-all hover:bg-primary/90"
-                  style={{ boxShadow: "0 1px 3px rgba(0, 0, 0, 0.12)" }}
-                >
-                  <Plus className="mr-2 inline h-4 w-4" />
-                  New Chat
-                </button>
+              <div className="px-3 pb-2">
+                <div className="flex gap-2">
+                  <button
+                    onClick={handleNewChat}
+                    className="flex-1 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-all hover:bg-primary/90"
+                    style={{ boxShadow: "0 1px 3px rgba(0, 0, 0, 0.12)" }}
+                  >
+                    <Plus className="mr-2 inline h-4 w-4" />
+                    New Chat
+                  </button>
+                  <button
+                    onClick={onNewFromTemplate}
+                    className="rounded-md bg-primary px-3 py-2 text-sm font-medium text-primary-foreground transition-all hover:bg-primary/90"
+                    style={{ boxShadow: "0 1px 3px rgba(0, 0, 0, 0.12)" }}
+                    title="New from Template"
+                  >
+                    <Sparkles className="h-4 w-4" />
+                  </button>
+                </div>
               </div>
 
               {/* Search */}
