@@ -16,6 +16,7 @@ interface Conversation {
   createdAt: Date;
   updatedAt: Date;
   modelId?: string;
+  tags?: string[];
 }
 
 interface ConversationMetadata {
@@ -26,6 +27,7 @@ interface ConversationMetadata {
   createdAt: Date;
   updatedAt: Date;
   modelId?: string;
+  tags?: string[];
 }
 
 export class ConversationStorageService {
@@ -107,6 +109,7 @@ export class ConversationStorageService {
             createdAt: new Date(conv.createdAt),
             updatedAt: new Date(conv.updatedAt),
             modelId: conv.modelId,
+            tags: conv.tags || [],
           });
         } catch (error) {
           console.error(`Failed to read conversation file ${file}:`, error);

@@ -1,16 +1,31 @@
 "use client";
 
-import { Menu, MoreVertical, Loader2, Upload, Trash2, FileJson, FileText } from "lucide-react";
+import {
+  Menu,
+  MoreVertical,
+  Loader2,
+  Upload,
+  Trash2,
+  FileJson,
+  FileText,
+  Tag as TagIcon,
+  Plus,
+} from "lucide-react";
 import { useChatStore } from "@/stores/chat-store";
 import { useConversationStore } from "@/stores/conversation-store";
 import { ModelSelector, type ModelOption } from "./ModelSelector";
+import { useState } from "react";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
+  DropdownMenuSub,
+  DropdownMenuSubContent,
+  DropdownMenuSubTrigger,
 } from "@/components/ui/dropdown-menu";
+import { Tag } from "./Tag";
 
 interface ChatHeaderProps {
   modelName?: string;
@@ -32,13 +47,43 @@ export function ChatHeader({
   onClearHistory,
 }: ChatHeaderProps) {
   const { sidebarOpen, toggleSidebar } = useChatStore();
-  const { currentConversation, loadConversation } = useConversationStore();
+  const {
+    currentConversation,
+    loadConversation,
+    updateConversation,
+    saveCurrentConversation,
+  } = useConversationStore();
+  const [newTagInput, setNewTagInput] = useState("");
+  const [showTagInput, setShowTagInput] = useState(false);
+
+  const handleAddTag = async (tag: string) => {
+    if (!currentConversation || !tag.trim()) return;
+
+    const currentTags = currentConversation.tags || [];
+    if (currentTags.includes(tag.trim())) return; // Don't add duplicates
+
+    updateConversation({
+      tags: [...currentTags, tag.trim()],
+    });
+    await saveCurrentConversation();
+    setNewTagInput("");
+    setShowTagInput(false);
+  };
+
+  const handleRemoveTag = async (tag: string) => {
+    if (!currentConversation) return;
+
+    const currentTags = currentConversation.tags || [];
+    updateConversation({
+      tags: currentTags.filter((t) => t !== tag),
+    });
+    await saveCurrentConversation();
+  };
 
   const handleExportJSON = async () => {
     if (!currentConversation) return;
-    const success = await window.electronAPI.export.exportJSON(
-      currentConversation
-    );
+    const success =
+      await window.electronAPI.export.exportJSON(currentConversation);
     if (success) {
       console.log("Conversation exported as JSON");
     }
@@ -46,9 +91,8 @@ export function ChatHeader({
 
   const handleExportMarkdown = async () => {
     if (!currentConversation) return;
-    const success = await window.electronAPI.export.exportMarkdown(
-      currentConversation
-    );
+    const success =
+      await window.electronAPI.export.exportMarkdown(currentConversation);
     if (success) {
       console.log("Conversation exported as Markdown");
     }
@@ -114,16 +158,83 @@ export function ChatHeader({
               <MoreVertical className="h-5 w-5" />
             </button>
           </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="w-48">
+          <DropdownMenuContent align="end" className="w-56">
             {/* Import */}
             <DropdownMenuItem onClick={handleImport}>
               <Upload className="mr-2 h-4 w-4" />
               Import Conversation
             </DropdownMenuItem>
 
-            {/* Export options - only show if conversation exists */}
+            {/* Tag Management - only show if conversation exists */}
             {currentConversation && (
               <>
+                <DropdownMenuSeparator />
+                <DropdownMenuSub>
+                  <DropdownMenuSubTrigger>
+                    <TagIcon className="mr-2 h-4 w-4" />
+                    Manage Tags
+                  </DropdownMenuSubTrigger>
+                  <DropdownMenuSubContent className="w-48">
+                    {/* Show existing tags */}
+                    {currentConversation.tags &&
+                    currentConversation.tags.length > 0 ? (
+                      <div className="p-2 space-y-1">
+                        <div className="text-xs font-medium text-muted-foreground px-2 py-1">
+                          Current Tags
+                        </div>
+                        <div className="flex flex-wrap gap-1 px-2">
+                          {currentConversation.tags.map((tag) => (
+                            <Tag
+                              key={tag}
+                              label={tag}
+                              onRemove={() => handleRemoveTag(tag)}
+                              variant="compact"
+                            />
+                          ))}
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="p-2 text-xs text-muted-foreground text-center">
+                        No tags yet
+                      </div>
+                    )}
+
+                    <DropdownMenuSeparator />
+
+                    {/* Add new tag */}
+                    {showTagInput ? (
+                      <div className="p-2">
+                        <input
+                          type="text"
+                          value={newTagInput}
+                          onChange={(e) => setNewTagInput(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter") {
+                              handleAddTag(newTagInput);
+                            } else if (e.key === "Escape") {
+                              setShowTagInput(false);
+                              setNewTagInput("");
+                            }
+                          }}
+                          onBlur={() => {
+                            if (!newTagInput.trim()) {
+                              setShowTagInput(false);
+                            }
+                          }}
+                          placeholder="Tag name..."
+                          className="w-full px-2 py-1 text-sm rounded border bg-background"
+                          autoFocus
+                        />
+                      </div>
+                    ) : (
+                      <DropdownMenuItem onClick={() => setShowTagInput(true)}>
+                        <Plus className="mr-2 h-4 w-4" />
+                        Add Tag
+                      </DropdownMenuItem>
+                    )}
+                  </DropdownMenuSubContent>
+                </DropdownMenuSub>
+
                 <DropdownMenuSeparator />
                 <DropdownMenuItem onClick={handleExportJSON}>
                   <FileJson className="mr-2 h-4 w-4" />

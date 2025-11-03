@@ -26,6 +26,7 @@ export interface Conversation {
   createdAt: Date;
   updatedAt: Date;
   modelId?: string;
+  tags?: string[];
 }
 
 export interface ConversationMetadata {
@@ -36,6 +37,7 @@ export interface ConversationMetadata {
   createdAt: Date;
   updatedAt: Date;
   modelId?: string;
+  tags?: string[];
 }
 
 export interface LlamaAPI {
@@ -114,7 +116,9 @@ export interface AppSettings {
 
 export interface SettingsAPI {
   load: () => Promise<AppSettings | null>;
-  save: (settings: AppSettings) => Promise<{ success: boolean; error?: string }>;
+  save: (
+    settings: AppSettings
+  ) => Promise<{ success: boolean; error?: string }>;
 }
 
 export interface ExportAPI {

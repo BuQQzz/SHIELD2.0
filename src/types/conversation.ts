@@ -13,6 +13,7 @@ export interface Conversation {
   createdAt: Date;
   updatedAt: Date;
   modelId?: string;
+  tags?: string[];
 }
 
 export interface ConversationMetadata {
@@ -23,6 +24,7 @@ export interface ConversationMetadata {
   createdAt: Date;
   updatedAt: Date;
   modelId?: string;
+  tags?: string[];
 }
 
 export interface ConversationStorage {

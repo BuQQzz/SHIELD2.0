@@ -3,6 +3,7 @@ import type { ConversationMetadata } from "@/types/electron";
 import { MessageSquare, Trash2, X, Check } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useState } from "react";
+import { Tag } from "./Tag";
 
 interface ConversationListProps {
   conversations: ConversationMetadata[];
@@ -111,6 +112,13 @@ export function ConversationList({
                   <p className="text-xs text-muted-foreground truncate mt-0.5">
                     {conversation.preview}
                   </p>
+                  {conversation.tags && conversation.tags.length > 0 && (
+                    <div className="flex flex-wrap gap-1 mt-1.5">
+                      {conversation.tags.map((tag) => (
+                        <Tag key={tag} label={tag} variant="compact" />
+                      ))}
+                    </div>
+                  )}
                   <div className="flex items-center gap-2 mt-1">
                     <span className="text-xs text-muted-foreground">
                       {conversation.messageCount} messages
