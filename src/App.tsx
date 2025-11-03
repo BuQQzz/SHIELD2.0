@@ -231,6 +231,73 @@ function App() {
     modelSettings: settings.model,
   });
 
+  const handleEditMessage = async (messageId: string, newContent: string) => {
+    // Find the message index
+    const messageIndex = messages.findIndex((msg) => msg.id === messageId);
+    if (messageIndex === -1) return;
+
+    const originalMessage = messages[messageIndex];
+    if (!originalMessage) return;
+
+    // Update the message content
+    const updatedMessages = messages.slice(0, messageIndex);
+    const editedMessage: Message = {
+      id: originalMessage.id,
+      role: originalMessage.role,
+      content: newContent,
+      timestamp: originalMessage.timestamp,
+    };
+    updatedMessages.push(editedMessage);
+
+    // Update state to show only messages up to and including the edited one
+    setMessages(updatedMessages);
+    
+    // Update llama chat history with the new message set
+    await setChatHistory(updatedMessages);
+
+    // Regenerate response from the edited message
+    setIsGenerating(true);
+    setStreamingContent("");
+    streamingContentRef.current = "";
+
+    try {
+      await sendStreamingMessage(
+        newContent,
+        (token) => {
+          streamingContentRef.current += token;
+          setStreamingContent(streamingContentRef.current);
+        },
+        {
+          temperature: settings.model.temperature,
+          maxTokens: settings.model.maxTokens,
+          topP: settings.model.topP,
+          topK: settings.model.topK,
+          repeatPenalty: settings.model.repeatPenalty,
+        }
+      );
+
+      const finalContent = streamingContentRef.current;
+      const finalMessage: Message = {
+        id: crypto.randomUUID(),
+        role: "assistant",
+        content: finalContent,
+        timestamp: new Date(),
+      };
+
+      setMessages((prev) => [...prev, finalMessage]);
+      addMessage(finalMessage);
+      setStreamingContent("");
+      streamingContentRef.current = "";
+      setIsGenerating(false);
+      saveCurrentConversation();
+    } catch (error) {
+      console.error("Error regenerating response:", error);
+      setIsGenerating(false);
+      setStreamingContent("");
+      streamingContentRef.current = "";
+    }
+  };
+
   return (
     <ChatLayout
       sidebar={
@@ -262,6 +329,7 @@ function App() {
             streamingContent={streamingContent}
             isGenerating={isGenerating}
             onContinue={handleContinue}
+            onEditMessage={handleEditMessage}
           />
         )}
         <ChatInput

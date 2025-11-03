@@ -1,9 +1,10 @@
 import { cn } from "@/lib/utils";
-import { Bot, User, Copy, Check, ArrowRight } from "lucide-react";
+import { Bot, User, Copy, Check, ArrowRight, Edit2, X, Send } from "lucide-react";
 import { motion } from "framer-motion";
 import { MessageContent } from "./MessageContent";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
+import { Textarea } from "@/components/ui/textarea";
 
 interface MessageProps {
   role: "user" | "assistant";
@@ -11,6 +12,7 @@ interface MessageProps {
   isStreaming?: boolean;
   truncated?: boolean;
   onContinue?: () => void;
+  onEdit?: (newContent: string) => void;
 }
 
 export function ChatMessage({
@@ -19,9 +21,12 @@ export function ChatMessage({
   isStreaming,
   truncated,
   onContinue,
+  onEdit,
 }: MessageProps) {
   const isUser = role === "user";
   const [copied, setCopied] = useState(false);
+  const [isEditing, setIsEditing] = useState(false);
+  const [editedContent, setEditedContent] = useState(content);
 
   const handleCopy = async () => {
     try {
@@ -30,6 +35,32 @@ export function ChatMessage({
       setTimeout(() => setCopied(false), 2000);
     } catch (err) {
       console.error("Failed to copy:", err);
+    }
+  };
+
+  const handleStartEdit = () => {
+    setIsEditing(true);
+    setEditedContent(content);
+  };
+
+  const handleCancelEdit = () => {
+    setIsEditing(false);
+    setEditedContent(content);
+  };
+
+  const handleSaveEdit = () => {
+    if (editedContent.trim() && onEdit) {
+      onEdit(editedContent.trim());
+      setIsEditing(false);
+    }
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      handleSaveEdit();
+    } else if (e.key === "Escape") {
+      handleCancelEdit();
     }
   };
 
@@ -58,35 +89,75 @@ export function ChatMessage({
           <p className="text-sm font-medium">
             {isUser ? "You" : "SHIELD Assistant"}
           </p>
-          <motion.button
-            whileHover={{ scale: 1.05 }}
-            whileTap={{ scale: 0.95 }}
-            onClick={handleCopy}
-            className="opacity-0 group-hover:opacity-100 transition-opacity p-1.5 rounded-md hover:bg-muted"
-            style={{ boxShadow: "0 1px 3px rgba(0, 0, 0, 0.12)" }}
-            aria-label="Copy message"
-          >
-            {copied ? (
-              <Check className="h-4 w-4 text-green-500" />
-            ) : (
-              <Copy className="h-4 w-4 text-muted-foreground" />
+          <div className="flex gap-1">
+            {isUser && !isEditing && onEdit && (
+              <motion.button
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
+                onClick={handleStartEdit}
+                className="opacity-0 group-hover:opacity-100 transition-opacity p-1.5 rounded-md hover:bg-muted"
+                style={{ boxShadow: "0 1px 3px rgba(0, 0, 0, 0.12)" }}
+                aria-label="Edit message"
+              >
+                <Edit2 className="h-4 w-4 text-muted-foreground" />
+              </motion.button>
             )}
-          </motion.button>
+            <motion.button
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
+              onClick={handleCopy}
+              className="opacity-0 group-hover:opacity-100 transition-opacity p-1.5 rounded-md hover:bg-muted"
+              style={{ boxShadow: "0 1px 3px rgba(0, 0, 0, 0.12)" }}
+              aria-label="Copy message"
+            >
+              {copied ? (
+                <Check className="h-4 w-4 text-green-500" />
+              ) : (
+                <Copy className="h-4 w-4 text-muted-foreground" />
+              )}
+            </motion.button>
+          </div>
         </div>
-        <div className="text-sm text-muted-foreground prose prose-sm max-w-none dark:prose-invert">
-          <MessageContent content={content} />
-          {isStreaming && (
-            <motion.span
-              animate={{ opacity: [1, 0] }}
-              transition={{
-                duration: 0.8,
-                repeat: Infinity,
-                repeatType: "reverse",
-              }}
-              className="inline-block w-2 h-4 ml-1 bg-primary"
+        {isEditing ? (
+          <div className="space-y-2">
+            <Textarea
+              value={editedContent}
+              onChange={(e) => setEditedContent(e.target.value)}
+              onKeyDown={handleKeyDown}
+              className="min-h-[100px] resize-none"
+              autoFocus
             />
-          )}
-        </div>
+            <div className="flex gap-2">
+              <Button
+                onClick={handleSaveEdit}
+                size="sm"
+                disabled={!editedContent.trim()}
+              >
+                <Send className="h-3 w-3 mr-1" />
+                Save & Regenerate
+              </Button>
+              <Button onClick={handleCancelEdit} size="sm" variant="outline">
+                <X className="h-3 w-3 mr-1" />
+                Cancel
+              </Button>
+            </div>
+          </div>
+        ) : (
+          <div className="text-sm text-muted-foreground prose prose-sm max-w-none dark:prose-invert">
+            <MessageContent content={content} />
+            {isStreaming && (
+              <motion.span
+                animate={{ opacity: [1, 0] }}
+                transition={{
+                  duration: 0.8,
+                  repeat: Infinity,
+                  repeatType: "reverse",
+                }}
+                className="inline-block w-2 h-4 ml-1 bg-primary"
+              />
+            )}
+          </div>
+        )}
         {truncated && !isStreaming && (
           <Button
             onClick={onContinue}

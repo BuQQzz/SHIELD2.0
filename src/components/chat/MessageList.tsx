@@ -16,6 +16,7 @@ interface MessageListProps {
   streamingContent?: string;
   isGenerating?: boolean;
   onContinue?: (messageId: string) => void;
+  onEditMessage?: (messageId: string, newContent: string) => void;
 }
 
 export function MessageList({
@@ -23,6 +24,7 @@ export function MessageList({
   streamingContent,
   isGenerating,
   onContinue,
+  onEditMessage,
 }: MessageListProps) {
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
@@ -45,6 +47,11 @@ export function MessageList({
             truncated={message.truncated}
             onContinue={
               message.truncated ? () => onContinue?.(message.id) : undefined
+            }
+            onEdit={
+              message.role === "user" && onEditMessage
+                ? (newContent) => onEditMessage(message.id, newContent)
+                : undefined
             }
           />
         ))}
