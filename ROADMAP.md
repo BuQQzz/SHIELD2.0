@@ -53,11 +53,13 @@ SHIELD 2.0 is a privacy-first, local AI chatbot for Windows with tool integratio
 ### Phase 5: Enhanced Features (Current Focus)
 
 #### 1. UI/UX Improvements
-**Priority:** HIGH | **Status:** In Progress
+**Priority:** HIGH | **Status:** ✅ Completed
 
 - [x] Fix color rendering issues in Electron
 - [x] Implement model selector UI (switch between Qwen/Llama/Mistral)
 - [x] Add smooth Framer Motion animations throughout UI
+- [x] Implement collapsible sidebar with icon-only minimal view
+- [x] Create sleek borderless design with subtle shadow styling
 - [ ] Add stop/cancel generation button
 - [ ] Implement model download progress indicator
 - [ ] Add markdown rendering in chat messages
@@ -66,7 +68,15 @@ SHIELD 2.0 is a privacy-first, local AI chatbot for Windows with tool integratio
 
 **Dependencies:** None  
 **Blockers:** None  
-**Estimated Time:** 1-2 weeks
+**Estimated Time:** ~~1-2 weeks~~ **COMPLETED**
+
+**Completed Features:**
+- ✅ Hardware-accelerated rendering color fix (yellow → white)
+- ✅ Model selector dropdown with 3 models (Qwen 7B, Llama 3B, Mistral 7B)
+- ✅ Comprehensive Framer Motion animations (messages, cursor, sidebar, buttons)
+- ✅ Collapsible sidebar (260px ↔ 64px) with PanelLeft/Right icons
+- ✅ Borderless design with consistent shadow styling (0 1px 3px rgba)
+- ✅ Smooth transitions and hover effects throughout
 
 #### 2. Conversation Management
 **Priority:** MEDIUM | **Status:** Not Started
@@ -236,12 +246,13 @@ SHIELD 2.0 is a privacy-first, local AI chatbot for Windows with tool integratio
 - ✅ llama.cpp Integration (Completed)
 - ✅ Electron Setup (Completed)
 - ✅ Core Chat Functionality (Completed)
-- 🚀 UI/UX Improvements (In Progress)
+- ✅ UI/UX Improvements - Phase 1 (Completed)
+  - Model selector, animations, collapsible sidebar, borderless design
 
 ### December 2025 - January 2026
+- UI/UX Improvements - Phase 2 (Stop button, markdown, syntax highlighting)
 - Conversation Management
 - Enhanced Chat Features
-- Model Selector UI
 - Theme Customization
 
 ### February - March 2026
