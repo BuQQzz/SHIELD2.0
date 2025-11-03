@@ -8,6 +8,7 @@ import { ChatPlaceholder } from "./components/chat/ChatPlaceholder";
 import { MessageList } from "./components/chat/MessageList";
 import { ChatInput } from "./components/chat/ChatInput";
 import { useLlama, type Message } from "./hooks/useLlama";
+import { useConversationStore } from "./stores/conversation-store";
 import type { ModelOption } from "./components/chat/ModelSelector";
 import "./App.css";
 
@@ -61,6 +62,27 @@ function App() {
     stopGeneration,
   } = useLlama();
 
+  const {
+    currentConversation,
+    createNewConversation,
+    addMessage,
+    saveCurrentConversation,
+  } = useConversationStore();
+
+  // Initialize a new conversation if none exists
+  useEffect(() => {
+    if (!currentConversation) {
+      createNewConversation("New Chat", currentModelId);
+    }
+  }, [currentConversation, createNewConversation, currentModelId]);
+
+  // Sync messages with current conversation
+  useEffect(() => {
+    if (currentConversation) {
+      setMessages(currentConversation.messages);
+    }
+  }, [currentConversation]);
+
   // Auto-load model ONLY when initialized and user hasn't loaded one yet
   // This happens in the background without blocking the UI
   useEffect(() => {
@@ -112,6 +134,7 @@ function App() {
     };
 
     setMessages((prev) => [...prev, userMessage]);
+    addMessage(userMessage); // Add to conversation store
     setIsGenerating(true);
     setStreamingContent("");
     streamingContentRef.current = "";
@@ -141,8 +164,12 @@ function App() {
       };
 
       setMessages((prev) => [...prev, assistantMessage]);
+      addMessage(assistantMessage); // Add to conversation store
       setStreamingContent("");
       streamingContentRef.current = "";
+
+      // Auto-save conversation after each exchange
+      await saveCurrentConversation();
     } catch (err) {
       // Check if the error is due to user cancellation (abort)
       const isAbortError = err instanceof Error && 
@@ -158,6 +185,8 @@ function App() {
             timestamp: new Date(),
           };
           setMessages((prev) => [...prev, assistantMessage]);
+          addMessage(assistantMessage); // Add to conversation store
+          await saveCurrentConversation(); // Save partial conversation
         }
         setStreamingContent("");
         streamingContentRef.current = "";
@@ -206,8 +235,20 @@ function App() {
     }
   };
 
+  const handleNewChat = () => {
+    // Save current conversation before creating new one
+    if (currentConversation && currentConversation.messages.length > 0) {
+      saveCurrentConversation();
+    }
+    // Create new conversation
+    createNewConversation("New Chat", currentModelId);
+    // Clear UI messages
+    setMessages([]);
+    clearHistory();
+  };
+
   return (
-    <ChatLayout sidebar={<Sidebar onClearHistory={handleClearHistory} />}>
+    <ChatLayout sidebar={<Sidebar onClearHistory={handleClearHistory} onNewChat={handleNewChat} />}>
       <div className="flex h-full flex-col">
         <ChatHeader
           modelName={currentModel?.name}

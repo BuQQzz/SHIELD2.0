@@ -2,14 +2,58 @@
 
 import { Shield, Settings, Plus, Search, Trash2, PanelLeft, PanelRight } from "lucide-react";
 import { useChatStore } from "@/stores/chat-store";
+import { useConversationStore } from "@/stores/conversation-store";
+import { ConversationList } from "./ConversationList";
 import { motion, AnimatePresence } from "framer-motion";
+import { useEffect, useState } from "react";
 
 interface SidebarProps {
   onClearHistory?: () => void;
+  onNewChat?: () => void;
 }
 
-export function Sidebar({ onClearHistory }: SidebarProps) {
+export function Sidebar({ onClearHistory, onNewChat }: SidebarProps) {
   const { sidebarOpen, sidebarCollapsed, toggleSidebarCollapse } = useChatStore();
+  const {
+    conversations,
+    currentConversation,
+    loadConversationList,
+    loadConversation,
+    deleteConversation,
+    searchConversations,
+    createNewConversation,
+  } = useConversationStore();
+  
+  const [searchInput, setSearchInput] = useState("");
+
+  // Load conversations on mount
+  useEffect(() => {
+    loadConversationList();
+  }, [loadConversationList]);
+
+  const handleSearch = (value: string) => {
+    setSearchInput(value);
+    if (value.trim()) {
+      searchConversations(value);
+    } else {
+      loadConversationList();
+    }
+  };
+
+  const handleNewChat = () => {
+    createNewConversation();
+    onNewChat?.();
+  };
+
+  const handleSelectConversation = (conversationId: string) => {
+    loadConversation(conversationId);
+  };
+
+  const handleDeleteConversation = (conversationId: string) => {
+    if (confirm("Are you sure you want to delete this conversation?")) {
+      deleteConversation(conversationId);
+    }
+  };
 
   return (
     <AnimatePresence mode="wait">
@@ -58,6 +102,7 @@ export function Sidebar({ onClearHistory }: SidebarProps) {
           {sidebarCollapsed ? (
             <div className="flex flex-col items-center gap-2 p-2">
               <button
+                onClick={handleNewChat}
                 className="rounded-md p-2.5 transition-all hover:bg-accent"
                 style={{ boxShadow: '0 1px 3px rgba(0, 0, 0, 0.12)' }}
                 title="New Chat"
@@ -89,6 +134,7 @@ export function Sidebar({ onClearHistory }: SidebarProps) {
               {/* New Chat Button */}
               <div className="p-3 space-y-2">
                 <button
+                  onClick={handleNewChat}
                   className="w-full rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-all hover:bg-primary/90"
                   style={{ boxShadow: '0 1px 3px rgba(0, 0, 0, 0.12)' }}
                 >
@@ -114,6 +160,8 @@ export function Sidebar({ onClearHistory }: SidebarProps) {
                   <input
                     type="text"
                     placeholder="Search chats..."
+                    value={searchInput}
+                    onChange={(e) => handleSearch(e.target.value)}
                     className="w-full rounded-md bg-background py-2 pl-9 pr-3 text-sm outline-none placeholder:text-muted-foreground focus-visible:ring-2 focus-visible:ring-ring"
                     style={{ boxShadow: '0 1px 3px rgba(0, 0, 0, 0.12)' }}
                   />
@@ -122,12 +170,12 @@ export function Sidebar({ onClearHistory }: SidebarProps) {
 
               {/* Chat History */}
               <div className="flex-1 overflow-y-auto px-3">
-                <div className="space-y-1">
-                  {/* Placeholder for chat items */}
-                  <div className="rounded-lg p-3 text-sm text-muted-foreground hover:bg-accent transition-all" style={{ boxShadow: '0 1px 3px rgba(0, 0, 0, 0.08)' }}>
-                    No chats yet
-                  </div>
-                </div>
+                <ConversationList
+                  conversations={conversations}
+                  currentConversationId={currentConversation?.id}
+                  onSelect={handleSelectConversation}
+                  onDelete={handleDeleteConversation}
+                />
               </div>
 
               {/* Footer */}
