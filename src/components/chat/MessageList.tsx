@@ -1,7 +1,7 @@
 "use client";
 
 import { useRef, useEffect } from "react";
-import { cn } from "@/lib/utils";
+import { ChatMessage } from "./ChatMessage";
 
 interface Message {
   id: string;
@@ -12,9 +12,15 @@ interface Message {
 
 interface MessageListProps {
   messages: Message[];
+  streamingContent?: string;
+  isGenerating?: boolean;
 }
 
-export function MessageList({ messages }: MessageListProps) {
+export function MessageList({
+  messages,
+  streamingContent,
+  isGenerating,
+}: MessageListProps) {
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const scrollToBottom = () => {
@@ -23,35 +29,25 @@ export function MessageList({ messages }: MessageListProps) {
 
   useEffect(() => {
     scrollToBottom();
-  }, [messages]);
-
-  if (messages.length === 0) {
-    return null;
-  }
+  }, [messages, streamingContent]);
 
   return (
     <div className="flex-1 overflow-y-auto p-4">
-      <div className="mx-auto max-w-3xl space-y-4">
+      <div className="mx-auto max-w-4xl space-y-4">
         {messages.map((message) => (
-          <div
+          <ChatMessage
             key={message.id}
-            className={cn(
-              "flex",
-              message.role === "user" ? "justify-end" : "justify-start"
-            )}
-          >
-            <div
-              className={cn(
-                "max-w-[80%] rounded-lg px-4 py-2",
-                message.role === "user"
-                  ? "bg-primary text-primary-foreground"
-                  : "bg-muted"
-              )}
-            >
-              <p className="text-sm">{message.content}</p>
-            </div>
-          </div>
+            role={message.role}
+            content={message.content}
+          />
         ))}
+        {streamingContent && (
+          <ChatMessage
+            role="assistant"
+            content={streamingContent}
+            isStreaming={isGenerating}
+          />
+        )}
         <div ref={messagesEndRef} />
       </div>
     </div>

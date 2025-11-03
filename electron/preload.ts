@@ -54,6 +54,9 @@ const llamaAPI: LlamaAPI = {
 
 contextBridge.exposeInMainWorld("llama", llamaAPI);
 
+// Log that preload executed successfully
+console.log("[preload] window.llama exposed successfully");
+
 // Type declaration for TypeScript
 declare global {
   interface Window {

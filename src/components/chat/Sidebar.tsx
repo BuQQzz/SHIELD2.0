@@ -1,10 +1,14 @@
 "use client";
 
-import { Shield, Menu, Settings, Plus, Search } from "lucide-react";
+import { Shield, Menu, Settings, Plus, Search, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useChatStore } from "@/stores/chat-store";
 
-export function Sidebar() {
+interface SidebarProps {
+  onClearHistory?: () => void;
+}
+
+export function Sidebar({ onClearHistory }: SidebarProps) {
   const { sidebarOpen, toggleSidebar } = useChatStore();
 
   if (!sidebarOpen) return null;
@@ -28,11 +32,21 @@ export function Sidebar() {
       </div>
 
       {/* New Chat Button */}
-      <div className="p-3">
+      <div className="p-3 space-y-2">
         <Button className="w-full" variant="default">
           <Plus className="mr-2 h-4 w-4" />
           New Chat
         </Button>
+        {onClearHistory && (
+          <Button
+            className="w-full"
+            variant="outline"
+            onClick={onClearHistory}
+          >
+            <Trash2 className="mr-2 h-4 w-4" />
+            Clear History
+          </Button>
+        )}
       </div>
 
       {/* Search */}

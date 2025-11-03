@@ -8,18 +8,20 @@ interface ChatInputProps {
   onSend: (message: string) => void;
   isGenerating?: boolean;
   onStop?: () => void;
+  disabled?: boolean;
 }
 
 export function ChatInput({
   onSend,
   isGenerating = false,
   onStop,
+  disabled = false,
 }: ChatInputProps) {
   const [input, setInput] = useState("");
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   const handleSubmit = () => {
-    if (input.trim() && !isGenerating) {
+    if (input.trim() && !isGenerating && !disabled) {
       onSend(input.trim());
       setInput("");
       if (textareaRef.current) {
@@ -54,7 +56,7 @@ export function ChatInput({
             placeholder="Type your message... (Shift+Enter for new line)"
             rows={1}
             className="max-h-32 min-h-[40px] flex-1 resize-none bg-transparent px-2 py-2 text-sm outline-none placeholder:text-muted-foreground"
-            disabled={isGenerating}
+            disabled={isGenerating || disabled}
           />
 
           {isGenerating ? (
@@ -70,7 +72,7 @@ export function ChatInput({
             <Button
               size="icon"
               onClick={handleSubmit}
-              disabled={!input.trim()}
+              disabled={!input.trim() || disabled}
               className="shrink-0"
             >
               <Send className="h-5 w-5" />

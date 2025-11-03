@@ -1,10 +1,16 @@
 "use client";
 
-import { Menu, MoreVertical, Settings } from "lucide-react";
+import { Menu, MoreVertical, Settings, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useChatStore } from "@/stores/chat-store";
 
-export function ChatHeader() {
+interface ChatHeaderProps {
+  modelName?: string;
+  isLoading?: boolean;
+  error?: string | null;
+}
+
+export function ChatHeader({ modelName, isLoading, error }: ChatHeaderProps) {
   const { sidebarOpen, toggleSidebar } = useChatStore();
 
   return (
@@ -21,7 +27,19 @@ export function ChatHeader() {
             <Menu className="h-5 w-5" />
           </Button>
         )}
-        <h1 className="text-lg font-semibold">New Chat</h1>
+        <div className="flex flex-col">
+          <h1 className="text-lg font-semibold">SHIELD 2.0</h1>
+          {isLoading ? (
+            <span className="flex items-center gap-1 text-xs text-muted-foreground">
+              <Loader2 className="h-3 w-3 animate-spin" />
+              Loading model...
+            </span>
+          ) : error ? (
+            <span className="text-xs text-destructive">{error}</span>
+          ) : modelName ? (
+            <span className="text-xs text-muted-foreground">{modelName}</span>
+          ) : null}
+        </div>
       </div>
 
       {/* Right Section */}
@@ -36,3 +54,4 @@ export function ChatHeader() {
     </header>
   );
 }
+

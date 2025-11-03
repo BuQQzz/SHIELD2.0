@@ -5,6 +5,13 @@ import { getLlamaService } from "../src/services/LlamaService.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
+// Disable hardware acceleration color corrections
+// This prevents the gradual color shift/wash-out issue
+app.commandLine.appendSwitch("disable-color-correct-rendering");
+app.commandLine.appendSwitch("force-color-profile", "srgb");
+app.commandLine.appendSwitch("disable-gpu-compositing");
+app.commandLine.appendSwitch("disable-software-rasterizer");
+
 // Keep a global reference to prevent garbage collection
 let mainWindow: BrowserWindow | null = null;
 const llamaService = getLlamaService();
@@ -13,6 +20,13 @@ const llamaService = getLlamaService();
  * Create the main application window
  */
 function createWindow() {
+  // Determine preload script path
+  const preloadPath = process.env.VITE_DEV_SERVER_URL
+    ? path.join(__dirname, "preload.mjs")
+    : path.join(__dirname, "preload.mjs");
+  
+  console.log("[main] Preload path:", preloadPath);
+  
   mainWindow = new BrowserWindow({
     width: 1200,
     height: 800,
@@ -21,10 +35,16 @@ function createWindow() {
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true,
-      preload: path.join(__dirname, "preload.js"),
+      preload: preloadPath,
+      webSecurity: true,
+      backgroundThrottling: false,
+      // Force software rendering to prevent GPU color issues
+      offscreen: false,
     },
     show: false,
-    backgroundColor: "#0a0a0a",
+    backgroundColor: "#ffffff",
+    // Additional rendering fixes
+    autoHideMenuBar: true,
   });
 
   // Load the app
@@ -35,9 +55,11 @@ function createWindow() {
     mainWindow.loadFile(path.join(__dirname, "../dist/index.html"));
   }
 
-  // Show window when ready
+  // Show window when ready to prevent flashing
   mainWindow.once("ready-to-show", () => {
     mainWindow?.show();
+    // Force repaint after showing
+    mainWindow?.webContents.invalidate();
   });
 
   mainWindow.on("closed", () => {
