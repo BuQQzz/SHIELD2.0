@@ -8,17 +8,23 @@ interface MessageContentProps {
   content: string;
 }
 
+interface CodeProps extends ComponentPropsWithoutRef<"code"> {
+  inline?: boolean;
+  className?: string;
+}
+
 export function MessageContent({ content }: MessageContentProps) {
   return (
     <ReactMarkdown
       remarkPlugins={[remarkGfm]}
       components={{
-        code({ node, inline, className, children, ...props }: any) {
+        code({ inline, className, children, ...props }: CodeProps) {
           const match = /language-(\w+)/.exec(className || "");
           const codeContent = String(children).replace(/\n$/, "");
 
           return !inline && match ? (
             <SyntaxHighlighter
+              // @ts-expect-error - oneDark style types are incompatible but work correctly
               style={oneDark}
               language={match[1]}
               PreTag="div"

@@ -1,5 +1,9 @@
 import { contextBridge, ipcRenderer } from "electron";
-import type { Conversation, ConversationMetadata } from "../src/types/conversation";
+import type {
+  Conversation,
+  ConversationMetadata,
+  Message,
+} from "../src/types/conversation";
 
 export interface ModelConfig {
   name: string;
@@ -31,11 +35,19 @@ export interface LlamaAPI {
     info?: ModelConfig | null;
     error?: string;
   }>;
-  isModelLoaded: () => Promise<{ success: boolean; loaded?: boolean; error?: string }>;
+  isModelLoaded: () => Promise<{
+    success: boolean;
+    loaded?: boolean;
+    error?: string;
+  }>;
   clearHistory: () => Promise<{ success: boolean; error?: string }>;
-  setChatHistory: (messages: any[]) => Promise<{ success: boolean; error?: string }>;
+  setChatHistory: (
+    messages: Message[]
+  ) => Promise<{ success: boolean; error?: string }>;
   stopGeneration: () => Promise<{ success: boolean; error?: string }>;
-  generateTitle: (userMessage: string) => Promise<{ success: boolean; title?: string; error?: string }>;
+  generateTitle: (
+    userMessage: string
+  ) => Promise<{ success: boolean; title?: string; error?: string }>;
 }
 
 export interface ConversationAPI {

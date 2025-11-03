@@ -115,12 +115,9 @@ function setupIpcHandlers() {
   // Send a streaming chat message
   ipcMain.handle("llama:chatStreaming", async (_event, message, options) => {
     try {
-      let fullResponse = "";
-
       const response = await llamaService.chatStreaming(
         message,
         (token) => {
-          fullResponse += token;
           // Send token to renderer
           mainWindow?.webContents.send("llama:token", token);
         },

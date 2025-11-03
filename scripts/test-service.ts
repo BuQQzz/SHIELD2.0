@@ -49,12 +49,10 @@ async function testLlamaService() {
     console.log(`User: ${question2}\n`);
     console.log("Assistant: ");
 
-    let streamedResponse = "";
     await service.chatStreaming(
       question2,
       (token) => {
         process.stdout.write(token);
-        streamedResponse += token;
       },
       {
         maxTokens: 100,
