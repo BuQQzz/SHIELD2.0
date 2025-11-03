@@ -298,6 +298,68 @@ function App() {
     }
   };
 
+  const handleRegenerateMessage = async (messageId: string) => {
+    // Find the assistant message and the user message before it
+    const messageIndex = messages.findIndex((msg) => msg.id === messageId);
+    if (messageIndex === -1 || messageIndex === 0) return;
+
+    const assistantMessage = messages[messageIndex];
+    if (!assistantMessage || assistantMessage.role !== "assistant") return;
+
+    // Find the user message that prompted this response
+    const userMessage = messages[messageIndex - 1];
+    if (!userMessage || userMessage.role !== "user") return;
+
+    // Remove the assistant message and everything after it
+    const updatedMessages = messages.slice(0, messageIndex);
+    setMessages(updatedMessages);
+    
+    // Update llama chat history
+    await setChatHistory(updatedMessages);
+
+    // Regenerate the response
+    setIsGenerating(true);
+    setStreamingContent("");
+    streamingContentRef.current = "";
+
+    try {
+      await sendStreamingMessage(
+        userMessage.content,
+        (token) => {
+          streamingContentRef.current += token;
+          setStreamingContent(streamingContentRef.current);
+        },
+        {
+          temperature: settings.model.temperature,
+          maxTokens: settings.model.maxTokens,
+          topP: settings.model.topP,
+          topK: settings.model.topK,
+          repeatPenalty: settings.model.repeatPenalty,
+        }
+      );
+
+      const finalContent = streamingContentRef.current;
+      const finalMessage: Message = {
+        id: crypto.randomUUID(),
+        role: "assistant",
+        content: finalContent,
+        timestamp: new Date(),
+      };
+
+      setMessages((prev) => [...prev, finalMessage]);
+      addMessage(finalMessage);
+      setStreamingContent("");
+      streamingContentRef.current = "";
+      setIsGenerating(false);
+      saveCurrentConversation();
+    } catch (error) {
+      console.error("Error regenerating response:", error);
+      setIsGenerating(false);
+      setStreamingContent("");
+      streamingContentRef.current = "";
+    }
+  };
+
   return (
     <ChatLayout
       sidebar={
@@ -330,6 +392,7 @@ function App() {
             isGenerating={isGenerating}
             onContinue={handleContinue}
             onEditMessage={handleEditMessage}
+            onRegenerateMessage={handleRegenerateMessage}
           />
         )}
         <ChatInput

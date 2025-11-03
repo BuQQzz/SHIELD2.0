@@ -17,6 +17,7 @@ interface MessageListProps {
   isGenerating?: boolean;
   onContinue?: (messageId: string) => void;
   onEditMessage?: (messageId: string, newContent: string) => void;
+  onRegenerateMessage?: (messageId: string) => void;
 }
 
 export function MessageList({
@@ -25,6 +26,7 @@ export function MessageList({
   isGenerating,
   onContinue,
   onEditMessage,
+  onRegenerateMessage,
 }: MessageListProps) {
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
@@ -51,6 +53,11 @@ export function MessageList({
             onEdit={
               message.role === "user" && onEditMessage
                 ? (newContent) => onEditMessage(message.id, newContent)
+                : undefined
+            }
+            onRegenerate={
+              message.role === "assistant" && onRegenerateMessage
+                ? () => onRegenerateMessage(message.id)
                 : undefined
             }
           />

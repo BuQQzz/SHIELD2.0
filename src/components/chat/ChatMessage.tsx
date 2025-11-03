@@ -1,5 +1,5 @@
 import { cn } from "@/lib/utils";
-import { Bot, User, Copy, Check, ArrowRight, Edit2, X, Send } from "lucide-react";
+import { Bot, User, Copy, Check, ArrowRight, Edit2, X, Send, RefreshCw } from "lucide-react";
 import { motion } from "framer-motion";
 import { MessageContent } from "./MessageContent";
 import { useState } from "react";
@@ -13,6 +13,7 @@ interface MessageProps {
   truncated?: boolean;
   onContinue?: () => void;
   onEdit?: (newContent: string) => void;
+  onRegenerate?: () => void;
 }
 
 export function ChatMessage({
@@ -22,6 +23,7 @@ export function ChatMessage({
   truncated,
   onContinue,
   onEdit,
+  onRegenerate,
 }: MessageProps) {
   const isUser = role === "user";
   const [copied, setCopied] = useState(false);
@@ -100,6 +102,18 @@ export function ChatMessage({
                 aria-label="Edit message"
               >
                 <Edit2 className="h-4 w-4 text-muted-foreground" />
+              </motion.button>
+            )}
+            {!isUser && !isStreaming && onRegenerate && (
+              <motion.button
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
+                onClick={onRegenerate}
+                className="opacity-0 group-hover:opacity-100 transition-opacity p-1.5 rounded-md hover:bg-muted"
+                style={{ boxShadow: "0 1px 3px rgba(0, 0, 0, 0.12)" }}
+                aria-label="Regenerate response"
+              >
+                <RefreshCw className="h-4 w-4 text-muted-foreground" />
               </motion.button>
             )}
             <motion.button
