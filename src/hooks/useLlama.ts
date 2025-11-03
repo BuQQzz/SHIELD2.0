@@ -226,6 +226,41 @@ export function useLlama() {
     []
   );
 
+  const setSystemPrompt = useCallback(async (prompt: string) => {
+    if (!window.llama) {
+      console.warn(
+        "[useLlama] setSystemPrompt called but window.llama not available"
+      );
+      return;
+    }
+    try {
+      await window.llama.setSystemPrompt(prompt);
+      console.log("[useLlama] System prompt updated");
+    } catch (err) {
+      console.error("[useLlama] setSystemPrompt failed:", err);
+      setError(err instanceof Error ? err.message : "Unknown error");
+    }
+  }, []);
+
+  const getSystemPrompt = useCallback(async (): Promise<string | null> => {
+    if (!window.llama) {
+      console.warn(
+        "[useLlama] getSystemPrompt called but window.llama not available"
+      );
+      return null;
+    }
+    try {
+      const result = await window.llama.getSystemPrompt();
+      if (result.success && result.prompt) {
+        return result.prompt;
+      }
+      return null;
+    } catch (err) {
+      console.error("[useLlama] getSystemPrompt failed:", err);
+      return null;
+    }
+  }, []);
+
   return {
     isInitialized,
     isModelLoaded,
@@ -239,5 +274,7 @@ export function useLlama() {
     setChatHistory,
     generateTitle,
     stopGeneration,
+    setSystemPrompt,
+    getSystemPrompt,
   };
 }

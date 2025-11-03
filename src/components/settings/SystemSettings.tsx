@@ -5,20 +5,44 @@ import { useSettingsStore } from "@/store/settingsStore";
 import { SystemSettings as SystemSettingsType } from "@/types/settings";
 import { useTheme } from "@/hooks/useTheme";
 import { Button } from "@/components/ui/button";
-import { Moon, Sun, Monitor } from "lucide-react";
+import { Moon, Sun, Monitor, Check } from "lucide-react";
+import { useState } from "react";
 
 interface SystemSettingsProps {
   settings: SystemSettingsType;
+  onApplySystemPrompt?: (prompt: string) => Promise<void>;
 }
 
-export function SystemSettings({ settings }: SystemSettingsProps) {
+export function SystemSettings({ settings, onApplySystemPrompt }: SystemSettingsProps) {
   const { updateSettings } = useSettingsStore();
   const { theme, setTheme } = useTheme();
+  const [systemPrompt, setSystemPrompt] = useState(settings.systemPrompt);
+  const [isApplying, setIsApplying] = useState(false);
+  const [showApplied, setShowApplied] = useState(false);
 
   const handleSystemPromptChange = (
     e: React.ChangeEvent<HTMLTextAreaElement>
   ) => {
-    updateSettings({ system: { ...settings, systemPrompt: e.target.value } });
+    setSystemPrompt(e.target.value);
+    setShowApplied(false);
+  };
+
+  const handleApplySystemPrompt = async () => {
+    setIsApplying(true);
+    try {
+      // Save to settings
+      updateSettings({ system: { ...settings, systemPrompt } });
+      
+      // Apply to LLM if handler provided
+      if (onApplySystemPrompt) {
+        await onApplySystemPrompt(systemPrompt);
+      }
+      
+      setShowApplied(true);
+      setTimeout(() => setShowApplied(false), 2000);
+    } finally {
+      setIsApplying(false);
+    }
   };
 
   const handleAutoSaveChange = (checked: boolean) => {
@@ -72,16 +96,33 @@ export function SystemSettings({ settings }: SystemSettingsProps) {
         </p>
       </div>
       <div>
-        <Label htmlFor="system-prompt">System Prompt</Label>
+        <div className="flex items-center justify-between mb-2">
+          <Label htmlFor="system-prompt">System Prompt</Label>
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={handleApplySystemPrompt}
+            disabled={isApplying || systemPrompt === settings.systemPrompt}
+          >
+            {showApplied ? (
+              <>
+                <Check className="h-3 w-3 mr-1" />
+                Applied
+              </>
+            ) : (
+              'Apply'
+            )}
+          </Button>
+        </div>
         <Textarea
           id="system-prompt"
-          value={settings.systemPrompt}
+          value={systemPrompt}
           onChange={handleSystemPromptChange}
           placeholder="You are a helpful AI assistant..."
           className="mt-2 min-h-[100px]"
         />
         <p className="text-xs text-muted-foreground mt-1">
-          Set the AI's behavior and personality
+          Set the AI's behavior and personality. Click Apply to update the current session.
         </p>
       </div>
 

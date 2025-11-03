@@ -200,6 +200,32 @@ function setupIpcHandlers() {
     }
   });
 
+  // Set system prompt
+  ipcMain.handle("llama:setSystemPrompt", async (_event, prompt: string) => {
+    try {
+      await llamaService.applySystemPrompt(prompt);
+      return { success: true };
+    } catch (error) {
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : "Unknown error",
+      };
+    }
+  });
+
+  // Get system prompt
+  ipcMain.handle("llama:getSystemPrompt", async () => {
+    try {
+      const prompt = llamaService.getSystemPrompt();
+      return { success: true, prompt };
+    } catch (error) {
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : "Unknown error",
+      };
+    }
+  });
+
   // Generate conversation title
   ipcMain.handle("llama:generateTitle", async (_event, userMessage: string) => {
     try {

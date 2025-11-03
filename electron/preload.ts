@@ -45,6 +45,8 @@ export interface LlamaAPI {
     messages: Message[]
   ) => Promise<{ success: boolean; error?: string }>;
   stopGeneration: () => Promise<{ success: boolean; error?: string }>;
+  setSystemPrompt: (prompt: string) => Promise<{ success: boolean; error?: string }>;
+  getSystemPrompt: () => Promise<{ success: boolean; prompt?: string; error?: string }>;
   generateTitle: (
     userMessage: string
   ) => Promise<{ success: boolean; title?: string; error?: string }>;
@@ -76,6 +78,8 @@ const llamaAPI: LlamaAPI = {
   clearHistory: () => ipcRenderer.invoke("llama:clearHistory"),
   setChatHistory: (messages) => ipcRenderer.invoke("llama:setChatHistory", messages),
   stopGeneration: () => ipcRenderer.invoke("llama:stopGeneration"),
+  setSystemPrompt: (prompt) => ipcRenderer.invoke("llama:setSystemPrompt", prompt),
+  getSystemPrompt: () => ipcRenderer.invoke("llama:getSystemPrompt"),
   generateTitle: (userMessage) => ipcRenderer.invoke("llama:generateTitle", userMessage),
 };
 

@@ -41,6 +41,7 @@ function App() {
     setChatHistory,
     generateTitle,
     stopGeneration,
+    setSystemPrompt,
   } = useLlama();
 
   const {
@@ -272,7 +273,11 @@ function App() {
         />
       </div>
 
-      <SettingsDialog open={settingsOpen} onOpenChange={setSettingsOpen} />
+      <SettingsDialog 
+        open={settingsOpen} 
+        onOpenChange={setSettingsOpen}
+        onApplySystemPrompt={setSystemPrompt}
+      />
     </ChatLayout>
   );
 }

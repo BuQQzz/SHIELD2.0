@@ -16,9 +16,10 @@ import { useSettingsStore } from "@/store/settingsStore";
 interface SettingsDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  onApplySystemPrompt?: (prompt: string) => Promise<void>;
 }
 
-export function SettingsDialog({ open, onOpenChange }: SettingsDialogProps) {
+export function SettingsDialog({ open, onOpenChange, onApplySystemPrompt }: SettingsDialogProps) {
   const { settings } = useSettingsStore();
   const [activeTab, setActiveTab] = useState("model");
 
@@ -45,7 +46,10 @@ export function SettingsDialog({ open, onOpenChange }: SettingsDialogProps) {
           </TabsContent>
 
           <TabsContent value="system" className="space-y-4 mt-4">
-            <SystemSettings settings={settings.system} />
+            <SystemSettings 
+              settings={settings.system}
+              onApplySystemPrompt={onApplySystemPrompt}
+            />
           </TabsContent>
 
           <TabsContent value="privacy" className="space-y-4 mt-4">

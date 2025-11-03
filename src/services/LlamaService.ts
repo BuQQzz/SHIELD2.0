@@ -44,6 +44,7 @@ export class LlamaService {
   private session: LlamaChatSession | null = null;
   private currentModelConfig: ModelConfig | null = null;
   private currentAbortController: AbortController | null = null;
+  private systemPrompt: string = "You are a helpful AI assistant.";
 
   /**
    * Initialize llama.cpp
@@ -51,6 +52,21 @@ export class LlamaService {
   async initialize(): Promise<void> {
     if (this.llama) return;
     this.llama = await getLlama();
+  }
+
+  /**
+   * Set the system prompt for the AI assistant
+   */
+  setSystemPrompt(prompt: string): void {
+    this.systemPrompt = prompt;
+    // Note: System prompt will be applied on next session creation or history reset
+  }
+
+  /**
+   * Get the current system prompt
+   */
+  getSystemPrompt(): string {
+    return this.systemPrompt;
   }
 
   /**
@@ -86,9 +102,10 @@ export class LlamaService {
       contextSize: config.contextSize || 2048,
     });
 
-    // Create chat session
+    // Create chat session with system prompt
     this.session = new LlamaChatSession({
       contextSequence: this.context.getSequence(),
+      systemPrompt: this.systemPrompt,
     });
 
     this.currentModelConfig = config;
@@ -174,6 +191,22 @@ export class LlamaService {
   clearHistory(): void {
     if (this.session) {
       this.session.setChatHistory([]);
+    }
+  }
+
+  /**
+   * Apply updated system prompt to current session
+   * Recreates the chat session with new system prompt while preserving context
+   */
+  async applySystemPrompt(prompt: string): Promise<void> {
+    this.systemPrompt = prompt;
+    
+    if (this.context) {
+      // Recreate session with new system prompt
+      this.session = new LlamaChatSession({
+        contextSequence: this.context.getSequence(),
+        systemPrompt: this.systemPrompt,
+      });
     }
   }
 
