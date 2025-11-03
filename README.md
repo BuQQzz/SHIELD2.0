@@ -32,6 +32,11 @@ SHIELD 2.0 is an experimental AI assistant that runs entirely on your local Wind
 - ✅ Stop/cancel generation
 - ✅ Model downloading and caching system
 - ✅ Privacy-first local AI processing
+- ✅ **Conversation management** - Save, load, search, and delete chat sessions
+- ✅ **Automatic conversation titling** - LLM-powered descriptive titles
+- ✅ **Context restoration** - Persistent memory across conversation switches
+- ✅ **Inline delete confirmation** - Smooth UX without browser dialogs
+- ✅ **Auto-focus input** - Always ready to type
 
 This is a learning and experimentation project. Features and architecture may evolve rapidly.
 

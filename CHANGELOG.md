@@ -8,6 +8,34 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Conversation management system** with complete persistence
+  - File-based storage in Electron userData directory
+  - Automatic conversation saving after each message exchange
+  - Real-time search and filtering of conversations
+  - Conversation metadata (title, preview, message count, timestamps)
+  - Create, load, delete, and search operations via IPC
+  - date-fns integration for friendly relative timestamps
+- **Automatic conversation titling** using LLM
+  - Generates concise, descriptive titles from first user message
+  - Low temperature (0.3) for focused title generation
+  - Maximum 6 words for clean UI presentation
+  - Fallback to "New Chat" if generation fails
+  - Similar to Claude and ChatGPT's automatic naming
+- **Conversation context restoration** for LLM memory
+  - Persists chat history across conversation switches
+  - Converts ChatMessage format to llama.cpp ChatHistoryItem format
+  - Automatically restores context when loading conversations
+  - Clears history when creating new conversations
+- **Inline delete confirmation** for conversations
+  - Animated confirmation UI within conversation card
+  - "Delete" and "Cancel" buttons with smooth transitions
+  - Replaces intrusive browser confirm dialog
+  - Keeps users in flow without window pop-ups
+- **Auto-focus chat input** for improved UX
+  - Automatically focuses input on component mount
+  - Re-focuses after sending messages
+  - Focuses when generation completes
+  - Ensures cursor is always visible and ready
 - **Markdown rendering** with GitHub Flavored Markdown support (react-markdown + remark-gfm)
   - Enhanced heading styles (H1-H6) with larger, bolder typography
   - Bold and italic text formatting

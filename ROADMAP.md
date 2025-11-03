@@ -89,9 +89,12 @@ SHIELD 2.0 is a privacy-first, local AI chatbot for Windows with tool integratio
 - [x] Persistent chat sessions (save/load)
 - [x] Multiple conversation threads
 - [x] Conversation search functionality
-- [x] Delete conversations
+- [x] Delete conversations with inline confirmation UI
 - [x] Auto-save after each message exchange
 - [x] Conversation list with previews and timestamps
+- [x] Automatic conversation titling using LLM
+- [x] Context restoration across conversation switches
+- [x] Memory persistence for LLM chat history
 - [ ] Export chat history (JSON, Markdown, PDF)
 - [ ] Import previous conversations
 - [ ] Conversation tagging and organization
@@ -99,6 +102,23 @@ SHIELD 2.0 is a privacy-first, local AI chatbot for Windows with tool integratio
 **Dependencies:** None  
 **Blockers:** None  
 **Estimated Time:** ~~1-2 weeks~~ **COMPLETED**
+
+**Completed Features:**
+- ✅ File-based conversation storage in Electron userData directory
+- ✅ ConversationStorageService with save/load/list/delete/search operations
+- ✅ Zustand conversation store for state management
+- ✅ ConversationList UI component with metadata display
+- ✅ Real-time conversation search and filtering
+- ✅ Automatic conversation saving after each message
+- ✅ date-fns integration for friendly timestamps
+- ✅ Inline delete confirmation (replaced browser confirm dialog)
+- ✅ Smooth animations for delete interactions
+- ✅ LLM-powered automatic conversation titling (max 6 words)
+- ✅ Low temperature (0.3) title generation
+- ✅ Chat history restoration when switching conversations
+- ✅ ChatMessage to ChatHistoryItem format conversion
+- ✅ Auto-clear history for new conversations
+- ✅ Auto-focus chat input for improved UX
 
 **Completed Features:**
 - ✅ Full conversation storage with Electron filesystem APIs
