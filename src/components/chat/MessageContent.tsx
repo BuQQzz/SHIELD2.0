@@ -1,8 +1,7 @@
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
-import { oneDark } from "react-syntax-highlighter/dist/esm/styles/prism";
 import { ComponentPropsWithoutRef } from "react";
+import { CodeBlock } from "./CodeBlock";
 
 interface MessageContentProps {
   content: string;
@@ -23,16 +22,7 @@ export function MessageContent({ content }: MessageContentProps) {
           const codeContent = String(children).replace(/\n$/, "");
 
           return !inline && match ? (
-            <SyntaxHighlighter
-              // @ts-expect-error - oneDark style types are incompatible but work correctly
-              style={oneDark}
-              language={match[1]}
-              PreTag="div"
-              className="rounded-md my-2"
-              {...props}
-            >
-              {codeContent}
-            </SyntaxHighlighter>
+            <CodeBlock language={match[1] || "text"} code={codeContent} />
           ) : (
             <code
               className="bg-muted px-1.5 py-0.5 rounded text-sm font-mono"
