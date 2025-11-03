@@ -1,22 +1,69 @@
-import { Shield } from 'lucide-react'
+'use client'
+
+import { useState } from 'react'
+import { ChatLayout } from './components/chat/ChatLayout'
+import { Sidebar } from './components/chat/Sidebar'
+import { ChatHeader } from './components/chat/ChatHeader'
+import { ChatPlaceholder } from './components/chat/ChatPlaceholder'
+import { MessageList } from './components/chat/MessageList'
+import { ChatInput } from './components/chat/ChatInput'
 import './App.css'
 
+interface Message {
+  id: string
+  role: 'user' | 'assistant'
+  content: string
+  timestamp: Date
+}
+
 function App() {
+  const [messages, setMessages] = useState<Message[]>([])
+  const [isGenerating, setIsGenerating] = useState(false)
+
+  const handleSendMessage = (content: string) => {
+    const userMessage: Message = {
+      id: Date.now().toString(),
+      role: 'user',
+      content,
+      timestamp: new Date(),
+    }
+
+    setMessages((prev) => [...prev, userMessage])
+    setIsGenerating(true)
+
+    // Simulate AI response (replace with actual llama.cpp integration later)
+    setTimeout(() => {
+      const assistantMessage: Message = {
+        id: (Date.now() + 1).toString(),
+        role: 'assistant',
+        content: 'This is a placeholder response. Integration with llama.cpp coming soon!',
+        timestamp: new Date(),
+      }
+      setMessages((prev) => [...prev, assistantMessage])
+      setIsGenerating(false)
+    }, 1000)
+  }
+
+  const handleStopGenerating = () => {
+    setIsGenerating(false)
+  }
+
   return (
-    <div className="min-h-screen bg-background flex items-center justify-center">
-      <div className="text-center">
-        <div className="flex justify-center mb-4">
-          <Shield className="w-24 h-24 text-primary" />
-        </div>
-        <h1 className="text-4xl font-bold mb-2">SHIELD 2.0</h1>
-        <p className="text-muted-foreground">
-          Privacy-first AI Assistant for Windows
-        </p>
-        <p className="text-sm text-muted-foreground mt-4">
-          Coming soon...
-        </p>
+    <ChatLayout sidebar={<Sidebar />}>
+      <div className="flex h-full flex-col">
+        <ChatHeader />
+        {messages.length === 0 ? (
+          <ChatPlaceholder />
+        ) : (
+          <MessageList messages={messages} />
+        )}
+        <ChatInput
+          onSend={handleSendMessage}
+          isGenerating={isGenerating}
+          onStop={handleStopGenerating}
+        />
       </div>
-    </div>
+    </ChatLayout>
   )
 }
 
