@@ -143,6 +143,24 @@ export class LlamaService {
   }
 
   /**
+   * Set chat history from saved conversation
+   */
+  setChatHistory(messages: ChatMessage[]): void {
+    if (this.session) {
+      // Convert our ChatMessage format to LlamaChatSession format
+      const chatHistory = messages.map(msg => {
+        if (msg.role === "user") {
+          return { type: "user" as const, text: msg.content };
+        } else {
+          // assistant messages are "model" responses in llama.cpp
+          return { type: "model" as const, response: [msg.content] };
+        }
+      });
+      this.session.setChatHistory(chatHistory);
+    }
+  }
+
+  /**
    * Clear chat history
    */
   clearHistory(): void {

@@ -175,6 +175,19 @@ function setupIpcHandlers() {
     }
   });
 
+  // Set chat history
+  ipcMain.handle("llama:setChatHistory", async (_event, messages) => {
+    try {
+      llamaService.setChatHistory(messages);
+      return { success: true };
+    } catch (error) {
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : "Unknown error",
+      };
+    }
+  });
+
   // Stop generation
   ipcMain.handle("llama:stopGeneration", async () => {
     try {

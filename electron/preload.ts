@@ -33,6 +33,7 @@ export interface LlamaAPI {
   }>;
   isModelLoaded: () => Promise<{ success: boolean; loaded?: boolean; error?: string }>;
   clearHistory: () => Promise<{ success: boolean; error?: string }>;
+  setChatHistory: (messages: any[]) => Promise<{ success: boolean; error?: string }>;
   stopGeneration: () => Promise<{ success: boolean; error?: string }>;
 }
 
@@ -60,6 +61,7 @@ const llamaAPI: LlamaAPI = {
   getModelInfo: () => ipcRenderer.invoke("llama:getModelInfo"),
   isModelLoaded: () => ipcRenderer.invoke("llama:isModelLoaded"),
   clearHistory: () => ipcRenderer.invoke("llama:clearHistory"),
+  setChatHistory: (messages) => ipcRenderer.invoke("llama:setChatHistory", messages),
   stopGeneration: () => ipcRenderer.invoke("llama:stopGeneration"),
 };
 

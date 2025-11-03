@@ -174,6 +174,20 @@ export function useLlama() {
     }
   }, []);
 
+  const setChatHistory = useCallback(async (messages: Message[]) => {
+    if (!window.llama) {
+      console.warn("[useLlama] setChatHistory called but window.llama not available");
+      return;
+    }
+    try {
+      await window.llama.setChatHistory(messages);
+      console.log("[useLlama] Chat history set successfully");
+    } catch (err) {
+      console.error("[useLlama] setChatHistory failed:", err);
+      setError(err instanceof Error ? err.message : "Unknown error");
+    }
+  }, []);
+
   return {
     isInitialized,
     isModelLoaded,
@@ -184,6 +198,7 @@ export function useLlama() {
     sendMessage,
     sendStreamingMessage,
     clearHistory,
+    setChatHistory,
     stopGeneration,
   };
 }

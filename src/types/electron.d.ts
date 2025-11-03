@@ -60,6 +60,7 @@ export interface LlamaAPI {
     error?: string;
   }>;
   clearHistory: () => Promise<{ success: boolean; error?: string }>;
+  setChatHistory: (messages: Message[]) => Promise<{ success: boolean; error?: string }>;
   stopGeneration: () => Promise<{ success: boolean; error?: string }>;
 }
 

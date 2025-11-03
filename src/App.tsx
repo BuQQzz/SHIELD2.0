@@ -59,6 +59,7 @@ function App() {
     loadModel,
     sendStreamingMessage,
     clearHistory,
+    setChatHistory,
     stopGeneration,
   } = useLlama();
 
@@ -82,6 +83,22 @@ function App() {
       setMessages(currentConversation.messages);
     }
   }, [currentConversation]);
+
+  // Restore chat history when conversation changes (for LLM memory)
+  useEffect(() => {
+    if (currentConversation && currentConversation.messages.length > 0 && isModelLoaded) {
+      console.log("[App] Restoring chat history for conversation:", currentConversation.id);
+      setChatHistory(currentConversation.messages).catch((err) => {
+        console.error("[App] Failed to restore chat history:", err);
+      });
+    } else if (currentConversation && currentConversation.messages.length === 0 && isModelLoaded) {
+      // New conversation - clear history
+      console.log("[App] New conversation - clearing history");
+      clearHistory().catch((err) => {
+        console.error("[App] Failed to clear history:", err);
+      });
+    }
+  }, [currentConversation, isModelLoaded, setChatHistory, clearHistory]);
 
   // Auto-load model ONLY when initialized and user hasn't loaded one yet
   // This happens in the background without blocking the UI
