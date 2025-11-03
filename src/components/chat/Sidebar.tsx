@@ -50,9 +50,7 @@ export function Sidebar({ onClearHistory, onNewChat }: SidebarProps) {
   };
 
   const handleDeleteConversation = (conversationId: string) => {
-    if (confirm("Are you sure you want to delete this conversation?")) {
-      deleteConversation(conversationId);
-    }
+    deleteConversation(conversationId);
   };
 
   return (

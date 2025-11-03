@@ -188,6 +188,24 @@ export function useLlama() {
     }
   }, []);
 
+  const generateTitle = useCallback(async (userMessage: string): Promise<string | null> => {
+    if (!window.llama) {
+      console.warn("[useLlama] generateTitle called but window.llama not available");
+      return null;
+    }
+    try {
+      const result = await window.llama.generateTitle(userMessage);
+      if (result.success && result.title) {
+        console.log("[useLlama] Generated title:", result.title);
+        return result.title;
+      }
+      return null;
+    } catch (err) {
+      console.error("[useLlama] generateTitle failed:", err);
+      return null;
+    }
+  }, []);
+
   return {
     isInitialized,
     isModelLoaded,
@@ -199,6 +217,7 @@ export function useLlama() {
     sendStreamingMessage,
     clearHistory,
     setChatHistory,
+    generateTitle,
     stopGeneration,
   };
 }

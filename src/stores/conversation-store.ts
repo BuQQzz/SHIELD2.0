@@ -23,6 +23,7 @@ interface ConversationState {
   createNewConversation: (title?: string, modelId?: string) => void;
   addMessage: (message: Message) => void;
   updateConversation: (updates: Partial<Conversation>) => void;
+  updateTitle: (title: string) => void;
 
   // Async operations
   saveCurrentConversation: () => Promise<void>;
@@ -81,6 +82,19 @@ export const useConversationStore = create<ConversationState>((set, get) => ({
     const updatedConversation: Conversation = {
       ...currentConversation,
       ...updates,
+      updatedAt: new Date(),
+    };
+
+    set({ currentConversation: updatedConversation });
+  },
+
+  updateTitle: (title) => {
+    const { currentConversation } = get();
+    if (!currentConversation) return;
+
+    const updatedConversation: Conversation = {
+      ...currentConversation,
+      title,
       updatedAt: new Date(),
     };
 

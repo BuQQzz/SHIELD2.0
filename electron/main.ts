@@ -201,6 +201,19 @@ function setupIpcHandlers() {
     }
   });
 
+  // Generate conversation title
+  ipcMain.handle("llama:generateTitle", async (_event, userMessage: string) => {
+    try {
+      const title = await llamaService.generateTitle(userMessage);
+      return { success: true, title };
+    } catch (error) {
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : "Unknown error",
+      };
+    }
+  });
+
   // Conversation storage handlers
   ipcMain.handle("conversations:save", async (_event, conversation) => {
     return await conversationStorage.saveConversation(conversation);

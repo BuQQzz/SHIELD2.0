@@ -35,6 +35,7 @@ export interface LlamaAPI {
   clearHistory: () => Promise<{ success: boolean; error?: string }>;
   setChatHistory: (messages: any[]) => Promise<{ success: boolean; error?: string }>;
   stopGeneration: () => Promise<{ success: boolean; error?: string }>;
+  generateTitle: (userMessage: string) => Promise<{ success: boolean; title?: string; error?: string }>;
 }
 
 export interface ConversationAPI {
@@ -63,6 +64,7 @@ const llamaAPI: LlamaAPI = {
   clearHistory: () => ipcRenderer.invoke("llama:clearHistory"),
   setChatHistory: (messages) => ipcRenderer.invoke("llama:setChatHistory", messages),
   stopGeneration: () => ipcRenderer.invoke("llama:stopGeneration"),
+  generateTitle: (userMessage) => ipcRenderer.invoke("llama:generateTitle", userMessage),
 };
 
 contextBridge.exposeInMainWorld("llama", llamaAPI);

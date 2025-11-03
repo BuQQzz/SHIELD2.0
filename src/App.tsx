@@ -60,6 +60,7 @@ function App() {
     sendStreamingMessage,
     clearHistory,
     setChatHistory,
+    generateTitle,
     stopGeneration,
   } = useLlama();
 
@@ -67,6 +68,7 @@ function App() {
     currentConversation,
     createNewConversation,
     addMessage,
+    updateTitle,
     saveCurrentConversation,
   } = useConversationStore();
 
@@ -184,6 +186,16 @@ function App() {
       addMessage(assistantMessage); // Add to conversation store
       setStreamingContent("");
       streamingContentRef.current = "";
+
+      // Generate title for first message in conversation
+      if (currentConversation && currentConversation.messages.length === 0) {
+        console.log("[App] Generating title for new conversation");
+        const generatedTitle = await generateTitle(content);
+        if (generatedTitle) {
+          console.log("[App] Setting conversation title:", generatedTitle);
+          updateTitle(generatedTitle);
+        }
+      }
 
       // Auto-save conversation after each exchange
       await saveCurrentConversation();

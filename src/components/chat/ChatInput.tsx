@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, KeyboardEvent } from "react";
+import { useState, useRef, KeyboardEvent, useEffect } from "react";
 import { Send, Square } from "lucide-react";
 import { motion } from "framer-motion";
 
@@ -20,12 +20,21 @@ export function ChatInput({
   const [input, setInput] = useState("");
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
+  // Auto-focus on mount and when not generating
+  useEffect(() => {
+    if (!isGenerating && !disabled && textareaRef.current) {
+      textareaRef.current.focus();
+    }
+  }, [isGenerating, disabled]);
+
   const handleSubmit = () => {
     if (input.trim() && !isGenerating && !disabled) {
       onSend(input.trim());
       setInput("");
       if (textareaRef.current) {
         textareaRef.current.style.height = "auto";
+        // Re-focus after sending
+        setTimeout(() => textareaRef.current?.focus(), 0);
       }
     }
   };

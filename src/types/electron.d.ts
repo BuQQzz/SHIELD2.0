@@ -62,6 +62,7 @@ export interface LlamaAPI {
   clearHistory: () => Promise<{ success: boolean; error?: string }>;
   setChatHistory: (messages: Message[]) => Promise<{ success: boolean; error?: string }>;
   stopGeneration: () => Promise<{ success: boolean; error?: string }>;
+  generateTitle: (userMessage: string) => Promise<{ success: boolean; title?: string; error?: string }>;
 }
 
 export interface ConversationAPI {
