@@ -1,0 +1,19 @@
+/* Inter Font Family - SIL Open Font License 1.1 */
+/* Designed specifically for user interfaces and screens */
+
+/* Variable font - supports weights 100-900 */
+@font-face {
+  font-family: 'Inter';
+  src: url('/fonts/InterVariable.ttf') format('truetype');
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Inter';
+  src: url('/fonts/InterVariable-Italic.ttf') format('truetype');
+  font-weight: 100 900;
+  font-style: italic;
+  font-display: swap;
+}
