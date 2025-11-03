@@ -8,6 +8,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **System prompt customization** for AI personality control
+  - Custom system prompt field in System settings tab
+  - Apply button with loading and success states
+  - Real-time updates to active LlamaChatSession
+  - System prompt persists across conversations
+  - Default: "You are a helpful AI assistant."
+  - Enables custom AI personalities (technical expert, creative writer, etc.)
+  - Backend infrastructure: LlamaService methods (setSystemPrompt, getSystemPrompt, applySystemPrompt)
+  - IPC handlers for secure main ↔ renderer communication
+  - Preload API exposure via contextBridge
+  - React hooks integration (useLlama)
 - **Settings persistence system** for data portability and backup
   - SettingsStorageService for file-based settings management
   - Settings stored in JSON format in userData directory
