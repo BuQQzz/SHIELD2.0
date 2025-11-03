@@ -214,7 +214,7 @@ SHIELD 2.0 is a privacy-first, local AI chatbot for Windows with tool integratio
 - [x] Add temperature/max tokens UI controls (already functional via settings)
 - [ ] Implement conversation branching
 - [x] Add message editing and regeneration
-- [ ] Implement chat templates
+- [x] Implement chat templates
 - [ ] Add voice input (speech-to-text)
 
 **Dependencies:** Conversation Management  
@@ -233,6 +233,10 @@ SHIELD 2.0 is a privacy-first, local AI chatbot for Windows with tool integratio
 - ✅ Message regeneration for alternative AI responses
 - ✅ Regenerate button on assistant messages (hover to reveal)
 - ✅ Fresh inference with same prompt and current settings
+- ✅ Chat templates with 8 predefined configurations
+- ✅ Template selector modal with visual grid
+- ✅ Sparkles button in sidebar for template access
+- ✅ Automatic settings application from templates
 
 #### 6. Add Dark Mode and Theme Customization
 **Priority:** LOW | **Status:** ✅ Completed

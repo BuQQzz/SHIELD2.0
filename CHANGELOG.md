@@ -8,6 +8,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Chat templates system** for quick-start conversations with pre-configured settings
+  - 8 predefined templates with optimized configurations
+  - General Assistant - balanced AI for everyday questions
+  - Code Reviewer - expert code analysis and suggestions
+  - Creative Writer - imaginative storytelling and content
+  - Technical Expert - in-depth technical explanations
+  - Learning Tutor - patient teaching with clear examples
+  - Brainstorm Partner - idea generation and exploration
+  - Writing Editor - improve clarity, grammar, and style
+  - Research Assistant - organized information gathering
+  - Each template includes custom system prompt, model settings, and starter prompts
+  - Visual template selector modal with grid layout
+  - Sparkles button in sidebar for quick access
+  - Templates automatically configure temperature, max tokens, and other parameters
+  - Icon-based visual identification for each template
+  - Example prompts shown for each template
 - **Message regeneration for alternative responses** for exploring different AI outputs
   - Regenerate button appears on hover for assistant messages
   - Re-runs inference with same user prompt
