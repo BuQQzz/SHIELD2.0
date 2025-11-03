@@ -1,5 +1,6 @@
 import { cn } from "@/lib/utils";
 import { Bot, User } from "lucide-react";
+import { motion } from "framer-motion";
 
 interface MessageProps {
   role: "user" | "assistant";
@@ -11,7 +12,10 @@ export function ChatMessage({ role, content, isStreaming }: MessageProps) {
   const isUser = role === "user";
 
   return (
-    <div
+    <motion.div
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.3, ease: "easeOut" }}
       className={cn(
         "flex gap-3 p-4 rounded-lg",
         isUser ? "bg-muted/50" : "bg-background"
@@ -34,10 +38,14 @@ export function ChatMessage({ role, content, isStreaming }: MessageProps) {
         <div className="text-sm text-muted-foreground whitespace-pre-wrap break-words">
           {content}
           {isStreaming && (
-            <span className="inline-block w-2 h-4 ml-1 bg-primary animate-pulse" />
+            <motion.span
+              animate={{ opacity: [1, 0] }}
+              transition={{ duration: 0.8, repeat: Infinity, repeatType: "reverse" }}
+              className="inline-block w-2 h-4 ml-1 bg-primary"
+            />
           )}
         </div>
       </div>
-    </div>
+    </motion.div>
   );
 }

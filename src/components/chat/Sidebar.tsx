@@ -3,6 +3,7 @@
 import { Shield, Menu, Settings, Plus, Search, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useChatStore } from "@/stores/chat-store";
+import { motion, AnimatePresence } from "framer-motion";
 
 interface SidebarProps {
   onClearHistory?: () => void;
@@ -11,10 +12,16 @@ interface SidebarProps {
 export function Sidebar({ onClearHistory }: SidebarProps) {
   const { sidebarOpen, toggleSidebar } = useChatStore();
 
-  if (!sidebarOpen) return null;
-
   return (
-    <div className="flex h-full w-[260px] flex-col bg-background">
+    <AnimatePresence mode="wait">
+      {sidebarOpen && (
+        <motion.div
+          initial={{ x: -260, opacity: 0 }}
+          animate={{ x: 0, opacity: 1 }}
+          exit={{ x: -260, opacity: 0 }}
+          transition={{ duration: 0.3, ease: "easeInOut" }}
+          className="flex h-full w-[260px] flex-col bg-background border-r border-border"
+        >
       {/* Header */}
       <div className="flex items-center justify-between border-b border-border p-4">
         <div className="flex items-center gap-2">
@@ -78,6 +85,8 @@ export function Sidebar({ onClearHistory }: SidebarProps) {
           Settings
         </Button>
       </div>
-    </div>
+        </motion.div>
+      )}
+    </AnimatePresence>
   );
 }

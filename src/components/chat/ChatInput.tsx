@@ -3,6 +3,7 @@
 import { useState, useRef, KeyboardEvent } from "react";
 import { Send, Square } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { motion } from "framer-motion";
 
 interface ChatInputProps {
   onSend: (message: string) => void;
@@ -60,23 +61,27 @@ export function ChatInput({
           />
 
           {isGenerating ? (
-            <Button
-              size="icon"
-              variant="ghost"
-              onClick={onStop}
-              className="shrink-0"
-            >
-              <Square className="h-5 w-5" />
-            </Button>
+            <motion.div whileTap={{ scale: 0.95 }}>
+              <Button
+                size="icon"
+                variant="ghost"
+                onClick={onStop}
+                className="shrink-0"
+              >
+                <Square className="h-5 w-5" />
+              </Button>
+            </motion.div>
           ) : (
-            <Button
-              size="icon"
-              onClick={handleSubmit}
-              disabled={!input.trim() || disabled}
-              className="shrink-0"
-            >
-              <Send className="h-5 w-5" />
-            </Button>
+            <motion.div whileTap={{ scale: 0.95 }} whileHover={{ scale: 1.05 }}>
+              <Button
+                size="icon"
+                onClick={handleSubmit}
+                disabled={!input.trim() || disabled}
+                className="shrink-0"
+              >
+                <Send className="h-5 w-5" />
+              </Button>
+            </motion.div>
           )}
         </div>
 

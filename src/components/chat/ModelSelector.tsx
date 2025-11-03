@@ -2,6 +2,7 @@
 
 import { Check, ChevronDown, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { motion } from "framer-motion";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -59,28 +60,34 @@ export function ModelSelector({
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-72">
-        {models.map((model) => (
-          <DropdownMenuItem
+        {models.map((model, index) => (
+          <motion.div
             key={model.id}
-            onClick={() => onModelSelect(model)}
-            disabled={isLoading}
-            className="flex flex-col items-start gap-1 p-3"
+            initial={{ opacity: 0, x: -10 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ duration: 0.2, delay: index * 0.05 }}
           >
-            <div className="flex w-full items-center justify-between">
-              <span className="font-medium">{model.displayName}</span>
-              <div className="flex items-center gap-2">
-                <span className="text-xs text-muted-foreground">
-                  {model.size}
-                </span>
-                {currentModel === model.id && (
-                  <Check className="h-4 w-4 text-primary" />
-                )}
+            <DropdownMenuItem
+              onClick={() => onModelSelect(model)}
+              disabled={isLoading}
+              className="flex flex-col items-start gap-1 p-3 cursor-pointer transition-colors"
+            >
+              <div className="flex w-full items-center justify-between">
+                <span className="font-medium">{model.displayName}</span>
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-muted-foreground">
+                    {model.size}
+                  </span>
+                  {currentModel === model.id && (
+                    <Check className="h-4 w-4 text-primary" />
+                  )}
+                </div>
               </div>
-            </div>
-            <span className="text-xs text-muted-foreground">
-              {model.description}
-            </span>
-          </DropdownMenuItem>
+              <span className="text-xs text-muted-foreground">
+                {model.description}
+              </span>
+            </DropdownMenuItem>
+          </motion.div>
         ))}
       </DropdownMenuContent>
     </DropdownMenu>
