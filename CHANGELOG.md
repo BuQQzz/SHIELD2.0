@@ -8,6 +8,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Settings persistence system** for data portability and backup
+  - SettingsStorageService for file-based settings management
+  - Settings stored in JSON format in userData directory
+  - Export settings to user-selected location with metadata
+  - Import settings from exported JSON files with validation
+  - Reset to defaults with confirmation dialog
+  - Settings automatically merge with new defaults on updates (future-proof)
+  - Export/Import/Reset UI in Privacy settings tab
+  - Settings persist across app restarts
+  - Type-safe validation for imported settings
 - **Conversation tagging system** for organization
   - Add custom tags to conversations via ChatHeader dropdown menu
   - Tag component with remove functionality and animations
@@ -118,6 +128,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Streaming cursor with pulsing animation
   - Sidebar slide transitions
   - Button hover and tap effects
+
+### Fixed
+- **Duplicate IPC handler registration** causing app crashes
+  - Removed legacy SettingsService handlers from main.ts
+  - Now using only SettingsStorageService for all settings operations
+  - Removed unused settingsService import
+  - Resolves UnhandledPromiseRejectionWarning on startup
+  - Dev server starts cleanly without handler conflicts
   - Model selector dropdown animations
 - **Model selector UI** with 3 model options
   - Qwen 7B (4.4GB) - Excellent multilingual

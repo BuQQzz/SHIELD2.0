@@ -169,37 +169,42 @@ SHIELD 2.0 is a privacy-first, local AI chatbot for Windows with tool integratio
 ### Phase 7: User Experience & Configuration
 
 #### 4. Build Settings and Configuration System
-**Priority:** MEDIUM | **Status:** In Progress
+**Priority:** MEDIUM | **Status:** ✅ Completed
 
 - [x] Create settings UI component
 - [x] Add model parameter controls (temperature, top_p, top_k, context length)
 - [x] Implement system preferences
 - [x] Build privacy controls interface
 - [x] Add comprehensive Help/About page with feature explanations
-- [ ] Add tool permission management
-- [ ] Implement persistent settings storage
-- [ ] Add import/export settings
+- [x] Implement persistent settings storage
+- [x] Add export/import settings functionality
+- [ ] Add tool permission management (when MCP integration is added)
 
 **Dependencies:** #4 (Chat Functionality)  
 **Blockers:** None  
-**Estimated Time:** ~~1 week~~ In Progress
+**Estimated Time:** ~~1 week~~ **COMPLETED**
 
 **Completed Features:**
 - ✅ Settings dialog with tabbed interface
 - ✅ ModelSettings component (temperature, max tokens, top-p, top-k, repeat penalty)
-- ✅ SystemSettings component (theme selection)
-- ✅ PrivacySettings component (data management, clear conversations)
+- ✅ SystemSettings component (theme selection, system prompt, toggles)
+- ✅ PrivacySettings component (data management, telemetry controls)
 - ✅ **HelpSettings component with comprehensive feature documentation**
 - ✅ **In-app help page explaining all features and keyboard shortcuts**
 - ✅ **Model settings explanations for user understanding**
 - ✅ **Privacy & data information highlighting offline-first approach**
 - ✅ **Getting started guide for new users**
 - ✅ **Self-contained help (no external links required)**
+- ✅ **SettingsStorageService for file-based settings persistence**
+- ✅ **Settings stored in JSON format in userData directory**
+- ✅ **Export settings to user-selected location**
+- ✅ **Import settings from JSON with validation**
+- ✅ **Reset to defaults functionality**
+- ✅ **Settings automatically persist across app restarts**
+- ✅ **Export/Import/Reset UI in Privacy settings tab**
 
 **Remaining:**
-- ⏳ Tool permission management (when MCP integration is added)
-- ⏳ Persistent settings storage
-- ⏳ Import/export settings functionality
+- ⏳ Tool permission management (pending MCP integration in Phase 6)
 
 #### 5. Implement Advanced Chat Features
 **Priority:** MEDIUM | **Status:** Not Started
