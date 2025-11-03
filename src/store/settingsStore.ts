@@ -7,6 +7,8 @@ interface SettingsStore {
   loadSettings: () => Promise<void>;
   updateSettings: (settings: Partial<AppSettings>) => Promise<void>;
   resetSettings: () => Promise<void>;
+  exportSettings: () => Promise<string | null>;
+  importSettings: () => Promise<void>;
 }
 
 export const useSettingsStore = create<SettingsStore>((set, get) => ({
@@ -16,7 +18,7 @@ export const useSettingsStore = create<SettingsStore>((set, get) => ({
   loadSettings: async () => {
     set({ isLoading: true });
     try {
-      const savedSettings = await window.electronAPI.settings.load();
+      const savedSettings = await window.electronAPI.settingsPersistence.load();
       if (savedSettings) {
         set({ settings: savedSettings });
       }
@@ -40,18 +42,45 @@ export const useSettingsStore = create<SettingsStore>((set, get) => ({
     set({ settings: updatedSettings });
 
     try {
-      await window.electronAPI.settings.save(updatedSettings);
+      await window.electronAPI.settingsPersistence.save(updatedSettings);
     } catch (error) {
       console.error("Failed to save settings:", error);
     }
   },
 
   resetSettings: async () => {
-    set({ settings: DEFAULT_SETTINGS });
     try {
-      await window.electronAPI.settings.save(DEFAULT_SETTINGS);
+      const defaultSettings =
+        await window.electronAPI.settingsPersistence.reset();
+      set({ settings: defaultSettings });
     } catch (error) {
       console.error("Failed to reset settings:", error);
+      set({ settings: DEFAULT_SETTINGS });
+    }
+  },
+
+  exportSettings: async () => {
+    try {
+      const currentSettings = get().settings;
+      return await window.electronAPI.settingsPersistence.export(
+        currentSettings
+      );
+    } catch (error) {
+      console.error("Failed to export settings:", error);
+      return null;
+    }
+  },
+
+  importSettings: async () => {
+    try {
+      const importedSettings =
+        await window.electronAPI.settingsPersistence.import();
+      if (importedSettings) {
+        set({ settings: importedSettings });
+        await window.electronAPI.settingsPersistence.save(importedSettings);
+      }
+    } catch (error) {
+      console.error("Failed to import settings:", error);
     }
   },
 }));

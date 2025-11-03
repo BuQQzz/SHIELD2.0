@@ -117,6 +117,14 @@ interface SettingsAPI {
   save: (settings: AppSettings) => Promise<{ success: boolean; error?: string }>;
 }
 
+interface SettingsPersistenceAPI {
+  load: () => Promise<AppSettings>;
+  save: (settings: AppSettings) => Promise<boolean>;
+  export: (settings: AppSettings) => Promise<string | null>;
+  import: () => Promise<AppSettings | null>;
+  reset: () => Promise<AppSettings>;
+}
+
 interface ExportAPI {
   exportJSON: (conversation: Conversation) => Promise<boolean>;
   exportMarkdown: (conversation: Conversation) => Promise<boolean>;
@@ -128,6 +136,14 @@ const settingsAPI: SettingsAPI = {
   save: (settings) => ipcRenderer.invoke("settings:save", settings),
 };
 
+const settingsPersistenceAPI: SettingsPersistenceAPI = {
+  load: () => ipcRenderer.invoke("settings:load"),
+  save: (settings) => ipcRenderer.invoke("settings:save", settings),
+  export: (settings) => ipcRenderer.invoke("settings:export", settings),
+  import: () => ipcRenderer.invoke("settings:import"),
+  reset: () => ipcRenderer.invoke("settings:reset"),
+};
+
 const exportAPI: ExportAPI = {
   exportJSON: (conversation) => ipcRenderer.invoke("conversation:export-json", conversation),
   exportMarkdown: (conversation) => ipcRenderer.invoke("conversation:export-markdown", conversation),
@@ -136,6 +152,7 @@ const exportAPI: ExportAPI = {
 
 contextBridge.exposeInMainWorld("electronAPI", {
   settings: settingsAPI,
+  settingsPersistence: settingsPersistenceAPI,
   export: exportAPI,
 });
 

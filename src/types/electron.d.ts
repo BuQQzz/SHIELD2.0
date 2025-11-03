@@ -121,6 +121,14 @@ export interface SettingsAPI {
   ) => Promise<{ success: boolean; error?: string }>;
 }
 
+export interface SettingsPersistenceAPI {
+  load: () => Promise<AppSettings>;
+  save: (settings: AppSettings) => Promise<boolean>;
+  export: (settings: AppSettings) => Promise<string | null>;
+  import: () => Promise<AppSettings | null>;
+  reset: () => Promise<AppSettings>;
+}
+
 export interface ExportAPI {
   exportJSON: (conversation: Conversation) => Promise<boolean>;
   exportMarkdown: (conversation: Conversation) => Promise<boolean>;
@@ -133,6 +141,7 @@ declare global {
     conversations: ConversationAPI;
     electronAPI: {
       settings: SettingsAPI;
+      settingsPersistence: SettingsPersistenceAPI;
       export: ExportAPI;
     };
   }

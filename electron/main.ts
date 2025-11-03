@@ -5,6 +5,7 @@ import { getLlamaService } from "../src/services/LlamaService.js";
 import { ConversationStorageService } from "./services/ConversationStorageService.js";
 import { settingsService } from "./services/SettingsService.js";
 import { ExportService } from "./services/ExportService.js";
+import { SettingsStorageService } from "./services/SettingsStorageService.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -284,10 +285,57 @@ function setupIpcHandlers() {
       return null;
     }
   });
+
+  // Settings persistence handlers
+  ipcMain.handle("settings:load", async () => {
+    try {
+      return await SettingsStorageService.loadSettings();
+    } catch (error) {
+      console.error("Failed to load settings:", error);
+      return SettingsStorageService.getDefaults();
+    }
+  });
+
+  ipcMain.handle("settings:save", async (_event, settings) => {
+    try {
+      return await SettingsStorageService.saveSettings(settings);
+    } catch (error) {
+      console.error("Failed to save settings:", error);
+      return false;
+    }
+  });
+
+  ipcMain.handle("settings:export", async (_event, settings) => {
+    try {
+      return await SettingsStorageService.exportSettings(settings);
+    } catch (error) {
+      console.error("Failed to export settings:", error);
+      return null;
+    }
+  });
+
+  ipcMain.handle("settings:import", async () => {
+    try {
+      return await SettingsStorageService.importSettings();
+    } catch (error) {
+      console.error("Failed to import settings:", error);
+      return null;
+    }
+  });
+
+  ipcMain.handle("settings:reset", async () => {
+    try {
+      return await SettingsStorageService.resetSettings();
+    } catch (error) {
+      console.error("Failed to reset settings:", error);
+      return SettingsStorageService.getDefaults();
+    }
+  });
 }
 
 // App lifecycle
 app.whenReady().then(() => {
+  SettingsStorageService.initialize();
   setupIpcHandlers();
   createWindow();
 
