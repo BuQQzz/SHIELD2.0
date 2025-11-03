@@ -91,9 +91,7 @@ export function ModelSettings({ settings }: ModelSettingsProps) {
       <div>
         <div className="flex justify-between items-center mb-2">
           <Label htmlFor="top-k">Top K</Label>
-          <span className="text-sm text-muted-foreground">
-            {settings.topK}
-          </span>
+          <span className="text-sm text-muted-foreground">{settings.topK}</span>
         </div>
         <Slider
           id="top-k"

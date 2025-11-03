@@ -23,7 +23,10 @@ export interface ChatInputRef {
 }
 
 export const ChatInput = forwardRef<ChatInputRef, ChatInputProps>(
-  function ChatInput({ onSend, isGenerating = false, onStop, disabled = false }, ref) {
+  function ChatInput(
+    { onSend, isGenerating = false, onStop, disabled = false },
+    ref
+  ) {
     const [input, setInput] = useState("");
     const textareaRef = useRef<HTMLTextAreaElement>(null);
 
@@ -39,77 +42,78 @@ export const ChatInput = forwardRef<ChatInputRef, ChatInputProps>(
       }
     }, [isGenerating, disabled]);
 
-  const handleSubmit = () => {
-    if (input.trim() && !isGenerating && !disabled) {
-      onSend(input.trim());
-      setInput("");
-      if (textareaRef.current) {
-        textareaRef.current.style.height = "auto";
-        // Re-focus after sending
-        setTimeout(() => textareaRef.current?.focus(), 0);
+    const handleSubmit = () => {
+      if (input.trim() && !isGenerating && !disabled) {
+        onSend(input.trim());
+        setInput("");
+        if (textareaRef.current) {
+          textareaRef.current.style.height = "auto";
+          // Re-focus after sending
+          setTimeout(() => textareaRef.current?.focus(), 0);
+        }
       }
-    }
-  };
+    };
 
-  const handleKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>) => {
-    if (e.key === "Enter" && !e.shiftKey) {
-      e.preventDefault();
-      handleSubmit();
-    }
-  };
+    const handleKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>) => {
+      if (e.key === "Enter" && !e.shiftKey) {
+        e.preventDefault();
+        handleSubmit();
+      }
+    };
 
-  const handleInput = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
-    setInput(e.target.value);
-    // Auto-resize textarea
-    e.target.style.height = "auto";
-    e.target.style.height = `${e.target.scrollHeight}px`;
-  };
+    const handleInput = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+      setInput(e.target.value);
+      // Auto-resize textarea
+      e.target.style.height = "auto";
+      e.target.style.height = `${e.target.scrollHeight}px`;
+    };
 
-  return (
-    <div className="bg-background p-4">
-      <div className="mx-auto max-w-3xl">
-        <div
-          className="relative flex items-end gap-2 rounded-lg bg-background p-2 focus-within:ring-2 focus-within:ring-ring"
-          style={{ boxShadow: "0 2px 6px rgba(0, 0, 0, 0.12)" }}
-        >
-          <textarea
-            ref={textareaRef}
-            value={input}
-            onChange={handleInput}
-            onKeyDown={handleKeyDown}
-            placeholder="Type your message... (Shift+Enter for new line)"
-            rows={1}
-            className="max-h-32 min-h-[40px] flex-1 resize-none bg-transparent px-2 py-2 text-sm outline-none placeholder:text-muted-foreground"
-            disabled={isGenerating || disabled}
-          />
+    return (
+      <div className="bg-background p-4">
+        <div className="mx-auto max-w-3xl">
+          <div
+            className="relative flex items-end gap-2 rounded-lg bg-background p-2 focus-within:ring-2 focus-within:ring-ring"
+            style={{ boxShadow: "0 2px 6px rgba(0, 0, 0, 0.12)" }}
+          >
+            <textarea
+              ref={textareaRef}
+              value={input}
+              onChange={handleInput}
+              onKeyDown={handleKeyDown}
+              placeholder="Type your message... (Shift+Enter for new line)"
+              rows={1}
+              className="max-h-32 min-h-[40px] flex-1 resize-none bg-transparent px-2 py-2 text-sm outline-none placeholder:text-muted-foreground"
+              disabled={isGenerating || disabled}
+            />
 
-          {isGenerating ? (
-            <motion.button
-              whileTap={{ scale: 0.95 }}
-              onClick={onStop}
-              className="shrink-0 rounded-md p-2 transition-all hover:bg-accent"
-              style={{ boxShadow: "0 1px 3px rgba(0, 0, 0, 0.12)" }}
-            >
-              <Square className="h-5 w-5" />
-            </motion.button>
-          ) : (
-            <motion.button
-              whileTap={{ scale: 0.95 }}
-              whileHover={{ scale: 1.05 }}
-              onClick={handleSubmit}
-              disabled={!input.trim() || disabled}
-              className="shrink-0 rounded-md bg-primary p-2 text-primary-foreground transition-all hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed"
-              style={{ boxShadow: "0 1px 3px rgba(0, 0, 0, 0.12)" }}
-            >
-              <Send className="h-5 w-5" />
-            </motion.button>
-          )}
+            {isGenerating ? (
+              <motion.button
+                whileTap={{ scale: 0.95 }}
+                onClick={onStop}
+                className="shrink-0 rounded-md p-2 transition-all hover:bg-accent"
+                style={{ boxShadow: "0 1px 3px rgba(0, 0, 0, 0.12)" }}
+              >
+                <Square className="h-5 w-5" />
+              </motion.button>
+            ) : (
+              <motion.button
+                whileTap={{ scale: 0.95 }}
+                whileHover={{ scale: 1.05 }}
+                onClick={handleSubmit}
+                disabled={!input.trim() || disabled}
+                className="shrink-0 rounded-md bg-primary p-2 text-primary-foreground transition-all hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed"
+                style={{ boxShadow: "0 1px 3px rgba(0, 0, 0, 0.12)" }}
+              >
+                <Send className="h-5 w-5" />
+              </motion.button>
+            )}
+          </div>
+
+          <p className="mt-2 text-center text-xs text-muted-foreground">
+            All processing happens locally. Your privacy is protected.
+          </p>
         </div>
-
-        <p className="mt-2 text-center text-xs text-muted-foreground">
-          All processing happens locally. Your privacy is protected.
-        </p>
       </div>
-    </div>
-  );
-});
+    );
+  }
+);

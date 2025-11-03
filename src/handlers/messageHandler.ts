@@ -85,21 +85,23 @@ export function createMessageHandler({
       // Detect truncation: response was cut off if it ends mid-sentence or reaches token limit
       // Token estimation: ~3-4 chars per token on average
       const estimatedTokens = Math.ceil(finalContent.length / 3.5);
-      const tokenLimitReached = estimatedTokens >= modelSettings.maxTokens * 0.9;
-      
+      const tokenLimitReached =
+        estimatedTokens >= modelSettings.maxTokens * 0.9;
+
       // Also check if response ends abruptly (no ending punctuation)
       const endsWithPunctuation = /[.!?][\s]*$/.test(finalContent.trim());
       const endsWithCodeBlock = /```[\s]*$/.test(finalContent.trim());
-      const wasTruncated = tokenLimitReached && (!endsWithPunctuation || endsWithCodeBlock);
+      const wasTruncated =
+        tokenLimitReached && (!endsWithPunctuation || endsWithCodeBlock);
 
-      console.log('[MessageHandler] Truncation check:', {
+      console.log("[MessageHandler] Truncation check:", {
         contentLength: finalContent.length,
         estimatedTokens,
         maxTokens: modelSettings.maxTokens,
         tokenLimitReached,
         endsWithPunctuation,
         endsWithCodeBlock,
-        wasTruncated
+        wasTruncated,
       });
 
       const assistantMessage: Message = {

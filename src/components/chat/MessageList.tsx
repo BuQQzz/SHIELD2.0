@@ -43,7 +43,9 @@ export function MessageList({
             role={message.role}
             content={message.content}
             truncated={message.truncated}
-            onContinue={message.truncated ? () => onContinue?.(message.id) : undefined}
+            onContinue={
+              message.truncated ? () => onContinue?.(message.id) : undefined
+            }
           />
         ))}
         {streamingContent && (

@@ -117,10 +117,10 @@ export function Sidebar({ onNewChat, onOpenSettings }: SidebarProps) {
                   <Plus className="h-4 w-4" />
                 </button>
               </div>
-              
+
               {/* Spacer to push settings to bottom */}
               <div className="flex-1" />
-              
+
               {/* Settings Icon at Bottom */}
               {onOpenSettings && (
                 <div className="flex flex-col items-center p-2">
