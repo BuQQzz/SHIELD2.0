@@ -13,7 +13,11 @@ export function ChatLayout({ children, sidebar }: ChatLayoutProps) {
   const { sidebarOpen, sidebarCollapsed } = useChatStore();
 
   // Calculate sidebar width based on both open and collapsed states
-  const sidebarWidth = sidebarOpen ? (sidebarCollapsed ? "64px" : "260px") : "0";
+  const sidebarWidth = sidebarOpen
+    ? sidebarCollapsed
+      ? "64px"
+      : "260px"
+    : "0";
 
   return (
     <div className="flex h-screen w-full overflow-hidden bg-background">

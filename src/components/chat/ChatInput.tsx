@@ -56,9 +56,9 @@ export function ChatInput({
   return (
     <div className="bg-background p-4">
       <div className="mx-auto max-w-3xl">
-        <div 
+        <div
           className="relative flex items-end gap-2 rounded-lg bg-background p-2 focus-within:ring-2 focus-within:ring-ring"
-          style={{ boxShadow: '0 2px 6px rgba(0, 0, 0, 0.12)' }}
+          style={{ boxShadow: "0 2px 6px rgba(0, 0, 0, 0.12)" }}
         >
           <textarea
             ref={textareaRef}
@@ -76,7 +76,7 @@ export function ChatInput({
               whileTap={{ scale: 0.95 }}
               onClick={onStop}
               className="shrink-0 rounded-md p-2 transition-all hover:bg-accent"
-              style={{ boxShadow: '0 1px 3px rgba(0, 0, 0, 0.12)' }}
+              style={{ boxShadow: "0 1px 3px rgba(0, 0, 0, 0.12)" }}
             >
               <Square className="h-5 w-5" />
             </motion.button>
@@ -87,7 +87,7 @@ export function ChatInput({
               onClick={handleSubmit}
               disabled={!input.trim() || disabled}
               className="shrink-0 rounded-md bg-primary p-2 text-primary-foreground transition-all hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed"
-              style={{ boxShadow: '0 1px 3px rgba(0, 0, 0, 0.12)' }}
+              style={{ boxShadow: "0 1px 3px rgba(0, 0, 0, 0.12)" }}
             >
               <Send className="h-5 w-5" />
             </motion.button>

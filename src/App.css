@@ -13,7 +13,8 @@
 }
 
 /* Force sRGB color space and prevent GPU color transformations */
-html, body {
+html,
+body {
   color-scheme: light;
   forced-color-adjust: none;
 }
@@ -26,11 +27,15 @@ html, body {
 }
 
 /* Ensure clickable elements are not blocked */
-button, input, textarea, a {
+button,
+input,
+textarea,
+a {
   pointer-events: auto !important;
   cursor: pointer;
 }
 
-input, textarea {
+input,
+textarea {
   cursor: text;
 }

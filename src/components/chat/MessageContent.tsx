@@ -38,42 +38,60 @@ export function MessageContent({ content }: MessageContentProps) {
         },
         h1({ children, ...props }: ComponentPropsWithoutRef<"h1">) {
           return (
-            <h1 className="text-3xl font-bold mt-6 mb-3 text-foreground" {...props}>
+            <h1
+              className="text-3xl font-bold mt-6 mb-3 text-foreground"
+              {...props}
+            >
               {children}
             </h1>
           );
         },
         h2({ children, ...props }: ComponentPropsWithoutRef<"h2">) {
           return (
-            <h2 className="text-2xl font-bold mt-5 mb-3 text-foreground" {...props}>
+            <h2
+              className="text-2xl font-bold mt-5 mb-3 text-foreground"
+              {...props}
+            >
               {children}
             </h2>
           );
         },
         h3({ children, ...props }: ComponentPropsWithoutRef<"h3">) {
           return (
-            <h3 className="text-xl font-bold mt-4 mb-2 text-foreground" {...props}>
+            <h3
+              className="text-xl font-bold mt-4 mb-2 text-foreground"
+              {...props}
+            >
               {children}
             </h3>
           );
         },
         h4({ children, ...props }: ComponentPropsWithoutRef<"h4">) {
           return (
-            <h4 className="text-lg font-semibold mt-3 mb-2 text-foreground" {...props}>
+            <h4
+              className="text-lg font-semibold mt-3 mb-2 text-foreground"
+              {...props}
+            >
               {children}
             </h4>
           );
         },
         h5({ children, ...props }: ComponentPropsWithoutRef<"h5">) {
           return (
-            <h5 className="text-base font-semibold mt-2 mb-1 text-foreground" {...props}>
+            <h5
+              className="text-base font-semibold mt-2 mb-1 text-foreground"
+              {...props}
+            >
               {children}
             </h5>
           );
         },
         h6({ children, ...props }: ComponentPropsWithoutRef<"h6">) {
           return (
-            <h6 className="text-sm font-semibold mt-2 mb-1 text-foreground" {...props}>
+            <h6
+              className="text-sm font-semibold mt-2 mb-1 text-foreground"
+              {...props}
+            >
               {children}
             </h6>
           );
@@ -120,7 +138,10 @@ export function MessageContent({ content }: MessageContentProps) {
             </li>
           );
         },
-        blockquote({ children, ...props }: ComponentPropsWithoutRef<"blockquote">) {
+        blockquote({
+          children,
+          ...props
+        }: ComponentPropsWithoutRef<"blockquote">) {
           return (
             <blockquote
               className="border-l-4 border-primary pl-4 italic my-2 text-muted-foreground"

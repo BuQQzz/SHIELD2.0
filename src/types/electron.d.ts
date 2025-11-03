@@ -60,17 +60,32 @@ export interface LlamaAPI {
     error?: string;
   }>;
   clearHistory: () => Promise<{ success: boolean; error?: string }>;
-  setChatHistory: (messages: Message[]) => Promise<{ success: boolean; error?: string }>;
+  setChatHistory: (
+    messages: Message[]
+  ) => Promise<{ success: boolean; error?: string }>;
   stopGeneration: () => Promise<{ success: boolean; error?: string }>;
-  generateTitle: (userMessage: string) => Promise<{ success: boolean; title?: string; error?: string }>;
+  generateTitle: (
+    userMessage: string
+  ) => Promise<{ success: boolean; title?: string; error?: string }>;
 }
 
 export interface ConversationAPI {
-  save: (conversation: Conversation) => Promise<{ success: boolean; error?: string }>;
-  load: (conversationId: string) => Promise<{ conversation?: Conversation; error?: string }>;
-  list: () => Promise<{ conversations: ConversationMetadata[]; error?: string }>;
-  delete: (conversationId: string) => Promise<{ success: boolean; error?: string }>;
-  search: (query: string) => Promise<{ conversations: ConversationMetadata[]; error?: string }>;
+  save: (
+    conversation: Conversation
+  ) => Promise<{ success: boolean; error?: string }>;
+  load: (
+    conversationId: string
+  ) => Promise<{ conversation?: Conversation; error?: string }>;
+  list: () => Promise<{
+    conversations: ConversationMetadata[];
+    error?: string;
+  }>;
+  delete: (
+    conversationId: string
+  ) => Promise<{ success: boolean; error?: string }>;
+  search: (
+    query: string
+  ) => Promise<{ conversations: ConversationMetadata[]; error?: string }>;
 }
 
 declare global {

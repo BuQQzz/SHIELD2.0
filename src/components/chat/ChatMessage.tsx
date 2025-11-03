@@ -69,7 +69,11 @@ export function ChatMessage({ role, content, isStreaming }: MessageProps) {
           {isStreaming && (
             <motion.span
               animate={{ opacity: [1, 0] }}
-              transition={{ duration: 0.8, repeat: Infinity, repeatType: "reverse" }}
+              transition={{
+                duration: 0.8,
+                repeat: Infinity,
+                repeatType: "reverse",
+              }}
               className="inline-block w-2 h-4 ml-1 bg-primary"
             />
           )}

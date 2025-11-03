@@ -88,12 +88,23 @@ function App() {
 
   // Restore chat history when conversation changes (for LLM memory)
   useEffect(() => {
-    if (currentConversation && currentConversation.messages.length > 0 && isModelLoaded) {
-      console.log("[App] Restoring chat history for conversation:", currentConversation.id);
+    if (
+      currentConversation &&
+      currentConversation.messages.length > 0 &&
+      isModelLoaded
+    ) {
+      console.log(
+        "[App] Restoring chat history for conversation:",
+        currentConversation.id
+      );
       setChatHistory(currentConversation.messages).catch((err) => {
         console.error("[App] Failed to restore chat history:", err);
       });
-    } else if (currentConversation && currentConversation.messages.length === 0 && isModelLoaded) {
+    } else if (
+      currentConversation &&
+      currentConversation.messages.length === 0 &&
+      isModelLoaded
+    ) {
       // New conversation - clear history
       console.log("[App] New conversation - clearing history");
       clearHistory().catch((err) => {
@@ -107,7 +118,9 @@ function App() {
   useEffect(() => {
     if (isInitialized && !isModelLoaded && !isLoading && !currentModel) {
       console.log("[App] Auto-loading default model...");
-      const defaultModel = AVAILABLE_MODELS.find((m) => m.id === currentModelId);
+      const defaultModel = AVAILABLE_MODELS.find(
+        (m) => m.id === currentModelId
+      );
       if (defaultModel) {
         // Non-blocking load - UI stays responsive
         loadModel({
@@ -119,14 +132,21 @@ function App() {
         });
       }
     }
-  }, [isInitialized, isModelLoaded, isLoading, currentModel, loadModel, currentModelId]);
+  }, [
+    isInitialized,
+    isModelLoaded,
+    isLoading,
+    currentModel,
+    loadModel,
+    currentModelId,
+  ]);
 
   const handleModelSelect = async (model: ModelOption) => {
     if (isLoading) return;
 
     console.log("[App] Switching to model:", model.displayName);
     setCurrentModelId(model.id);
-    
+
     try {
       await loadModel({
         name: model.name,
@@ -201,9 +221,10 @@ function App() {
       await saveCurrentConversation();
     } catch (err) {
       // Check if the error is due to user cancellation (abort)
-      const isAbortError = err instanceof Error && 
-        (err.name === 'AbortError' || err.message.includes('abort'));
-      
+      const isAbortError =
+        err instanceof Error &&
+        (err.name === "AbortError" || err.message.includes("abort"));
+
       if (isAbortError) {
         // User cancelled - save partial response if any
         if (streamingContentRef.current) {
@@ -232,7 +253,7 @@ function App() {
     try {
       await stopGeneration();
       setIsGenerating(false);
-      
+
       // Finalize with whatever content we have so far
       if (streamingContentRef.current) {
         const assistantMessage: Message = {
@@ -243,7 +264,7 @@ function App() {
         };
         setMessages((prev) => [...prev, assistantMessage]);
       }
-      
+
       setStreamingContent("");
       streamingContentRef.current = "";
     } catch (err) {
@@ -277,7 +298,14 @@ function App() {
   };
 
   return (
-    <ChatLayout sidebar={<Sidebar onClearHistory={handleClearHistory} onNewChat={handleNewChat} />}>
+    <ChatLayout
+      sidebar={
+        <Sidebar
+          onClearHistory={handleClearHistory}
+          onNewChat={handleNewChat}
+        />
+      }
+    >
       <div className="flex h-full flex-col">
         <ChatHeader
           modelName={currentModel?.name}
@@ -312,4 +340,3 @@ function App() {
 }
 
 export default App;
-

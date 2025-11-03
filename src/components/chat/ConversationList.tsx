@@ -40,7 +40,9 @@ export function ConversationList({
       <div className="rounded-lg p-3 text-sm text-muted-foreground text-center">
         <MessageSquare className="h-8 w-8 mx-auto mb-2 opacity-50" />
         <p>No conversations yet</p>
-        <p className="text-xs mt-1">Start chatting to save your first conversation</p>
+        <p className="text-xs mt-1">
+          Start chatting to save your first conversation
+        </p>
       </div>
     );
   }
@@ -70,7 +72,9 @@ export function ConversationList({
                 exit={{ opacity: 0, scale: 0.95 }}
                 className="flex items-center justify-between gap-2"
               >
-                <span className="text-sm text-muted-foreground">Delete this chat?</span>
+                <span className="text-sm text-muted-foreground">
+                  Delete this chat?
+                </span>
                 <div className="flex gap-1">
                   <motion.button
                     whileHover={{ scale: 1.05 }}
@@ -101,7 +105,9 @@ export function ConversationList({
                 className="flex items-start justify-between gap-2"
               >
                 <div className="flex-1 min-w-0">
-                  <h4 className="text-sm font-medium truncate">{conversation.title}</h4>
+                  <h4 className="text-sm font-medium truncate">
+                    {conversation.title}
+                  </h4>
                   <p className="text-xs text-muted-foreground truncate mt-0.5">
                     {conversation.preview}
                   </p>
@@ -109,11 +115,11 @@ export function ConversationList({
                     <span className="text-xs text-muted-foreground">
                       {conversation.messageCount} messages
                     </span>
+                    <span className="text-xs text-muted-foreground">•</span>
                     <span className="text-xs text-muted-foreground">
-                      •
-                    </span>
-                    <span className="text-xs text-muted-foreground">
-                      {formatDistanceToNow(new Date(conversation.updatedAt), { addSuffix: true })}
+                      {formatDistanceToNow(new Date(conversation.updatedAt), {
+                        addSuffix: true,
+                      })}
                     </span>
                   </div>
                 </div>

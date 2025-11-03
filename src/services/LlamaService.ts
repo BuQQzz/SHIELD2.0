@@ -148,7 +148,7 @@ export class LlamaService {
   setChatHistory(messages: ChatMessage[]): void {
     if (this.session) {
       // Convert our ChatMessage format to LlamaChatSession format
-      const chatHistory = messages.map(msg => {
+      const chatHistory = messages.map((msg) => {
         if (msg.role === "user") {
           return { type: "user" as const, text: msg.content };
         } else {
@@ -190,7 +190,9 @@ export class LlamaService {
    * Check if a model is loaded
    */
   isModelLoaded(): boolean {
-    return this.model !== null && this.context !== null && this.session !== null;
+    return (
+      this.model !== null && this.context !== null && this.session !== null
+    );
   }
 
   /**
@@ -229,7 +231,7 @@ Title:`;
 
       // Clean up the response - remove quotes, trim, limit length
       let title = response.trim().replace(/^["']|["']$/g, "");
-      
+
       // If title is too long, truncate intelligently
       const words = title.split(" ");
       if (words.length > 6) {

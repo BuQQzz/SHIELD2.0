@@ -13,9 +13,9 @@ interface ChatHeaderProps {
   currentModelId?: string;
 }
 
-export function ChatHeader({ 
-  modelName, 
-  isLoading, 
+export function ChatHeader({
+  modelName,
+  isLoading,
   error,
   onModelSelect,
   availableModels = [],
@@ -31,7 +31,7 @@ export function ChatHeader({
           <button
             onClick={toggleSidebar}
             className="md:flex rounded-md p-2 transition-all hover:bg-accent"
-            style={{ boxShadow: '0 1px 3px rgba(0, 0, 0, 0.12)' }}
+            style={{ boxShadow: "0 1px 3px rgba(0, 0, 0, 0.12)" }}
           >
             <Menu className="h-5 w-5" />
           </button>
@@ -41,7 +41,9 @@ export function ChatHeader({
           {isLoading ? (
             <span className="flex items-center gap-1 text-xs text-muted-foreground">
               <Loader2 className="h-3 w-3 animate-spin" />
-              {modelName ? `Loading ${modelName}...` : "Downloading and loading model..."}
+              {modelName
+                ? `Loading ${modelName}...`
+                : "Downloading and loading model..."}
             </span>
           ) : error ? (
             <span className="text-xs text-destructive">{error}</span>
@@ -64,13 +66,13 @@ export function ChatHeader({
         )}
         <button
           className="rounded-md p-2 transition-all hover:bg-accent"
-          style={{ boxShadow: '0 1px 3px rgba(0, 0, 0, 0.12)' }}
+          style={{ boxShadow: "0 1px 3px rgba(0, 0, 0, 0.12)" }}
         >
           <Settings className="h-5 w-5" />
         </button>
         <button
           className="rounded-md p-2 transition-all hover:bg-accent"
-          style={{ boxShadow: '0 1px 3px rgba(0, 0, 0, 0.12)' }}
+          style={{ boxShadow: "0 1px 3px rgba(0, 0, 0, 0.12)" }}
         >
           <MoreVertical className="h-5 w-5" />
         </button>
@@ -78,4 +80,3 @@ export function ChatHeader({
     </header>
   );
 }
-

@@ -24,21 +24,21 @@ export function useLlama() {
   useEffect(() => {
     const init = async () => {
       console.log("[useLlama] Checking for window.llama...");
-      
+
       // Wait for Electron bridge to be available
       let retries = 0;
       const maxRetries = 50; // 5 seconds max
       while (!window.llama && retries < maxRetries) {
-        await new Promise(resolve => setTimeout(resolve, 100));
+        await new Promise((resolve) => setTimeout(resolve, 100));
         retries++;
       }
-      
+
       if (!window.llama) {
         console.error("[useLlama] window.llama is undefined after waiting!");
         setError("Electron bridge not available");
         return;
       }
-      
+
       console.log("[useLlama] Initializing llama.cpp...");
       try {
         const result = await window.llama.initialize();
@@ -96,9 +96,10 @@ export function useLlama() {
         }
       } catch (err) {
         // Check if this is an abort error (user cancelled)
-        const isAbortError = err instanceof Error && 
-          (err.name === 'AbortError' || err.message.includes('abort'));
-        
+        const isAbortError =
+          err instanceof Error &&
+          (err.name === "AbortError" || err.message.includes("abort"));
+
         if (!isAbortError) {
           // Only set error for actual errors, not user cancellations
           const errorMsg = err instanceof Error ? err.message : "Unknown error";
@@ -134,9 +135,10 @@ export function useLlama() {
         }
       } catch (err) {
         // Check if this is an abort error (user cancelled)
-        const isAbortError = err instanceof Error && 
-          (err.name === 'AbortError' || err.message.includes('abort'));
-        
+        const isAbortError =
+          err instanceof Error &&
+          (err.name === "AbortError" || err.message.includes("abort"));
+
         if (!isAbortError) {
           // Only set error for actual errors, not user cancellations
           const errorMsg = err instanceof Error ? err.message : "Unknown error";
@@ -150,7 +152,9 @@ export function useLlama() {
 
   const clearHistory = useCallback(async () => {
     if (!window.llama) {
-      console.warn("[useLlama] clearHistory called but window.llama not available");
+      console.warn(
+        "[useLlama] clearHistory called but window.llama not available"
+      );
       return;
     }
     setError(null);
@@ -164,7 +168,9 @@ export function useLlama() {
 
   const stopGeneration = useCallback(async () => {
     if (!window.llama) {
-      console.warn("[useLlama] stopGeneration called but window.llama not available");
+      console.warn(
+        "[useLlama] stopGeneration called but window.llama not available"
+      );
       return;
     }
     try {
@@ -176,7 +182,9 @@ export function useLlama() {
 
   const setChatHistory = useCallback(async (messages: Message[]) => {
     if (!window.llama) {
-      console.warn("[useLlama] setChatHistory called but window.llama not available");
+      console.warn(
+        "[useLlama] setChatHistory called but window.llama not available"
+      );
       return;
     }
     try {
@@ -188,23 +196,28 @@ export function useLlama() {
     }
   }, []);
 
-  const generateTitle = useCallback(async (userMessage: string): Promise<string | null> => {
-    if (!window.llama) {
-      console.warn("[useLlama] generateTitle called but window.llama not available");
-      return null;
-    }
-    try {
-      const result = await window.llama.generateTitle(userMessage);
-      if (result.success && result.title) {
-        console.log("[useLlama] Generated title:", result.title);
-        return result.title;
+  const generateTitle = useCallback(
+    async (userMessage: string): Promise<string | null> => {
+      if (!window.llama) {
+        console.warn(
+          "[useLlama] generateTitle called but window.llama not available"
+        );
+        return null;
       }
-      return null;
-    } catch (err) {
-      console.error("[useLlama] generateTitle failed:", err);
-      return null;
-    }
-  }, []);
+      try {
+        const result = await window.llama.generateTitle(userMessage);
+        if (result.success && result.title) {
+          console.log("[useLlama] Generated title:", result.title);
+          return result.title;
+        }
+        return null;
+      } catch (err) {
+        console.error("[useLlama] generateTitle failed:", err);
+        return null;
+      }
+    },
+    []
+  );
 
   return {
     isInitialized,

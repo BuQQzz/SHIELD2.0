@@ -46,7 +46,9 @@ export function ChatPlaceholder({
               <Loader2 className="h-8 w-8 animate-spin text-primary" />
               <div className="text-sm text-muted-foreground">
                 <p className="font-medium">Loading AI model...</p>
-                <p className="mt-1 text-xs">This may take a few minutes on first run</p>
+                <p className="mt-1 text-xs">
+                  This may take a few minutes on first run
+                </p>
                 <p className="mt-1 text-xs opacity-70">
                   Downloading and initializing Qwen 7B (4.2GB)
                 </p>
@@ -83,7 +85,7 @@ export function ChatPlaceholder({
                 whileTap={{ scale: 0.98 }}
                 onClick={() => onPromptClick?.(prompt)}
                 className="h-auto justify-start whitespace-normal rounded-md bg-background p-4 text-left transition-all hover:bg-accent"
-                style={{ boxShadow: '0 1px 3px rgba(0, 0, 0, 0.12)' }}
+                style={{ boxShadow: "0 1px 3px rgba(0, 0, 0, 0.12)" }}
               >
                 {prompt}
               </motion.button>

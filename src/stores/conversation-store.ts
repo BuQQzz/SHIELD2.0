@@ -1,5 +1,9 @@
 import { create } from "zustand";
-import type { Conversation, ConversationMetadata, Message } from "../types/electron";
+import type {
+  Conversation,
+  ConversationMetadata,
+  Message,
+} from "../types/electron";
 
 interface ConversationState {
   // Current conversation
@@ -40,7 +44,8 @@ export const useConversationStore = create<ConversationState>((set, get) => ({
   isLoading: false,
   isSaving: false,
 
-  setCurrentConversation: (conversation) => set({ currentConversation: conversation }),
+  setCurrentConversation: (conversation) =>
+    set({ currentConversation: conversation }),
   setConversations: (conversations) => set({ conversations }),
   setSearchQuery: (query) => set({ searchQuery: query }),
   setLoading: (loading) => set({ isLoading: loading }),
