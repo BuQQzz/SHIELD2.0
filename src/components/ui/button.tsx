@@ -38,7 +38,7 @@ const Button = ({
           "h-11 rounded-md px-8": size === "lg",
           "h-10 w-10": size === "icon",
         },
-        className,
+        className
       )}
       {...props}
     />

@@ -37,7 +37,7 @@ export function MessageList({ messages }: MessageListProps) {
             key={message.id}
             className={cn(
               "flex",
-              message.role === "user" ? "justify-end" : "justify-start",
+              message.role === "user" ? "justify-end" : "justify-start"
             )}
           >
             <div
@@ -45,7 +45,7 @@ export function MessageList({ messages }: MessageListProps) {
                 "max-w-[80%] rounded-lg px-4 py-2",
                 message.role === "user"
                   ? "bg-primary text-primary-foreground"
-                  : "bg-muted",
+                  : "bg-muted"
               )}
             >
               <p className="text-sm">{message.content}</p>

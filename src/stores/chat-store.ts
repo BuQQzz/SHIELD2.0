@@ -21,6 +21,6 @@ export const useChatStore = create<ChatStore>()(
     }),
     {
       name: "chat-storage",
-    },
-  ),
+    }
+  )
 );
