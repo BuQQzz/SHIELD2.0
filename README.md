@@ -49,20 +49,21 @@ SHIELD2.0/
 - **Build Tool**: Vite
 
 ### Backend
-- **Runtime**: Node.js / Python (for llama.cpp bindings)
-- **LLM Engine**: llama.cpp
-- **Windows Integration**: Native Windows APIs
-- **IPC**: Electron (for desktop application)
+- **Runtime**: Node.js with TypeScript
+- **LLM Engine**: llama.cpp (via node-llama-cpp)
+- **Model Format**: GGUF (Q4_K_M quantization)
+- **Windows Integration**: Native Windows APIs (planned)
+- **IPC**: Electron (planned)
 
 ## Getting Started
 
 ### Prerequisites
 
 - Windows 10/11
-- Node.js 18+ or Python 3.11+
+- Node.js 18+
 - Git
-- 8GB+ RAM recommended
-- GPU recommended (for faster inference)
+- 16GB+ RAM recommended (32GB optimal)
+- NVIDIA GPU with 12GB+ VRAM recommended (for RTX 4070 or better)
 
 ### Installation
 
@@ -73,12 +74,23 @@ cd SHIELD2.0
 
 # Install dependencies
 npm install
-# or
-pnpm install
 
-# Download a model (example)
-# Place your .gguf model files in the models/ directory
+# Download a recommended model (optimized for RTX 4070)
+npm run download-model qwen-7b
+
+# Test the model
+npm run test:inference
 ```
+
+### Available Models
+
+The project includes pre-configured models optimized for RTX 4070 (12GB VRAM):
+
+- **Qwen 7B** (4.4GB) - `npm run download-model qwen-7b` - Excellent multilingual
+- **Llama 3B** (1.9GB) - `npm run download-model llama-3b` - Fast, smaller model
+- **Mistral 7B** (4.1GB) - `npm run download-model mistral-7b` - Good general purpose
+
+Models are automatically downloaded from Hugging Face and saved to `models/` directory.
 
 ### Development
 
@@ -88,6 +100,12 @@ npm run dev
 
 # Run tests
 npm test
+
+# Lint code
+npm run lint
+
+# Format code
+npm run format
 
 # Build for production
 npm run build
@@ -130,16 +148,18 @@ This is an experimental personal project. Contributions, ideas, and feedback are
 
 ## Roadmap
 
+See [ROADMAP.md](ROADMAP.md) for detailed development plan.
+
+**Current Phase**: llama.cpp Integration ✅
+
+- [x] Project scaffolding and modern framework setup
+- [x] llama.cpp integration with node-llama-cpp
+- [x] Model downloading system (Hugging Face)
+- [x] Inference testing and validation
+- [ ] Electron desktop application
 - [ ] Core chat interface
-- [ ] llama.cpp integration
-- [ ] Basic Windows tool integration
+- [ ] Windows tool integration
 - [ ] Permission system
-- [ ] Model selection and management
-- [ ] Conversation history
-- [ ] Tool plugin system
-- [ ] Advanced Windows automation
-- [ ] Performance optimizations
-- [ ] Comprehensive testing
 
 ## License
 
