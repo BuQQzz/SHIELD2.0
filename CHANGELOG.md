@@ -8,6 +8,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Conversation tagging system** for organization
+  - Add custom tags to conversations via ChatHeader dropdown menu
+  - Tag component with remove functionality and animations
+  - Tags displayed in conversation list for quick visual identification
+  - Compact variant for space-efficient display in sidebar
+  - Tag management UI with sub-menu for adding/removing tags
+  - Tags persist with conversation data
+  - Prevents duplicate tags with validation
+  - Future: Tag-based filtering in search
+- **Built-in Help & About page** for self-contained documentation
+  - Comprehensive HelpSettings component explaining all features
+  - App overview highlighting privacy-first, offline-first approach
+  - Core features guide (conversation management, tags, export/import, dark mode)
+  - Keyboard shortcuts reference (Ctrl+N, Ctrl+K, Ctrl+,, Escape)
+  - Model settings explanations (temperature, max tokens, top-p, top-k, repeat penalty)
+  - Privacy & data information (local processing, no telemetry, complete control)
+  - Getting started guide for new users
+  - Version information display
+  - Integrated as 4th tab in settings dialog (Model | System | Privacy | Help)
+  - No external links - completely self-contained for offline use
 - **Conversation export/import system** for data portability
   - Export conversations as JSON (full data with metadata)
   - Export conversations as Markdown (human-readable format with emojis)
@@ -105,6 +125,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Mistral 7B (4.1GB) - Good general purpose
 
 ### Fixed
+- **Linting errors in ExportService.ts** for code quality
+  - Removed unused `path` import
+  - Prefixed unused destructured variables with underscore (`_exportedAt`, `_version`)
+  - Replaced `any` type with `unknown` for better type safety
+  - Added proper type guards for validation
+- **File line count violation** in App.tsx
+  - Extracted `handleContinue` logic to separate `continuationHandler.ts`
+  - Reduced App.tsx from 343 to 264 lines
+  - Improved code organization and modularity
+  - Maintains 300-line limit requirement
 - Color rendering issues in Electron (hardware-accelerated rendering fix)
 - Chat layout not expanding when sidebar collapses
 - "This operation was aborted" error messages appearing to users
