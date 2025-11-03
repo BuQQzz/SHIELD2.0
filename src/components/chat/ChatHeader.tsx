@@ -41,7 +41,7 @@ export function ChatHeader({
           {isLoading ? (
             <span className="flex items-center gap-1 text-xs text-muted-foreground">
               <Loader2 className="h-3 w-3 animate-spin" />
-              Loading model...
+              {modelName ? `Loading ${modelName}...` : "Downloading and loading model..."}
             </span>
           ) : error ? (
             <span className="text-xs text-destructive">{error}</span>
