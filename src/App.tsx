@@ -144,14 +144,27 @@ function App() {
       setStreamingContent("");
       streamingContentRef.current = "";
     } catch (err) {
-      console.error("Error generating response:", err);
-      const errorMessage: Message = {
-        id: assistantMessageId,
-        role: "assistant",
-        content: "Sorry, I encountered an error generating a response.",
-        timestamp: new Date(),
-      };
-      setMessages((prev) => [...prev, errorMessage]);
+      // Check if the error is due to user cancellation (abort)
+      const isAbortError = err instanceof Error && 
+        (err.name === 'AbortError' || err.message.includes('abort'));
+      
+      if (isAbortError) {
+        // User cancelled - save partial response if any
+        if (streamingContentRef.current) {
+          const assistantMessage: Message = {
+            id: assistantMessageId,
+            role: "assistant",
+            content: streamingContentRef.current,
+            timestamp: new Date(),
+          };
+          setMessages((prev) => [...prev, assistantMessage]);
+        }
+        setStreamingContent("");
+        streamingContentRef.current = "";
+      } else {
+        // Actual error - log it but don't show error message to user
+        console.error("Error generating response:", err);
+      }
     } finally {
       setIsGenerating(false);
     }
