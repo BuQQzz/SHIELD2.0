@@ -1,16 +1,25 @@
 import { cn } from "@/lib/utils";
-import { Bot, User, Copy, Check } from "lucide-react";
+import { Bot, User, Copy, Check, ArrowRight } from "lucide-react";
 import { motion } from "framer-motion";
 import { MessageContent } from "./MessageContent";
 import { useState } from "react";
+import { Button } from "@/components/ui/button";
 
 interface MessageProps {
   role: "user" | "assistant";
   content: string;
   isStreaming?: boolean;
+  truncated?: boolean;
+  onContinue?: () => void;
 }
 
-export function ChatMessage({ role, content, isStreaming }: MessageProps) {
+export function ChatMessage({
+  role,
+  content,
+  isStreaming,
+  truncated,
+  onContinue,
+}: MessageProps) {
   const isUser = role === "user";
   const [copied, setCopied] = useState(false);
 
@@ -78,6 +87,17 @@ export function ChatMessage({ role, content, isStreaming }: MessageProps) {
             />
           )}
         </div>
+        {truncated && !isStreaming && (
+          <Button
+            onClick={onContinue}
+            variant="outline"
+            size="sm"
+            className="mt-2"
+          >
+            <ArrowRight className="h-4 w-4 mr-1" />
+            Continue
+          </Button>
+        )}
       </div>
     </motion.div>
   );

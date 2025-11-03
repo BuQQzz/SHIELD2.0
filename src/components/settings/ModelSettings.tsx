@@ -138,7 +138,7 @@ export function ModelSettings({ settings }: ModelSettingsProps) {
         <Slider
           id="context-length"
           min={512}
-          max={8192}
+          max={16384}
           step={512}
           value={[settings.contextLength]}
           onValueChange={handleContextLengthChange}
@@ -146,6 +146,11 @@ export function ModelSettings({ settings }: ModelSettingsProps) {
         <p className="text-xs text-muted-foreground mt-1">
           Maximum conversation context size
         </p>
+        {settings.contextLength > 8192 && (
+          <p className="text-xs text-amber-600 dark:text-amber-400 mt-1">
+            ⚠️ High values require more RAM and slower inference
+          </p>
+        )}
       </div>
 
       <div>
@@ -158,7 +163,7 @@ export function ModelSettings({ settings }: ModelSettingsProps) {
         <Slider
           id="max-tokens"
           min={256}
-          max={4096}
+          max={8192}
           step={256}
           value={[settings.maxTokens]}
           onValueChange={handleMaxTokensChange}
@@ -166,6 +171,11 @@ export function ModelSettings({ settings }: ModelSettingsProps) {
         <p className="text-xs text-muted-foreground mt-1">
           Maximum response length
         </p>
+        {settings.maxTokens > 4096 && (
+          <p className="text-xs text-amber-600 dark:text-amber-400 mt-1">
+            ⚠️ Very long responses may be slower and drift off-topic
+          </p>
+        )}
       </div>
     </div>
   );

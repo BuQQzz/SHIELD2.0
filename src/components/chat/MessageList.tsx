@@ -8,18 +8,21 @@ interface Message {
   role: "user" | "assistant";
   content: string;
   timestamp: Date;
+  truncated?: boolean;
 }
 
 interface MessageListProps {
   messages: Message[];
   streamingContent?: string;
   isGenerating?: boolean;
+  onContinue?: (messageId: string) => void;
 }
 
 export function MessageList({
   messages,
   streamingContent,
   isGenerating,
+  onContinue,
 }: MessageListProps) {
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
@@ -39,6 +42,8 @@ export function MessageList({
             key={message.id}
             role={message.role}
             content={message.content}
+            truncated={message.truncated}
+            onContinue={message.truncated ? () => onContinue?.(message.id) : undefined}
           />
         ))}
         {streamingContent && (
