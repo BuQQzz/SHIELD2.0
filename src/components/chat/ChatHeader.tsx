@@ -3,14 +3,25 @@
 import { Menu, MoreVertical, Settings, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useChatStore } from "@/stores/chat-store";
+import { ModelSelector, type ModelOption } from "./ModelSelector";
 
 interface ChatHeaderProps {
   modelName?: string;
   isLoading?: boolean;
   error?: string | null;
+  onModelSelect?: (model: ModelOption) => void;
+  availableModels?: ModelOption[];
+  currentModelId?: string;
 }
 
-export function ChatHeader({ modelName, isLoading, error }: ChatHeaderProps) {
+export function ChatHeader({ 
+  modelName, 
+  isLoading, 
+  error,
+  onModelSelect,
+  availableModels = [],
+  currentModelId,
+}: ChatHeaderProps) {
   const { sidebarOpen, toggleSidebar } = useChatStore();
 
   return (
@@ -44,6 +55,15 @@ export function ChatHeader({ modelName, isLoading, error }: ChatHeaderProps) {
 
       {/* Right Section */}
       <div className="flex items-center gap-2">
+        {availableModels.length > 0 && onModelSelect && (
+          <ModelSelector
+            models={availableModels}
+            currentModel={currentModelId}
+            onModelSelect={onModelSelect}
+            disabled={isLoading}
+            isLoading={isLoading}
+          />
+        )}
         <Button variant="ghost" size="icon">
           <Settings className="h-5 w-5" />
         </Button>

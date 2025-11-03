@@ -8,12 +8,45 @@ import { ChatPlaceholder } from "./components/chat/ChatPlaceholder";
 import { MessageList } from "./components/chat/MessageList";
 import { ChatInput } from "./components/chat/ChatInput";
 import { useLlama, type Message } from "./hooks/useLlama";
+import type { ModelOption } from "./components/chat/ModelSelector";
 import "./App.css";
+
+// Available models for selection
+const AVAILABLE_MODELS: ModelOption[] = [
+  {
+    id: "qwen-7b",
+    name: "Qwen2.5-7B-Instruct",
+    displayName: "Qwen 7B",
+    uri: "hf:Qwen/Qwen2.5-7B-Instruct-GGUF:Q4_K_M",
+    size: "4.2GB",
+    description: "Excellent multilingual understanding, balanced performance",
+    contextSize: 2048,
+  },
+  {
+    id: "llama-3b",
+    name: "Llama-3.2-3B-Instruct",
+    displayName: "Llama 3B",
+    uri: "hf:meta-llama/Llama-3.2-3B-Instruct-GGUF:Q4_K_M",
+    size: "1.9GB",
+    description: "Faster responses, smaller model, good for quick tasks",
+    contextSize: 2048,
+  },
+  {
+    id: "mistral-7b",
+    name: "Mistral-7B-Instruct",
+    displayName: "Mistral 7B",
+    uri: "hf:mistralai/Mistral-7B-Instruct-v0.3-GGUF:Q4_K_M",
+    size: "4.1GB",
+    description: "Strong reasoning capabilities, alternative to Qwen",
+    contextSize: 2048,
+  },
+];
 
 function App() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [isGenerating, setIsGenerating] = useState(false);
   const [streamingContent, setStreamingContent] = useState("");
+  const [currentModelId, setCurrentModelId] = useState<string>("qwen-7b");
   const abortControllerRef = useRef<AbortController | null>(null);
   const streamingContentRef = useRef("");
 
@@ -33,16 +66,37 @@ function App() {
   useEffect(() => {
     if (isInitialized && !isModelLoaded && !isLoading && !currentModel) {
       console.log("[App] Auto-loading default model...");
-      // Non-blocking load - UI stays responsive
-      loadModel({
-        name: "Qwen2.5-7B-Instruct",
-        uri: "hf:Qwen/Qwen2.5-7B-Instruct-GGUF:Q4_K_M",
-        contextSize: 2048,
-      }).catch(err => {
-        console.error("[App] Failed to auto-load model:", err);
-      });
+      const defaultModel = AVAILABLE_MODELS.find((m) => m.id === currentModelId);
+      if (defaultModel) {
+        // Non-blocking load - UI stays responsive
+        loadModel({
+          name: defaultModel.name,
+          uri: defaultModel.uri,
+          contextSize: defaultModel.contextSize,
+        }).catch((err) => {
+          console.error("[App] Failed to auto-load model:", err);
+        });
+      }
     }
-  }, [isInitialized, isModelLoaded, isLoading, currentModel, loadModel]);
+  }, [isInitialized, isModelLoaded, isLoading, currentModel, loadModel, currentModelId]);
+
+  const handleModelSelect = async (model: ModelOption) => {
+    if (isLoading) return;
+
+    console.log("[App] Switching to model:", model.displayName);
+    setCurrentModelId(model.id);
+    
+    try {
+      await loadModel({
+        name: model.name,
+        uri: model.uri,
+        contextSize: model.contextSize,
+      });
+      console.log("[App] Model switched successfully");
+    } catch (err) {
+      console.error("[App] Failed to switch model:", err);
+    }
+  };
 
   const handleSendMessage = async (content: string) => {
     if (!isModelLoaded) {
@@ -127,21 +181,13 @@ function App() {
   return (
     <ChatLayout sidebar={<Sidebar onClearHistory={handleClearHistory} />}>
       <div className="flex h-full flex-col">
-        {/* Debug overlay */}
-        {process.env.NODE_ENV === "development" && (
-          <div className="fixed bottom-4 right-4 z-50 rounded-lg bg-black/80 p-3 text-xs text-white">
-            <div>Init: {isInitialized ? "✅" : "❌"}</div>
-            <div>Model Loaded: {isModelLoaded ? "✅" : "❌"}</div>
-            <div>Loading: {isLoading ? "⏳" : "✅"}</div>
-            <div>Error: {error || "None"}</div>
-            <div>window.llama: {typeof window.llama !== "undefined" ? "✅" : "❌"}</div>
-          </div>
-        )}
-        
         <ChatHeader
           modelName={currentModel?.name}
           isLoading={isLoading}
           error={error}
+          availableModels={AVAILABLE_MODELS}
+          currentModelId={currentModelId}
+          onModelSelect={handleModelSelect}
         />
         {messages.length === 0 && !streamingContent ? (
           <ChatPlaceholder
