@@ -117,12 +117,19 @@ export interface SettingsAPI {
   save: (settings: AppSettings) => Promise<{ success: boolean; error?: string }>;
 }
 
+export interface ExportAPI {
+  exportJSON: (conversation: Conversation) => Promise<boolean>;
+  exportMarkdown: (conversation: Conversation) => Promise<boolean>;
+  import: () => Promise<Conversation | null>;
+}
+
 declare global {
   interface Window {
     llama: LlamaAPI;
     conversations: ConversationAPI;
     electronAPI: {
       settings: SettingsAPI;
+      export: ExportAPI;
     };
   }
 }

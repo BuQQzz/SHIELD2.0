@@ -117,25 +117,27 @@ interface SettingsAPI {
   save: (settings: AppSettings) => Promise<{ success: boolean; error?: string }>;
 }
 
+interface ExportAPI {
+  exportJSON: (conversation: Conversation) => Promise<boolean>;
+  exportMarkdown: (conversation: Conversation) => Promise<boolean>;
+  import: () => Promise<Conversation | null>;
+}
+
 const settingsAPI: SettingsAPI = {
   load: () => ipcRenderer.invoke("settings:load"),
   save: (settings) => ipcRenderer.invoke("settings:save", settings),
 };
 
+const exportAPI: ExportAPI = {
+  exportJSON: (conversation) => ipcRenderer.invoke("conversation:export-json", conversation),
+  exportMarkdown: (conversation) => ipcRenderer.invoke("conversation:export-markdown", conversation),
+  import: () => ipcRenderer.invoke("conversation:import"),
+};
+
 contextBridge.exposeInMainWorld("electronAPI", {
   settings: settingsAPI,
+  export: exportAPI,
 });
 
 // Log that preload executed successfully
 console.log("[preload] window.llama, window.conversations, and window.electronAPI exposed successfully");
-
-// Type declaration for TypeScript
-declare global {
-  interface Window {
-    llama: LlamaAPI;
-    conversations: ConversationAPI;
-    electronAPI: {
-      settings: SettingsAPI;
-    };
-  }
-}

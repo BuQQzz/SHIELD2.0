@@ -4,6 +4,7 @@ import { fileURLToPath } from "url";
 import { getLlamaService } from "../src/services/LlamaService.js";
 import { ConversationStorageService } from "./services/ConversationStorageService.js";
 import { settingsService } from "./services/SettingsService.js";
+import { ExportService } from "./services/ExportService.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -253,6 +254,34 @@ function setupIpcHandlers() {
         success: false,
         error: error instanceof Error ? error.message : "Unknown error",
       };
+    }
+  });
+
+  // Export/Import handlers
+  ipcMain.handle("conversation:export-json", async (_event, conversation) => {
+    try {
+      return await ExportService.exportAsJSON(conversation);
+    } catch (error) {
+      console.error("Failed to export conversation as JSON:", error);
+      return false;
+    }
+  });
+
+  ipcMain.handle("conversation:export-markdown", async (_event, conversation) => {
+    try {
+      return await ExportService.exportAsMarkdown(conversation);
+    } catch (error) {
+      console.error("Failed to export conversation as Markdown:", error);
+      return false;
+    }
+  });
+
+  ipcMain.handle("conversation:import", async () => {
+    try {
+      return await ExportService.importFromJSON();
+    } catch (error) {
+      console.error("Failed to import conversation:", error);
+      return null;
     }
   });
 }

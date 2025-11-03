@@ -7,6 +7,8 @@ import {
   Trash2,
   PanelLeft,
   PanelRight,
+  Download,
+  Upload,
 } from "lucide-react";
 import { useChatStore } from "@/stores/chat-store";
 import { useConversationStore } from "@/stores/conversation-store";
@@ -59,6 +61,34 @@ export function Sidebar({ onClearHistory, onNewChat }: SidebarProps) {
 
   const handleDeleteConversation = (conversationId: string) => {
     deleteConversation(conversationId);
+  };
+
+  const handleExportJSON = async () => {
+    if (!currentConversation) return;
+    const success = await window.electronAPI.export.exportJSON(
+      currentConversation
+    );
+    if (success) {
+      console.log("Conversation exported successfully");
+    }
+  };
+
+  const handleExportMarkdown = async () => {
+    if (!currentConversation) return;
+    const success = await window.electronAPI.export.exportMarkdown(
+      currentConversation
+    );
+    if (success) {
+      console.log("Conversation exported as Markdown");
+    }
+  };
+
+  const handleImport = async () => {
+    const conversation = await window.electronAPI.export.import();
+    if (conversation) {
+      // Load the imported conversation
+      loadConversation(conversation.id);
+    }
   };
 
   return (
@@ -139,6 +169,42 @@ export function Sidebar({ onClearHistory, onNewChat }: SidebarProps) {
                   <Plus className="mr-2 inline h-4 w-4" />
                   New Chat
                 </button>
+
+                {/* Export/Import Buttons */}
+                <div className="flex gap-2">
+                  <button
+                    onClick={handleImport}
+                    className="flex-1 rounded-md bg-background px-3 py-2 text-sm font-medium transition-all hover:bg-accent"
+                    style={{ boxShadow: "0 1px 3px rgba(0, 0, 0, 0.12)" }}
+                    title="Import conversation"
+                  >
+                    <Upload className="mr-1 inline h-4 w-4" />
+                    Import
+                  </button>
+                  {currentConversation && (
+                    <>
+                      <button
+                        onClick={handleExportJSON}
+                        className="flex-1 rounded-md bg-background px-3 py-2 text-sm font-medium transition-all hover:bg-accent"
+                        style={{ boxShadow: "0 1px 3px rgba(0, 0, 0, 0.12)" }}
+                        title="Export as JSON"
+                      >
+                        <Download className="mr-1 inline h-4 w-4" />
+                        JSON
+                      </button>
+                      <button
+                        onClick={handleExportMarkdown}
+                        className="flex-1 rounded-md bg-background px-3 py-2 text-sm font-medium transition-all hover:bg-accent"
+                        style={{ boxShadow: "0 1px 3px rgba(0, 0, 0, 0.12)" }}
+                        title="Export as Markdown"
+                      >
+                        <Download className="mr-1 inline h-4 w-4" />
+                        MD
+                      </button>
+                    </>
+                  )}
+                </div>
+
                 {onClearHistory && (
                   <button
                     onClick={onClearHistory}
