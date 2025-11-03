@@ -230,6 +230,9 @@ SHIELD 2.0 is a privacy-first, local AI chatbot for Windows with tool integratio
 - ✅ Edit button on user messages (hover to reveal)
 - ✅ Keyboard shortcuts for editing (Enter=save, Escape=cancel)
 - ✅ Conversation trimming to edited point
+- ✅ Message regeneration for alternative AI responses
+- ✅ Regenerate button on assistant messages (hover to reveal)
+- ✅ Fresh inference with same prompt and current settings
 
 #### 6. Add Dark Mode and Theme Customization
 **Priority:** LOW | **Status:** ✅ Completed

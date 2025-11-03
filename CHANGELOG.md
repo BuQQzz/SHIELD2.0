@@ -8,6 +8,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Message regeneration for alternative responses** for exploring different AI outputs
+  - Regenerate button appears on hover for assistant messages
+  - Re-runs inference with same user prompt
+  - Removes old response and everything after it
+  - Generates fresh response with new UUID
+  - Applies current model settings to regenerated response
+  - Updates conversation history automatically
+  - Useful for getting different perspectives or better answers
 - **Message editing with automatic regeneration** for conversation refinement
   - Edit button appears on hover for user messages
   - Inline textarea editor with save/cancel buttons
