@@ -15,6 +15,12 @@ SHIELD 2.0 is a privacy-first, local AI chatbot for Windows with tool integratio
 - **MCP-First Approach**: Utilize Model Context Protocol (MCP) tools for automated tasks before requesting manual user intervention
 - **Automated Testing**: Use available tools to run tests, check code quality, and validate changes
 - **CI/CD Integration**: Leverage automation for builds, deployments, and validations wherever possible
+- **GitHub Actions**: 
+  - Automated test runs on all pull requests
+  - Lint and type-check automation
+  - Build verification before merge
+  - Prevent merges if any checks fail
+  - Use status checks as merge gates
 
 ### Git Workflow & Branching Strategy
 - **Protected Main Branch**: Never merge directly to `main` branch
@@ -22,10 +28,20 @@ SHIELD 2.0 is a privacy-first, local AI chatbot for Windows with tool integratio
   - Naming convention: `feature/description` or `fix/description`
 - **Testing Branches**: Use test branches for experimental features
 - **Merge Requirements**: 
-  - All tests must pass before merging
+  - **ALL test suites MUST pass before merging to main**
+  - Run complete test suite before creating pull request
+  - All lint checks must pass with zero warnings
   - Code review and validation required
   - Feature must be complete and stable
+  - CI/CD pipeline must show green status
 - **Branch Lifecycle**: Delete branches after successful merge to keep repository clean
+- **Pre-Merge Checklist**:
+  1. Run `npm test` (or equivalent) - all tests pass
+  2. Run `npm run lint` - zero errors/warnings
+  3. Run `npm run build` - successful build
+  4. Manual testing of feature completed
+  5. Documentation updated
+  6. CI/CD checks passing
 
 ### UI/UX Guidelines
 - **Design System**: Use shadcn/ui components for consistent, accessible UI
@@ -82,10 +98,15 @@ SHIELD 2.0 is a privacy-first, local AI chatbot for Windows with tool integratio
   - Keep all documentation clean, up-to-date, and well-organized
   - Update documentation immediately when code changes
   - Remove outdated or deprecated documentation
-- **Testing**:
-  - Unit tests for business logic
+- **Testing Requirements**:
+  - **Mandatory**: Write tests for all new features
+  - Unit tests for business logic (aim for >80% coverage)
   - Integration tests for system interactions
   - E2E tests for critical user flows
+  - **Run complete test suite before every merge**
+  - Tests must pass with zero failures
+  - No skipped or disabled tests without documented reason
+  - Mock external dependencies appropriately
 
 ### Performance Considerations
 - **Lazy Loading**: Load components and modules on-demand
@@ -104,13 +125,31 @@ SHIELD 2.0 is a privacy-first, local AI chatbot for Windows with tool integratio
 
 1. **Create Feature Branch**: `git checkout -b feature/your-feature`
 2. **Develop**: Make incremental changes, keeping files under 300 lines
-3. **Test Locally**: Run all tests and manual validation
-4. **Commit**: Use meaningful commit messages
-5. **Push**: Push branch to remote
-6. **Pull Request**: Create PR with description and test results
-7. **Review**: Address feedback and ensure all checks pass
-8. **Merge**: Merge to main after approval
-9. **Cleanup**: Delete feature branch
+3. **Test During Development**: Write and run tests as you code
+4. **Pre-Push Validation**:
+   - Run full test suite: `npm test`
+   - Run linter: `npm run lint`
+   - Fix any issues before pushing
+5. **Commit**: Use meaningful commit messages
+6. **Push**: Push branch to remote
+7. **Pre-PR Validation**:
+   - **CRITICAL**: Run complete test suite one final time
+   - Verify all tests pass locally
+   - Check build succeeds: `npm run build`
+   - Review changes for quality
+8. **Pull Request**: Create PR with:
+   - Clear description of changes
+   - Test results confirmation
+   - Screenshots/demos if applicable
+9. **CI/CD Checks**: Ensure GitHub Actions pass:
+   - Test suite execution
+   - Lint checks
+   - Build verification
+   - Type checking
+10. **Review**: Address feedback and ensure all checks remain green
+11. **Final Verification**: Confirm all status checks pass before merge
+12. **Merge**: Merge to main only after all requirements met
+13. **Cleanup**: Delete feature branch
 
 ## Module Refactoring Guidelines
 
