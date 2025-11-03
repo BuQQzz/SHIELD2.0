@@ -15,6 +15,7 @@ import { useConversationSync } from "./hooks/useConversationSync";
 import { useSettingsStore } from "./store/settingsStore";
 import { useKeyboardShortcuts } from "./hooks/useKeyboardShortcuts";
 import { createMessageHandler } from "./handlers/messageHandler";
+import { createContinuationHandler } from "./handlers/continuationHandler";
 import { AVAILABLE_MODELS } from "./config/models";
 import type { ModelOption } from "./components/chat/ModelSelector";
 import "./App.css";
@@ -217,107 +218,17 @@ function App() {
     clearHistory();
   };
 
-  const handleContinue = async (messageId: string) => {
-    if (!isModelLoaded) {
-      alert("Please wait for the model to load");
-      return;
-    }
-
-    // Find the truncated message
-    const message = messages.find((m) => m.id === messageId);
-    if (!message) return;
-
-    // Send a continuation prompt
-    const userMessage: Message = {
-      id: Date.now().toString(),
-      role: "user",
-      content: "Continue",
-      timestamp: new Date(),
-    };
-
-    setMessages((prev) => [...prev, userMessage]);
-    addMessage(userMessage);
-    setIsGenerating(true);
-    setStreamingContent("");
-    streamingContentRef.current = "";
-
-    const assistantMessageId = (Date.now() + 1).toString();
-
-    try {
-      await sendStreamingMessage(
-        "Continue",
-        (token) => {
-          streamingContentRef.current += token;
-          setStreamingContent(streamingContentRef.current);
-        },
-        {
-          temperature: settings.model.temperature,
-          maxTokens: settings.model.maxTokens,
-          topP: settings.model.topP,
-          topK: settings.model.topK,
-          repeatPenalty: settings.model.repeatPenalty,
-        }
-      );
-
-      const finalContent = streamingContentRef.current;
-      
-      // Detect truncation with same logic as messageHandler
-      const estimatedTokens = Math.ceil(finalContent.length / 3.5);
-      const tokenLimitReached = estimatedTokens >= settings.model.maxTokens * 0.9;
-      const endsWithPunctuation = /[.!?][\s]*$/.test(finalContent.trim());
-      const endsWithCodeBlock = /```[\s]*$/.test(finalContent.trim());
-      const wasTruncated = tokenLimitReached && (!endsWithPunctuation || endsWithCodeBlock);
-
-      console.log('[Continue] Truncation check:', {
-        contentLength: finalContent.length,
-        estimatedTokens,
-        maxTokens: settings.model.maxTokens,
-        tokenLimitReached,
-        endsWithPunctuation,
-        endsWithCodeBlock,
-        wasTruncated
-      });
-
-      const assistantMessage: Message = {
-        id: assistantMessageId,
-        role: "assistant",
-        content: finalContent,
-        timestamp: new Date(),
-        truncated: wasTruncated,
-      };
-
-      setMessages((prev) => [...prev, assistantMessage]);
-      addMessage(assistantMessage);
-      setStreamingContent("");
-      streamingContentRef.current = "";
-
-      await saveCurrentConversation();
-    } catch (err) {
-      const isAbortError =
-        err instanceof Error &&
-        (err.name === "AbortError" || err.message.includes("abort"));
-
-      if (isAbortError) {
-        if (streamingContentRef.current) {
-          const assistantMessage: Message = {
-            id: assistantMessageId,
-            role: "assistant",
-            content: streamingContentRef.current,
-            timestamp: new Date(),
-          };
-          setMessages((prev) => [...prev, assistantMessage]);
-          addMessage(assistantMessage);
-          await saveCurrentConversation();
-        }
-        setStreamingContent("");
-        streamingContentRef.current = "";
-      } else {
-        console.error("Error generating continuation:", err);
-      }
-    } finally {
-      setIsGenerating(false);
-    }
-  };
+  const handleContinue = createContinuationHandler({
+    messages,
+    setMessages,
+    setIsGenerating,
+    setStreamingContent,
+    streamingContentRef,
+    sendStreamingMessage,
+    addMessage,
+    saveCurrentConversation,
+    modelSettings: settings.model,
+  });
 
   return (
     <ChatLayout
