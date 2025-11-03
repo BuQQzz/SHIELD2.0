@@ -39,13 +39,31 @@ SHIELD 2.0 is a privacy-first, local AI chatbot for Windows with tool integratio
   - Stay updated with latest llama.cpp releases
   - Monitor and integrate performance improvements
   - Follow llama.cpp best practices for model loading and inference
+  - **Check web for latest llama.cpp updates before implementation**
 - **Modern Language Features**: 
   - Use latest stable features of TypeScript/JavaScript
   - Leverage modern Python features (3.11+)
   - Use async/await patterns for non-blocking operations
+  - **Research latest language features and best practices via web search**
 - **UI Framework**: React with TypeScript
+  - **Verify latest React patterns and hooks from official documentation**
 - **Component Library**: shadcn/ui (latest version)
+  - **Check for component updates and new additions regularly**
+  - **Consult shadcn/ui documentation for latest usage patterns**
 - **State Management**: Use modern React patterns (hooks, context)
+
+### Web Research Requirements
+- **Always Check Latest Updates**: Before implementing features, search the web for:
+  - Latest version numbers and release notes
+  - Breaking changes in dependencies
+  - New API patterns and best practices
+  - Security advisories and patches
+  - Performance optimization techniques
+- **Component Research**: Verify shadcn/ui component availability and usage
+- **Language Features**: Confirm latest TypeScript/JavaScript features and syntax
+- **Framework Updates**: Check React, Vite, and build tool updates
+- **llama.cpp Integration**: Review latest llama.cpp documentation and examples
+- **Documentation Sources**: Prioritize official documentation, GitHub repos, and trusted sources
 
 ### Windows Integration
 - **Native APIs**: Utilize Windows APIs for system integration
@@ -61,6 +79,9 @@ SHIELD 2.0 is a privacy-first, local AI chatbot for Windows with tool integratio
   - JSDoc/TSDoc comments for public APIs
   - README files for each major module
   - Inline comments for complex logic
+  - Keep all documentation clean, up-to-date, and well-organized
+  - Update documentation immediately when code changes
+  - Remove outdated or deprecated documentation
 - **Testing**:
   - Unit tests for business logic
   - Integration tests for system interactions
@@ -107,13 +128,44 @@ When a file approaches 300 lines:
 - **Constants**: UPPER_SNAKE_CASE for constants
 - **Types/Interfaces**: PascalCase with descriptive names
 
+## Documentation Standards
+
+### Keep Documentation Clean and Organized
+- **Consistency**: Use consistent formatting, terminology, and structure
+- **Accuracy**: Ensure all documentation reflects current implementation
+- **Completeness**: Document all public APIs, configuration options, and workflows
+- **Clarity**: Write clear, concise documentation for various skill levels
+- **Organization**: 
+  - Group related documentation together
+  - Use clear hierarchies and navigation
+  - Maintain a docs/ folder for extensive documentation
+  - Keep README files focused and scannable
+
+### Documentation Maintenance
+- **Update Immediately**: When code changes, update related documentation in the same commit
+- **Remove Deprecated Content**: Delete outdated documentation promptly
+- **Version Notes**: Document breaking changes and migration paths
+- **Examples**: Include practical code examples that are tested and working
+- **Changelog**: Maintain a CHANGELOG.md for tracking project evolution
+
+### Types of Documentation to Maintain
+1. **README.md**: Project overview, setup, and quick start
+2. **Module READMEs**: Purpose and usage for each major directory
+3. **API Documentation**: JSDoc/TSDoc for all public interfaces
+4. **Architecture Docs**: System design and component relationships
+5. **Setup Guides**: Installation and configuration instructions
+6. **Contributing Guide**: How to contribute to the project
+7. **Changelog**: Version history and notable changes
+
 ## Continuous Improvement
-- Regularly update dependencies
-- Monitor llama.cpp repository for updates
-- Stay current with shadcn/ui component updates
-- Review and refactor code for maintainability
-- Gather user feedback and iterate
+- **Regularly Update Dependencies**: Check weekly for updates
+- **Monitor llama.cpp Repository**: Subscribe to releases and discussions
+- **Stay Current with shadcn/ui**: Check component updates and new additions
+- **Review Code Quality**: Regular refactoring sessions
+- **Web Research**: Always verify latest best practices and updates
+- **Gather User Feedback**: Iterate based on real usage patterns
+- **Security Updates**: Priority response to security advisories
 
 ---
 
-**Remember**: This is an experimental project. Prioritize learning, experimentation, and maintaining high code quality while building something innovative and privacy-focused.
+**Remember**: This is an experimental project. Prioritize learning, experimentation, and maintaining high code quality while building something innovative and privacy-focused. Always research the latest updates and keep documentation clean and current.
