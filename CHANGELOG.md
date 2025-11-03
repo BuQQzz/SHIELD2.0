@@ -8,6 +8,37 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Conversation export/import system** for data portability
+  - Export conversations as JSON (full data with metadata)
+  - Export conversations as Markdown (human-readable format with emojis)
+  - Import conversations from JSON files with validation
+  - Native Electron file dialogs for save/open operations
+  - Automatic filename generation from conversation titles
+  - Validation checks for imported data structure
+  - Export includes metadata (exportedAt timestamp, version)
+  - Markdown format includes formatted headers, timestamps, and user/assistant emojis
+- **Per-conversation dropdown menu** for contextual actions
+  - Import conversation option (always available)
+  - Export as JSON (when conversation active)
+  - Export as Markdown (when conversation active)
+  - Clear History option (with destructive styling)
+  - Moved from sidebar to 3-dot menu in ChatHeader for cleaner UI
+- **Inter font integration** for professional typography
+  - Variable font supporting weights 100-900
+  - Single file for all font weights (InterVariable.ttf)
+  - Italic variant included (InterVariable-Italic.ttf)
+  - SIL Open Font License 1.1
+  - Optimized for UI/screen readability
+- **Dark mode support** with theme provider
+  - Light, dark, and system theme options
+  - Persistent theme selection
+  - Smooth theme transitions
+  - System preference detection
+- **Keyboard shortcuts** for power users
+  - Ctrl+N: New conversation
+  - Ctrl+K: Focus search
+  - Ctrl+,: Open settings
+  - Escape: Clear search/close dialogs
 - **Conversation management system** with complete persistence
   - File-based storage in Electron userData directory
   - Automatic conversation saving after each message exchange
@@ -80,6 +111,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Border persistence when sidebar collapsed
 
 ### Changed
+- **Ultra minimal header design** for cleaner UI
+  - Moved Settings from header to sidebar footer
+  - Header now only contains: menu toggle, branding, model selector, options menu
+  - Settings accessible in both expanded and collapsed sidebar states
+- **Unified shadow-based design system**
+  - ModelSelector uses shadow styling instead of border (matches other buttons)
+  - Removed border above Settings button in sidebar
+  - All UI elements use consistent `boxShadow: "0 1px 3px rgba(0, 0, 0, 0.12)"`
+  - Cohesive, minimal aesthetic throughout app
+- **Reorganized conversation actions** for better UX
+  - Export/import moved from sidebar to per-conversation dropdown menu
+  - Clear History moved to conversation dropdown menu
+  - Actions are now contextual to active conversation
+  - Cleaner, more minimal sidebar with just New Chat and search
 - **MAJOR: Upgraded to React 19.2.0** from 18.3.1
   - Added support for Actions, `useActionState`, `useOptimistic` hooks
   - New `use()` API for reading resources in render

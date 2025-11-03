@@ -65,6 +65,11 @@ SHIELD 2.0 is a privacy-first, local AI chatbot for Windows with tool integratio
 - [x] Add markdown rendering in chat messages
 - [x] Implement code syntax highlighting
 - [x] Add copy message functionality
+- [x] Integrate Inter font for professional typography
+- [x] Implement dark mode with theme provider
+- [x] Add keyboard shortcuts (Ctrl+N, Ctrl+K, Ctrl+,, Escape)
+- [x] Ultra minimal header design (settings in sidebar)
+- [x] Unified shadow-based design system
 
 **Dependencies:** None  
 **Blockers:** None  
@@ -82,6 +87,12 @@ SHIELD 2.0 is a privacy-first, local AI chatbot for Windows with tool integratio
 - ✅ Markdown rendering with GitHub Flavored Markdown (react-markdown)
 - ✅ Code syntax highlighting with oneDark theme (react-syntax-highlighter)
 - ✅ Copy button on all messages with visual feedback
+- ✅ **Inter variable font (weights 100-900) for optimal UI readability**
+- ✅ **Dark mode with light/dark/system theme options**
+- ✅ **Keyboard shortcuts for power users**
+- ✅ **Settings moved to sidebar footer for minimal header**
+- ✅ **ModelSelector with shadow styling (no borders)**
+- ✅ **Consistent design language throughout app**
 
 #### 2. Conversation Management
 **Priority:** MEDIUM | **Status:** ✅ Completed
@@ -95,13 +106,13 @@ SHIELD 2.0 is a privacy-first, local AI chatbot for Windows with tool integratio
 - [x] Automatic conversation titling using LLM
 - [x] Context restoration across conversation switches
 - [x] Memory persistence for LLM chat history
-- [ ] Export chat history (JSON, Markdown, PDF)
-- [ ] Import previous conversations
+- [x] Export chat history (JSON, Markdown, ~~PDF~~)
+- [x] Import previous conversations
 - [ ] Conversation tagging and organization
 
 **Dependencies:** None  
 **Blockers:** None  
-**Estimated Time:** ~~1-2 weeks~~ **COMPLETED**
+**Estimated Time:** ~~1-2 weeks~~ **MOSTLY COMPLETED**
 
 **Completed Features:**
 - ✅ File-based conversation storage in Electron userData directory
@@ -119,17 +130,15 @@ SHIELD 2.0 is a privacy-first, local AI chatbot for Windows with tool integratio
 - ✅ ChatMessage to ChatHistoryItem format conversion
 - ✅ Auto-clear history for new conversations
 - ✅ Auto-focus chat input for improved UX
+- ✅ **Export conversations as JSON with metadata**
+- ✅ **Export conversations as Markdown with formatting**
+- ✅ **Import conversations from JSON with validation**
+- ✅ **Native Electron file dialogs for export/import**
+- ✅ **Per-conversation dropdown menu for export/import actions**
 
-**Completed Features:**
-- ✅ Full conversation storage with Electron filesystem APIs
-- ✅ IPC handlers for save/load/list/delete/search operations
-- ✅ Zustand store for conversation state management
-- ✅ ConversationList UI component with delete buttons
-- ✅ Real-time search filtering in sidebar
-- ✅ Auto-save after every message exchange
-- ✅ New conversation creation with automatic saving
-- ✅ Friendly date formatting with date-fns
-- ✅ Conversation previews and message counts
+**Remaining:**
+- ⏳ Conversation tagging and organization
+- ⏳ PDF export format (future enhancement)
 
 ---
 
