@@ -10,6 +10,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ModelSettings } from "./ModelSettings";
 import { SystemSettings } from "./SystemSettings";
 import { PrivacySettings } from "./PrivacySettings";
+import { HelpSettings } from "./HelpSettings";
 import { useSettingsStore } from "@/store/settingsStore";
 
 interface SettingsDialogProps {
@@ -32,10 +33,11 @@ export function SettingsDialog({ open, onOpenChange }: SettingsDialogProps) {
         </DialogHeader>
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-          <TabsList className="grid w-full grid-cols-3">
+          <TabsList className="grid w-full grid-cols-4">
             <TabsTrigger value="model">Model</TabsTrigger>
             <TabsTrigger value="system">System</TabsTrigger>
             <TabsTrigger value="privacy">Privacy</TabsTrigger>
+            <TabsTrigger value="help">Help</TabsTrigger>
           </TabsList>
 
           <TabsContent value="model" className="space-y-4 mt-4">
@@ -48,6 +50,10 @@ export function SettingsDialog({ open, onOpenChange }: SettingsDialogProps) {
 
           <TabsContent value="privacy" className="space-y-4 mt-4">
             <PrivacySettings settings={settings.privacy} />
+          </TabsContent>
+
+          <TabsContent value="help" className="space-y-4 mt-4">
+            <HelpSettings />
           </TabsContent>
         </Tabs>
       </DialogContent>
