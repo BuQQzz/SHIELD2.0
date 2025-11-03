@@ -95,8 +95,15 @@ export function useLlama() {
           throw new Error(result.error || "Failed to get response");
         }
       } catch (err) {
-        const errorMsg = err instanceof Error ? err.message : "Unknown error";
-        setError(errorMsg);
+        // Check if this is an abort error (user cancelled)
+        const isAbortError = err instanceof Error && 
+          (err.name === 'AbortError' || err.message.includes('abort'));
+        
+        if (!isAbortError) {
+          // Only set error for actual errors, not user cancellations
+          const errorMsg = err instanceof Error ? err.message : "Unknown error";
+          setError(errorMsg);
+        }
         throw err;
       }
     },
@@ -126,8 +133,15 @@ export function useLlama() {
           throw new Error(result.error || "Failed to get response");
         }
       } catch (err) {
-        const errorMsg = err instanceof Error ? err.message : "Unknown error";
-        setError(errorMsg);
+        // Check if this is an abort error (user cancelled)
+        const isAbortError = err instanceof Error && 
+          (err.name === 'AbortError' || err.message.includes('abort'));
+        
+        if (!isAbortError) {
+          // Only set error for actual errors, not user cancellations
+          const errorMsg = err instanceof Error ? err.message : "Unknown error";
+          setError(errorMsg);
+        }
         throw err;
       }
     },
