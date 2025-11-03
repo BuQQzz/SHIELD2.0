@@ -3,6 +3,7 @@ import path from "path";
 import { fileURLToPath } from "url";
 import { getLlamaService } from "../src/services/LlamaService.js";
 import { ConversationStorageService } from "./services/ConversationStorageService.js";
+import { settingsService } from "./services/SettingsService.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -230,6 +231,29 @@ function setupIpcHandlers() {
 
   ipcMain.handle("conversations:search", async (_event, query) => {
     return await conversationStorage.searchConversations(query);
+  });
+
+  // Settings handlers
+  ipcMain.handle("settings:load", async () => {
+    try {
+      const settings = await settingsService.load();
+      return settings;
+    } catch (error) {
+      console.error("Failed to load settings:", error);
+      return null;
+    }
+  });
+
+  ipcMain.handle("settings:save", async (_event, settings) => {
+    try {
+      await settingsService.save(settings);
+      return { success: true };
+    } catch (error) {
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : "Unknown error",
+      };
+    }
   });
 }
 

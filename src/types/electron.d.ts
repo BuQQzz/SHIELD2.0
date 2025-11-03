@@ -7,6 +7,9 @@ export interface ModelConfig {
 export interface ChatOptions {
   temperature?: number;
   maxTokens?: number;
+  topP?: number;
+  topK?: number;
+  repeatPenalty?: number;
 }
 
 export interface Message {
@@ -88,10 +91,38 @@ export interface ConversationAPI {
   ) => Promise<{ conversations: ConversationMetadata[]; error?: string }>;
 }
 
+export interface AppSettings {
+  model: {
+    temperature: number;
+    topP: number;
+    topK: number;
+    repeatPenalty: number;
+    contextLength: number;
+    maxTokens: number;
+  };
+  system: {
+    systemPrompt: string;
+    autoSave: boolean;
+    confirmDelete: boolean;
+  };
+  privacy: {
+    telemetry: boolean;
+    analytics: boolean;
+  };
+}
+
+export interface SettingsAPI {
+  load: () => Promise<AppSettings | null>;
+  save: (settings: AppSettings) => Promise<{ success: boolean; error?: string }>;
+}
+
 declare global {
   interface Window {
     llama: LlamaAPI;
     conversations: ConversationAPI;
+    electronAPI: {
+      settings: SettingsAPI;
+    };
   }
 }
 

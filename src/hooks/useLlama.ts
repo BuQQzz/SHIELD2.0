@@ -115,7 +115,13 @@ export function useLlama() {
     async (
       message: string,
       onToken: (token: string) => void,
-      options?: { temperature?: number; maxTokens?: number }
+      options?: {
+        temperature?: number;
+        maxTokens?: number;
+        topP?: number;
+        topK?: number;
+        repeatPenalty?: number;
+      }
     ) => {
       setError(null);
       try {

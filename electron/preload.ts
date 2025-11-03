@@ -91,13 +91,51 @@ const conversationAPI: ConversationAPI = {
 
 contextBridge.exposeInMainWorld("conversations", conversationAPI);
 
+// Settings API
+interface AppSettings {
+  model: {
+    temperature: number;
+    topP: number;
+    topK: number;
+    repeatPenalty: number;
+    contextLength: number;
+    maxTokens: number;
+  };
+  system: {
+    systemPrompt: string;
+    autoSave: boolean;
+    confirmDelete: boolean;
+  };
+  privacy: {
+    telemetry: boolean;
+    analytics: boolean;
+  };
+}
+
+interface SettingsAPI {
+  load: () => Promise<AppSettings | null>;
+  save: (settings: AppSettings) => Promise<{ success: boolean; error?: string }>;
+}
+
+const settingsAPI: SettingsAPI = {
+  load: () => ipcRenderer.invoke("settings:load"),
+  save: (settings) => ipcRenderer.invoke("settings:save", settings),
+};
+
+contextBridge.exposeInMainWorld("electronAPI", {
+  settings: settingsAPI,
+});
+
 // Log that preload executed successfully
-console.log("[preload] window.llama and window.conversations exposed successfully");
+console.log("[preload] window.llama, window.conversations, and window.electronAPI exposed successfully");
 
 // Type declaration for TypeScript
 declare global {
   interface Window {
     llama: LlamaAPI;
     conversations: ConversationAPI;
+    electronAPI: {
+      settings: SettingsAPI;
+    };
   }
 }

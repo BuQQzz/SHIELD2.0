@@ -11,6 +11,7 @@ interface ChatHeaderProps {
   onModelSelect?: (model: ModelOption) => void;
   availableModels?: ModelOption[];
   currentModelId?: string;
+  onOpenSettings?: () => void;
 }
 
 export function ChatHeader({
@@ -20,6 +21,7 @@ export function ChatHeader({
   onModelSelect,
   availableModels = [],
   currentModelId,
+  onOpenSettings,
 }: ChatHeaderProps) {
   const { sidebarOpen, toggleSidebar } = useChatStore();
 
@@ -65,6 +67,7 @@ export function ChatHeader({
           />
         )}
         <button
+          onClick={onOpenSettings}
           className="rounded-md p-2 transition-all hover:bg-accent"
           style={{ boxShadow: "0 1px 3px rgba(0, 0, 0, 0.12)" }}
         >

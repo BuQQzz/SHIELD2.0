@@ -2,7 +2,6 @@
 
 import {
   Shield,
-  Settings,
   Plus,
   Search,
   Trash2,
@@ -126,14 +125,6 @@ export function Sidebar({ onClearHistory, onNewChat }: SidebarProps) {
                   <Trash2 className="h-4 w-4" />
                 </button>
               )}
-              <div className="flex-1" />
-              <button
-                className="rounded-md p-2.5 transition-all hover:bg-accent"
-                style={{ boxShadow: "0 1px 3px rgba(0, 0, 0, 0.12)" }}
-                title="Settings"
-              >
-                <Settings className="h-4 w-4" />
-              </button>
             </div>
           ) : (
             <>
@@ -183,17 +174,6 @@ export function Sidebar({ onClearHistory, onNewChat }: SidebarProps) {
                   onSelect={handleSelectConversation}
                   onDelete={handleDeleteConversation}
                 />
-              </div>
-
-              {/* Footer */}
-              <div className="p-3 pt-4">
-                <button
-                  className="w-full rounded-md px-4 py-2 text-sm font-medium text-left transition-all hover:bg-accent"
-                  style={{ boxShadow: "0 1px 3px rgba(0, 0, 0, 0.12)" }}
-                >
-                  <Settings className="mr-2 inline h-4 w-4" />
-                  Settings
-                </button>
               </div>
             </>
           )}

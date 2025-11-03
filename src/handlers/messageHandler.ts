@@ -1,4 +1,5 @@
 import type { Message } from "../hooks/useLlama";
+import type { ModelSettings } from "../types/settings";
 
 interface MessageHandlerProps {
   isModelLoaded: boolean;
@@ -13,12 +14,19 @@ interface MessageHandlerProps {
   sendStreamingMessage: (
     message: string,
     onToken: (token: string) => void,
-    options?: { temperature?: number; maxTokens?: number }
+    options?: {
+      temperature?: number;
+      maxTokens?: number;
+      topP?: number;
+      topK?: number;
+      repeatPenalty?: number;
+    }
   ) => Promise<string>;
   addMessage: (message: Message) => void;
   generateTitle: (userMessage: string) => Promise<string | null>;
   updateTitle: (title: string) => void;
   saveCurrentConversation: () => Promise<void>;
+  modelSettings: ModelSettings;
 }
 
 export function createMessageHandler({
@@ -33,6 +41,7 @@ export function createMessageHandler({
   generateTitle,
   updateTitle,
   saveCurrentConversation,
+  modelSettings,
 }: MessageHandlerProps) {
   return async (content: string) => {
     if (!isModelLoaded) {
@@ -63,8 +72,11 @@ export function createMessageHandler({
           setStreamingContent(streamingContentRef.current);
         },
         {
-          temperature: 0.7,
-          maxTokens: 512,
+          temperature: modelSettings.temperature,
+          maxTokens: modelSettings.maxTokens,
+          topP: modelSettings.topP,
+          topK: modelSettings.topK,
+          repeatPenalty: modelSettings.repeatPenalty,
         }
       );
 

@@ -1,0 +1,56 @@
+import { useState } from "react";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { ModelSettings } from "./ModelSettings";
+import { SystemSettings } from "./SystemSettings";
+import { PrivacySettings } from "./PrivacySettings";
+import { useSettingsStore } from "@/store/settingsStore";
+
+interface SettingsDialogProps {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+}
+
+export function SettingsDialog({ open, onOpenChange }: SettingsDialogProps) {
+  const { settings } = useSettingsStore();
+  const [activeTab, setActiveTab] = useState("model");
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle>Settings</DialogTitle>
+          <DialogDescription>
+            Customize your AI assistant's behavior and preferences
+          </DialogDescription>
+        </DialogHeader>
+
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+          <TabsList className="grid w-full grid-cols-3">
+            <TabsTrigger value="model">Model</TabsTrigger>
+            <TabsTrigger value="system">System</TabsTrigger>
+            <TabsTrigger value="privacy">Privacy</TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="model" className="space-y-4 mt-4">
+            <ModelSettings settings={settings.model} />
+          </TabsContent>
+
+          <TabsContent value="system" className="space-y-4 mt-4">
+            <SystemSettings settings={settings.system} />
+          </TabsContent>
+
+          <TabsContent value="privacy" className="space-y-4 mt-4">
+            <PrivacySettings settings={settings.privacy} />
+          </TabsContent>
+        </Tabs>
+      </DialogContent>
+    </Dialog>
+  );
+}

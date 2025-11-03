@@ -20,6 +20,9 @@ export interface ChatMessage {
 export interface ChatOptions {
   temperature?: number;
   maxTokens?: number;
+  topP?: number;
+  topK?: number;
+  repeatPenalty?: number;
   onToken?: (token: string) => void;
   signal?: AbortSignal;
 }
@@ -107,6 +110,11 @@ export class LlamaService {
       const response = await this.session.prompt(message, {
         temperature: options.temperature ?? 0.7,
         maxTokens: options.maxTokens ?? 512,
+        topP: options.topP ?? 0.9,
+        topK: options.topK ?? 40,
+        repeatPenalty: options.repeatPenalty
+          ? { penalty: options.repeatPenalty }
+          : { penalty: 1.1 },
         onTextChunk: options.onToken
           ? (chunk: string) => options.onToken!(chunk)
           : undefined,

@@ -7,9 +7,11 @@ import { ChatHeader } from "./components/chat/ChatHeader";
 import { ChatPlaceholder } from "./components/chat/ChatPlaceholder";
 import { MessageList } from "./components/chat/MessageList";
 import { ChatInput } from "./components/chat/ChatInput";
+import { SettingsDialog } from "./components/settings/SettingsDialog";
 import { useLlama, type Message } from "./hooks/useLlama";
 import { useConversationStore } from "./stores/conversation-store";
 import { useConversationSync } from "./hooks/useConversationSync";
+import { useSettingsStore } from "./store/settingsStore";
 import { createMessageHandler } from "./handlers/messageHandler";
 import { AVAILABLE_MODELS } from "./config/models";
 import type { ModelOption } from "./components/chat/ModelSelector";
@@ -20,6 +22,7 @@ function App() {
   const [isGenerating, setIsGenerating] = useState(false);
   const [streamingContent, setStreamingContent] = useState("");
   const [currentModelId, setCurrentModelId] = useState<string>("qwen-7b");
+  const [settingsOpen, setSettingsOpen] = useState(false);
   const streamingContentRef = useRef("");
 
   const {
@@ -43,6 +46,13 @@ function App() {
     updateTitle,
     saveCurrentConversation,
   } = useConversationStore();
+
+  const { settings, loadSettings } = useSettingsStore();
+
+  // Load settings on mount
+  useEffect(() => {
+    loadSettings();
+  }, [loadSettings]);
 
   // Initialize a new conversation if none exists
   useEffect(() => {
@@ -116,6 +126,7 @@ function App() {
     generateTitle,
     updateTitle,
     saveCurrentConversation,
+    modelSettings: settings.model,
   });
 
   const handleStopGenerating = async () => {
@@ -179,6 +190,7 @@ function App() {
           availableModels={AVAILABLE_MODELS}
           currentModelId={currentModelId}
           onModelSelect={handleModelSelect}
+          onOpenSettings={() => setSettingsOpen(true)}
         />
         {messages.length === 0 && !streamingContent ? (
           <ChatPlaceholder
@@ -200,6 +212,8 @@ function App() {
           disabled={!isModelLoaded}
         />
       </div>
+
+      <SettingsDialog open={settingsOpen} onOpenChange={setSettingsOpen} />
     </ChatLayout>
   );
 }
