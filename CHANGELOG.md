@@ -8,6 +8,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Message editing with automatic regeneration** for conversation refinement
+  - Edit button appears on hover for user messages
+  - Inline textarea editor with save/cancel buttons
+  - Keyboard shortcuts: Enter to save, Escape to cancel, Shift+Enter for newlines
+  - Automatic conversation trimming to edited point
+  - Regenerates AI response from edited message
+  - Updates chat history via setChatHistory
+  - "Save & Regenerate" button makes action clear
+  - Preserves message timestamps and IDs
+  - Applies current model settings to regenerated response
 - **System prompt customization** for AI personality control
   - Custom system prompt field in System settings tab
   - Apply button with loading and success states
