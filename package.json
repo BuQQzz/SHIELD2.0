@@ -10,7 +10,9 @@
     "preview": "vite preview",
     "test": "vitest",
     "lint": "eslint . --ext ts,tsx --report-unused-disable-directives --max-warnings 0",
-    "format": "prettier --write \"src/**/*.{ts,tsx,css,md}\""
+    "format": "prettier --write \"src/**/*.{ts,tsx,css,md}\"",
+    "download-model": "tsx scripts/download-model.ts",
+    "test:inference": "tsx scripts/test-inference.ts"
   },
   "keywords": [
     "ai",
@@ -35,6 +37,7 @@
   },
   "devDependencies": {
     "@eslint/js": "^9.39.0",
+    "@huggingface/hub": "^2.6.12",
     "@tailwindcss/upgrade": "^4.1.0",
     "@tailwindcss/vite": "^4.1.16",
     "@types/node": "^22.8.6",
@@ -51,6 +54,7 @@
     "postcss": "^8.4.47",
     "prettier": "^3.3.3",
     "tailwindcss": "^4.1.16",
+    "tsx": "^4.20.6",
     "typescript": "^5.9.3",
     "typescript-eslint": "^8.46.2",
     "vite": "^7.1.12",
