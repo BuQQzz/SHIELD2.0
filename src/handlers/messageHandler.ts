@@ -6,6 +6,7 @@ import {
   isVagueFollowUpQuery,
   performWebSearchAndBuildContext,
 } from "./webSearchHelper";
+import { enhanceQueryWithContext } from "../utils/queryEnhancer";
 
 interface MessageHandlerProps {
   isModelLoaded: boolean;
@@ -84,8 +85,19 @@ export function createMessageHandler({
     }
 
     if (useWebSearch && performWebSearch && !isVagueFollowUp) {
+      // Get current messages for context
+      const currentMessages = currentConversation?.messages || [];
+
+      // Enhance query with conversation context if needed
+      const enhancedQuery = enhanceQueryWithContext(content, currentMessages);
+
+      console.log("[MessageHandler] Original query:", content);
+      if (enhancedQuery !== content) {
+        console.log("[MessageHandler] Enhanced query:", enhancedQuery);
+      }
+
       const searchResult = await performWebSearchAndBuildContext(
-        content,
+        enhancedQuery,
         performWebSearch,
         setIsSearching
       );
