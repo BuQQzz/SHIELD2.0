@@ -28,9 +28,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Code organization improvements** for maintainability
   - Extracted web search logic into `src/handlers/webSearchHelper.ts` (180 lines)
   - Created reusable UI components in `src/components/settings/HelpComponents.tsx` (91 lines)
+  - Extracted title generation into `src/services/titleGenerator.ts` (60 lines)
   - Refactored App.tsx from 308 → 199 lines (extracted to custom hooks)
   - Refactored messageHandler.ts from 378 → 262 lines (extracted web search helper)
   - Refactored HelpSettings.tsx from 353 → 289 lines (extracted UI components)
+  - Refactored LlamaService.ts from 308 → 247 lines (extracted title generator)
   - Created `useAppHandlers.ts` (210 lines) for message/conversation handlers
   - Created `useModelLoader.ts` (67 lines) for model initialization logic
   - All source files now comply with <300 line limit
