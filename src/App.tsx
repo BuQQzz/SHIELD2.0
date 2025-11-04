@@ -7,6 +7,7 @@ import { ChatHeader } from "./components/chat/ChatHeader";
 import { ChatPlaceholder } from "./components/chat/ChatPlaceholder";
 import { MessageList } from "./components/chat/MessageList";
 import { ChatInput, type ChatInputRef } from "./components/chat/ChatInput";
+import { WebSearchResults } from "./components/chat/WebSearchResults";
 import { LazySettingsDialog, LazyTemplateSelector } from "./components/lazy";
 import { ThemeProvider } from "./components/theme/ThemeProvider";
 import { useLlama, type Message } from "./hooks/useLlama";
@@ -14,6 +15,7 @@ import { useConversationStore } from "./stores/conversation-store";
 import { useConversationSync } from "./hooks/useConversationSync";
 import { useSettingsStore } from "./store/settingsStore";
 import { useKeyboardShortcuts } from "./hooks/useKeyboardShortcuts";
+import { useWebSearch } from "./hooks/useWebSearch";
 import { createMessageHandler } from "./handlers/messageHandler";
 import { createContinuationHandler } from "./handlers/continuationHandler";
 import {
@@ -60,6 +62,13 @@ function App() {
   } = useConversationStore();
 
   const { settings, loadSettings } = useSettingsStore();
+  
+  const {
+    searchResults,
+    isSearching,
+    performSearch,
+    clearResults,
+  } = useWebSearch();
 
   // Load settings on mount
   useEffect(() => {
@@ -142,6 +151,7 @@ function App() {
     updateTitle,
     saveCurrentConversation,
     modelSettings: settings.model,
+    performWebSearch: performSearch,
   });
 
   const handleStopGenerating = useCallback(async () => {
@@ -186,12 +196,14 @@ function App() {
     createNewConversation("New Chat", currentModelId);
     setMessages([]);
     clearHistory();
+    clearResults(); // Clear web search results
   }, [
     currentConversation,
     saveCurrentConversation,
     createNewConversation,
     currentModelId,
     clearHistory,
+    clearResults,
   ]);
 
   const handleContinue = createContinuationHandler({
@@ -279,14 +291,26 @@ function App() {
             onPromptClick={handleSendMessage}
           />
         ) : (
-          <MessageList
-            messages={messages}
-            streamingContent={streamingContent}
-            isGenerating={isGenerating}
-            onContinue={handleContinue}
-            onEditMessage={handleEditMessage}
-            onRegenerateMessage={handleRegenerateMessage}
-          />
+          <>
+            {isSearching && (
+              <div className="px-4 pt-4">
+                <WebSearchResults results={[]} isSearching={true} />
+              </div>
+            )}
+            {searchResults.length > 0 && !isSearching && (
+              <div className="px-4 pt-4">
+                <WebSearchResults results={searchResults} />
+              </div>
+            )}
+            <MessageList
+              messages={messages}
+              streamingContent={streamingContent}
+              isGenerating={isGenerating}
+              onContinue={handleContinue}
+              onEditMessage={handleEditMessage}
+              onRegenerateMessage={handleRegenerateMessage}
+            />
+          </>
         )}
         <ChatInput
           ref={inputRef}

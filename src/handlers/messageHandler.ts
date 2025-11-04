@@ -1,5 +1,6 @@
 import type { Message } from "../hooks/useLlama";
 import type { ModelSettings } from "../types/settings";
+import type { SearchResult, PageContent } from "../types/electron";
 
 interface MessageHandlerProps {
   isModelLoaded: boolean;
@@ -27,6 +28,10 @@ interface MessageHandlerProps {
   updateTitle: (title: string) => void;
   saveCurrentConversation: () => Promise<void>;
   modelSettings: ModelSettings;
+  performWebSearch?: (query: string) => Promise<{
+    results: SearchResult[];
+    contents: PageContent[];
+  } | null>;
 }
 
 export function createMessageHandler({
@@ -42,6 +47,7 @@ export function createMessageHandler({
   updateTitle,
   saveCurrentConversation,
   modelSettings,
+  performWebSearch,
 }: MessageHandlerProps) {
   return async (content: string, useWebSearch?: boolean) => {
     if (!isModelLoaded) {
@@ -49,10 +55,36 @@ export function createMessageHandler({
       return;
     }
 
-    // TODO: Implement web search integration
-    if (useWebSearch) {
+    // Perform web search if requested
+    let webSearchContext = "";
+    if (useWebSearch && performWebSearch) {
       console.log("[MessageHandler] Web search requested for query:", content);
-      // Will be implemented in next step
+      
+      const searchData = await performWebSearch(content);
+      
+      if (searchData && searchData.contents.length > 0) {
+        console.log(`[MessageHandler] Building context from ${searchData.contents.length} sources`);
+        
+        // Build context from fetched content
+        webSearchContext = "\n\n--- Web Search Results ---\n";
+        searchData.contents.forEach((content, index) => {
+          webSearchContext += `\nSource ${index + 1}: ${content.title}\n`;
+          webSearchContext += `URL: ${content.url}\n`;
+          webSearchContext += `Content: ${content.textContent.slice(0, 1000)}...\n`;
+        });
+        webSearchContext += "\nPlease use the above web search results to answer the user's question.\n---\n\n";
+      } else if (searchData && searchData.results.length > 0) {
+        // If no content was fetched, at least include snippets
+        console.log(`[MessageHandler] Building context from ${searchData.results.length} search snippets`);
+        
+        webSearchContext = "\n\n--- Web Search Results ---\n";
+        searchData.results.forEach((result, index) => {
+          webSearchContext += `\n${index + 1}. ${result.title}\n`;
+          webSearchContext += `   ${result.snippet}\n`;
+          webSearchContext += `   Source: ${result.url}\n`;
+        });
+        webSearchContext += "\nPlease use the above search results to help answer the user's question.\n---\n\n";
+      }
     }
 
     const userMessage: Message = {
@@ -71,8 +103,13 @@ export function createMessageHandler({
     const assistantMessageId = (Date.now() + 1).toString();
 
     try {
+      // Combine user query with web search context
+      const messageWithContext = webSearchContext 
+        ? `${webSearchContext}User Question: ${content}`
+        : content;
+
       await sendStreamingMessage(
-        content,
+        messageWithContext,
         (token) => {
           streamingContentRef.current += token;
           setStreamingContent(streamingContentRef.current);
