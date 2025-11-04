@@ -22,8 +22,11 @@ export function useWebSearch(): UseWebSearchReturn {
   const performSearch = useCallback(
     async (query: string) => {
       console.log("[useWebSearch] performSearch called with query:", query);
-      console.log("[useWebSearch] Web search enabled:", settings.webSearch.enabled);
-      
+      console.log(
+        "[useWebSearch] Web search enabled:",
+        settings.webSearch.enabled
+      );
+
       if (!settings.webSearch.enabled) {
         console.warn("[WebSearch] Web search is disabled in settings");
         return null;
@@ -45,7 +48,9 @@ export function useWebSearch(): UseWebSearchReturn {
         console.log("[WebSearch] Initialization result:", initResult);
 
         if (!initResult.success) {
-          throw new Error(initResult.error || "Failed to initialize web search");
+          throw new Error(
+            initResult.error || "Failed to initialize web search"
+          );
         }
 
         console.log("[WebSearch] Performing search query...");
@@ -67,9 +72,7 @@ export function useWebSearch(): UseWebSearchReturn {
           throw new Error(searchResult.error || "Search failed");
         }
 
-        console.log(
-          `[WebSearch] Found ${searchResult.results.length} results`
-        );
+        console.log(`[WebSearch] Found ${searchResult.results.length} results`);
         setSearchResults(searchResult.results);
 
         // Fetch content from top results if caching is enabled
@@ -79,12 +82,14 @@ export function useWebSearch(): UseWebSearchReturn {
             .slice(0, 2) // Only fetch top 2 for performance
             .map(async (result) => {
               try {
-                const contentResult =
-                  await window.electronAPI.webSearch.fetch(result.url, {
+                const contentResult = await window.electronAPI.webSearch.fetch(
+                  result.url,
+                  {
                     blockTrackers: true,
                     useRandomUA: true,
                     timeout: 3000, // Reduced from 10s to 3s
-                  });
+                  }
+                );
 
                 if (contentResult.success && contentResult.content) {
                   console.log(
@@ -102,8 +107,11 @@ export function useWebSearch(): UseWebSearchReturn {
           const fetchedContents = await Promise.allSettled(fetchPromises);
           contents.push(
             ...fetchedContents
-              .filter((r): r is PromiseFulfilledResult<PageContent | null> => r.status === 'fulfilled')
-              .map(r => r.value)
+              .filter(
+                (r): r is PromiseFulfilledResult<PageContent | null> =>
+                  r.status === "fulfilled"
+              )
+              .map((r) => r.value)
               .filter((c): c is PageContent => c !== null)
           );
           console.log(`[WebSearch] Fetched ${contents.length} page contents`);

@@ -194,7 +194,9 @@ export interface WebSearchSettings {
 }
 
 export interface WebSearchAPI {
-  initialize: (settings?: WebSearchSettings) => Promise<{ success: boolean; error?: string }>;
+  initialize: (
+    settings?: WebSearchSettings
+  ) => Promise<{ success: boolean; error?: string }>;
   query: (
     query: string,
     maxResults?: number,
@@ -203,14 +205,37 @@ export interface WebSearchAPI {
   fetch: (
     url: string,
     options?: PrivacyOptions
-  ) => Promise<{ success: boolean; content?: PageContent; fromCache?: boolean; error?: string }>;
+  ) => Promise<{
+    success: boolean;
+    content?: PageContent;
+    fromCache?: boolean;
+    error?: string;
+  }>;
   cache: {
-    get: (url: string) => Promise<{ success: boolean; content?: PageContent | null; error?: string }>;
-    has: (url: string) => Promise<{ success: boolean; has?: boolean; error?: string }>;
-    stats: () => Promise<{ success: boolean; stats?: CacheStats; error?: string }>;
+    get: (url: string) => Promise<{
+      success: boolean;
+      content?: PageContent | null;
+      error?: string;
+    }>;
+    has: (
+      url: string
+    ) => Promise<{ success: boolean; has?: boolean; error?: string }>;
+    stats: () => Promise<{
+      success: boolean;
+      stats?: CacheStats;
+      error?: string;
+    }>;
     clear: () => Promise<{ success: boolean; error?: string }>;
-    clearExpired: () => Promise<{ success: boolean; deletedCount?: number; error?: string }>;
-    export: () => Promise<{ success: boolean; entries?: Array<{ url: string; content: string }>; error?: string }>;
+    clearExpired: () => Promise<{
+      success: boolean;
+      deletedCount?: number;
+      error?: string;
+    }>;
+    export: () => Promise<{
+      success: boolean;
+      entries?: Array<{ url: string; content: string }>;
+      error?: string;
+    }>;
     delete: (url: string) => Promise<{ success: boolean; error?: string }>;
   };
 }

@@ -62,7 +62,7 @@ function App() {
   } = useConversationStore();
 
   const { settings, loadSettings } = useSettingsStore();
-  
+
   const { performSearch, clearResults } = useWebSearch();
 
   // Load settings on mount

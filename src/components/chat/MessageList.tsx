@@ -102,7 +102,10 @@ export function MessageList({
 
       if (isNearBottom) {
         // Instant scroll during streaming for smoothness
-        messagesEndRef.current?.scrollIntoView({ block: "end", inline: "nearest" });
+        messagesEndRef.current?.scrollIntoView({
+          block: "end",
+          inline: "nearest",
+        });
       }
     }
   }, [streamingContent, isGenerating]);

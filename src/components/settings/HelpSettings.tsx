@@ -37,9 +37,7 @@ export function HelpSettings() {
       <section className="border-2 border-primary/20 rounded-lg p-4 bg-primary/5">
         <div className="flex items-center gap-2 mb-3">
           <Globe className="h-5 w-5 text-primary" />
-          <h3 className="text-lg font-semibold">
-            🌟 Privacy-First Web Search
-          </h3>
+          <h3 className="text-lg font-semibold">🌟 Privacy-First Web Search</h3>
           <span className="ml-auto text-xs bg-primary text-primary-foreground px-2 py-1 rounded-full font-medium">
             UNIQUE FEATURE
           </span>
@@ -121,9 +119,7 @@ export function HelpSettings() {
         <div className="mt-4 pt-4 border-t border-primary/20">
           <h4 className="text-sm font-semibold mb-3">How It Works</h4>
           <ol className="space-y-2 text-sm text-muted-foreground list-decimal list-inside">
-            <li>
-              Enable web search in settings and configure privacy options
-            </li>
+            <li>Enable web search in settings and configure privacy options</li>
             <li>
               Toggle web search in the chat interface when you need information
             </li>
@@ -133,9 +129,7 @@ export function HelpSettings() {
             <li>
               Content is fetched, cleaned, and encrypted before caching locally
             </li>
-            <li>
-              Cached content is available instantly for future requests
-            </li>
+            <li>Cached content is available instantly for future requests</li>
             <li>
               Manage your cache, export data, or clear it anytime from settings
             </li>
@@ -281,7 +275,10 @@ export function HelpSettings() {
           </p>
           <p>✓ Conversations stored locally in your app data folder</p>
           <p>✓ No telemetry, tracking, or data collection</p>
-          <p>✓ No external API calls or cloud services (except optional web search)</p>
+          <p>
+            ✓ No external API calls or cloud services (except optional web
+            search)
+          </p>
           <p>
             ✓ You have complete control over your data - delete anytime from
             settings
@@ -300,9 +297,7 @@ export function HelpSettings() {
           <li>Wait for the model to load (first time may take a moment)</li>
           <li>Type your message in the input field at the bottom</li>
           <li>Press Enter or click the send button to chat</li>
-          <li>
-            (Optional) Enable web search in settings for internet access
-          </li>
+          <li>(Optional) Enable web search in settings for internet access</li>
           <li>
             Use the three-dot menu to manage tags, export, or clear history
           </li>

@@ -49,7 +49,8 @@ export function WebSearchSettings({ settings }: WebSearchSettingsProps) {
       <div>
         <h3 className="text-lg font-medium mb-2">Web Search Configuration</h3>
         <p className="text-sm text-muted-foreground">
-          Enable privacy-first web search to enhance AI responses with real-time information
+          Enable privacy-first web search to enhance AI responses with real-time
+          information
         </p>
       </div>
 
@@ -80,7 +81,8 @@ export function WebSearchSettings({ settings }: WebSearchSettingsProps) {
               <div>
                 <Label htmlFor="show-reasoning">Show AI Reasoning Steps</Label>
                 <p className="text-xs text-muted-foreground mt-1">
-                  Display how the AI analyzes search results (helpful for understanding answers)
+                  Display how the AI analyzes search results (helpful for
+                  understanding answers)
                 </p>
               </div>
             </div>
@@ -98,7 +100,8 @@ export function WebSearchSettings({ settings }: WebSearchSettingsProps) {
               <Label>Maximum Search Results: {settings.maxResults}</Label>
             </div>
             <p className="text-xs text-muted-foreground">
-              Number of search results to fetch per query (more results = slower but more comprehensive)
+              Number of search results to fetch per query (more results = slower
+              but more comprehensive)
             </p>
             <Slider
               value={[settings.maxResults]}
@@ -122,7 +125,8 @@ export function WebSearchSettings({ settings }: WebSearchSettingsProps) {
                 <div>
                   <Label htmlFor="cache-enabled">Enable Local Caching</Label>
                   <p className="text-xs text-muted-foreground mt-1">
-                    Cache search results locally to improve speed and reduce bandwidth
+                    Cache search results locally to improve speed and reduce
+                    bandwidth
                   </p>
                 </div>
               </div>
@@ -137,7 +141,9 @@ export function WebSearchSettings({ settings }: WebSearchSettingsProps) {
               <div className="space-y-2 ml-6">
                 <div className="flex items-center gap-2">
                   <Clock className="h-4 w-4 text-muted-foreground" />
-                  <Label>Cache Duration: {formatCacheTTL(settings.cacheTTL)}</Label>
+                  <Label>
+                    Cache Duration: {formatCacheTTL(settings.cacheTTL)}
+                  </Label>
                 </div>
                 <p className="text-xs text-muted-foreground">
                   How long to keep cached results before refreshing

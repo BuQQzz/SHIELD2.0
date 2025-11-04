@@ -99,11 +99,17 @@ export const ChatInput = forwardRef<ChatInputRef, ChatInputProps>(
                       }`}
                       type="button"
                     >
-                      <Globe className={`h-5 w-5 ${webSearchEnabled ? "" : "text-muted-foreground"}`} />
+                      <Globe
+                        className={`h-5 w-5 ${webSearchEnabled ? "" : "text-muted-foreground"}`}
+                      />
                     </motion.button>
                   </TooltipTrigger>
                   <TooltipContent>
-                    <p>{webSearchEnabled ? "Web search enabled" : "Enable web search"}</p>
+                    <p>
+                      {webSearchEnabled
+                        ? "Web search enabled"
+                        : "Enable web search"}
+                    </p>
                   </TooltipContent>
                 </Tooltip>
               </TooltipProvider>

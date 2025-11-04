@@ -2,7 +2,9 @@
 /* Using explicit colors to test if CSS variables are the issue */
 
 /* Firefox scrollbar styling */
-html, body, * {
+html,
+body,
+* {
   scrollbar-width: thin !important;
   scrollbar-color: rgba(148, 163, 184, 0.3) transparent !important;
 }
