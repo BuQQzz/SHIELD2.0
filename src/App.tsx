@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useEffect, Suspense, useCallback } from "react";
+import { useState, useRef, useEffect, Suspense } from "react";
 import { ChatLayout } from "./components/chat/ChatLayout";
 import { Sidebar } from "./components/chat/Sidebar";
 import { ChatHeader } from "./components/chat/ChatHeader";
@@ -15,16 +15,10 @@ import { useConversationSync } from "./hooks/useConversationSync";
 import { useSettingsStore } from "./store/settingsStore";
 import { useKeyboardShortcuts } from "./hooks/useKeyboardShortcuts";
 import { useWebSearch } from "./hooks/useWebSearch";
-import { createMessageHandler } from "./handlers/messageHandler";
-import { createContinuationHandler } from "./handlers/continuationHandler";
-import {
-  createEditMessageHandler,
-  createRegenerateMessageHandler,
-} from "./handlers/editMessageHandler";
-import { createTemplateHandler } from "./handlers/templateHandler";
+import { useAppHandlers } from "./hooks/useAppHandlers";
+import { useModelLoader } from "./hooks/useModelLoader";
 import { createAppShortcuts } from "./config/shortcuts";
 import { AVAILABLE_MODELS } from "./config/models";
-import type { ModelOption } from "./components/chat/ModelSelector";
 import "./App.css";
 
 function App() {
@@ -62,7 +56,6 @@ function App() {
   } = useConversationStore();
 
   const { settings, loadSettings } = useSettingsStore();
-
   const { performSearch, clearResults } = useWebSearch();
 
   // Load settings on mount
@@ -86,167 +79,52 @@ function App() {
     setMessages,
   });
 
-  // Auto-load model on initialization
-  useEffect(() => {
-    if (isInitialized && !isModelLoaded && !isLoading && !currentModel) {
-      console.log("[App] Auto-loading default model...");
-      const defaultModel = AVAILABLE_MODELS.find(
-        (m) => m.id === currentModelId
-      );
-      if (defaultModel) {
-        loadModel({
-          name: defaultModel.name,
-          uri: defaultModel.uri,
-          contextSize: defaultModel.contextSize,
-        }).catch((err) => {
-          console.error("[App] Failed to auto-load model:", err);
-        });
-      }
-    }
-  }, [
+  // Model loading hook
+  const { handleModelSelect } = useModelLoader({
     isInitialized,
     isModelLoaded,
     isLoading,
     currentModel,
-    loadModel,
     currentModelId,
-  ]);
+    loadModel,
+    setCurrentModelId,
+  });
 
-  const handleModelSelect = useCallback(
-    async (model: ModelOption) => {
-      if (isLoading) return;
-
-      console.log("[App] Switching to model:", model.displayName);
-      setCurrentModelId(model.id);
-
-      try {
-        await loadModel({
-          name: model.name,
-          uri: model.uri,
-          contextSize: model.contextSize,
-        });
-        console.log("[App] Model switched successfully");
-      } catch (err) {
-        console.error("[App] Failed to switch model:", err);
-      }
-    },
-    [isLoading, loadModel]
-  );
-
-  const handleSendMessage = createMessageHandler({
+  // App handlers hook
+  const {
+    handleSendMessage,
+    handleStopGenerating,
+    handleClearHistory,
+    handleNewChat,
+    handleContinue,
+    handleEditMessage,
+    handleRegenerateMessage,
+    handleTemplateSelect,
+  } = useAppHandlers({
     isModelLoaded,
     currentConversation,
+    messages,
+    streamingContentRef,
+    modelSettings: settings.model,
+    inputRef,
+    currentModelId,
     setMessages,
     setIsGenerating,
     setStreamingContent,
-    streamingContentRef,
     sendStreamingMessage,
     addMessage,
     generateTitle,
     updateTitle,
     saveCurrentConversation,
-    modelSettings: settings.model,
-    performWebSearch: performSearch,
-    setIsSearching: setIsWebSearching,
-  });
-
-  const handleStopGenerating = useCallback(async () => {
-    try {
-      await stopGeneration();
-      setIsGenerating(false);
-
-      if (streamingContentRef.current) {
-        const assistantMessage: Message = {
-          id: (Date.now() + 1).toString(),
-          role: "assistant",
-          content: streamingContentRef.current,
-          timestamp: new Date(),
-        };
-        setMessages((prev) => [...prev, assistantMessage]);
-      }
-
-      setStreamingContent("");
-      streamingContentRef.current = "";
-    } catch (err) {
-      console.error("Error stopping generation:", err);
-    }
-  }, [stopGeneration]);
-
-  const handleClearHistory = useCallback(async () => {
-    if (!window.llama) {
-      console.warn("[App] Cannot clear history - window.llama not available");
-      return;
-    }
-    try {
-      await clearHistory();
-      setMessages([]);
-    } catch (err) {
-      console.error("[App] Failed to clear history:", err);
-    }
-  }, [clearHistory]);
-
-  const handleNewChat = useCallback(() => {
-    if (currentConversation && currentConversation.messages.length > 0) {
-      saveCurrentConversation();
-    }
-    createNewConversation("New Chat", currentModelId);
-    setMessages([]);
-    clearHistory();
-    clearResults(); // Clear web search results
-  }, [
-    currentConversation,
-    saveCurrentConversation,
-    createNewConversation,
-    currentModelId,
+    stopGeneration,
     clearHistory,
-    clearResults,
-  ]);
-
-  const handleContinue = createContinuationHandler({
-    messages,
-    setMessages,
-    setIsGenerating,
-    setStreamingContent,
-    streamingContentRef,
-    sendStreamingMessage,
-    addMessage,
-    saveCurrentConversation,
-    modelSettings: settings.model,
-  });
-
-  const handleEditMessage = createEditMessageHandler({
-    messages,
-    setMessages,
     setChatHistory,
-    setIsGenerating,
-    setStreamingContent,
-    streamingContentRef,
-    sendStreamingMessage,
-    addMessage,
-    saveCurrentConversation,
-    modelSettings: settings.model,
-  });
-
-  const handleRegenerateMessage = createRegenerateMessageHandler({
-    messages,
-    setMessages,
-    setChatHistory,
-    setIsGenerating,
-    setStreamingContent,
-    streamingContentRef,
-    sendStreamingMessage,
-    addMessage,
-    saveCurrentConversation,
-    modelSettings: settings.model,
-  });
-
-  const handleTemplateSelect = createTemplateHandler(
     createNewConversation,
     setSystemPrompt,
-    setMessages,
-    clearHistory,
-    inputRef
-  );
+    performWebSearch: performSearch,
+    setIsSearching: setIsWebSearching,
+    clearResults,
+  });
 
   // Keyboard shortcuts
   useKeyboardShortcuts(

@@ -15,6 +15,12 @@ import {
   Eye,
   EyeOff,
 } from "lucide-react";
+import {
+  FeatureItem,
+  ShortcutItem,
+  SettingExplanation,
+  PrivacyCheckItem,
+} from "./HelpComponents";
 
 export function HelpSettings() {
   return (
@@ -80,38 +86,14 @@ export function HelpSettings() {
         <div className="mt-4 pt-4 border-t border-primary/20">
           <h4 className="text-sm font-semibold mb-3">Privacy Protections</h4>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-sm text-muted-foreground">
-            <div className="flex items-center gap-2">
-              <span className="text-green-500">✓</span>
-              <span>No search history sent to servers</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <span className="text-green-500">✓</span>
-              <span>Request anonymization</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <span className="text-green-500">✓</span>
-              <span>Tracking parameter removal</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <span className="text-green-500">✓</span>
-              <span>Analytics script blocking</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <span className="text-green-500">✓</span>
-              <span>AES-256 encrypted cache</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <span className="text-green-500">✓</span>
-              <span>Local-only data storage</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <span className="text-green-500">✓</span>
-              <span>No API keys required</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <span className="text-green-500">✓</span>
-              <span>Configurable cache expiry</span>
-            </div>
+            <PrivacyCheckItem label="No search history sent to servers" />
+            <PrivacyCheckItem label="Request anonymization" />
+            <PrivacyCheckItem label="Tracking parameter removal" />
+            <PrivacyCheckItem label="Analytics script blocking" />
+            <PrivacyCheckItem label="AES-256 encrypted cache" />
+            <PrivacyCheckItem label="Local-only data storage" />
+            <PrivacyCheckItem label="No API keys required" />
+            <PrivacyCheckItem label="Configurable cache expiry" />
           </div>
         </div>
 
@@ -313,58 +295,6 @@ export function HelpSettings() {
           <p className="mt-2">Built with ❤️ for privacy-conscious users</p>
         </div>
       </section>
-    </div>
-  );
-}
-
-interface FeatureItemProps {
-  icon: React.ReactNode;
-  title: string;
-  description: string;
-}
-
-function FeatureItem({ icon, title, description }: FeatureItemProps) {
-  return (
-    <div className="flex gap-3">
-      <div className="mt-0.5 text-primary">{icon}</div>
-      <div>
-        <h4 className="text-sm font-medium mb-1">{title}</h4>
-        <p className="text-sm text-muted-foreground leading-relaxed">
-          {description}
-        </p>
-      </div>
-    </div>
-  );
-}
-
-interface ShortcutItemProps {
-  shortcut: string;
-  description: string;
-}
-
-function ShortcutItem({ shortcut, description }: ShortcutItemProps) {
-  return (
-    <div className="flex items-center justify-between text-sm">
-      <span className="text-muted-foreground">{description}</span>
-      <kbd className="px-2 py-1 bg-muted rounded text-xs font-mono">
-        {shortcut}
-      </kbd>
-    </div>
-  );
-}
-
-interface SettingExplanationProps {
-  title: string;
-  description: string;
-}
-
-function SettingExplanation({ title, description }: SettingExplanationProps) {
-  return (
-    <div>
-      <h4 className="text-sm font-medium mb-1">{title}</h4>
-      <p className="text-sm text-muted-foreground leading-relaxed">
-        {description}
-      </p>
     </div>
   );
 }

@@ -2,6 +2,10 @@ import type { Message } from "../hooks/useLlama";
 import type { ModelSettings } from "../types/settings";
 import type { SearchResult, PageContent } from "../types/electron";
 import { useSettingsStore } from "../store/settingsStore";
+import {
+  isVagueFollowUpQuery,
+  performWebSearchAndBuildContext,
+} from "./webSearchHelper";
 
 interface MessageHandlerProps {
   isModelLoaded: boolean;
@@ -70,16 +74,7 @@ export function createMessageHandler({
     let searchSources: SearchResult[] = [];
 
     // Detect if this is a vague follow-up query that shouldn't trigger web search
-    const vagueFollowUpPatterns = [
-      /^(please|can you|could you)?\s*(check|look|verify|confirm)\s*(again|once more|one more time)/i,
-      /^(what|how)\s*about\s*(that|this|it)/i,
-      /^(and|but|so|also)\s*/i,
-      /^(yes|no|ok|okay)\b/i,
-    ];
-
-    const isVagueFollowUp = vagueFollowUpPatterns.some((pattern: RegExp) =>
-      pattern.test(content.trim())
-    );
+    const isVagueFollowUp = isVagueFollowUpQuery(content);
 
     if (isVagueFollowUp) {
       console.log(
@@ -89,150 +84,13 @@ export function createMessageHandler({
     }
 
     if (useWebSearch && performWebSearch && !isVagueFollowUp) {
-      console.log("[MessageHandler] Web search requested for query:", content);
-      console.log(
-        "[MessageHandler] performWebSearch function exists:",
-        !!performWebSearch
+      const searchResult = await performWebSearchAndBuildContext(
+        content,
+        performWebSearch,
+        setIsSearching
       );
-
-      // Set searching state to true
-      if (setIsSearching) {
-        console.log("[MessageHandler] Setting isSearching to true");
-        setIsSearching(true);
-      }
-
-      try {
-        console.log("[MessageHandler] Calling performWebSearch...");
-        const searchData = await performWebSearch(content);
-
-        console.log("[MessageHandler] Search data received:", {
-          hasContents: searchData?.contents && searchData.contents.length > 0,
-          contentsCount: searchData?.contents?.length || 0,
-          resultsCount: searchData?.results?.length || 0,
-          firstResult: searchData?.results?.[0]?.title || "none",
-        });
-
-        if (searchData && searchData.contents.length > 0) {
-          console.log(
-            `[MessageHandler] Building context from ${searchData.contents.length} full pages and ${searchData.results.length} search results`
-          );
-
-          // Store sources for display (don't include in prompt)
-          searchSources = searchData.results || [];
-
-          // Build context from fetched content - NO source listing
-          webSearchContext = "\n\n--- Web Search Results ---\n";
-          webSearchContext += `Current Date: ${new Date().toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" })}\n`;
-          webSearchContext += `Note: Full content available from ${searchData.contents.length} pages, snippets from ${searchData.results.length - searchData.contents.length} additional results.\n\n`;
-
-          // Add full content first
-          webSearchContext += "=== FULL PAGE CONTENT ===\n";
-          searchData.contents.forEach((pageContent, index) => {
-            webSearchContext += `\nSource ${index + 1}: ${pageContent.title}\n`;
-            webSearchContext += `Content: ${pageContent.textContent.slice(0, 1500)}...\n`;
-          });
-
-          // Add snippets from results we didn't fetch
-          if (searchData.results.length > searchData.contents.length) {
-            webSearchContext +=
-              "\n=== ADDITIONAL SNIPPETS (Limited Info) ===\n";
-            searchData.results
-              .slice(searchData.contents.length)
-              .forEach((result, index) => {
-                webSearchContext += `\n${index + searchData.contents.length + 1}. ${result.title}\n`;
-                webSearchContext += `   Snippet: ${result.snippet}\n`;
-              });
-          }
-
-          webSearchContext += "\n--- End of Search Results ---\n\n";
-          webSearchContext +=
-            "⚠️ CRITICAL INSTRUCTIONS - READ CAREFULLY ⚠️\n\n";
-          webSearchContext +=
-            "You are answering based on CURRENT LIVE WEB SEARCH RESULTS shown above. These results were just fetched from the internet.\n\n";
-          webSearchContext += "ABSOLUTE RULES:\n";
-          webSearchContext +=
-            "1. ONLY use information that appears in the search results above\n";
-          webSearchContext +=
-            "2. If search results say something different from your training data, YOU MUST USE THE SEARCH RESULTS\n";
-          webSearchContext +=
-            "3. DO NOT make up or assume any information not in the results\n";
-          webSearchContext +=
-            "4. DO NOT list sources in your response - they will be shown separately\n";
-          webSearchContext +=
-            "5. If information is unclear or contradictory in results, SAY SO\n";
-          webSearchContext +=
-            "6. Today's date is: " +
-            new Date().toLocaleDateString("en-US", {
-              year: "numeric",
-              month: "long",
-              day: "numeric",
-            }) +
-            "\n\n";
-          webSearchContext +=
-            "Your response MUST be based on the search results above, NOT your training data.\n\n";
-
-          // Debug: Log what we're sending to the LLM
-          console.log(
-            "[MessageHandler] Full content search context being sent to LLM:"
-          );
-          console.log(webSearchContext.substring(0, 800) + "...");
-        } else if (searchData && searchData.results.length > 0) {
-          // If no content was fetched, at least include snippets
-          console.log(
-            `[MessageHandler] Building context from ${searchData.results.length} search snippets`
-          );
-
-          // Store sources for display
-          searchSources = searchData.results;
-
-          // Build context from snippets - NO source listing
-          webSearchContext = "\n\n--- Web Search Results ---\n";
-          webSearchContext += `Current Date: ${new Date().toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" })}\n\n`;
-          searchData.results.forEach((result, index) => {
-            webSearchContext += `\n${index + 1}. ${result.title}\n`;
-            webSearchContext += `   ${result.snippet}\n`;
-          });
-          webSearchContext += "\n--- End of Search Results ---\n\n";
-          webSearchContext +=
-            "⚠️ CRITICAL INSTRUCTIONS - READ CAREFULLY ⚠️\n\n";
-          webSearchContext +=
-            "You are answering based on CURRENT LIVE WEB SEARCH SNIPPETS shown above. These were just fetched from the internet.\n\n";
-          webSearchContext += "ABSOLUTE RULES:\n";
-          webSearchContext +=
-            "1. ONLY use information from the snippets above\n";
-          webSearchContext +=
-            "2. Search results OVERRIDE your training data - use them instead\n";
-          webSearchContext +=
-            "3. DO NOT invent information not in the snippets\n";
-          webSearchContext +=
-            "4. DO NOT list sources - they will be shown separately\n";
-          webSearchContext +=
-            '5. If snippets are unclear or limited, say "Based on the search results..."\n';
-          webSearchContext +=
-            "6. Today's date is: " +
-            new Date().toLocaleDateString("en-US", {
-              year: "numeric",
-              month: "long",
-              day: "numeric",
-            }) +
-            "\n\n";
-          webSearchContext += "Answer using ONLY the snippets above.\n\n";
-
-          // Debug: Log what we're sending to the LLM
-          console.log("[MessageHandler] Search context being sent to LLM:");
-          console.log(webSearchContext.substring(0, 500) + "...");
-        } else {
-          console.warn("[MessageHandler] No search results found");
-        }
-      } catch (error) {
-        console.error("[MessageHandler] Web search failed:", error);
-        // Continue without web search if it fails
-      } finally {
-        // Set searching state to false
-        if (setIsSearching) {
-          setIsSearching(false);
-        }
-      }
+      webSearchContext = searchResult.context;
+      searchSources = searchResult.sources;
     }
 
     const userMessage: Message = {
