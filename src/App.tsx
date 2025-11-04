@@ -17,9 +17,14 @@ import { useSettingsStore } from "./store/settingsStore";
 import { useKeyboardShortcuts } from "./hooks/useKeyboardShortcuts";
 import { createMessageHandler } from "./handlers/messageHandler";
 import { createContinuationHandler } from "./handlers/continuationHandler";
+import {
+  createEditMessageHandler,
+  createRegenerateMessageHandler,
+} from "./handlers/editMessageHandler";
+import { createTemplateHandler } from "./handlers/templateHandler";
+import { createAppShortcuts } from "./config/shortcuts";
 import { AVAILABLE_MODELS } from "./config/models";
 import type { ModelOption } from "./components/chat/ModelSelector";
-import type { ChatTemplate } from "./config/chatTemplates";
 import "./App.css";
 
 function App() {
@@ -56,47 +61,6 @@ function App() {
   } = useConversationStore();
 
   const { settings, loadSettings } = useSettingsStore();
-
-  // Keyboard shortcuts
-  useKeyboardShortcuts([
-    {
-      key: "n",
-      ctrl: true,
-      description: "New conversation",
-      callback: () => {
-        if (!isGenerating) {
-          handleNewChat();
-        }
-      },
-    },
-    {
-      key: "k",
-      ctrl: true,
-      description: "Focus input",
-      callback: () => {
-        inputRef.current?.focus();
-      },
-    },
-    {
-      key: ",",
-      ctrl: true,
-      description: "Open settings",
-      callback: () => {
-        setSettingsOpen(true);
-      },
-    },
-    {
-      key: "Escape",
-      description: "Close settings/stop generation",
-      callback: () => {
-        if (settingsOpen) {
-          setSettingsOpen(false);
-        } else if (isGenerating) {
-          handleStopGenerating();
-        }
-      },
-    },
-  ]);
 
   // Load settings on mount
   useEffect(() => {
@@ -234,162 +198,51 @@ function App() {
     modelSettings: settings.model,
   });
 
-  const handleEditMessage = async (messageId: string, newContent: string) => {
-    // Find the message index
-    const messageIndex = messages.findIndex((msg) => msg.id === messageId);
-    if (messageIndex === -1) return;
+  const handleEditMessage = createEditMessageHandler({
+    messages,
+    setMessages,
+    setChatHistory,
+    setIsGenerating,
+    setStreamingContent,
+    streamingContentRef,
+    sendStreamingMessage,
+    addMessage,
+    saveCurrentConversation,
+    modelSettings: settings.model,
+  });
 
-    const originalMessage = messages[messageIndex];
-    if (!originalMessage) return;
+  const handleRegenerateMessage = createRegenerateMessageHandler({
+    messages,
+    setMessages,
+    setChatHistory,
+    setIsGenerating,
+    setStreamingContent,
+    streamingContentRef,
+    sendStreamingMessage,
+    addMessage,
+    saveCurrentConversation,
+    modelSettings: settings.model,
+  });
 
-    // Update the message content
-    const updatedMessages = messages.slice(0, messageIndex);
-    const editedMessage: Message = {
-      id: originalMessage.id,
-      role: originalMessage.role,
-      content: newContent,
-      timestamp: originalMessage.timestamp,
-    };
-    updatedMessages.push(editedMessage);
+  const handleTemplateSelect = createTemplateHandler(
+    createNewConversation,
+    setSystemPrompt,
+    setMessages,
+    clearHistory,
+    inputRef
+  );
 
-    // Update state to show only messages up to and including the edited one
-    setMessages(updatedMessages);
-
-    // Update llama chat history with the new message set
-    await setChatHistory(updatedMessages);
-
-    // Regenerate response from the edited message
-    setIsGenerating(true);
-    setStreamingContent("");
-    streamingContentRef.current = "";
-
-    try {
-      await sendStreamingMessage(
-        newContent,
-        (token) => {
-          streamingContentRef.current += token;
-          setStreamingContent(streamingContentRef.current);
-        },
-        {
-          temperature: settings.model.temperature,
-          maxTokens: settings.model.maxTokens,
-          topP: settings.model.topP,
-          topK: settings.model.topK,
-          repeatPenalty: settings.model.repeatPenalty,
-        }
-      );
-
-      const finalContent = streamingContentRef.current;
-      const finalMessage: Message = {
-        id: crypto.randomUUID(),
-        role: "assistant",
-        content: finalContent,
-        timestamp: new Date(),
-      };
-
-      setMessages((prev) => [...prev, finalMessage]);
-      addMessage(finalMessage);
-      setStreamingContent("");
-      streamingContentRef.current = "";
-      setIsGenerating(false);
-      saveCurrentConversation();
-    } catch (error) {
-      console.error("Error regenerating response:", error);
-      setIsGenerating(false);
-      setStreamingContent("");
-      streamingContentRef.current = "";
-    }
-  };
-
-  const handleRegenerateMessage = async (messageId: string) => {
-    // Find the assistant message and the user message before it
-    const messageIndex = messages.findIndex((msg) => msg.id === messageId);
-    if (messageIndex === -1 || messageIndex === 0) return;
-
-    const assistantMessage = messages[messageIndex];
-    if (!assistantMessage || assistantMessage.role !== "assistant") return;
-
-    // Find the user message that prompted this response
-    const userMessage = messages[messageIndex - 1];
-    if (!userMessage || userMessage.role !== "user") return;
-
-    // Remove the assistant message and everything after it
-    const updatedMessages = messages.slice(0, messageIndex);
-    setMessages(updatedMessages);
-
-    // Update llama chat history
-    await setChatHistory(updatedMessages);
-
-    // Regenerate the response
-    setIsGenerating(true);
-    setStreamingContent("");
-    streamingContentRef.current = "";
-
-    try {
-      await sendStreamingMessage(
-        userMessage.content,
-        (token) => {
-          streamingContentRef.current += token;
-          setStreamingContent(streamingContentRef.current);
-        },
-        {
-          temperature: settings.model.temperature,
-          maxTokens: settings.model.maxTokens,
-          topP: settings.model.topP,
-          topK: settings.model.topK,
-          repeatPenalty: settings.model.repeatPenalty,
-        }
-      );
-
-      const finalContent = streamingContentRef.current;
-      const finalMessage: Message = {
-        id: crypto.randomUUID(),
-        role: "assistant",
-        content: finalContent,
-        timestamp: new Date(),
-      };
-
-      setMessages((prev) => [...prev, finalMessage]);
-      addMessage(finalMessage);
-      setStreamingContent("");
-      streamingContentRef.current = "";
-      setIsGenerating(false);
-      saveCurrentConversation();
-    } catch (error) {
-      console.error("Error regenerating response:", error);
-      setIsGenerating(false);
-      setStreamingContent("");
-      streamingContentRef.current = "";
-    }
-  };
-
-  const handleTemplateSelect = async (template: ChatTemplate) => {
-    // Create new conversation
-    createNewConversation();
-
-    // Apply template settings
-    const { updateSettings } = useSettingsStore.getState();
-    updateSettings({
-      system: {
-        ...settings.system,
-        systemPrompt: template.systemPrompt,
-      },
-      model: {
-        ...settings.model,
-        ...template.settings,
-      },
-    });
-
-    // Apply system prompt to active session
-    if (setSystemPrompt) {
-      await setSystemPrompt(template.systemPrompt);
-    }
-
-    // Clear any existing messages and focus input
-    setMessages([]);
-    clearHistory();
-    inputRef.current?.focus();
-  };
+  // Keyboard shortcuts
+  useKeyboardShortcuts(
+    createAppShortcuts(
+      isGenerating,
+      settingsOpen,
+      handleNewChat,
+      handleStopGenerating,
+      () => inputRef.current?.focus(),
+      setSettingsOpen
+    )
+  );
 
   return (
     <ChatLayout
