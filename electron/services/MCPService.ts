@@ -10,54 +10,14 @@ import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
 import { spawn, ChildProcess } from 'child_process';
 import path from 'path';
-import os from 'os';
 import { app } from 'electron';
-
-/**
- * MCP Server Configuration
- */
-interface MCPServerConfig {
-  package: string;
-  version: string;
-  permissions: string[];
-  allowedPaths: string[];
-  requiresApproval: boolean;
-}
-
-/**
- * Official MCP Servers Whitelist
- * Only servers from @modelcontextprotocol are allowed
- */
-const OFFICIAL_MCP_SERVERS: Record<string, MCPServerConfig> = {
-  filesystem: {
-    package: '@modelcontextprotocol/server-filesystem',
-    version: '^2025.8.21',
-    permissions: ['read', 'write', 'list'],
-    allowedPaths: [
-      path.join(os.homedir(), 'Documents'),
-      path.join(os.homedir(), 'Desktop'),
-    ],
-    requiresApproval: true,
-  },
-};
-
-/**
- * MCP Tool Call Request
- */
-interface MCPToolCall {
-  tool: string;
-  arguments: Record<string, unknown>;
-  serverName: string;
-}
-
-/**
- * MCP Tool Call Result
- */
-interface MCPToolResult {
-  success: boolean;
-  data?: unknown;
-  error?: string;
-}
+import {
+  OFFICIAL_MCP_SERVERS,
+  validateFilesystemPath,
+  type MCPServerConfig,
+  type MCPToolCall,
+  type MCPToolResult,
+} from './MCPServerConfig.js';
 
 /**
  * MCP Service Class
@@ -211,7 +171,7 @@ class MCPService {
     try {
       // Validate path restrictions for filesystem operations
       if (serverName === 'filesystem') {
-        const validated = this.validateFilesystemPath(args, config);
+        const validated = validateFilesystemPath(args, config);
         if (!validated.success) {
           return validated;
         }
@@ -234,40 +194,6 @@ class MCPService {
         error: error instanceof Error ? error.message : 'Unknown error',
       };
     }
-  }
-
-  /**
-   * Validate filesystem paths against allowed paths
-   */
-  private validateFilesystemPath(
-    args: Record<string, unknown>,
-    config: MCPServerConfig
-  ): MCPToolResult {
-    const targetPath = args.path as string;
-    if (!targetPath) {
-      return {
-        success: false,
-        error: 'No path provided',
-      };
-    }
-
-    // Normalize path
-    const normalizedPath = path.normalize(targetPath);
-
-    // Check if path is within allowed directories
-    const isAllowed = config.allowedPaths.some(allowedPath => {
-      const normalized = path.normalize(allowedPath);
-      return normalizedPath.startsWith(normalized);
-    });
-
-    if (!isAllowed) {
-      return {
-        success: false,
-        error: `Access denied: Path ${targetPath} is outside allowed directories`,
-      };
-    }
-
-    return { success: true };
   }
 
   /**

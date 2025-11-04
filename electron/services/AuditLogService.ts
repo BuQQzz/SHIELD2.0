@@ -8,39 +8,15 @@
 import fs from 'fs/promises';
 import path from 'path';
 import { app } from 'electron';
-
-/**
- * Audit Log Entry
- */
-interface AuditLogEntry {
-  id: string;
-  timestamp: Date;
-  serverName: string;
-  tool: string;
-  arguments: Record<string, unknown>;
-  approved: boolean;
-  result?: {
-    success: boolean;
-    data?: unknown;
-    error?: string;
-  };
-  userApproval?: {
-    timestamp: Date;
-    remembered: boolean;
-  };
-}
-
-/**
- * Audit Log Query Options
- */
-interface AuditLogQueryOptions {
-  serverName?: string;
-  tool?: string;
-  startDate?: Date;
-  endDate?: Date;
-  approved?: boolean;
-  limit?: number;
-}
+import {
+  type AuditLogEntry,
+  type AuditLogQueryOptions,
+  type AuditLogStatistics,
+  parseLogEntries,
+  generateLogId,
+  filterLogEntries,
+  calculateStatistics,
+} from './AuditLogTypes.js';
 
 /**
  * Audit Log Service Class
@@ -115,19 +91,10 @@ class AuditLogService {
 
       // Read and parse log file
       const content = await fs.readFile(logFile, 'utf-8');
-      const entries = JSON.parse(content) as AuditLogEntry[];
+      const entries = JSON.parse(content);
       
       // Convert timestamp strings back to Date objects
-      this.logs = entries.map(entry => ({
-        ...entry,
-        timestamp: new Date(entry.timestamp),
-        userApproval: entry.userApproval
-          ? {
-              ...entry.userApproval,
-              timestamp: new Date(entry.userApproval.timestamp),
-            }
-          : undefined,
-      }));
+      this.logs = parseLogEntries(entries);
 
       console.log(`[AuditLogService] Loaded ${this.logs.length} recent logs`);
     } catch (error) {
@@ -147,7 +114,7 @@ class AuditLogService {
     userApproval?: { remembered: boolean }
   ): Promise<string> {
     const entry: AuditLogEntry = {
-      id: this.generateId(),
+      id: generateLogId(),
       timestamp: new Date(),
       serverName,
       tool,
@@ -200,37 +167,7 @@ class AuditLogService {
    * Query audit logs
    */
   public async queryLogs(options: AuditLogQueryOptions = {}): Promise<AuditLogEntry[]> {
-    let results = [...this.logs];
-
-    // Filter by server name
-    if (options.serverName) {
-      results = results.filter(log => log.serverName === options.serverName);
-    }
-
-    // Filter by tool
-    if (options.tool) {
-      results = results.filter(log => log.tool === options.tool);
-    }
-
-    // Filter by approval status
-    if (options.approved !== undefined) {
-      results = results.filter(log => log.approved === options.approved);
-    }
-
-    // Filter by date range
-    if (options.startDate) {
-      results = results.filter(log => log.timestamp >= options.startDate!);
-    }
-    if (options.endDate) {
-      results = results.filter(log => log.timestamp <= options.endDate!);
-    }
-
-    // Apply limit
-    if (options.limit) {
-      results = results.slice(-options.limit);
-    }
-
-    return results;
+    return filterLogEntries(this.logs, options);
   }
 
   /**
@@ -241,18 +178,9 @@ class AuditLogService {
 
     try {
       const content = await fs.readFile(logFile, 'utf-8');
-      const entries = JSON.parse(content) as AuditLogEntry[];
+      const entries = JSON.parse(content);
       
-      return entries.map(entry => ({
-        ...entry,
-        timestamp: new Date(entry.timestamp),
-        userApproval: entry.userApproval
-          ? {
-              ...entry.userApproval,
-              timestamp: new Date(entry.userApproval.timestamp),
-            }
-          : undefined,
-      }));
+      return parseLogEntries(entries);
     } catch {
       return [];
     }
@@ -261,28 +189,8 @@ class AuditLogService {
   /**
    * Get statistics about MCP usage
    */
-  public async getStatistics(): Promise<{
-    totalCalls: number;
-    approvedCalls: number;
-    deniedCalls: number;
-    byServer: Record<string, number>;
-    byTool: Record<string, number>;
-  }> {
-    const stats = {
-      totalCalls: this.logs.length,
-      approvedCalls: this.logs.filter(log => log.approved).length,
-      deniedCalls: this.logs.filter(log => !log.approved).length,
-      byServer: {} as Record<string, number>,
-      byTool: {} as Record<string, number>,
-    };
-
-    // Count by server
-    this.logs.forEach(log => {
-      stats.byServer[log.serverName] = (stats.byServer[log.serverName] || 0) + 1;
-      stats.byTool[log.tool] = (stats.byTool[log.tool] || 0) + 1;
-    });
-
-    return stats;
+  public async getStatistics(): Promise<AuditLogStatistics> {
+    return calculateStatistics(this.logs);
   }
 
   /**
@@ -333,15 +241,8 @@ class AuditLogService {
       console.error('[AuditLogService] Failed to persist logs:', error);
     }
   }
-
-  /**
-   * Generate unique log entry ID
-   */
-  private generateId(): string {
-    return `${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
-  }
 }
 
 // Export singleton instance
 export const auditLogService = AuditLogService.getInstance();
-export type { AuditLogEntry, AuditLogQueryOptions };
+export type { AuditLogEntry, AuditLogQueryOptions } from './AuditLogTypes.js';
