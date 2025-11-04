@@ -8,6 +8,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Context-aware query enhancement for web search** to prevent hallucination on follow-up questions
+  - Intelligent detection of vague queries that need context enrichment
+  - Automatic extraction of topics from recent conversation (last 4 messages)
+  - Enhanced queries include relevant entities and keywords
+  - Example: "their positions" → "NYC mayoral election Mamdani Cuomo their positions"
+  - Prevents irrelevant search results (e.g., football positions when asking about candidates)
+  - Only enhances short (<100 chars) vague queries to preserve user intent
+  - Transparent logging shows original vs enhanced queries
+  - New utility: `src/utils/queryEnhancer.ts` (143 lines)
+  - Updated: `src/handlers/messageHandler.ts` to integrate enhancement
+- **Improved vague follow-up detection** for smarter web search filtering
+  - More specific pattern matching to reduce false positives
+  - "check/look" now requires "again/once more" to be considered vague
+  - Vague references must be standalone (e.g., "what about that?" not "what about X?")
+  - Conjunctions and yes/no responses must be standalone to be filtered
+  - Fixes issue where legitimate queries were incorrectly skipped
+  - Updated: `src/handlers/webSearchHelper.ts` with refined patterns
+- **Code organization improvements** for maintainability
+  - Extracted web search logic into `src/handlers/webSearchHelper.ts` (180 lines)
+  - Created reusable UI components in `src/components/settings/HelpComponents.tsx` (91 lines)
+  - Refactored App.tsx from 308 → 199 lines (extracted to custom hooks)
+  - Refactored messageHandler.ts from 378 → 262 lines (extracted web search helper)
+  - Refactored HelpSettings.tsx from 353 → 289 lines (extracted UI components)
+  - Created `useAppHandlers.ts` (210 lines) for message/conversation handlers
+  - Created `useModelLoader.ts` (67 lines) for model initialization logic
+  - All source files now comply with <300 line limit
 - **Performance optimizations** for faster load times and better runtime performance
   - Lazy loading system for heavy components (react-markdown, syntax highlighting)
   - Code splitting with manual chunk configuration for vendor libraries
@@ -207,6 +233,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Button hover and tap effects
 
 ### Fixed
+- **Vague follow-up detection too aggressive** - blocking legitimate web search queries
+  - Pattern `/^(check|look|verify|confirm)` matched "look" in "look at their positions"
+  - Now requires explicit re-check keywords: "check/look **again**" to be considered vague
+  - Prevents false positives where users ask substantive questions with common verbs
+  - Example fixed: "lets look at their positions" now correctly triggers web search
+- **Web search hallucination on follow-up questions** with pronouns/references
+  - Queries like "their positions" sent without conversation context
+  - AI received generic search results (e.g., football positions instead of political positions)
+  - Now enriches queries automatically with conversation context
+  - Example: Question about NYC mayoral candidates → "their positions" enhanced with "NYC mayoral election Mamdani Cuomo"
+  - Result: Relevant search results instead of hallucinated responses
+- **ESLint violations** - 22 TypeScript `@typescript-eslint/no-explicit-any` errors across 5 files
+  - Changed `any` types to `unknown` with proper type guards
+  - Added `eslint-disable` comments only where truly necessary
+  - Files: preload.ts, MemoryService.ts, WebCacheService.ts, WebSearchService.ts, electron.d.ts
+- **Prettier formatting violations** - 11 files with code style inconsistencies
+  - Applied `prettier --write` across all TypeScript/TSX/CSS/Markdown files
+  - Enforced consistent formatting before commits
+- **File line count violations** - 3 files exceeding 300-line modularity limit
+  - App.tsx: 308 → 199 lines (extracted to useAppHandlers, useModelLoader hooks)
+  - messageHandler.ts: 378 → 250 lines (extracted to webSearchHelper)
+  - HelpSettings.tsx: 353 → 289 lines (extracted to HelpComponents)
+  - All source files now under 300-line limit
 - **Duplicate IPC handler registration** causing app crashes
   - Removed legacy SettingsService handlers from main.ts
   - Now using only SettingsStorageService for all settings operations
