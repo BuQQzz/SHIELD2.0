@@ -120,6 +120,13 @@ export interface AppSettings {
     telemetry: boolean;
     analytics: boolean;
   };
+  webSearch: {
+    enabled: boolean;
+    maxResults: number;
+    cacheEnabled: boolean;
+    cacheTTL: number;
+    provider: "duckduckgo";
+  };
 }
 
 export interface SettingsAPI {

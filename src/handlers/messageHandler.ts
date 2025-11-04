@@ -43,10 +43,16 @@ export function createMessageHandler({
   saveCurrentConversation,
   modelSettings,
 }: MessageHandlerProps) {
-  return async (content: string) => {
+  return async (content: string, useWebSearch?: boolean) => {
     if (!isModelLoaded) {
       alert("Please wait for the model to load");
       return;
+    }
+
+    // TODO: Implement web search integration
+    if (useWebSearch) {
+      console.log("[MessageHandler] Web search requested for query:", content);
+      // Will be implemented in next step
     }
 
     const userMessage: Message = {

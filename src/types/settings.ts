@@ -19,10 +19,19 @@ export interface PrivacySettings {
   analytics: boolean;
 }
 
+export interface WebSearchSettings {
+  enabled: boolean;
+  maxResults: number;
+  cacheEnabled: boolean;
+  cacheTTL: number; // in minutes
+  provider: "duckduckgo";
+}
+
 export interface AppSettings {
   model: ModelSettings;
   system: SystemSettings;
   privacy: PrivacySettings;
+  webSearch: WebSearchSettings;
 }
 
 export const DEFAULT_SETTINGS: AppSettings = {
@@ -43,5 +52,12 @@ export const DEFAULT_SETTINGS: AppSettings = {
   privacy: {
     telemetry: false,
     analytics: false,
+  },
+  webSearch: {
+    enabled: false,
+    maxResults: 5,
+    cacheEnabled: true,
+    cacheTTL: 1440, // 24 hours in minutes
+    provider: "duckduckgo",
   },
 };
