@@ -8,6 +8,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Performance optimizations** for faster load times and better runtime performance
+  - Lazy loading system for heavy components (react-markdown, syntax highlighting)
+  - Code splitting with manual chunk configuration for vendor libraries
+  - React.memo optimizations for ChatMessage, MessageContent, ConversationList
+  - useCallback optimizations for event handlers in App.tsx
+  - Bundle size reduced by 82% (1,327 KB → 244 KB main bundle)
+  - Initial transfer reduced by 65% (440 KB → 155 KB gzipped)
+  - Lazy-loaded components:
+    - SettingsDialog (32.33 KB) - loaded only when settings opened
+    - TemplateSelector (9.29 KB) - loaded when selecting templates
+    - CodeBlock (13.36 KB) - loaded when code blocks appear
+    - MessageContent (779.48 KB) - defers markdown rendering
+  - Manual vendor chunk splitting:
+    - react-vendor (11.79 KB) - React core
+    - ui-vendor (202.31 KB) - Framer Motion + Radix UI
+    - utils-vendor (33.94 KB) - Zustand, date-fns, utilities
+    - markdown-vendor (779.48 KB) - react-markdown + syntax highlighting (lazy)
+  - Bundle visualization with rollup-plugin-visualizer (dist/stats.html)
+  - ESBuild minification for faster builds (replaced Terser)
+  - Memoized components prevent unnecessary re-renders
+  - Stable function references with useCallback
+  - Performance documentation in docs/PERFORMANCE.md
 - **CI/CD pipeline fixes and code organization improvements**
   - Added missing TypeScript type definitions for setSystemPrompt and getSystemPrompt in LlamaAPI interface
   - Fixed type errors in src/hooks/useLlama.ts (lines 237, 253)

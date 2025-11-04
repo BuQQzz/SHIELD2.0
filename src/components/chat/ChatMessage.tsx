@@ -11,8 +11,8 @@ import {
   RefreshCw,
 } from "lucide-react";
 import { motion } from "framer-motion";
-import { MessageContent } from "./MessageContent";
-import { useState } from "react";
+import { LazyMessageContent } from "../lazy";
+import { useState, memo, Suspense } from "react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 
@@ -26,7 +26,7 @@ interface MessageProps {
   onRegenerate?: () => void;
 }
 
-export function ChatMessage({
+export const ChatMessage = memo(function ChatMessage({
   role,
   content,
   isStreaming,
@@ -168,7 +168,9 @@ export function ChatMessage({
           </div>
         ) : (
           <div className="text-sm text-muted-foreground prose prose-sm max-w-none dark:prose-invert">
-            <MessageContent content={content} />
+            <Suspense fallback={<div className="animate-pulse">Loading...</div>}>
+              <LazyMessageContent content={content} />
+            </Suspense>
             {isStreaming && (
               <motion.span
                 animate={{ opacity: [1, 0] }}
@@ -196,4 +198,4 @@ export function ChatMessage({
       </div>
     </motion.div>
   );
-}
+});

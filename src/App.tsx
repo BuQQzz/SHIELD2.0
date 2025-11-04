@@ -1,14 +1,16 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, Suspense, useCallback } from "react";
 import { ChatLayout } from "./components/chat/ChatLayout";
 import { Sidebar } from "./components/chat/Sidebar";
 import { ChatHeader } from "./components/chat/ChatHeader";
 import { ChatPlaceholder } from "./components/chat/ChatPlaceholder";
 import { MessageList } from "./components/chat/MessageList";
 import { ChatInput, type ChatInputRef } from "./components/chat/ChatInput";
-import { SettingsDialog } from "./components/settings/SettingsDialog";
-import { TemplateSelector } from "./components/chat/TemplateSelector";
+import {
+  LazySettingsDialog,
+  LazyTemplateSelector,
+} from "./components/lazy";
 import { ThemeProvider } from "./components/theme/ThemeProvider";
 import { useLlama, type Message } from "./hooks/useLlama";
 import { useConversationStore } from "./stores/conversation-store";
@@ -109,7 +111,7 @@ function App() {
     currentModelId,
   ]);
 
-  const handleModelSelect = async (model: ModelOption) => {
+  const handleModelSelect = useCallback(async (model: ModelOption) => {
     if (isLoading) return;
 
     console.log("[App] Switching to model:", model.displayName);
@@ -125,7 +127,7 @@ function App() {
     } catch (err) {
       console.error("[App] Failed to switch model:", err);
     }
-  };
+  }, [isLoading, loadModel]);
 
   const handleSendMessage = createMessageHandler({
     isModelLoaded,
@@ -142,7 +144,7 @@ function App() {
     modelSettings: settings.model,
   });
 
-  const handleStopGenerating = async () => {
+  const handleStopGenerating = useCallback(async () => {
     try {
       await stopGeneration();
       setIsGenerating(false);
@@ -162,9 +164,9 @@ function App() {
     } catch (err) {
       console.error("Error stopping generation:", err);
     }
-  };
+  }, [stopGeneration]);
 
-  const handleClearHistory = async () => {
+  const handleClearHistory = useCallback(async () => {
     if (!window.llama) {
       console.warn("[App] Cannot clear history - window.llama not available");
       return;
@@ -175,16 +177,16 @@ function App() {
     } catch (err) {
       console.error("[App] Failed to clear history:", err);
     }
-  };
+  }, [clearHistory]);
 
-  const handleNewChat = () => {
+  const handleNewChat = useCallback(() => {
     if (currentConversation && currentConversation.messages.length > 0) {
       saveCurrentConversation();
     }
     createNewConversation("New Chat", currentModelId);
     setMessages([]);
     clearHistory();
-  };
+  }, [currentConversation, saveCurrentConversation, createNewConversation, currentModelId, clearHistory]);
 
   const handleContinue = createContinuationHandler({
     messages,
@@ -289,17 +291,21 @@ function App() {
         />
       </div>
 
-      <SettingsDialog
-        open={settingsOpen}
-        onOpenChange={setSettingsOpen}
-        onApplySystemPrompt={setSystemPrompt}
-      />
+      <Suspense fallback={null}>
+        <LazySettingsDialog
+          open={settingsOpen}
+          onOpenChange={setSettingsOpen}
+          onApplySystemPrompt={setSystemPrompt}
+        />
+      </Suspense>
 
       {templateSelectorOpen && (
-        <TemplateSelector
-          onSelect={handleTemplateSelect}
-          onClose={() => setTemplateSelectorOpen(false)}
-        />
+        <Suspense fallback={null}>
+          <LazyTemplateSelector
+            onSelect={handleTemplateSelect}
+            onClose={() => setTemplateSelectorOpen(false)}
+          />
+        </Suspense>
       )}
     </ChatLayout>
   );

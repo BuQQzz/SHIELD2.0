@@ -2,7 +2,7 @@ import { formatDistanceToNow } from "date-fns";
 import type { ConversationMetadata } from "@/types/electron";
 import { MessageSquare, Trash2, X, Check } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
-import { useState } from "react";
+import { useState, memo } from "react";
 import { Tag } from "./Tag";
 
 interface ConversationListProps {
@@ -12,7 +12,7 @@ interface ConversationListProps {
   onDelete: (conversationId: string) => void;
 }
 
-export function ConversationList({
+export const ConversationList = memo(function ConversationList({
   conversations,
   currentConversationId,
   onSelect,
@@ -147,4 +147,4 @@ export function ConversationList({
       ))}
     </div>
   );
-}
+});

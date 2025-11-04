@@ -1,7 +1,7 @@
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import { ComponentPropsWithoutRef } from "react";
-import { CodeBlock } from "./CodeBlock";
+import { ComponentPropsWithoutRef, memo } from "react";
+import { LazyCodeBlock } from "../lazy";
 
 interface MessageContentProps {
   content: string;
@@ -12,7 +12,9 @@ interface CodeProps extends ComponentPropsWithoutRef<"code"> {
   className?: string;
 }
 
-export function MessageContent({ content }: MessageContentProps) {
+export const MessageContent = memo(function MessageContent({
+  content,
+}: MessageContentProps) {
   return (
     <ReactMarkdown
       remarkPlugins={[remarkGfm]}
@@ -22,7 +24,7 @@ export function MessageContent({ content }: MessageContentProps) {
           const codeContent = String(children).replace(/\n$/, "");
 
           return !inline && match ? (
-            <CodeBlock language={match[1] || "text"} code={codeContent} />
+            <LazyCodeBlock language={match[1] || "text"} code={codeContent} />
           ) : (
             <code
               className="bg-muted px-1.5 py-0.5 rounded text-sm font-mono"
@@ -193,4 +195,4 @@ export function MessageContent({ content }: MessageContentProps) {
       {content}
     </ReactMarkdown>
   );
-}
+});
