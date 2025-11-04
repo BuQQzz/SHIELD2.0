@@ -15,6 +15,9 @@ app.commandLine.appendSwitch("force-color-profile", "srgb");
 app.commandLine.appendSwitch("disable-gpu-compositing");
 app.commandLine.appendSwitch("disable-software-rasterizer");
 
+// Disable DevTools Autofill warnings
+app.commandLine.appendSwitch("disable-features", "Autofill");
+
 // Keep a global reference to prevent garbage collection
 let mainWindow: BrowserWindow | null = null;
 const llamaService = getLlamaService();
