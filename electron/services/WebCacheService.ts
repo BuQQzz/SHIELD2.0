@@ -9,7 +9,7 @@ import fs from "fs";
 import type { PageContent } from "./WebSearchService";
 
 // Type definitions for sqlite3
-type Database = any;
+type Database = unknown;
 type SqliteError = Error | null;
 
 /**
@@ -38,27 +38,30 @@ export interface CacheStats {
 class DatabaseWrapper {
   constructor(private db: Database) {}
 
-  run(sql: string, ...params: any[]): Promise<void> {
+  run(sql: string, ...params: unknown[]): Promise<void> {
     return new Promise((resolve, reject) => {
-      this.db.run(sql, params, (err: SqliteError) => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (this.db as any).run(sql, params, (err: SqliteError) => {
         if (err) reject(err);
         else resolve();
       });
     });
   }
 
-  get<T = any>(sql: string, ...params: any[]): Promise<T | undefined> {
+  get<T = unknown>(sql: string, ...params: unknown[]): Promise<T | undefined> {
     return new Promise((resolve, reject) => {
-      this.db.get(sql, params, (err: SqliteError, row: any) => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (this.db as any).get(sql, params, (err: SqliteError, row: unknown) => {
         if (err) reject(err);
         else resolve(row as T);
       });
     });
   }
 
-  all<T = any>(sql: string, ...params: any[]): Promise<T[]> {
+  all<T = unknown>(sql: string, ...params: unknown[]): Promise<T[]> {
     return new Promise((resolve, reject) => {
-      this.db.all(sql, params, (err: SqliteError, rows: any) => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (this.db as any).all(sql, params, (err: SqliteError, rows: unknown) => {
         if (err) reject(err);
         else resolve(rows as T[]);
       });
@@ -67,7 +70,8 @@ class DatabaseWrapper {
 
   exec(sql: string): Promise<void> {
     return new Promise((resolve, reject) => {
-      this.db.exec(sql, (err: SqliteError) => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (this.db as any).exec(sql, (err: SqliteError) => {
         if (err) reject(err);
         else resolve();
       });
@@ -76,7 +80,8 @@ class DatabaseWrapper {
 
   close(): Promise<void> {
     return new Promise((resolve, reject) => {
-      this.db.close((err: SqliteError) => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (this.db as any).close((err: SqliteError) => {
         if (err) reject(err);
         else resolve();
       });
@@ -348,7 +353,7 @@ export class WebCacheService {
           size: row.size,
           encrypted: true,
         });
-      } catch (error) {
+      } catch {
         console.error(`[WebCache] Failed to decrypt entry: ${row.url}`);
       }
     }

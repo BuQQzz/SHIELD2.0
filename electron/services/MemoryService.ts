@@ -16,7 +16,7 @@ interface MemoryEntry {
   topics: string[];
   wasHelpful?: boolean; // User feedback
   userCorrection?: string; // If user corrected the response
-  metadata: Record<string, any>;
+  metadata: Record<string, unknown>;
 }
 
 interface SearchableMemory {
@@ -26,33 +26,36 @@ interface SearchableMemory {
   relevanceScore: number;
 }
 
-type Database = any;
+type Database = unknown;
 type SqliteError = Error | null;
 
 class DatabaseWrapper {
   constructor(private db: Database) {}
 
-  run(sql: string, ...params: any[]): Promise<void> {
+  run(sql: string, ...params: unknown[]): Promise<void> {
     return new Promise((resolve, reject) => {
-      this.db.run(sql, params, (err: SqliteError) => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (this.db as any).run(sql, params, (err: SqliteError) => {
         if (err) reject(err);
         else resolve();
       });
     });
   }
 
-  get<T>(sql: string, ...params: any[]): Promise<T | undefined> {
+  get<T>(sql: string, ...params: unknown[]): Promise<T | undefined> {
     return new Promise((resolve, reject) => {
-      this.db.get(sql, params, (err: SqliteError, row: T) => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (this.db as any).get(sql, params, (err: SqliteError, row: T) => {
         if (err) reject(err);
         else resolve(row);
       });
     });
   }
 
-  all<T>(sql: string, ...params: any[]): Promise<T[]> {
+  all<T>(sql: string, ...params: unknown[]): Promise<T[]> {
     return new Promise((resolve, reject) => {
-      this.db.all(sql, params, (err: SqliteError, rows: T[]) => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (this.db as any).all(sql, params, (err: SqliteError, rows: T[]) => {
         if (err) reject(err);
         else resolve(rows || []);
       });
@@ -61,7 +64,8 @@ class DatabaseWrapper {
 
   close(): Promise<void> {
     return new Promise((resolve, reject) => {
-      this.db.close((err: SqliteError) => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (this.db as any).close((err: SqliteError) => {
         if (err) reject(err);
         else resolve();
       });
@@ -129,7 +133,7 @@ export class MemoryService {
     userMessage: string,
     assistantResponse: string,
     topics: string[] = [],
-    metadata: Record<string, any> = {}
+    metadata: Record<string, unknown> = {}
   ): Promise<number> {
     if (!this.db) throw new Error("MemoryService not initialized");
 

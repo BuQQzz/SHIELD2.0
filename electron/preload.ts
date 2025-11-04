@@ -163,7 +163,7 @@ interface WebSearchAPI {
     stats: () => Promise<{ success: boolean; stats?: CacheStats; error?: string }>;
     clear: () => Promise<{ success: boolean; error?: string }>;
     clearExpired: () => Promise<{ success: boolean; deletedCount?: number; error?: string }>;
-    export: () => Promise<{ success: boolean; entries?: any[]; error?: string }>;
+    export: () => Promise<{ success: boolean; entries?: Array<{ url: string; content: string }>; error?: string }>;
     delete: (url: string) => Promise<{ success: boolean; error?: string }>;
   };
 }

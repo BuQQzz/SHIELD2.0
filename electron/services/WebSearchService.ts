@@ -118,9 +118,6 @@ export class WebSearchService {
     await this.initialize();
 
     const sanitizedQuery = this.sanitizeQuery(query);
-    const userAgent = options.useRandomUA
-      ? this.getRandomUserAgent()
-      : options.userAgent || USER_AGENTS[0];
 
     console.log(`[WebSearch] Searching DuckDuckGo: "${sanitizedQuery}"`);
 
@@ -236,14 +233,17 @@ export class WebSearchService {
       });
       
       // Chrome runtime
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       (window as any).chrome = {
         runtime: {},
       };
       
       // Permissions API
       const originalQuery = window.navigator.permissions.query;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       (window.navigator.permissions as any).query = (parameters: any) => (
         parameters.name === 'notifications' ?
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
           Promise.resolve({ state: Notification.permission as any }) :
           originalQuery(parameters)
       );
