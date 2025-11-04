@@ -146,7 +146,78 @@ SHIELD 2.0 is a privacy-first, local AI chatbot for Windows with tool integratio
 
 ---
 
-### Phase 6: Windows Tool Integration
+### Phase 6: Web Search & Local Caching (🌟 UNIQUE FEATURE)
+
+#### Web Search with Privacy-First Local Caching
+**Priority:** HIGH | **Status:** 📋 Planned
+
+**Vision:** Enable the local LLM to search the web, fetch content, and cache it locally for offline access while maintaining SHIELD's privacy-first philosophy.
+
+**Phase 1: Basic Web Search (MVP)** - 2 weeks
+- [ ] DuckDuckGo search integration (privacy-focused, no API key)
+- [ ] Web page fetching with content extraction
+- [ ] Local JSON/SQLite cache with encryption
+- [ ] Manual search trigger (button in chat interface)
+- [ ] Privacy settings (enable/disable, clear cache)
+- [ ] Visual source attribution in AI responses
+- [ ] Tracker blocking and request anonymization
+- [ ] User agent rotation and DoH support
+
+**Phase 2: LLM Tool Integration** - 1 week
+- [ ] Function calling / tool use support
+- [ ] LLM automatically decides when to search web
+- [ ] Multi-turn conversations with web context
+- [ ] Source tracking and citation system
+- [ ] Per-conversation web access toggle
+- [ ] Privacy confirmation dialogs
+
+**Phase 3: RAG Enhancement** - 2-3 weeks
+- [ ] Local embedding model integration (all-MiniLM-L6-v2, 80MB)
+- [ ] Vector database for semantic search (LanceDB)
+- [ ] Content chunking and indexing
+- [ ] Hybrid search (keyword + semantic)
+- [ ] Automatic context expansion from cache
+
+**Privacy Features:**
+- ✅ Zero tracking - no telemetry or analytics
+- ✅ Local storage - all data stays on device
+- ✅ Privacy-focused providers (DuckDuckGo, SearXNG)
+- ✅ Request anonymization (custom UA, no cookies)
+- ✅ Tracker blocking (ads, analytics, third-party)
+- ✅ Encrypted cache (AES-256-GCM)
+- ✅ User control (export, inspect, delete cache)
+- ✅ Transparent operation (clear indicators)
+
+**Ease of Use:**
+- ✅ One-click enable/disable toggle
+- ✅ Auto-detection (LLM decides when to search)
+- ✅ Visual feedback (sources shown in responses)
+- ✅ Zero configuration required
+- ✅ Graceful offline fallback
+- ✅ In-app documentation
+
+**Performance:**
+- ✅ Local caching (fetch once, use forever)
+- ✅ Background operations (non-blocking)
+- ✅ Smart deduplication and compression
+- ✅ Configurable cache limits (500MB default)
+- ✅ Memory cache + disk persistence
+
+**Dependencies:** Core chat functionality  
+**Blockers:** None  
+**Estimated Time:** 5-6 weeks total  
+**Documentation:** [docs/features/WEB_SEARCH.md](./features/WEB_SEARCH.md)
+
+**Competitive Advantage:** Unlike Perplexity AI ($20/month) or ChatGPT with Bing (tracking), SHIELD offers:
+- No subscription required
+- Complete privacy (no tracking)
+- Offline access after fetch
+- Open source transparency
+- Self-hosted option (SearXNG)
+
+---
+
+### Phase 7: Windows Tool Integration
 
 #### 3. Implement Windows Tool Integration (MCP)
 **Priority:** MEDIUM | **Status:** Not Started
@@ -373,6 +444,7 @@ SHIELD 2.0 is a privacy-first, local AI chatbot for Windows with tool integratio
 - ✅ Theme Customization **COMPLETED**
 
 ### January - February 2026 (Next Focus)
+- **Web Search & Local Caching** (NEW UNIQUE FEATURE)
 - Windows Tool Integration (MCP)
 - Performance Optimization
 - Testing & Quality Assurance
