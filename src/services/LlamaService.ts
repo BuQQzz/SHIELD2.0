@@ -8,6 +8,7 @@ import {
 } from "node-llama-cpp";
 import path from "path";
 import { fileURLToPath } from "url";
+import { generateConversationTitle } from "./titleGenerator.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const modelsDir = path.join(__dirname, "..", "..", "models");
@@ -258,32 +259,7 @@ export class LlamaService {
       throw new Error("No active session");
     }
 
-    const titlePrompt = `Based on this user message, generate a short, concise title (max 6 words) that describes the topic or question. Only return the title, nothing else.
-
-User message: "${userMessage}"
-
-Title:`;
-
-    try {
-      const response = await this.session.prompt(titlePrompt, {
-        temperature: 0.3, // Lower temperature for more focused titles
-        maxTokens: 20,
-      });
-
-      // Clean up the response - remove quotes, trim, limit length
-      let title = response.trim().replace(/^["']|["']$/g, "");
-
-      // If title is too long, truncate intelligently
-      const words = title.split(" ");
-      if (words.length > 6) {
-        title = words.slice(0, 6).join(" ") + "...";
-      }
-
-      return title || "New Chat";
-    } catch (error) {
-      console.error("[LlamaService] Failed to generate title:", error);
-      return "New Chat";
-    }
+    return generateConversationTitle(this.session, userMessage);
   }
 
   /**
