@@ -9,6 +9,11 @@ import {
   Shield,
   Cpu,
   HardDrive,
+  Globe,
+  Lock,
+  Database,
+  Eye,
+  EyeOff,
 } from "lucide-react";
 
 export function HelpSettings() {
@@ -26,6 +31,148 @@ export function HelpSettings() {
           llama.cpp - your conversations never leave your PC and no data is sent
           to external servers.
         </p>
+      </section>
+
+      {/* Privacy-First Web Search - UNIQUE FEATURE */}
+      <section className="border-2 border-primary/20 rounded-lg p-4 bg-primary/5">
+        <div className="flex items-center gap-2 mb-3">
+          <Globe className="h-5 w-5 text-primary" />
+          <h3 className="text-lg font-semibold">
+            🌟 Privacy-First Web Search
+          </h3>
+          <span className="ml-auto text-xs bg-primary text-primary-foreground px-2 py-1 rounded-full font-medium">
+            UNIQUE FEATURE
+          </span>
+        </div>
+        <p className="text-sm text-muted-foreground leading-relaxed mb-4">
+          Browse the web anonymously and safely with the LLM. SHIELD 2.0
+          features a privacy-focused web search and caching system that allows
+          your AI assistant to access information from the internet while
+          protecting your privacy.
+        </p>
+        <div className="space-y-4">
+          <FeatureItem
+            icon={<Lock className="h-4 w-4" />}
+            title="Anonymous Search"
+            description="Search DuckDuckGo without tracking. User agent rotation, no cookies, no referrer headers, and DNT (Do Not Track) enabled. Your searches are completely private."
+          />
+          <FeatureItem
+            icon={<EyeOff className="h-4 w-4" />}
+            title="Tracker Blocking"
+            description="Automatically blocks 20+ tracking domains including Google Analytics, Facebook trackers, DoubleClick, Mixpanel, and more. Browse without being watched."
+          />
+          <FeatureItem
+            icon={<Database className="h-4 w-4" />}
+            title="Encrypted Local Cache"
+            description="Fetched content is encrypted with AES-256-GCM and stored locally. Access previously searched content instantly without re-fetching. Cache is fully under your control."
+          />
+          <FeatureItem
+            icon={<Globe className="h-4 w-4" />}
+            title="Clean Content Extraction"
+            description="Uses Mozilla Readability to extract clean, readable content from web pages. No ads, no trackers, just the content you need."
+          />
+          <FeatureItem
+            icon={<Eye className="h-4 w-4" />}
+            title="Full Transparency"
+            description="View cache statistics, manage stored content, and clear cache anytime. Export cached data or delete specific entries. You're always in control."
+          />
+        </div>
+
+        {/* Privacy Features Breakdown */}
+        <div className="mt-4 pt-4 border-t border-primary/20">
+          <h4 className="text-sm font-semibold mb-3">Privacy Protections</h4>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-sm text-muted-foreground">
+            <div className="flex items-center gap-2">
+              <span className="text-green-500">✓</span>
+              <span>No search history sent to servers</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="text-green-500">✓</span>
+              <span>Request anonymization</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="text-green-500">✓</span>
+              <span>Tracking parameter removal</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="text-green-500">✓</span>
+              <span>Analytics script blocking</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="text-green-500">✓</span>
+              <span>AES-256 encrypted cache</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="text-green-500">✓</span>
+              <span>Local-only data storage</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="text-green-500">✓</span>
+              <span>No API keys required</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="text-green-500">✓</span>
+              <span>Configurable cache expiry</span>
+            </div>
+          </div>
+        </div>
+
+        {/* How It Works */}
+        <div className="mt-4 pt-4 border-t border-primary/20">
+          <h4 className="text-sm font-semibold mb-3">How It Works</h4>
+          <ol className="space-y-2 text-sm text-muted-foreground list-decimal list-inside">
+            <li>
+              Enable web search in settings and configure privacy options
+            </li>
+            <li>
+              Toggle web search in the chat interface when you need information
+            </li>
+            <li>
+              AI searches DuckDuckGo anonymously with tracker blocking enabled
+            </li>
+            <li>
+              Content is fetched, cleaned, and encrypted before caching locally
+            </li>
+            <li>
+              Cached content is available instantly for future requests
+            </li>
+            <li>
+              Manage your cache, export data, or clear it anytime from settings
+            </li>
+          </ol>
+        </div>
+
+        {/* Technical Details */}
+        <div className="mt-4 pt-4 border-t border-primary/20">
+          <h4 className="text-sm font-semibold mb-2">Technical Details</h4>
+          <div className="space-y-1 text-xs text-muted-foreground">
+            <p>
+              <span className="font-medium">Search Provider:</span> DuckDuckGo
+              (privacy-focused, no tracking)
+            </p>
+            <p>
+              <span className="font-medium">Encryption:</span> AES-256-GCM with
+              secure key storage
+            </p>
+            <p>
+              <span className="font-medium">Content Extraction:</span> Mozilla
+              Readability (same tech as Firefox Reader View)
+            </p>
+            <p>
+              <span className="font-medium">Default Cache Limit:</span> 500MB
+              (configurable)
+            </p>
+            <p>
+              <span className="font-medium">Default TTL:</span> 7 days
+              (configurable)
+            </p>
+            <p>
+              <span className="font-medium">Blocked Trackers:</span> Google
+              Analytics, Facebook Pixel, DoubleClick, Mixpanel, Hotjar, Segment,
+              and 15+ more
+            </p>
+          </div>
+        </div>
       </section>
 
       {/* Core Features */}
@@ -128,9 +275,13 @@ export function HelpSettings() {
             ✓ All AI processing happens on your local machine using llama.cpp
           </p>
           <p>✓ No internet connection required for AI inference</p>
+          <p>
+            ✓ Web search is optional and privacy-focused (DuckDuckGo, tracker
+            blocking, encrypted cache)
+          </p>
           <p>✓ Conversations stored locally in your app data folder</p>
           <p>✓ No telemetry, tracking, or data collection</p>
-          <p>✓ No external API calls or cloud services</p>
+          <p>✓ No external API calls or cloud services (except optional web search)</p>
           <p>
             ✓ You have complete control over your data - delete anytime from
             settings
@@ -149,6 +300,9 @@ export function HelpSettings() {
           <li>Wait for the model to load (first time may take a moment)</li>
           <li>Type your message in the input field at the bottom</li>
           <li>Press Enter or click the send button to chat</li>
+          <li>
+            (Optional) Enable web search in settings for internet access
+          </li>
           <li>
             Use the three-dot menu to manage tags, export, or clear history
           </li>

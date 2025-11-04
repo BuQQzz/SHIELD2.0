@@ -1,0 +1,65 @@
+/* Custom Scrollbar Styling - Testing with Hardcoded Colors */
+/* Using explicit colors to test if CSS variables are the issue */
+
+/* Firefox scrollbar styling */
+html, body, * {
+  scrollbar-width: thin !important;
+  scrollbar-color: rgba(148, 163, 184, 0.3) transparent !important;
+}
+
+/* WebKit scrollbar styling (Chrome, Edge, Electron) */
+html::-webkit-scrollbar,
+body::-webkit-scrollbar,
+*::-webkit-scrollbar {
+  width: 10px !important;
+  height: 10px !important;
+}
+
+html::-webkit-scrollbar-track,
+body::-webkit-scrollbar-track,
+*::-webkit-scrollbar-track {
+  background: transparent !important;
+  border-radius: 10px !important;
+}
+
+html::-webkit-scrollbar-thumb,
+body::-webkit-scrollbar-thumb,
+*::-webkit-scrollbar-thumb {
+  background: rgba(148, 163, 184, 0.3) !important;
+  border-radius: 10px !important;
+  border: 2px solid transparent !important;
+  background-clip: content-box !important;
+}
+
+html::-webkit-scrollbar-thumb:hover,
+body::-webkit-scrollbar-thumb:hover,
+*::-webkit-scrollbar-thumb:hover {
+  background: rgba(148, 163, 184, 0.5) !important;
+  background-clip: content-box !important;
+}
+
+html::-webkit-scrollbar-thumb:active,
+body::-webkit-scrollbar-thumb:active,
+*::-webkit-scrollbar-thumb:active {
+  background: rgba(148, 163, 184, 0.7) !important;
+  background-clip: content-box !important;
+}
+
+/* Dark mode scrollbar adjustments */
+.dark html::-webkit-scrollbar-thumb,
+.dark body::-webkit-scrollbar-thumb,
+.dark *::-webkit-scrollbar-thumb {
+  background: rgba(148, 163, 184, 0.4) !important;
+}
+
+.dark html::-webkit-scrollbar-thumb:hover,
+.dark body::-webkit-scrollbar-thumb:hover,
+.dark *::-webkit-scrollbar-thumb:hover {
+  background: rgba(148, 163, 184, 0.6) !important;
+}
+
+.dark html::-webkit-scrollbar-thumb:active,
+.dark body::-webkit-scrollbar-thumb:active,
+.dark *::-webkit-scrollbar-thumb:active {
+  background: rgba(148, 163, 184, 0.8) !important;
+}
