@@ -126,6 +126,7 @@ export interface AppSettings {
     cacheEnabled: boolean;
     cacheTTL: number;
     provider: "duckduckgo";
+    showReasoning: boolean;
   };
 }
 

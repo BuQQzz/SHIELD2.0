@@ -4,6 +4,12 @@ export interface Message {
   content: string;
   timestamp: Date;
   truncated?: boolean;
+  reasoning?: string; // AI's step-by-step reasoning (for web search responses)
+  sources?: Array<{
+    title: string;
+    url: string;
+    snippet: string;
+  }>;
 }
 
 export interface Conversation {

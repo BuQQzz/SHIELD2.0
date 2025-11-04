@@ -95,6 +95,8 @@ export class WebSearchService {
           "--no-sandbox",
           "--disable-setuid-sandbox",
           "--disable-web-security",
+          "--disable-features=IsolateOrigins,site-per-process",
+          "--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
         ],
       });
       this.isInitialized = true;
@@ -136,6 +138,10 @@ export class WebSearchService {
 
       // Extract search results
       const html = await page.content();
+      
+      // Debug: Log HTML snippet to diagnose parsing issues
+      console.log("[WebSearch] HTML snippet:", html.substring(0, 500));
+      
       await page.close();
 
       return this.parseSearchResults(html, maxResults);
@@ -163,7 +169,7 @@ export class WebSearchService {
       // Navigate to the page
       await page.goto(cleanUrl, {
         waitUntil: "domcontentloaded",
-        timeout: options.timeout || 20000,
+        timeout: options.timeout || 5000, // Reduced from 20s to 5s
       });
 
       // Get page HTML
@@ -212,6 +218,37 @@ export class WebSearchService {
         : options.userAgent || USER_AGENTS[0],
     });
 
+    // Stealth: Override navigator properties to hide automation
+    await page.addInitScript(() => {
+      // Override webdriver property
+      Object.defineProperty(navigator, 'webdriver', {
+        get: () => false,
+      });
+      
+      // Override plugins to look like a real browser
+      Object.defineProperty(navigator, 'plugins', {
+        get: () => [1, 2, 3, 4, 5],
+      });
+      
+      // Override languages
+      Object.defineProperty(navigator, 'languages', {
+        get: () => ['en-US', 'en'],
+      });
+      
+      // Chrome runtime
+      (window as any).chrome = {
+        runtime: {},
+      };
+      
+      // Permissions API
+      const originalQuery = window.navigator.permissions.query;
+      (window.navigator.permissions as any).query = (parameters: any) => (
+        parameters.name === 'notifications' ?
+          Promise.resolve({ state: Notification.permission as any }) :
+          originalQuery(parameters)
+      );
+    });
+
     // Block trackers and analytics
     if (options.blockTrackers !== false) {
       await page.route("**/*", (route) => {
@@ -228,7 +265,6 @@ export class WebSearchService {
           resourceType === "image" && url.includes("pixel");
 
         if (isTracker || isAnalytics) {
-          console.log(`[WebSearch] Blocked: ${url}`);
           route.abort();
         } else {
           route.continue();
@@ -240,7 +276,13 @@ export class WebSearchService {
     await page.setExtraHTTPHeaders({
       "DNT": "1", // Do Not Track
       "Accept-Language": "en-US,en;q=0.9",
-      "Referer": "", // No referrer
+      "Sec-Ch-Ua": '"Not_A Brand";v="8", "Chromium";v="120"',
+      "Sec-Ch-Ua-Mobile": "?0",
+      "Sec-Ch-Ua-Platform": '"Windows"',
+      "Sec-Fetch-Dest": "document",
+      "Sec-Fetch-Mode": "navigate",
+      "Sec-Fetch-Site": "none",
+      "Upgrade-Insecure-Requests": "1",
     });
 
     return page;
@@ -256,6 +298,11 @@ export class WebSearchService {
     const $ = cheerio.load(html);
     const results: SearchResult[] = [];
 
+    // Debug: Check what elements exist
+    console.log("[WebSearch] Looking for .result elements");
+    console.log("[WebSearch] Found .result count:", $(".result").length);
+    console.log("[WebSearch] Found .result__a count:", $(".result__a").length);
+    
     $(".result").each((index, element) => {
       if (index >= maxResults) return false;
 
@@ -266,6 +313,8 @@ export class WebSearchService {
       const title = $link.text().trim();
       const url = $link.attr("href");
       const snippet = $snippet.text().trim();
+
+      console.log(`[WebSearch] Result ${index}: title="${title?.substring(0, 50)}", url="${url?.substring(0, 50)}"`);
 
       if (title && url) {
         results.push({
@@ -340,11 +389,21 @@ export class WebSearchService {
    */
   private cleanDuckDuckGoUrl(url: string): string {
     try {
+      // Fix protocol-relative URLs
+      let cleanUrl = url;
+      if (cleanUrl.startsWith('//')) {
+        cleanUrl = 'https:' + cleanUrl;
+      }
+      
       // DuckDuckGo sometimes wraps URLs in redirects
-      const urlObj = new URL(url);
+      const urlObj = new URL(cleanUrl);
       const uddg = urlObj.searchParams.get("uddg");
-      return uddg ? decodeURIComponent(uddg) : url;
+      return uddg ? decodeURIComponent(uddg) : cleanUrl;
     } catch {
+      // If URL parsing fails, try fixing protocol
+      if (url.startsWith('//')) {
+        return 'https:' + url;
+      }
       return url;
     }
   }

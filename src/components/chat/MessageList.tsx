@@ -2,6 +2,9 @@
 
 import { useRef, useEffect, useCallback } from "react";
 import { ChatMessage } from "./ChatMessage";
+import { motion } from "framer-motion";
+import { Globe, Loader2 } from "lucide-react";
+import type { SearchResult } from "@/types/electron";
 
 interface Message {
   id: string;
@@ -9,12 +12,14 @@ interface Message {
   content: string;
   timestamp: Date;
   truncated?: boolean;
+  sources?: SearchResult[];
 }
 
 interface MessageListProps {
   messages: Message[];
   streamingContent?: string;
   isGenerating?: boolean;
+  isSearching?: boolean;
   onContinue?: (messageId: string) => void;
   onEditMessage?: (messageId: string, newContent: string) => void;
   onRegenerateMessage?: (messageId: string) => void;
@@ -24,6 +29,7 @@ export function MessageList({
   messages,
   streamingContent,
   isGenerating,
+  isSearching,
   onContinue,
   onEditMessage,
   onRegenerateMessage,
@@ -126,6 +132,7 @@ export function MessageList({
             role={message.role}
             content={message.content}
             truncated={message.truncated}
+            sources={message.sources}
             onContinue={
               message.truncated ? () => onContinue?.(message.id) : undefined
             }
@@ -141,6 +148,42 @@ export function MessageList({
             }
           />
         ))}
+        {isSearching && (
+          <motion.div
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="flex items-center gap-3 p-4 rounded-lg bg-muted/30"
+          >
+            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-primary/10">
+              <motion.div
+                animate={{ rotate: 360 }}
+                transition={{
+                  duration: 2,
+                  repeat: Infinity,
+                  ease: "linear",
+                }}
+              >
+                <Globe className="h-4 w-4 text-primary" />
+              </motion.div>
+            </div>
+            <div className="flex-1">
+              <p className="text-sm font-medium">Searching the web...</p>
+              <p className="text-xs text-muted-foreground">
+                Finding the most relevant information
+              </p>
+            </div>
+            <motion.div
+              animate={{ scale: [1, 1.2, 1] }}
+              transition={{
+                duration: 1.5,
+                repeat: Infinity,
+                ease: "easeInOut",
+              }}
+            >
+              <Loader2 className="h-4 w-4 text-primary animate-spin" />
+            </motion.div>
+          </motion.div>
+        )}
         {streamingContent && (
           <ChatMessage
             role="assistant"

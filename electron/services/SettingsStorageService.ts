@@ -27,6 +27,7 @@ interface Settings {
     cacheEnabled: boolean;
     cacheTTL: number;
     provider: "duckduckgo";
+    showReasoning: boolean;
   };
 }
 
@@ -55,6 +56,7 @@ const DEFAULT_SETTINGS: Settings = {
     cacheEnabled: true,
     cacheTTL: 1440,
     provider: "duckduckgo",
+    showReasoning: false,
   },
 };
 
@@ -297,7 +299,8 @@ export class SettingsStorageService {
         typeof webSearch.maxResults !== "number" ||
         typeof webSearch.cacheEnabled !== "boolean" ||
         typeof webSearch.cacheTTL !== "number" ||
-        webSearch.provider !== "duckduckgo"
+        webSearch.provider !== "duckduckgo" ||
+        typeof webSearch.showReasoning !== "boolean"
       ) {
         return false;
       }

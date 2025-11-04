@@ -9,18 +9,23 @@ import {
   X,
   Send,
   RefreshCw,
+  ExternalLink,
+  ChevronDown,
+  ChevronUp,
 } from "lucide-react";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import { LazyMessageContent } from "../lazy";
 import { useState, memo, Suspense } from "react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
+import type { SearchResult } from "@/types/electron";
 
 interface MessageProps {
   role: "user" | "assistant";
   content: string;
   isStreaming?: boolean;
   truncated?: boolean;
+  sources?: SearchResult[];
   onContinue?: () => void;
   onEdit?: (newContent: string) => void;
   onRegenerate?: () => void;
@@ -31,6 +36,7 @@ export const ChatMessage = memo(function ChatMessage({
   content,
   isStreaming,
   truncated,
+  sources,
   onContinue,
   onEdit,
   onRegenerate,
@@ -39,6 +45,7 @@ export const ChatMessage = memo(function ChatMessage({
   const [copied, setCopied] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [editedContent, setEditedContent] = useState(content);
+  const [showSources, setShowSources] = useState(false);
 
   const handleCopy = async () => {
     try {
@@ -196,6 +203,69 @@ export const ChatMessage = memo(function ChatMessage({
             <ArrowRight className="h-4 w-4 mr-1" />
             Continue
           </Button>
+        )}
+        {sources && sources.length > 0 && !isStreaming && (
+          <div className="mt-3">
+            <Button
+              onClick={() => setShowSources(!showSources)}
+              variant="outline"
+              size="sm"
+              className="text-xs"
+            >
+              {showSources ? (
+                <>
+                  <ChevronUp className="h-3 w-3 mr-1" />
+                  Hide Sources ({sources.length})
+                </>
+              ) : (
+                <>
+                  <ChevronDown className="h-3 w-3 mr-1" />
+                  View Sources ({sources.length})
+                </>
+              )}
+            </Button>
+            <AnimatePresence>
+              {showSources && (
+                <motion.div
+                  initial={{ opacity: 0, height: 0 }}
+                  animate={{ opacity: 1, height: "auto" }}
+                  exit={{ opacity: 0, height: 0 }}
+                  className="mt-2 space-y-2 overflow-hidden"
+                >
+                  {sources.map((source, index) => (
+                    <motion.a
+                      key={index}
+                      href={source.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      initial={{ opacity: 0, x: -10 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      transition={{ delay: index * 0.05 }}
+                      className="flex items-start gap-2 p-2 rounded-md bg-muted/50 hover:bg-muted transition-colors group"
+                    >
+                      <span className="text-xs font-medium text-muted-foreground shrink-0 mt-0.5">
+                        {index + 1}.
+                      </span>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium group-hover:text-primary transition-colors line-clamp-1">
+                          {source.title}
+                        </p>
+                        {source.snippet && (
+                          <p className="text-xs text-muted-foreground line-clamp-2 mt-0.5">
+                            {source.snippet}
+                          </p>
+                        )}
+                        <p className="text-xs text-muted-foreground/70 mt-1 truncate">
+                          {new URL(source.url).hostname}
+                        </p>
+                      </div>
+                      <ExternalLink className="h-3 w-3 text-muted-foreground shrink-0 mt-1 opacity-0 group-hover:opacity-100 transition-opacity" />
+                    </motion.a>
+                  ))}
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </div>
         )}
       </div>
     </motion.div>

@@ -353,14 +353,22 @@ function setupIpcHandlers() {
   // Web Search handlers
   ipcMain.handle("web-search:initialize", async (_event, settings) => {
     try {
-      // Initialize cache with user settings
-      webCacheService = getWebCacheService(
-        settings?.maxCacheSizeMB,
-        settings?.cacheExpiryHours
-      );
-      await webCacheService.initialize();
+      // Try to initialize cache with user settings (optional - graceful failure)
+      try {
+        webCacheService = getWebCacheService(
+          settings?.maxCacheSizeMB,
+          settings?.cacheExpiryHours
+        );
+        await webCacheService.initialize();
+        console.log("[WebSearch] Cache initialized successfully");
+      } catch (cacheError) {
+        console.warn("[WebSearch] Cache initialization failed (will proceed without cache):", cacheError instanceof Error ? cacheError.message : "Unknown error");
+        webCacheService = null; // Disable cache
+      }
+      
+      // Initialize search service (required)
       await webSearchService.initialize();
-      return { success: true };
+      return { success: true, cacheEnabled: webCacheService !== null };
     } catch (error) {
       return {
         success: false,

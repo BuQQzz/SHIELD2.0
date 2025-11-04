@@ -1,13 +1,21 @@
-import Database from "better-sqlite3";
+import { createRequire } from "module";
+const require = createRequire(import.meta.url);
+const sqlite3 = require("sqlite3");
+
 import { createCipheriv, createDecipheriv, randomBytes, scryptSync } from "crypto";
 import { app } from "electron";
 import path from "path";
 import fs from "fs";
 import type { PageContent } from "./WebSearchService";
 
+// Type definitions for sqlite3
+type Database = any;
+type SqliteError = Error | null;
+
 /**
  * Encrypted local cache service for web content
  * Uses SQLite with AES-256-GCM encryption for privacy
+ * Migrated to sqlite3 (Node-API) for Electron 39 compatibility
  */
 
 export interface CacheEntry {
@@ -26,8 +34,58 @@ export interface CacheStats {
   newestEntry?: Date;
 }
 
+// Promisified database wrapper
+class DatabaseWrapper {
+  constructor(private db: Database) {}
+
+  run(sql: string, ...params: any[]): Promise<void> {
+    return new Promise((resolve, reject) => {
+      this.db.run(sql, params, (err: SqliteError) => {
+        if (err) reject(err);
+        else resolve();
+      });
+    });
+  }
+
+  get<T = any>(sql: string, ...params: any[]): Promise<T | undefined> {
+    return new Promise((resolve, reject) => {
+      this.db.get(sql, params, (err: SqliteError, row: any) => {
+        if (err) reject(err);
+        else resolve(row as T);
+      });
+    });
+  }
+
+  all<T = any>(sql: string, ...params: any[]): Promise<T[]> {
+    return new Promise((resolve, reject) => {
+      this.db.all(sql, params, (err: SqliteError, rows: any) => {
+        if (err) reject(err);
+        else resolve(rows as T[]);
+      });
+    });
+  }
+
+  exec(sql: string): Promise<void> {
+    return new Promise((resolve, reject) => {
+      this.db.exec(sql, (err: SqliteError) => {
+        if (err) reject(err);
+        else resolve();
+      });
+    });
+  }
+
+  close(): Promise<void> {
+    return new Promise((resolve, reject) => {
+      this.db.close((err: SqliteError) => {
+        if (err) reject(err);
+        else resolve();
+      });
+    });
+  }
+}
+
 export class WebCacheService {
-  private db: Database.Database | null = null;
+  private db: DatabaseWrapper | null = null;
   private encryptionKey: Buffer | null = null;
   private readonly algorithm = "aes-256-gcm";
   private readonly keyLength = 32;
@@ -51,12 +109,15 @@ export class WebCacheService {
     // Ensure directory exists
     fs.mkdirSync(path.dirname(dbPath), { recursive: true });
 
-    // Open database
-    this.db = new Database(dbPath);
-    this.db.pragma("journal_mode = WAL");
+    // Open database with Node-API
+    const rawDb = new sqlite3.Database(dbPath);
+    this.db = new DatabaseWrapper(rawDb);
+
+    // Enable WAL mode for better concurrency
+    await this.db.exec("PRAGMA journal_mode = WAL");
 
     // Create tables
-    this.createTables();
+    await this.createTables();
 
     // Initialize encryption key
     this.initializeEncryption();
@@ -86,12 +147,9 @@ export class WebCacheService {
     await this.enforceSizeLimit(size);
 
     // Upsert into database
-    const stmt = this.db.prepare(`
-      INSERT OR REPLACE INTO cache (url, content, cachedAt, expiresAt, size)
-      VALUES (?, ?, ?, ?, ?)
-    `);
-
-    stmt.run(
+    await this.db.run(
+      `INSERT OR REPLACE INTO cache (url, content, cachedAt, expiresAt, size)
+       VALUES (?, ?, ?, ?, ?)`,
       url,
       encrypted,
       now.toISOString(),
@@ -110,15 +168,17 @@ export class WebCacheService {
       throw new Error("Cache not initialized");
     }
 
-    const stmt = this.db.prepare(`
-      SELECT content, cachedAt, expiresAt
-      FROM cache
-      WHERE url = ? AND expiresAt > ?
-    `);
-
-    const row = stmt.get(url, new Date().toISOString()) as
-      | { content: Buffer; cachedAt: string; expiresAt: string }
-      | undefined;
+    const row = await this.db.get<{
+      content: Buffer;
+      cachedAt: string;
+      expiresAt: string;
+    }>(
+      `SELECT content, cachedAt, expiresAt
+       FROM cache
+       WHERE url = ? AND expiresAt > ?`,
+      url,
+      new Date().toISOString()
+    );
 
     if (!row) {
       console.log(`[WebCache] Cache miss: ${url}`);
@@ -148,11 +208,12 @@ export class WebCacheService {
       throw new Error("Cache not initialized");
     }
 
-    const stmt = this.db.prepare(`
-      SELECT 1 FROM cache WHERE url = ? AND expiresAt > ?
-    `);
+    const result = await this.db.get(
+      `SELECT 1 FROM cache WHERE url = ? AND expiresAt > ?`,
+      url,
+      new Date().toISOString()
+    );
 
-    const result = stmt.get(url, new Date().toISOString());
     return !!result;
   }
 
@@ -164,8 +225,7 @@ export class WebCacheService {
       throw new Error("Cache not initialized");
     }
 
-    const stmt = this.db.prepare(`DELETE FROM cache WHERE url = ?`);
-    stmt.run(url);
+    await this.db.run(`DELETE FROM cache WHERE url = ?`, url);
 
     console.log(`[WebCache] Deleted: ${url}`);
   }
@@ -178,8 +238,8 @@ export class WebCacheService {
       throw new Error("Cache not initialized");
     }
 
-    this.db.prepare(`DELETE FROM cache`).run();
-    this.db.prepare(`VACUUM`).run();
+    await this.db.run(`DELETE FROM cache`);
+    await this.db.run(`VACUUM`);
 
     console.log("[WebCache] Cache cleared");
   }
@@ -192,15 +252,23 @@ export class WebCacheService {
       throw new Error("Cache not initialized");
     }
 
-    const stmt = this.db.prepare(`
-      DELETE FROM cache WHERE expiresAt <= ?
-    `);
+    const beforeCount = await this.db.get<{ count: number }>(
+      `SELECT COUNT(*) as count FROM cache`
+    );
 
-    const result = stmt.run(new Date().toISOString());
-    const deletedCount = result.changes;
+    await this.db.run(
+      `DELETE FROM cache WHERE expiresAt <= ?`,
+      new Date().toISOString()
+    );
+
+    const afterCount = await this.db.get<{ count: number }>(
+      `SELECT COUNT(*) as count FROM cache`
+    );
+
+    const deletedCount = (beforeCount?.count || 0) - (afterCount?.count || 0);
 
     if (deletedCount > 0) {
-      this.db.prepare(`VACUUM`).run();
+      await this.db.run(`VACUUM`);
       console.log(`[WebCache] Cleared ${deletedCount} expired entries`);
     }
 
@@ -215,30 +283,29 @@ export class WebCacheService {
       throw new Error("Cache not initialized");
     }
 
-    const statsStmt = this.db.prepare(`
-      SELECT
-        COUNT(*) as totalEntries,
-        SUM(size) as totalSize,
-        MIN(cachedAt) as oldestEntry,
-        MAX(cachedAt) as newestEntry
-      FROM cache
-      WHERE expiresAt > ?
-    `);
-
-    const stats = statsStmt.get(new Date().toISOString()) as {
+    const stats = await this.db.get<{
       totalEntries: number;
       totalSize: number;
       oldestEntry?: string;
       newestEntry?: string;
-    };
+    }>(
+      `SELECT
+         COUNT(*) as totalEntries,
+         SUM(size) as totalSize,
+         MIN(cachedAt) as oldestEntry,
+         MAX(cachedAt) as newestEntry
+       FROM cache
+       WHERE expiresAt > ?`,
+      new Date().toISOString()
+    );
 
     return {
-      totalEntries: stats.totalEntries || 0,
-      totalSize: stats.totalSize || 0,
-      oldestEntry: stats.oldestEntry
+      totalEntries: stats?.totalEntries || 0,
+      totalSize: stats?.totalSize || 0,
+      oldestEntry: stats?.oldestEntry
         ? new Date(stats.oldestEntry)
         : undefined,
-      newestEntry: stats.newestEntry
+      newestEntry: stats?.newestEntry
         ? new Date(stats.newestEntry)
         : undefined,
     };
@@ -252,20 +319,19 @@ export class WebCacheService {
       throw new Error("Cache not initialized");
     }
 
-    const stmt = this.db.prepare(`
-      SELECT url, content, cachedAt, expiresAt, size
-      FROM cache
-      WHERE expiresAt > ?
-      ORDER BY cachedAt DESC
-    `);
-
-    const rows = stmt.all(new Date().toISOString()) as Array<{
+    const rows = await this.db.all<{
       url: string;
       content: Buffer;
       cachedAt: string;
       expiresAt: string;
       size: number;
-    }>;
+    }>(
+      `SELECT url, content, cachedAt, expiresAt, size
+       FROM cache
+       WHERE expiresAt > ?
+       ORDER BY cachedAt DESC`,
+      new Date().toISOString()
+    );
 
     const entries: CacheEntry[] = [];
 
@@ -293,10 +359,10 @@ export class WebCacheService {
   /**
    * Create database tables
    */
-  private createTables(): void {
+  private async createTables(): Promise<void> {
     if (!this.db) return;
 
-    this.db.exec(`
+    await this.db.exec(`
       CREATE TABLE IF NOT EXISTS cache (
         url TEXT PRIMARY KEY,
         content BLOB NOT NULL,
@@ -396,18 +462,16 @@ export class WebCacheService {
     }
 
     // Delete oldest entries until we have space
-    const stmt = this.db.prepare(`
-      DELETE FROM cache
-      WHERE url IN (
-        SELECT url FROM cache
-        ORDER BY cachedAt ASC
-        LIMIT ?
-      )
-    `);
-
     let deletedCount = 0;
     while (stats.totalSize + newEntrySize > maxSizeBytes && deletedCount < 100) {
-      stmt.run(10);
+      await this.db.run(`
+        DELETE FROM cache
+        WHERE url IN (
+          SELECT url FROM cache
+          ORDER BY cachedAt ASC
+          LIMIT 10
+        )
+      `);
       deletedCount += 10;
 
       const newStats = await this.getStats();
@@ -416,7 +480,7 @@ export class WebCacheService {
     }
 
     if (deletedCount > 0) {
-      this.db.prepare(`VACUUM`).run();
+      await this.db.run(`VACUUM`);
       console.log(`[WebCache] Evicted ${deletedCount} entries to free space`);
     }
   }
@@ -435,7 +499,7 @@ export class WebCacheService {
    */
   async dispose(): Promise<void> {
     if (this.db) {
-      this.db.close();
+      await this.db.close();
       this.db = null;
       console.log("[WebCache] Cache closed");
     }

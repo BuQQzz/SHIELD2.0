@@ -20,6 +20,10 @@ export function WebSearchSettings({ settings }: WebSearchSettingsProps) {
     updateSettings({ webSearch: { ...settings, cacheEnabled } });
   };
 
+  const handleToggleReasoning = (showReasoning: boolean) => {
+    updateSettings({ webSearch: { ...settings, showReasoning } });
+  };
+
   const handleMaxResultsChange = (value: number[]) => {
     if (value[0] !== undefined) {
       updateSettings({ webSearch: { ...settings, maxResults: value[0] } });
@@ -69,6 +73,24 @@ export function WebSearchSettings({ settings }: WebSearchSettingsProps) {
 
       {settings.enabled && (
         <>
+          {/* Show Reasoning Toggle */}
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Globe className="h-4 w-4 text-muted-foreground" />
+              <div>
+                <Label htmlFor="show-reasoning">Show AI Reasoning Steps</Label>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Display how the AI analyzes search results (helpful for understanding answers)
+                </p>
+              </div>
+            </div>
+            <Switch
+              id="show-reasoning"
+              checked={settings.showReasoning}
+              onCheckedChange={handleToggleReasoning}
+            />
+          </div>
+
           {/* Max Results */}
           <div className="space-y-2">
             <div className="flex items-center gap-2">
