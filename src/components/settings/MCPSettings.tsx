@@ -1,10 +1,13 @@
+import { useState } from "react";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Button } from "@/components/ui/button";
 import { useSettingsStore } from "@/store/settingsStore";
 import { useMCP } from "@/hooks/useMCP";
-import { Shield, Database, AlertCircle, CheckCircle2 } from "lucide-react";
+import { Shield, Database, AlertCircle, CheckCircle2, Wrench } from "lucide-react";
 import type { MCPSettings as MCPSettingsType } from "@/types/settings";
+import { AuditLogViewer } from "@/components/dialogs/AuditLogViewer";
+import { ToolsExplorer } from "@/components/dialogs/ToolsExplorer";
 
 interface MCPSettingsProps {
   settings: MCPSettingsType;
@@ -13,6 +16,8 @@ interface MCPSettingsProps {
 export function MCPSettings({ settings }: MCPSettingsProps) {
   const { updateSettings } = useSettingsStore();
   const { isReady, isInitializing, initialize, audit } = useMCP();
+  const [showAuditViewer, setShowAuditViewer] = useState(false);
+  const [showToolsExplorer, setShowToolsExplorer] = useState(false);
 
   const handleToggle = async (key: keyof MCPSettingsType, value: boolean) => {
     await updateSettings({
@@ -32,15 +37,8 @@ export function MCPSettings({ settings }: MCPSettingsProps) {
     await initialize();
   };
 
-  const handleViewAuditLogs = async () => {
-    const stats = await audit.stats();
-    if (stats.success && stats.stats) {
-      console.log("Audit Statistics:", stats.stats);
-      // TODO: Open audit log viewer dialog
-      alert(
-        `Total Calls: ${stats.stats.totalCalls}\nApproved: ${stats.stats.approvedCalls}\nDenied: ${stats.stats.deniedCalls}`
-      );
-    }
+  const handleViewAuditLogs = () => {
+    setShowAuditViewer(true);
   };
 
   const handleClearAuditLogs = async () => {
@@ -172,9 +170,20 @@ export function MCPSettings({ settings }: MCPSettingsProps) {
             ))}
           </div>
         </div>
-        <p className="text-xs text-muted-foreground">
-          Only whitelisted official MCP servers are permitted for security
-        </p>
+        <div className="flex justify-between items-center">
+          <p className="text-xs text-muted-foreground">
+            Only whitelisted official MCP servers are permitted for security
+          </p>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setShowToolsExplorer(true)}
+            disabled={!settings.enabled || !isReady}
+          >
+            <Wrench className="h-4 w-4 mr-1" />
+            Browse Tools
+          </Button>
+        </div>
       </div>
 
       {/* Audit Logs */}
@@ -229,6 +238,18 @@ export function MCPSettings({ settings }: MCPSettingsProps) {
           </div>
         </div>
       </div>
+
+      {/* Audit Log Viewer Dialog */}
+      <AuditLogViewer
+        open={showAuditViewer}
+        onOpenChange={setShowAuditViewer}
+      />
+
+      {/* Tools Explorer Dialog */}
+      <ToolsExplorer
+        open={showToolsExplorer}
+        onOpenChange={setShowToolsExplorer}
+      />
     </div>
   );
 }
