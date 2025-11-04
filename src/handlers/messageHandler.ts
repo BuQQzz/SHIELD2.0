@@ -32,6 +32,7 @@ interface MessageHandlerProps {
     results: SearchResult[];
     contents: PageContent[];
   } | null>;
+  setIsSearching?: (value: boolean) => void;
 }
 
 export function createMessageHandler({
@@ -48,6 +49,7 @@ export function createMessageHandler({
   saveCurrentConversation,
   modelSettings,
   performWebSearch,
+  setIsSearching,
 }: MessageHandlerProps) {
   return async (content: string, useWebSearch?: boolean) => {
     if (!isModelLoaded) {
@@ -60,30 +62,47 @@ export function createMessageHandler({
     if (useWebSearch && performWebSearch) {
       console.log("[MessageHandler] Web search requested for query:", content);
       
-      const searchData = await performWebSearch(content);
+      // Set searching state to true
+      if (setIsSearching) {
+        setIsSearching(true);
+      }
       
-      if (searchData && searchData.contents.length > 0) {
-        console.log(`[MessageHandler] Building context from ${searchData.contents.length} sources`);
+      try {
+        const searchData = await performWebSearch(content);
         
-        // Build context from fetched content
-        webSearchContext = "\n\n--- Web Search Results ---\n";
-        searchData.contents.forEach((content, index) => {
-          webSearchContext += `\nSource ${index + 1}: ${content.title}\n`;
-          webSearchContext += `URL: ${content.url}\n`;
-          webSearchContext += `Content: ${content.textContent.slice(0, 1000)}...\n`;
-        });
-        webSearchContext += "\nPlease use the above web search results to answer the user's question.\n---\n\n";
-      } else if (searchData && searchData.results.length > 0) {
-        // If no content was fetched, at least include snippets
-        console.log(`[MessageHandler] Building context from ${searchData.results.length} search snippets`);
-        
-        webSearchContext = "\n\n--- Web Search Results ---\n";
-        searchData.results.forEach((result, index) => {
-          webSearchContext += `\n${index + 1}. ${result.title}\n`;
-          webSearchContext += `   ${result.snippet}\n`;
-          webSearchContext += `   Source: ${result.url}\n`;
-        });
-        webSearchContext += "\nPlease use the above search results to help answer the user's question.\n---\n\n";
+        if (searchData && searchData.contents.length > 0) {
+          console.log(`[MessageHandler] Building context from ${searchData.contents.length} sources`);
+          
+          // Build context from fetched content
+          webSearchContext = "\n\n--- Web Search Results ---\n";
+          searchData.contents.forEach((pageContent, index) => {
+            webSearchContext += `\nSource ${index + 1}: ${pageContent.title}\n`;
+            webSearchContext += `URL: ${pageContent.url}\n`;
+            webSearchContext += `Content: ${pageContent.textContent.slice(0, 1500)}...\n`;
+          });
+          webSearchContext += "\nPlease use the above web search results to answer the user's question.\n---\n\n";
+        } else if (searchData && searchData.results.length > 0) {
+          // If no content was fetched, at least include snippets
+          console.log(`[MessageHandler] Building context from ${searchData.results.length} search snippets`);
+          
+          webSearchContext = "\n\n--- Web Search Results ---\n";
+          searchData.results.forEach((result, index) => {
+            webSearchContext += `\n${index + 1}. ${result.title}\n`;
+            webSearchContext += `   ${result.snippet}\n`;
+            webSearchContext += `   Source: ${result.url}\n`;
+          });
+          webSearchContext += "\nPlease use the above search results to help answer the user's question.\n---\n\n";
+        } else {
+          console.warn("[MessageHandler] No search results found");
+        }
+      } catch (error) {
+        console.error("[MessageHandler] Web search failed:", error);
+        // Continue without web search if it fails
+      } finally {
+        // Set searching state to false
+        if (setIsSearching) {
+          setIsSearching(false);
+        }
       }
     }
 

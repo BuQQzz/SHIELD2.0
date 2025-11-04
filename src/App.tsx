@@ -35,6 +35,7 @@ function App() {
   const [currentModelId, setCurrentModelId] = useState<string>("qwen-7b");
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [templateSelectorOpen, setTemplateSelectorOpen] = useState(false);
+  const [isWebSearching, setIsWebSearching] = useState(false);
   const streamingContentRef = useRef("");
   const inputRef = useRef<ChatInputRef>(null);
 
@@ -65,7 +66,6 @@ function App() {
   
   const {
     searchResults,
-    isSearching,
     performSearch,
     clearResults,
   } = useWebSearch();
@@ -152,6 +152,7 @@ function App() {
     saveCurrentConversation,
     modelSettings: settings.model,
     performWebSearch: performSearch,
+    setIsSearching: setIsWebSearching,
   });
 
   const handleStopGenerating = useCallback(async () => {
@@ -292,12 +293,12 @@ function App() {
           />
         ) : (
           <>
-            {isSearching && (
+            {isWebSearching && (
               <div className="px-4 pt-4">
                 <WebSearchResults results={[]} isSearching={true} />
               </div>
             )}
-            {searchResults.length > 0 && !isSearching && (
+            {searchResults.length > 0 && !isWebSearching && (
               <div className="px-4 pt-4">
                 <WebSearchResults results={searchResults} />
               </div>
