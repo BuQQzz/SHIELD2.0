@@ -28,11 +28,21 @@ export interface WebSearchSettings {
   showReasoning: boolean; // Show LLM's step-by-step reasoning for web search answers
 }
 
+export interface MCPSettings {
+  enabled: boolean;
+  autoInitialize: boolean;
+  allowedServers: string[]; // List of allowed MCP server names
+  showPermissionDialog: boolean;
+  rememberChoices: boolean;
+  auditLogRetentionDays: number;
+}
+
 export interface AppSettings {
   model: ModelSettings;
   system: SystemSettings;
   privacy: PrivacySettings;
   webSearch: WebSearchSettings;
+  mcp: MCPSettings;
 }
 
 export const DEFAULT_SETTINGS: AppSettings = {
@@ -62,5 +72,13 @@ export const DEFAULT_SETTINGS: AppSettings = {
     cacheTTL: 1440, // 24 hours in minutes
     provider: "duckduckgo",
     showReasoning: false, // Hidden by default for cleaner responses
+  },
+  mcp: {
+    enabled: false,
+    autoInitialize: false,
+    allowedServers: ["filesystem"],
+    showPermissionDialog: true,
+    rememberChoices: false,
+    auditLogRetentionDays: 30,
   },
 };

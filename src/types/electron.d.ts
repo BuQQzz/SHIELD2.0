@@ -128,6 +128,14 @@ export interface AppSettings {
     provider: "duckduckgo";
     showReasoning: boolean;
   };
+  mcp: {
+    enabled: boolean;
+    autoInitialize: boolean;
+    allowedServers: string[];
+    showPermissionDialog: boolean;
+    rememberChoices: boolean;
+    auditLogRetentionDays: number;
+  };
 }
 
 export interface SettingsAPI {
