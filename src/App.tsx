@@ -8,6 +8,7 @@ import { ChatPlaceholder } from "./components/chat/ChatPlaceholder";
 import { MessageList } from "./components/chat/MessageList";
 import { ChatInput, type ChatInputRef } from "./components/chat/ChatInput";
 import { LazySettingsDialog, LazyTemplateSelector } from "./components/lazy";
+import { PermissionDialog, type PermissionRequest } from "./components/dialogs/PermissionDialog";
 import { ThemeProvider } from "./components/theme/ThemeProvider";
 import { useLlama, type Message } from "./hooks/useLlama";
 import { useConversationStore } from "./stores/conversation-store";
@@ -17,8 +18,10 @@ import { useKeyboardShortcuts } from "./hooks/useKeyboardShortcuts";
 import { useWebSearch } from "./hooks/useWebSearch";
 import { useAppHandlers } from "./hooks/useAppHandlers";
 import { useModelLoader } from "./hooks/useModelLoader";
+import { useMCP } from "./hooks/useMCP";
 import { createAppShortcuts } from "./config/shortcuts";
 import { AVAILABLE_MODELS } from "./config/models";
+import { getMCPSystemPrompt } from "./handlers/mcpToolHandler";
 import "./App.css";
 
 function App() {
@@ -29,6 +32,7 @@ function App() {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [templateSelectorOpen, setTemplateSelectorOpen] = useState(false);
   const [isWebSearching, setIsWebSearching] = useState(false);
+  const [permissionRequest, setPermissionRequest] = useState<PermissionRequest | null>(null);
   const streamingContentRef = useRef("");
   const inputRef = useRef<ChatInputRef>(null);
 
@@ -57,11 +61,23 @@ function App() {
 
   const { settings, loadSettings } = useSettingsStore();
   const { performSearch, clearResults } = useWebSearch();
+  const { isReady: isMCPReady, callTool } = useMCP();
 
   // Load settings on mount
   useEffect(() => {
     loadSettings();
   }, [loadSettings]);
+
+  // Update system prompt when MCP becomes ready
+  useEffect(() => {
+    if (isMCPReady && settings.mcp.enabled) {
+      const basePrompt = settings.system.systemPrompt;
+      const mcpPrompt = getMCPSystemPrompt();
+      setSystemPrompt(`${basePrompt}\n\n${mcpPrompt}`);
+    } else {
+      setSystemPrompt(settings.system.systemPrompt);
+    }
+  }, [isMCPReady, settings.mcp.enabled, settings.system.systemPrompt, setSystemPrompt]);
 
   // Initialize a new conversation if none exists
   useEffect(() => {
@@ -200,6 +216,34 @@ function App() {
           />
         </Suspense>
       )}
+
+      <PermissionDialog
+        open={!!permissionRequest}
+        request={permissionRequest}
+        onApprove={async (_remember: boolean) => {
+          if (!permissionRequest) return;
+          
+          try {
+            const result = await callTool({
+              serverName: permissionRequest.serverName,
+              toolName: permissionRequest.toolName,
+              arguments: permissionRequest.arguments || {},
+              approved: true,
+            });
+            
+            console.log("[MCP] Tool result:", result);
+            // TODO: Add result back to conversation
+          } catch (error) {
+            console.error("[MCP] Tool call failed:", error);
+          } finally {
+            setPermissionRequest(null);
+          }
+        }}
+        onDeny={() => {
+          console.log("[MCP] User denied tool request");
+          setPermissionRequest(null);
+        }}
+      />
     </ChatLayout>
   );
 }
