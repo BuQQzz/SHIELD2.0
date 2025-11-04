@@ -19,10 +19,20 @@ export interface PrivacySettings {
   analytics: boolean;
 }
 
+export interface WebSearchSettings {
+  enabled: boolean;
+  maxResults: number;
+  cacheEnabled: boolean;
+  cacheTTL: number; // in minutes
+  provider: "duckduckgo";
+  showReasoning: boolean; // Show LLM's step-by-step reasoning for web search answers
+}
+
 export interface AppSettings {
   model: ModelSettings;
   system: SystemSettings;
   privacy: PrivacySettings;
+  webSearch: WebSearchSettings;
 }
 
 export const DEFAULT_SETTINGS: AppSettings = {
@@ -35,7 +45,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
     maxTokens: 2048,
   },
   system: {
-    systemPrompt: "You are a helpful AI assistant.",
+    systemPrompt: "You are SHIELD Assistant. When answering questions with web search results, you MUST use ONLY the information provided in those search results. DO NOT use your training data if it conflicts with search results. DO NOT make up information. If search results are provided, they are live data from the internet and override anything you learned during training. Always be truthful and acknowledge when information is limited. If you're unsure, say so.",
     autoSave: true,
     confirmDelete: true,
     theme: "system",
@@ -43,5 +53,13 @@ export const DEFAULT_SETTINGS: AppSettings = {
   privacy: {
     telemetry: false,
     analytics: false,
+  },
+  webSearch: {
+    enabled: false,
+    maxResults: 5,
+    cacheEnabled: true,
+    cacheTTL: 1440, // 24 hours in minutes
+    provider: "duckduckgo",
+    showReasoning: false, // Hidden by default for cleaner responses
   },
 };

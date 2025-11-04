@@ -120,6 +120,14 @@ export interface AppSettings {
     telemetry: boolean;
     analytics: boolean;
   };
+  webSearch: {
+    enabled: boolean;
+    maxResults: number;
+    cacheEnabled: boolean;
+    cacheTTL: number;
+    provider: "duckduckgo";
+    showReasoning: boolean;
+  };
 }
 
 export interface SettingsAPI {
@@ -143,6 +151,70 @@ export interface ExportAPI {
   import: () => Promise<Conversation | null>;
 }
 
+export interface SearchResult {
+  title: string;
+  url: string;
+  snippet: string;
+  position: number;
+}
+
+export interface PageContent {
+  url: string;
+  title: string;
+  content: string;
+  textContent: string;
+  excerpt: string;
+  byline?: string;
+  length: number;
+  fetchedAt: Date;
+  metadata: {
+    domain: string;
+    contentType?: string;
+    language?: string;
+  };
+}
+
+export interface PrivacyOptions {
+  userAgent?: string;
+  timeout?: number;
+  blockTrackers?: boolean;
+  useRandomUA?: boolean;
+}
+
+export interface CacheStats {
+  totalEntries: number;
+  totalSize: number;
+  oldestEntry?: Date;
+  newestEntry?: Date;
+}
+
+export interface WebSearchSettings {
+  maxCacheSizeMB?: number;
+  cacheExpiryHours?: number;
+}
+
+export interface WebSearchAPI {
+  initialize: (settings?: WebSearchSettings) => Promise<{ success: boolean; error?: string }>;
+  query: (
+    query: string,
+    maxResults?: number,
+    options?: PrivacyOptions
+  ) => Promise<{ success: boolean; results?: SearchResult[]; error?: string }>;
+  fetch: (
+    url: string,
+    options?: PrivacyOptions
+  ) => Promise<{ success: boolean; content?: PageContent; fromCache?: boolean; error?: string }>;
+  cache: {
+    get: (url: string) => Promise<{ success: boolean; content?: PageContent | null; error?: string }>;
+    has: (url: string) => Promise<{ success: boolean; has?: boolean; error?: string }>;
+    stats: () => Promise<{ success: boolean; stats?: CacheStats; error?: string }>;
+    clear: () => Promise<{ success: boolean; error?: string }>;
+    clearExpired: () => Promise<{ success: boolean; deletedCount?: number; error?: string }>;
+    export: () => Promise<{ success: boolean; entries?: any[]; error?: string }>;
+    delete: (url: string) => Promise<{ success: boolean; error?: string }>;
+  };
+}
+
 declare global {
   interface Window {
     llama: LlamaAPI;
@@ -151,6 +223,7 @@ declare global {
       settings: SettingsAPI;
       settingsPersistence: SettingsPersistenceAPI;
       export: ExportAPI;
+      webSearch: WebSearchAPI;
     };
   }
 }

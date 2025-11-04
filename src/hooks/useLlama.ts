@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
+import type { SearchResult } from "../types/electron";
 
 export interface Message {
   id: string;
@@ -6,6 +7,8 @@ export interface Message {
   content: string;
   timestamp: Date;
   truncated?: boolean;
+  sources?: SearchResult[];
+  reasoning?: string; // AI's step-by-step reasoning (for web search responses)
 }
 
 export interface ModelInfo {

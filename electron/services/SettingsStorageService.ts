@@ -5,34 +5,58 @@ import { app } from "electron";
 interface Settings {
   model: {
     temperature: number;
-    maxTokens: number;
     topP: number;
     topK: number;
     repeatPenalty: number;
+    contextLength: number;
+    maxTokens: number;
   };
   system: {
+    systemPrompt: string;
+    autoSave: boolean;
+    confirmDelete: boolean;
     theme: "light" | "dark" | "system";
   };
   privacy: {
-    saveHistory: boolean;
-    allowTelemetry: boolean;
+    telemetry: boolean;
+    analytics: boolean;
+  };
+  webSearch: {
+    enabled: boolean;
+    maxResults: number;
+    cacheEnabled: boolean;
+    cacheTTL: number;
+    provider: "duckduckgo";
+    showReasoning: boolean;
   };
 }
 
 const DEFAULT_SETTINGS: Settings = {
   model: {
     temperature: 0.7,
-    maxTokens: 2048,
     topP: 0.9,
     topK: 40,
     repeatPenalty: 1.1,
+    contextLength: 4096,
+    maxTokens: 2048,
   },
   system: {
+    systemPrompt: "You are a helpful AI assistant.",
+    autoSave: true,
+    confirmDelete: true,
     theme: "system",
   },
   privacy: {
-    saveHistory: true,
-    allowTelemetry: false,
+    telemetry: false,
+    analytics: false,
+  },
+  webSearch: {
+    enabled: false,
+    maxResults: 5,
+    cacheEnabled: true,
+    cacheTTL: 1440,
+    provider: "duckduckgo",
+    showReasoning: false,
   },
 };
 
@@ -214,6 +238,10 @@ export class SettingsStorageService {
         ...DEFAULT_SETTINGS.privacy,
         ...settings.privacy,
       },
+      webSearch: {
+        ...DEFAULT_SETTINGS.webSearch,
+        ...settings.webSearch,
+      },
     };
   }
 
@@ -230,10 +258,11 @@ export class SettingsStorageService {
     const model = obj.model as Record<string, unknown>;
     if (
       typeof model.temperature !== "number" ||
-      typeof model.maxTokens !== "number" ||
       typeof model.topP !== "number" ||
       typeof model.topK !== "number" ||
-      typeof model.repeatPenalty !== "number"
+      typeof model.repeatPenalty !== "number" ||
+      typeof model.contextLength !== "number" ||
+      typeof model.maxTokens !== "number"
     ) {
       return false;
     }
@@ -242,6 +271,9 @@ export class SettingsStorageService {
     if (!obj.system || typeof obj.system !== "object") return false;
     const system = obj.system as Record<string, unknown>;
     if (
+      typeof system.systemPrompt !== "string" ||
+      typeof system.autoSave !== "boolean" ||
+      typeof system.confirmDelete !== "boolean" ||
       !system.theme ||
       !["light", "dark", "system"].includes(system.theme as string)
     ) {
@@ -252,10 +284,26 @@ export class SettingsStorageService {
     if (!obj.privacy || typeof obj.privacy !== "object") return false;
     const privacy = obj.privacy as Record<string, unknown>;
     if (
-      typeof privacy.saveHistory !== "boolean" ||
-      typeof privacy.allowTelemetry !== "boolean"
+      typeof privacy.telemetry !== "boolean" ||
+      typeof privacy.analytics !== "boolean"
     ) {
       return false;
+    }
+
+    // Check webSearch settings (optional for backward compatibility)
+    if (obj.webSearch) {
+      if (typeof obj.webSearch !== "object") return false;
+      const webSearch = obj.webSearch as Record<string, unknown>;
+      if (
+        typeof webSearch.enabled !== "boolean" ||
+        typeof webSearch.maxResults !== "number" ||
+        typeof webSearch.cacheEnabled !== "boolean" ||
+        typeof webSearch.cacheTTL !== "number" ||
+        webSearch.provider !== "duckduckgo" ||
+        typeof webSearch.showReasoning !== "boolean"
+      ) {
+        return false;
+      }
     }
 
     return true;

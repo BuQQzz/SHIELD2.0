@@ -8,11 +8,18 @@ import {
   forwardRef,
   useImperativeHandle,
 } from "react";
-import { Send, Square } from "lucide-react";
+import { Send, Square, Globe } from "lucide-react";
 import { motion } from "framer-motion";
+import { useSettingsStore } from "@/store/settingsStore";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 
 interface ChatInputProps {
-  onSend: (message: string) => void;
+  onSend: (message: string, useWebSearch?: boolean) => void;
   isGenerating?: boolean;
   onStop?: () => void;
   disabled?: boolean;
@@ -28,7 +35,9 @@ export const ChatInput = forwardRef<ChatInputRef, ChatInputProps>(
     ref
   ) {
     const [input, setInput] = useState("");
+    const [webSearchEnabled, setWebSearchEnabled] = useState(false);
     const textareaRef = useRef<HTMLTextAreaElement>(null);
+    const { settings } = useSettingsStore();
 
     // Expose focus method via ref
     useImperativeHandle(ref, () => ({
@@ -44,7 +53,7 @@ export const ChatInput = forwardRef<ChatInputRef, ChatInputProps>(
 
     const handleSubmit = () => {
       if (input.trim() && !isGenerating && !disabled) {
-        onSend(input.trim());
+        onSend(input.trim(), webSearchEnabled);
         setInput("");
         if (textareaRef.current) {
           textareaRef.current.style.height = "auto";
@@ -75,6 +84,31 @@ export const ChatInput = forwardRef<ChatInputRef, ChatInputProps>(
             className="relative flex items-end gap-2 rounded-lg bg-background p-2 focus-within:ring-2 focus-within:ring-ring"
             style={{ boxShadow: "0 2px 6px rgba(0, 0, 0, 0.12)" }}
           >
+            {/* Web Search Toggle - only show if enabled in settings */}
+            {settings.webSearch.enabled && (
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <motion.button
+                      whileTap={{ scale: 0.95 }}
+                      onClick={() => setWebSearchEnabled(!webSearchEnabled)}
+                      className={`shrink-0 rounded-md p-2 transition-all ${
+                        webSearchEnabled
+                          ? "bg-primary text-primary-foreground"
+                          : "hover:bg-accent"
+                      }`}
+                      type="button"
+                    >
+                      <Globe className={`h-5 w-5 ${webSearchEnabled ? "" : "text-muted-foreground"}`} />
+                    </motion.button>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    <p>{webSearchEnabled ? "Web search enabled" : "Enable web search"}</p>
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+            )}
+
             <textarea
               ref={textareaRef}
               value={input}

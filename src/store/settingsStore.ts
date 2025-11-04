@@ -37,6 +37,7 @@ export const useSettingsStore = create<SettingsStore>((set, get) => ({
       model: { ...currentSettings.model, ...newSettings.model },
       system: { ...currentSettings.system, ...newSettings.system },
       privacy: { ...currentSettings.privacy, ...newSettings.privacy },
+      webSearch: { ...currentSettings.webSearch, ...newSettings.webSearch },
     };
 
     set({ settings: updatedSettings });
