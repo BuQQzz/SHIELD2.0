@@ -8,6 +8,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **CI/CD pipeline fixes and code organization improvements**
+  - Added missing TypeScript type definitions for setSystemPrompt and getSystemPrompt in LlamaAPI interface
+  - Fixed type errors in src/hooks/useLlama.ts (lines 237, 253)
+  - Resolved code formatting violations in 7 files
+  - Refactored App.tsx from 416 lines to 288 lines (under 300-line project limit)
+  - Extracted message handlers into src/handlers/editMessageHandler.ts (145 lines)
+  - Created src/handlers/templateHandler.ts for template selection logic (32 lines)
+  - Moved keyboard shortcuts to src/config/shortcuts.ts (48 lines)
+  - GitHub Actions CI/CD pipeline now passing all checks
+  - Improved code maintainability and adherence to project guidelines
 - **Chat templates system** for quick-start conversations with pre-configured settings
   - 8 predefined templates with optimized configurations
   - General Assistant - balanced AI for everyday questions

@@ -207,23 +207,25 @@ SHIELD 2.0 is a privacy-first, local AI chatbot for Windows with tool integratio
 - ⏳ Tool permission management (pending MCP integration in Phase 6)
 
 #### 5. Implement Advanced Chat Features
-**Priority:** MEDIUM | **Status:** 🔄 In Progress
+**Priority:** MEDIUM | **Status:** ✅ Completed
 
-- [ ] Set up local database (SQLite) for chat history
+- [ ] Set up local database (SQLite) for chat history (future enhancement)
 - [x] Implement system prompt customization
 - [x] Add temperature/max tokens UI controls (already functional via settings)
-- [ ] Implement conversation branching
+- [ ] Implement conversation branching (future enhancement)
 - [x] Add message editing and regeneration
 - [x] Implement chat templates
-- [ ] Add voice input (speech-to-text)
+- [ ] Add voice input (speech-to-text) (future enhancement)
 
 **Dependencies:** Conversation Management  
 **Blockers:** None  
-**Estimated Time:** 2 weeks
+**Estimated Time:** ~~2 weeks~~ **COMPLETED**
 
 **Completed Features:**
 - ✅ System prompt customization with Apply button in settings
 - ✅ Real-time system prompt updates to active LlamaChatSession
+- ✅ IPC handlers for setSystemPrompt and getSystemPrompt
+- ✅ TypeScript type definitions in LlamaAPI interface
 - ✅ Model parameter controls (temperature, top-p, top-k, max tokens, repeat penalty)
 - ✅ Live parameter updates already working via settings store
 - ✅ Message editing with inline textarea and automatic regeneration
@@ -237,6 +239,14 @@ SHIELD 2.0 is a privacy-first, local AI chatbot for Windows with tool integratio
 - ✅ Template selector modal with visual grid
 - ✅ Sparkles button in sidebar for template access
 - ✅ Automatic settings application from templates
+- ✅ Code organization: App.tsx refactored from 416 to 288 lines
+- ✅ Extracted handlers: editMessageHandler, templateHandler, shortcuts
+- ✅ CI/CD pipeline passing all checks
+
+**Remaining:**
+- ⏳ SQLite database migration (performance optimization)
+- ⏳ Conversation branching (advanced feature)
+- ⏳ Voice input/speech-to-text (accessibility enhancement)
 
 #### 6. Add Dark Mode and Theme Customization
 **Priority:** LOW | **Status:** ✅ Completed
@@ -357,17 +367,17 @@ SHIELD 2.0 is a privacy-first, local AI chatbot for Windows with tool integratio
   - Model selector, animations, collapsible sidebar, borderless design
 
 ### December 2025 - January 2026
-- UI/UX Improvements - Phase 2 (Stop button, markdown, syntax highlighting)
-- Conversation Management
-- Enhanced Chat Features
-- Theme Customization
+- ✅ UI/UX Improvements - Phase 2 (Stop button, markdown, syntax highlighting) **COMPLETED**
+- ✅ Conversation Management **COMPLETED**
+- ✅ Advanced Chat Features **COMPLETED**
+- ✅ Theme Customization **COMPLETED**
 
-### February - March 2026
-- Windows Tool Integration
-- Settings & Configuration
+### January - February 2026 (Next Focus)
+- Windows Tool Integration (MCP)
 - Performance Optimization
+- Testing & Quality Assurance
 
-### April - May 2026
+### March - April 2026
 - Security Audit
 - Final Documentation
 - Build & Distribution
