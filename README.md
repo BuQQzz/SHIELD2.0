@@ -242,7 +242,7 @@ This is an experimental personal project. Contributions, ideas, and feedback are
 
 ## Roadmap
 
-See [ROADMAP.md](ROADMAP.md) for detailed development plan.
+See [docs/ROADMAP.md](docs/ROADMAP.md) for detailed development plan.
 
 **Current Phase**: UI/UX Improvements ✅ **COMPLETED**
 
