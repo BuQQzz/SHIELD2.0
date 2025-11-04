@@ -10,10 +10,14 @@ export interface WebSearchResult {
  */
 export function isVagueFollowUpQuery(content: string): boolean {
   const vagueFollowUpPatterns = [
-    /^(please|can you|could you)?\s*(check|look|verify|confirm)\s*(again|once more|one more time)/i,
-    /^(what|how)\s*about\s*(that|this|it)/i,
-    /^(and|but|so|also)\s*/i,
-    /^(yes|no|ok|okay)\b/i,
+    // Only match explicit re-check requests (must include "again", "once more", etc.)
+    /^(please|can you|could you)?\s*(check|look|verify|confirm)\s+(again|once more|one more time)/i,
+    // Vague references without specifics
+    /^(what|how)\s*about\s*(that|this|it)\s*\??\s*$/i,
+    // Starting with conjunctions only (no substance)
+    /^(and|but|so|also)\s*\??\s*$/i,
+    // Simple yes/no responses only
+    /^(yes|no|ok|okay|sure|nope|yep|yeah|nah)\s*\??\s*$/i,
   ];
 
   return vagueFollowUpPatterns.some((pattern: RegExp) =>
