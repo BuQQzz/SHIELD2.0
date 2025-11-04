@@ -26,6 +26,7 @@ import {
   DropdownMenuSubTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Tag } from "./Tag";
+import { MCPStatus } from "./MCPStatus";
 
 interface ChatHeaderProps {
   modelName?: string;
@@ -138,6 +139,8 @@ export function ChatHeader({
 
       {/* Right Section */}
       <div className="flex items-center gap-2">
+        <MCPStatus />
+        
         {availableModels.length > 0 && onModelSelect && (
           <ModelSelector
             models={availableModels}
