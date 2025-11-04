@@ -128,6 +128,14 @@ export interface AppSettings {
     provider: "duckduckgo";
     showReasoning: boolean;
   };
+  mcp: {
+    enabled: boolean;
+    autoInitialize: boolean;
+    allowedServers: string[];
+    showPermissionDialog: boolean;
+    rememberChoices: boolean;
+    auditLogRetentionDays: number;
+  };
 }
 
 export interface SettingsAPI {
@@ -243,14 +251,13 @@ export interface WebSearchAPI {
 // MCP Types
 export interface MCPToolCall {
   serverName: string;
-  toolName: string;
+  tool: string; // Changed from toolName to match backend
   arguments?: Record<string, unknown>;
-  approved: boolean;
 }
 
 export interface MCPToolResult {
   success: boolean;
-  result?: unknown;
+  data?: unknown; // Changed from result to match backend
   error?: string;
 }
 
@@ -330,6 +337,7 @@ declare global {
       webSearch: WebSearchAPI;
       mcp: MCPAPI;
     };
+    _mcpToolResolve?: (result: MCPToolResult) => void;
   }
 }
 

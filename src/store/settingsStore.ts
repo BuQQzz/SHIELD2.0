@@ -20,7 +20,17 @@ export const useSettingsStore = create<SettingsStore>((set, get) => ({
     try {
       const savedSettings = await window.electronAPI.settingsPersistence.load();
       if (savedSettings) {
-        set({ settings: savedSettings });
+        // Merge saved settings with defaults to handle missing properties
+        const mergedSettings: AppSettings = {
+          ...DEFAULT_SETTINGS,
+          ...savedSettings,
+          model: { ...DEFAULT_SETTINGS.model, ...savedSettings.model },
+          system: { ...DEFAULT_SETTINGS.system, ...savedSettings.system },
+          privacy: { ...DEFAULT_SETTINGS.privacy, ...savedSettings.privacy },
+          webSearch: { ...DEFAULT_SETTINGS.webSearch, ...savedSettings.webSearch },
+          mcp: { ...DEFAULT_SETTINGS.mcp, ...(savedSettings.mcp || {}) },
+        };
+        set({ settings: mergedSettings });
       }
     } catch (error) {
       console.error("Failed to load settings:", error);
@@ -38,6 +48,7 @@ export const useSettingsStore = create<SettingsStore>((set, get) => ({
       system: { ...currentSettings.system, ...newSettings.system },
       privacy: { ...currentSettings.privacy, ...newSettings.privacy },
       webSearch: { ...currentSettings.webSearch, ...newSettings.webSearch },
+      mcp: { ...currentSettings.mcp, ...newSettings.mcp },
     };
 
     set({ settings: updatedSettings });
@@ -77,8 +88,18 @@ export const useSettingsStore = create<SettingsStore>((set, get) => ({
       const importedSettings =
         await window.electronAPI.settingsPersistence.import();
       if (importedSettings) {
-        set({ settings: importedSettings });
-        await window.electronAPI.settingsPersistence.save(importedSettings);
+        // Merge imported settings with defaults to handle missing properties
+        const mergedSettings: AppSettings = {
+          ...DEFAULT_SETTINGS,
+          ...importedSettings,
+          model: { ...DEFAULT_SETTINGS.model, ...importedSettings.model },
+          system: { ...DEFAULT_SETTINGS.system, ...importedSettings.system },
+          privacy: { ...DEFAULT_SETTINGS.privacy, ...importedSettings.privacy },
+          webSearch: { ...DEFAULT_SETTINGS.webSearch, ...importedSettings.webSearch },
+          mcp: { ...DEFAULT_SETTINGS.mcp, ...(importedSettings.mcp || {}) },
+        };
+        set({ settings: mergedSettings });
+        await window.electronAPI.settingsPersistence.save(mergedSettings);
       }
     } catch (error) {
       console.error("Failed to import settings:", error);

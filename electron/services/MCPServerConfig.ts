@@ -69,19 +69,35 @@ export function validateFilesystemPath(
     };
   }
 
-  // Normalize path
-  const normalizedPath = path.normalize(targetPath);
+  // Normalize and resolve to absolute path
+  const normalizedPath = path.resolve(path.normalize(targetPath));
+
+  console.log('[MCPServerConfig] Validating path:', {
+    original: targetPath,
+    normalized: normalizedPath,
+    allowedPaths: config.allowedPaths,
+  });
 
   // Check if path is within allowed directories
   const isAllowed = config.allowedPaths.some(allowedPath => {
-    const normalized = path.normalize(allowedPath);
-    return normalizedPath.startsWith(normalized);
+    const normalized = path.resolve(path.normalize(allowedPath));
+    const isInside = normalizedPath.startsWith(normalized + path.sep) || normalizedPath === normalized;
+    
+    console.log('[MCPServerConfig] Checking:', {
+      allowedPath,
+      normalized,
+      targetPath: normalizedPath,
+      isInside,
+    });
+    
+    return isInside;
   });
 
   if (!isAllowed) {
+    const allowedPathsList = config.allowedPaths.join(', ');
     return {
       success: false,
-      error: `Access denied: Path ${targetPath} is outside allowed directories`,
+      error: `Access denied - path outside allowed directories: ${normalizedPath} not in [${allowedPathsList}]`,
     };
   }
 

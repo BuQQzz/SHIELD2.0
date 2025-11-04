@@ -8,6 +8,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **MCP (Model Context Protocol) Integration** for secure filesystem operations
+  - Revolutionary intent-based detection system that works with ANY LLM
+  - Regex pattern matching for natural language file operations
+  - No model-specific tool calling APIs required
+  - Supports filenames with spaces (e.g., "hello friend.txt")
+  - Permission dialog for explicit user approval of all operations
+  - Security-first approach with path restrictions
+  - Only Desktop and Documents directories allowed by default
+  - Tilde path expansion (~) for cross-platform compatibility
+  - Official @modelcontextprotocol/server-filesystem v2025.8.21 integration
+  - Operations supported: read_file, write_file, list_directory
+  - Natural language commands:
+    - "read the file notes.txt on my desktop"
+    - "list files on my desktop"
+    - "show me what's in project.txt from documents"
+  - MCPSettings component for enable/disable control
+  - Comprehensive error handling with user-friendly messages
+  - Audit logging for all file operations
+  - Files created:
+    - `src/handlers/intentDetector.ts` (218 lines) - Natural language intent detection
+    - `src/components/settings/MCPSettings.tsx` (49 lines) - Settings UI
+    - `electron/services/MCPService.ts` (284 lines) - MCP server lifecycle management
+    - `electron/services/MCPServerConfig.ts` (105 lines) - Security configuration
+    - `docs/features/MCP_INTEGRATION.md` - Integration documentation
+    - `docs/features/MCP_TESTING_GUIDE.md` - Manual testing guide
 - **Context-aware query enhancement for web search** to prevent hallucination on follow-up questions
   - Intelligent detection of vague queries that need context enrichment
   - Automatic extraction of topics from recent conversation (last 4 messages)

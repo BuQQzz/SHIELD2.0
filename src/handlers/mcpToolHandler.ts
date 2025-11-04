@@ -6,7 +6,7 @@
 
 export interface ToolCallRequest {
   serverName: string;
-  toolName: string;
+  tool: string; // Changed from toolName to match MCPToolCall
   arguments: Record<string, unknown>;
 }
 
@@ -33,7 +33,7 @@ export function extractToolCalls(content: string): ToolCallRequest[] {
       
       if (serverMatch?.[1] && toolMatch?.[1]) {
         const serverName = serverMatch[1].trim();
-        const toolName = toolMatch[1].trim();
+        const tool = toolMatch[1].trim();
         let args: Record<string, unknown> = {};
         
         if (argsMatch?.[1]) {
@@ -46,7 +46,7 @@ export function extractToolCalls(content: string): ToolCallRequest[] {
         
         toolCalls.push({
           serverName,
-          toolName,
+          tool,
           arguments: args,
         });
       }
@@ -59,44 +59,74 @@ export function extractToolCalls(content: string): ToolCallRequest[] {
 }
 
 /**
- * Get system prompt for MCP tool awareness
+ * Get system prompt for MCP tool awareness  
  */
 export function getMCPSystemPrompt(): string {
   return `
-## Available Tools
+## You have access to these tools to help users:
 
-You have access to filesystem tools that allow you to read and write files in the user's Documents and Desktop folders.
+### read_file
+Read the contents of a file.
+Parameters:
+- path (string, required): Full Windows path to the file (e.g., "C:\\Users\\Username\\Desktop\\file.txt")
 
-### Filesystem Tools
+### write_file
+Write content to a file (creates new file or overwrites existing).
+Parameters:
+- path (string, required): Full Windows path to the file
+- content (string, required): Content to write to the file
 
-**read_file** - Read the contents of a file
-- Arguments: { "path": "/full/path/to/file.txt" }
+### list_directory
+List all files and folders in a directory.
+Parameters:
+- path (string, required): Full Windows path to the directory
 
-**write_file** - Write or create a file
-- Arguments: { "path": "/full/path/to/file.txt", "content": "file contents" }
+## How to use tools:
 
-**list_directory** - List files in a directory
-- Arguments: { "path": "/full/path/to/directory" }
+When a user asks you to read, write, or list files, respond with a tool call in this XML format:
 
-### Tool Call Format
+<tool_call>
+<server>filesystem</server>
+<tool>TOOL_NAME</tool>
+<arguments>
+{
+  "param_name": "param_value"
+}
+</arguments>
+</tool_call>
 
-To use a tool, respond with a tool call block:
+## Examples:
 
+User: "can you read the file hello.txt on my desktop"
+Assistant: I'll read that file for you.
 <tool_call>
 <server>filesystem</server>
 <tool>read_file</tool>
 <arguments>
 {
-  "path": "C:\\\\Users\\\\Username\\\\Documents\\\\example.txt"
+  "path": "C:\\Users\\YourUsername\\Desktop\\hello.txt"
 }
 </arguments>
 </tool_call>
 
-**Important Notes:**
-- You can only access files in Documents and Desktop folders
-- The user will be asked to approve each tool use
-- Wait for tool results before continuing your response
-- Use Windows path format (C:\\\\Users\\\\...) with escaped backslashes in JSON
+User: "list files in my Documents folder"
+Assistant: I'll list the files in your Documents folder.
+<tool_call>
+<server>filesystem</server>
+<tool>list_directory</tool>
+<arguments>
+{
+  "path": "C:\\Users\\YourUsername\\Documents"
+}
+</arguments>
+</tool_call>
+
+## Important:
+- Only access files in Desktop and Documents folders
+- Use full Windows paths with escaped backslashes in JSON: "C:\\Users\\..."
+- Wait for tool results before giving your final answer
+- The user approves each tool use
+- If you don't know the full path, ask the user
 `.trim();
 }
 
@@ -109,13 +139,13 @@ export function formatToolResult(
 ): string {
   if (!result.success) {
     return `<tool_result>
-<tool>${toolCall.toolName}</tool>
+<tool>${toolCall.tool}</tool>
 <error>${result.error || 'Unknown error'}</error>
 </tool_result>`;
   }
   
   return `<tool_result>
-<tool>${toolCall.toolName}</tool>
+<tool>${toolCall.tool}</tool>
 <result>
 ${JSON.stringify(result.data, null, 2)}
 </result>

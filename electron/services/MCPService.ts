@@ -10,6 +10,7 @@ import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
 import { spawn, ChildProcess } from 'child_process';
 import path from 'path';
+import os from 'os';
 import { app } from 'electron';
 import {
   OFFICIAL_MCP_SERVERS,
@@ -18,6 +19,16 @@ import {
   type MCPToolCall,
   type MCPToolResult,
 } from './MCPServerConfig.js';
+
+/**
+ * Expand tilde (~) in paths to actual home directory
+ */
+function expandTildePath(filepath: string): string {
+  if (filepath.startsWith('~/') || filepath.startsWith('~\\')) {
+    return path.join(os.homedir(), filepath.slice(2));
+  }
+  return filepath;
+}
 
 /**
  * MCP Service Class
@@ -82,26 +93,17 @@ class MCPService {
       // Get the server executable path
       const serverPath = this.getServerPath(config.package);
       
-      // Spawn server process
-      const serverProcess = spawn('node', [serverPath], {
-        stdio: ['pipe', 'pipe', 'pipe'],
-        env: {
-          ...process.env,
-          // Pass allowed paths as environment variable
-          ALLOWED_PATHS: config.allowedPaths.join(';'),
-        },
-      });
+      // For filesystem server, pass allowed paths as command-line arguments
+      const serverArgs = serverName === 'filesystem' 
+        ? [serverPath, ...config.allowedPaths]
+        : [serverPath];
 
-      // Store process reference
-      this.processes.set(serverName, serverProcess);
+      console.log(`[MCPService] Starting server with args:`, serverArgs);
 
       // Create client with stdio transport
       const transport = new StdioClientTransport({
         command: 'node',
-        args: [serverPath],
-        env: {
-          ALLOWED_PATHS: config.allowedPaths.join(';'),
-        },
+        args: serverArgs,
       });
 
       const client = new Client(
@@ -169,9 +171,15 @@ class MCPService {
     }
 
     try {
+      // Expand tilde paths in arguments
+      const expandedArgs = { ...args };
+      if (expandedArgs.path && typeof expandedArgs.path === 'string') {
+        expandedArgs.path = expandTildePath(expandedArgs.path);
+      }
+
       // Validate path restrictions for filesystem operations
       if (serverName === 'filesystem') {
-        const validated = validateFilesystemPath(args, config);
+        const validated = validateFilesystemPath(expandedArgs, config);
         if (!validated.success) {
           return validated;
         }
@@ -180,7 +188,7 @@ class MCPService {
       // Call tool through MCP client
       const result = await client.callTool({
         name: tool,
-        arguments: args,
+        arguments: expandedArgs,
       });
 
       return {

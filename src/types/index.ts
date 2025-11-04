@@ -19,3 +19,9 @@ export interface ToolPermission {
   granted: boolean;
   timestamp: Date;
 }
+
+export interface MCPToolResult {
+  success: boolean;
+  data?: unknown;
+  error?: string;
+}

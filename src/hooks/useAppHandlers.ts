@@ -3,6 +3,8 @@ import type { Message } from "./useLlama";
 import type { ModelSettings } from "../types/settings";
 import type { ChatInputRef } from "../components/chat/ChatInput";
 import type { SearchResult, PageContent } from "../types/electron";
+import type { ToolCallRequest } from "../handlers/mcpToolHandler";
+import type { MCPToolResult } from "@/types";
 import { createMessageHandler } from "../handlers/messageHandler";
 import { createContinuationHandler } from "../handlers/continuationHandler";
 import {
@@ -10,6 +12,12 @@ import {
   createRegenerateMessageHandler,
 } from "../handlers/editMessageHandler";
 import { createTemplateHandler } from "../handlers/templateHandler";
+
+// Generate unique message IDs to prevent React key collisions
+let messageIdCounter = 0;
+function generateMessageId(): string {
+  return `${Date.now()}-${messageIdCounter++}`;
+}
 
 interface UseAppHandlersProps {
   isModelLoaded: boolean;
@@ -51,6 +59,7 @@ interface UseAppHandlersProps {
   } | null>;
   setIsSearching?: React.Dispatch<React.SetStateAction<boolean>>;
   clearResults?: () => void;
+  handleToolCallRequest?: (request: ToolCallRequest) => Promise<MCPToolResult>;
 }
 
 export function useAppHandlers({
@@ -77,6 +86,7 @@ export function useAppHandlers({
   performWebSearch,
   setIsSearching,
   clearResults,
+  handleToolCallRequest,
 }: UseAppHandlersProps) {
   const handleSendMessage = createMessageHandler({
     isModelLoaded,
@@ -93,6 +103,7 @@ export function useAppHandlers({
     modelSettings,
     performWebSearch,
     setIsSearching,
+    handleToolCallRequest,
   });
 
   const handleStopGenerating = useCallback(async () => {
@@ -102,7 +113,7 @@ export function useAppHandlers({
 
       if (streamingContentRef.current) {
         const assistantMessage: Message = {
-          id: (Date.now() + 1).toString(),
+          id: generateMessageId(),
           role: "assistant",
           content: streamingContentRef.current,
           timestamp: new Date(),

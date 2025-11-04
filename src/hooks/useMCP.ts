@@ -23,6 +23,11 @@ export function useMCP() {
     };
 
     checkReady();
+
+    // Poll for MCP readiness every 2 seconds to catch initialization from other components
+    const interval = setInterval(checkReady, 2000);
+
+    return () => clearInterval(interval);
   }, []);
 
   /**
