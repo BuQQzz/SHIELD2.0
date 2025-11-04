@@ -13,7 +13,10 @@ interface SystemSettingsProps {
   onApplySystemPrompt?: (prompt: string) => Promise<void>;
 }
 
-export function SystemSettings({ settings, onApplySystemPrompt }: SystemSettingsProps) {
+export function SystemSettings({
+  settings,
+  onApplySystemPrompt,
+}: SystemSettingsProps) {
   const { updateSettings } = useSettingsStore();
   const { theme, setTheme } = useTheme();
   const [systemPrompt, setSystemPrompt] = useState(settings.systemPrompt);
@@ -32,12 +35,12 @@ export function SystemSettings({ settings, onApplySystemPrompt }: SystemSettings
     try {
       // Save to settings
       updateSettings({ system: { ...settings, systemPrompt } });
-      
+
       // Apply to LLM if handler provided
       if (onApplySystemPrompt) {
         await onApplySystemPrompt(systemPrompt);
       }
-      
+
       setShowApplied(true);
       setTimeout(() => setShowApplied(false), 2000);
     } finally {
@@ -110,7 +113,7 @@ export function SystemSettings({ settings, onApplySystemPrompt }: SystemSettings
                 Applied
               </>
             ) : (
-              'Apply'
+              "Apply"
             )}
           </Button>
         </div>
@@ -122,7 +125,8 @@ export function SystemSettings({ settings, onApplySystemPrompt }: SystemSettings
           className="mt-2 min-h-[100px]"
         />
         <p className="text-xs text-muted-foreground mt-1">
-          Set the AI's behavior and personality. Click Apply to update the current session.
+          Set the AI's behavior and personality. Click Apply to update the
+          current session.
         </p>
       </div>
 

@@ -1,5 +1,15 @@
 import { cn } from "@/lib/utils";
-import { Bot, User, Copy, Check, ArrowRight, Edit2, X, Send, RefreshCw } from "lucide-react";
+import {
+  Bot,
+  User,
+  Copy,
+  Check,
+  ArrowRight,
+  Edit2,
+  X,
+  Send,
+  RefreshCw,
+} from "lucide-react";
 import { motion } from "framer-motion";
 import { MessageContent } from "./MessageContent";
 import { useState } from "react";

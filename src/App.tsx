@@ -254,7 +254,7 @@ function App() {
 
     // Update state to show only messages up to and including the edited one
     setMessages(updatedMessages);
-    
+
     // Update llama chat history with the new message set
     await setChatHistory(updatedMessages);
 
@@ -316,7 +316,7 @@ function App() {
     // Remove the assistant message and everything after it
     const updatedMessages = messages.slice(0, messageIndex);
     setMessages(updatedMessages);
-    
+
     // Update llama chat history
     await setChatHistory(updatedMessages);
 
@@ -366,7 +366,7 @@ function App() {
   const handleTemplateSelect = async (template: ChatTemplate) => {
     // Create new conversation
     createNewConversation();
-    
+
     // Apply template settings
     const { updateSettings } = useSettingsStore.getState();
     updateSettings({
@@ -379,12 +379,12 @@ function App() {
         ...template.settings,
       },
     });
-    
+
     // Apply system prompt to active session
     if (setSystemPrompt) {
       await setSystemPrompt(template.systemPrompt);
     }
-    
+
     // Clear any existing messages and focus input
     setMessages([]);
     clearHistory();
@@ -436,12 +436,12 @@ function App() {
         />
       </div>
 
-      <SettingsDialog 
-        open={settingsOpen} 
+      <SettingsDialog
+        open={settingsOpen}
         onOpenChange={setSettingsOpen}
         onApplySystemPrompt={setSystemPrompt}
       />
-      
+
       {templateSelectorOpen && (
         <TemplateSelector
           onSelect={handleTemplateSelect}

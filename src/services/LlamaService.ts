@@ -200,7 +200,7 @@ export class LlamaService {
    */
   async applySystemPrompt(prompt: string): Promise<void> {
     this.systemPrompt = prompt;
-    
+
     if (this.context) {
       // Recreate session with new system prompt
       this.session = new LlamaChatSession({

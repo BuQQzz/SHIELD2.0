@@ -126,11 +126,16 @@ export function TemplateSelector({ onSelect, onClose }: TemplateSelectorProps) {
                           <p className="text-xs font-medium text-muted-foreground">
                             Example prompts:
                           </p>
-                          {template.starterPrompts.slice(0, 2).map((prompt, i) => (
-                            <p key={i} className="text-xs text-muted-foreground italic">
-                              • {prompt}
-                            </p>
-                          ))}
+                          {template.starterPrompts
+                            .slice(0, 2)
+                            .map((prompt, i) => (
+                              <p
+                                key={i}
+                                className="text-xs text-muted-foreground italic"
+                              >
+                                • {prompt}
+                              </p>
+                            ))}
                         </div>
                       )}
                     </div>
@@ -156,10 +161,7 @@ export function TemplateSelector({ onSelect, onClose }: TemplateSelectorProps) {
             <Button variant="outline" onClick={onClose}>
               Cancel
             </Button>
-            <Button
-              onClick={handleConfirm}
-              disabled={!selectedTemplate}
-            >
+            <Button onClick={handleConfirm} disabled={!selectedTemplate}>
               Start Chat
             </Button>
           </div>

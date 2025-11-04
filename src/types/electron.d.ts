@@ -69,6 +69,14 @@ export interface LlamaAPI {
     messages: Message[]
   ) => Promise<{ success: boolean; error?: string }>;
   stopGeneration: () => Promise<{ success: boolean; error?: string }>;
+  setSystemPrompt: (
+    prompt: string
+  ) => Promise<{ success: boolean; error?: string }>;
+  getSystemPrompt: () => Promise<{
+    success: boolean;
+    prompt?: string;
+    error?: string;
+  }>;
   generateTitle: (
     userMessage: string
   ) => Promise<{ success: boolean; title?: string; error?: string }>;

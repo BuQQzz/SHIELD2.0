@@ -21,7 +21,11 @@ interface SidebarProps {
   onOpenSettings?: () => void;
 }
 
-export function Sidebar({ onNewChat, onNewFromTemplate, onOpenSettings }: SidebarProps) {
+export function Sidebar({
+  onNewChat,
+  onNewFromTemplate,
+  onOpenSettings,
+}: SidebarProps) {
   const { sidebarOpen, sidebarCollapsed, toggleSidebarCollapse } =
     useChatStore();
   const {
