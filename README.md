@@ -41,6 +41,7 @@ SHIELD 2.0 is an experimental AI assistant that runs entirely on your local Wind
 - ✅ **Auto-focus input** - Always ready to type
 - ✅ **Privacy-first web search** - DuckDuckGo integration with stealth mode
 - ✅ **Chain-of-Thought reasoning** - Transparent AI thinking for accurate answers
+- ✅ **Context-aware query enhancement** - Smart follow-up questions with conversation context
 - ✅ **Local web caching** - Encrypted cache with AES-256-GCM
 - ✅ **Show Reasoning toggle** - Configurable visibility of AI's analysis
 - ✅ **Collapsible sources** - Clean source display with expand/collapse
@@ -226,27 +227,37 @@ Settings → Web Search:
 - **Page Fetching**: Top 2 pages fetched for full content + 10 snippets
 - **Timeout**: 3-second per-page timeout to prevent hanging
 - **Temperature**: Lowered to 0.1 for deterministic, fact-based responses
-- **Vague Follow-up Detection**: Skips search for "please check again" style queries
+- **Context-Aware Queries**: Automatically enriches vague follow-ups with conversation context
+- **Smart Follow-up Detection**: Skips search only for truly vague queries ("check again", "yes/no")
 
 #### Example Usage
 ```
-You: Did Outer Worlds 2 come out on PS5?
+You: What's the latest on the NYC mayoral election?
 [Web search activates - fetches live results]
 
-AI Reasoning (if enabled):
-STEP 1: [Quote: "As of November 2025, not yet released"]
-STEP 2: Today is Nov 4, 2025. Results say "not yet released".
-STEP 3: No, The Outer Worlds 2 has not been released yet.
+AI: As of November 4, 2025, the NYC mayoral election is happening today...
+[View Sources (10)]
 
-Answer: No, The Outer Worlds 2 has not been released on PS5 yet...
-[View Sources (4)] ← Click to see where info came from
+You: What about their positions on housing?
+[Context-aware: "NYC mayoral election Mamdani Cuomo" added automatically]
+[Web search activates with enhanced query]
+
+AI: Here are the housing policy positions of the main candidates...
+[View Sources (8)]
 ```
 
+**Context-Aware Enhancement Example:**
+- **Original query**: "what about their positions?"
+- **Detected**: Vague reference ("their") - needs context
+- **Extracted topics**: "NYC mayoral election", "Mamdani", "Cuomo"  
+- **Enhanced query**: "NYC mayoral election Mamdani Cuomo what about their positions?"
+- **Result**: Relevant search results instead of generic "football positions"
+
 #### Known Limitations
-- 7B model may struggle with very complex temporal reasoning
+- ~~Follow-up context limited (web search doesn't use conversation history)~~ **FIXED in v0.1.1**
 - Search quality depends on DuckDuckGo availability
 - Page fetching may timeout on slow connections
-- Follow-up context limited (web search doesn't use conversation history)
+- 7B model may occasionally struggle with very complex temporal reasoning
 
 ### Example Interactions
 
