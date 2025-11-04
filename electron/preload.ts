@@ -10,6 +10,8 @@ import type {
   PrivacyOptions,
 } from "./services/WebSearchService";
 import type { CacheStats } from "./services/WebCacheService";
+import type { MCPToolCall, MCPToolResult, MCPServerConfig } from "./services/MCPService";
+import type { AuditLogEntry, AuditLogQueryOptions } from "./services/AuditLogService";
 
 export interface ModelConfig {
   name: string;
@@ -168,6 +170,26 @@ interface WebSearchAPI {
   };
 }
 
+interface MCPAPI {
+  initialize: () => Promise<{ success: boolean; error?: string }>;
+  callTool: (request: MCPToolCall) => Promise<MCPToolResult>;
+  listTools: (serverName: string) => Promise<{ success: boolean; tools?: unknown[]; error?: string }>;
+  getServerConfig: (serverName: string) => Promise<{ success: boolean; config?: MCPServerConfig; error?: string }>;
+  isReady: () => Promise<{ success: boolean; ready?: boolean; error?: string }>;
+  audit: {
+    query: (options?: AuditLogQueryOptions) => Promise<{ success: boolean; logs?: AuditLogEntry[]; error?: string }>;
+    stats: () => Promise<{ success: boolean; stats?: {
+      totalCalls: number;
+      approvedCalls: number;
+      deniedCalls: number;
+      byServer: Record<string, number>;
+      byTool: Record<string, number>;
+    }; error?: string }>;
+    export: (outputPath: string) => Promise<{ success: boolean; error?: string }>;
+    clear: () => Promise<{ success: boolean; error?: string }>;
+  };
+}
+
 const settingsAPI: SettingsAPI = {
   load: () => ipcRenderer.invoke("settings:load"),
   save: (settings) => ipcRenderer.invoke("settings:save", settings),
@@ -203,12 +225,27 @@ const webSearchAPI: WebSearchAPI = {
   },
 };
 
+const mcpAPI: MCPAPI = {
+  initialize: () => ipcRenderer.invoke("mcp:initialize"),
+  callTool: (request) => ipcRenderer.invoke("mcp:call-tool", request),
+  listTools: (serverName) => ipcRenderer.invoke("mcp:list-tools", serverName),
+  getServerConfig: (serverName) => ipcRenderer.invoke("mcp:get-server-config", serverName),
+  isReady: () => ipcRenderer.invoke("mcp:is-ready"),
+  audit: {
+    query: (options) => ipcRenderer.invoke("mcp:audit-query", options),
+    stats: () => ipcRenderer.invoke("mcp:audit-stats"),
+    export: (outputPath) => ipcRenderer.invoke("mcp:audit-export", outputPath),
+    clear: () => ipcRenderer.invoke("mcp:audit-clear"),
+  },
+};
+
 contextBridge.exposeInMainWorld("electronAPI", {
   settings: settingsAPI,
   settingsPersistence: settingsPersistenceAPI,
   export: exportAPI,
   webSearch: webSearchAPI,
+  mcp: mcpAPI,
 });
 
 // Log that preload executed successfully
-console.log("[preload] window.llama, window.conversations, window.electronAPI, and window.webSearch exposed successfully");
+console.log("[preload] window.llama, window.conversations, window.electronAPI (settings, export, webSearch, mcp) exposed successfully");

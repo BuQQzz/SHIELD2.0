@@ -7,6 +7,18 @@ import {
   performWebSearchAndBuildContext,
 } from "./webSearchHelper";
 import { enhanceQueryWithContext } from "../utils/queryEnhancer";
+import { processMCPToolCalls } from "./mcpMessageHandler";
+import type { ToolCallRequest } from "./mcpToolHandler";
+import type { MCPToolResult } from "@/types";
+import { detectFileOperationIntent, formatFileOperationResult } from "./intentDetector";
+
+/**
+ * Generate a unique message ID
+ */
+let messageIdCounter = 0;
+function generateMessageId(): string {
+  return `${Date.now()}-${messageIdCounter++}`;
+}
 
 interface MessageHandlerProps {
   isModelLoaded: boolean;
@@ -39,6 +51,7 @@ interface MessageHandlerProps {
     contents: PageContent[];
   } | null>;
   setIsSearching?: (value: boolean) => void;
+  handleToolCallRequest?: (request: ToolCallRequest) => Promise<MCPToolResult>;
 }
 
 export function createMessageHandler({
@@ -56,6 +69,7 @@ export function createMessageHandler({
   modelSettings,
   performWebSearch,
   setIsSearching,
+  handleToolCallRequest,
 }: MessageHandlerProps) {
   return async (content: string, useWebSearch?: boolean) => {
     console.log(
@@ -106,7 +120,7 @@ export function createMessageHandler({
     }
 
     const userMessage: Message = {
-      id: Date.now().toString(),
+      id: generateMessageId(),
       role: "user",
       content,
       timestamp: new Date(),
@@ -114,11 +128,124 @@ export function createMessageHandler({
 
     setMessages((prev) => [...prev, userMessage]);
     addMessage(userMessage);
+
+    // ===== INTENT DETECTION FOR FILE OPERATIONS =====
+    // Detect if user is requesting a file operation (works with any model)
+    const { settings } = useSettingsStore.getState();
+    const mcpEnabled = settings.mcp?.enabled ?? false;
+
+    if (mcpEnabled && handleToolCallRequest) {
+      const intent = detectFileOperationIntent(content);
+      
+      if (intent.operation !== 'none' && intent.confidence > 0.6) {
+        console.log("[MessageHandler] Detected file operation intent:", intent);
+
+        // Execute the file operation via MCP
+        let toolCallRequest: ToolCallRequest | null = null;
+
+        switch (intent.operation) {
+          case 'read':
+            if (intent.filepath) {
+              toolCallRequest = {
+                serverName: 'filesystem',
+                tool: 'read_file',
+                arguments: { path: intent.filepath },
+              };
+            }
+            break;
+          case 'write':
+            if (intent.filepath && intent.content) {
+              toolCallRequest = {
+                serverName: 'filesystem',
+                tool: 'write_file',
+                arguments: { path: intent.filepath, content: intent.content },
+              };
+            }
+            break;
+          case 'list':
+            if (intent.filepath) {
+              toolCallRequest = {
+                serverName: 'filesystem',
+                tool: 'list_directory',
+                arguments: { path: intent.filepath },
+              };
+            }
+            break;
+        }
+
+        if (toolCallRequest) {
+          try {
+            // Execute the tool call (will trigger permission dialog)
+            console.log("[MessageHandler] Executing tool call:", toolCallRequest);
+            const result = await handleToolCallRequest(toolCallRequest);
+
+            // Check if user denied permission
+            const wasDenied = !result.success && result.error === "User denied permission";
+
+            if (result.success) {
+              // Format the result for the LLM
+              const formattedResult = formatFileOperationResult(
+                intent.operation,
+                intent.filename,
+                { success: true, data: result.data } // Use result.data not result.result
+              );
+
+              // Create a system message with the file contents
+              const toolResultMessage: Message = {
+                id: generateMessageId(),
+                role: 'assistant',
+                content: formattedResult,
+                timestamp: new Date(),
+              };
+
+              setMessages((prev) => [...prev, toolResultMessage]);
+              addMessage(toolResultMessage);
+
+              // Now let the LLM respond with the actual file contents in context
+              // We'll continue with the normal flow, but add the result as context
+              content = `User asked: "${content}"\n\n${formattedResult}\n\nPlease provide a helpful response based on this information.`;
+            } else if (wasDenied) {
+              // User denied permission
+              const deniedMessage: Message = {
+                id: generateMessageId(),
+                role: 'assistant',
+                content: "I understand. I won't access that file without your permission.",
+                timestamp: new Date(),
+              };
+
+              setMessages((prev) => [...prev, deniedMessage]);
+              addMessage(deniedMessage);
+              await saveCurrentConversation();
+              setIsGenerating(false);
+              return; // Stop here
+            } else {
+              // Tool execution failed
+              const errorMessage: Message = {
+                id: generateMessageId(),
+                role: 'assistant',
+                content: `I encountered an error: ${result.error || 'Unknown error'}`,
+                timestamp: new Date(),
+              };
+
+              setMessages((prev) => [...prev, errorMessage]);
+              addMessage(errorMessage);
+              await saveCurrentConversation();
+              setIsGenerating(false);
+              return; // Stop here
+            }
+          } catch (error) {
+            console.error("[MessageHandler] Tool call error:", error);
+          }
+        }
+      }
+    }
+    // ===== END INTENT DETECTION =====
+
     setIsGenerating(true);
     setStreamingContent("");
     streamingContentRef.current = "";
 
-    const assistantMessageId = (Date.now() + 1).toString();
+    const assistantMessageId = generateMessageId();
 
     try {
       // Combine user query with web search context
@@ -254,6 +381,57 @@ export function createMessageHandler({
       addMessage(assistantMessage);
       setStreamingContent("");
       streamingContentRef.current = "";
+
+      // Check for MCP tool calls in the AI response
+      if (handleToolCallRequest) {
+        const hadToolCalls = await processMCPToolCalls(assistantMessage, {
+          onToolCallDetected: handleToolCallRequest,
+          addMessage,
+          continueConversation: async (toolPrompt: string) => {
+            // Continue the conversation with tool results
+            setIsGenerating(true);
+            setStreamingContent("");
+            streamingContentRef.current = "";
+
+            const toolMessageId = generateMessageId();
+
+            try {
+              await sendStreamingMessage(
+                toolPrompt,
+                (token) => {
+                  streamingContentRef.current += token;
+                  setStreamingContent(streamingContentRef.current);
+                },
+                {
+                  temperature: modelSettings.temperature,
+                  maxTokens: modelSettings.maxTokens,
+                  topP: modelSettings.topP,
+                  topK: modelSettings.topK,
+                  repeatPenalty: modelSettings.repeatPenalty,
+                }
+              );
+
+              const toolResponseMessage: Message = {
+                id: toolMessageId,
+                role: "assistant",
+                content: streamingContentRef.current,
+                timestamp: new Date(),
+              };
+
+              setMessages((prev) => [...prev, toolResponseMessage]);
+              addMessage(toolResponseMessage);
+              setStreamingContent("");
+              streamingContentRef.current = "";
+            } finally {
+              setIsGenerating(false);
+            }
+          },
+        });
+
+        if (hadToolCalls) {
+          console.log("[MessageHandler] Processed MCP tool calls");
+        }
+      }
 
       // Generate title for first message in conversation
       if (currentConversation && currentConversation.messages.length === 0) {

@@ -11,6 +11,7 @@ import { ModelSettings } from "./ModelSettings";
 import { SystemSettings } from "./SystemSettings";
 import { PrivacySettings } from "./PrivacySettings";
 import { WebSearchSettings } from "./WebSearchSettings";
+import { MCPSettings } from "./MCPSettings";
 import { HelpSettings } from "./HelpSettings";
 import { useSettingsStore } from "@/store/settingsStore";
 
@@ -39,11 +40,12 @@ export function SettingsDialog({
         </DialogHeader>
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-          <TabsList className="grid w-full grid-cols-5">
+          <TabsList className="grid w-full grid-cols-6">
             <TabsTrigger value="model">Model</TabsTrigger>
             <TabsTrigger value="system">System</TabsTrigger>
             <TabsTrigger value="privacy">Privacy</TabsTrigger>
             <TabsTrigger value="websearch">Web Search</TabsTrigger>
+            <TabsTrigger value="mcp">MCP</TabsTrigger>
             <TabsTrigger value="help">Help</TabsTrigger>
           </TabsList>
 
@@ -64,6 +66,10 @@ export function SettingsDialog({
 
           <TabsContent value="websearch" className="space-y-4 mt-4">
             <WebSearchSettings settings={settings.webSearch} />
+          </TabsContent>
+
+          <TabsContent value="mcp" className="space-y-4 mt-4">
+            <MCPSettings settings={settings.mcp} />
           </TabsContent>
 
           <TabsContent value="help" className="space-y-4 mt-4">

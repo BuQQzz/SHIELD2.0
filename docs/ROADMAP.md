@@ -237,23 +237,157 @@ SHIELD 2.0 is a privacy-first, local AI chatbot for Windows with tool integratio
 
 ---
 
-### Phase 7: Windows Tool Integration
+### Phase 7: Windows Tool Integration (MCP)
 
-#### 3. Implement Windows Tool Integration (MCP)
-**Priority:** MEDIUM | **Status:** Not Started
+**Vision:** Enable SHIELD's local LLM to safely interact with Windows through official MCP servers while maintaining strict security, privacy, and explicit user consent.
 
-- [ ] Research Model Context Protocol (MCP) implementation
-- [ ] Design permission system UI
-- [ ] Implement file system tools (read, write, search)
-- [ ] Add Windows application control tools
-- [ ] Create system information retrieval tools
-- [ ] Build permission verification layer
-- [ ] Add tool execution logging
-- [ ] Test sandboxing and security
+#### Security-First MCP Strategy
 
-**Dependencies:** #4 (Chat Functionality)  
+**Official Servers Only:** SHIELD will exclusively use MCP servers from `@modelcontextprotocol` organization to avoid code injection risks prevalent in community servers.
+
+**Official Reference Servers (Identified):**
+1. **filesystem** - Secure file operations with configurable access controls
+2. **git** - Read, search, and manipulate Git repositories  
+3. **memory** - Knowledge graph-based persistent memory system
+4. **fetch** - Web content fetching and conversion
+5. **sequential-thinking** - Dynamic problem-solving through thought sequences
+
+**Official Company Integrations (Production-Ready):**
+- **GitHub** - Official GitHub integration
+- **Microsoft Azure** - Azure services integration
+- **Cloudflare** - Deploy, configure Cloudflare resources
+- **And 50+ more official integrations** (see [MCP Servers Repository](https://github.com/modelcontextprotocol/servers))
+
+#### Phase 7.1: MCP Research & Planning
+**Priority:** HIGH | **Status:** 🔄 In Progress
+
+- [x] Research official @modelcontextprotocol servers
+- [x] Identify security requirements and best practices
+- [x] Document official server capabilities
+- [ ] Evaluate filesystem server as proof-of-concept
+- [ ] Design security architecture in ROADMAP
+- [ ] Create detailed implementation plan
+
+**Completed Research:**
+- ✅ Official MCP servers repository analyzed
+- ✅ 6 reference servers identified (filesystem, git, memory, fetch, sequential-thinking, everything)
+- ✅ 50+ official company integrations catalogued
+- ✅ Security strategy defined (official-only, whitelist-based)
+
+#### Phase 7.2: Security Architecture Design
+**Priority:** HIGH | **Status:** 📋 Planned
+
+- [ ] Design whitelist-based MCP server configuration
+- [ ] Plan sandboxing implementation (Electron contextIsolation)
+- [ ] Design permission system UI mockups
+- [ ] Plan audit logging architecture
+- [ ] Define version pinning strategy
+- [ ] Document network isolation approach
+
+**Proposed Security Architecture:**
+
+```typescript
+// Configuration approach
+const OFFICIAL_MCP_SERVERS = {
+  filesystem: {
+    package: '@modelcontextprotocol/server-filesystem',
+    version: '^1.0.0', // Pinned version
+    permissions: ['read', 'write', 'list'],
+    allowedPaths: [
+      'C:\\Users\\{username}\\Documents',
+      'C:\\Users\\{username}\\Desktop'
+    ],
+    requiresApproval: true // Per-operation user confirmation
+  },
+  git: {
+    package: '@modelcontextprotocol/server-git',
+    version: '^1.0.0',
+    permissions: ['read', 'status', 'diff'],
+    allowedPaths: [
+      'C:\\Projects'
+    ],
+    requiresApproval: true
+  },
+  // Additional official servers...
+};
+```
+
+**Security Layers:**
+1. **Whitelist Validation** - Only official @modelcontextprotocol packages allowed
+2. **Sandboxed Execution** - Isolated Electron processes with contextIsolation
+3. **Permission System** - Explicit user approval for every tool call via dialogs
+4. **Audit Logging** - All MCP operations logged locally for transparency
+5. **Version Pinning** - Locked versions, manual security review before updates
+6. **Network Isolation** - Restricted outbound connections, allowed endpoints only
+
+#### Phase 7.3: Filesystem MCP Integration (Proof-of-Concept)
+**Priority:** MEDIUM | **Status:** 📋 Planned
+
+- [ ] Install @modelcontextprotocol/server-filesystem package
+- [ ] Create MCPService wrapper for server management
+- [ ] Implement file path restriction logic
+- [ ] Build permission dialog UI component
+- [ ] Add audit logging for file operations
+- [ ] Test basic file read/write/list operations
+- [ ] Document filesystem integration
+
+**Filesystem Tools to Implement:**
+- Read file contents (with path restrictions)
+- Write files (with user approval)
+- List directory contents
+- Search files (pattern matching)
+- File metadata (size, modified date)
+
+#### Phase 7.4: Permission System UI
+**Priority:** HIGH | **Status:** 📋 Planned
+
+- [ ] Design permission dialog component
+- [ ] Implement approval workflow
+- [ ] Add "Remember this choice" option (per-path basis)
+- [ ] Build permission history viewer
+- [ ] Create revoke permissions UI
+- [ ] Test permission denial handling
+
+**Permission Dialog Design:**
+- Clear description of requested operation
+- Visual path display (safe vs restricted)
+- Approve/Deny buttons
+- Optional "Remember for this path" checkbox
+- Audit log entry creation
+
+#### Phase 7.5: Additional Official Servers
+**Priority:** LOW | **Status:** 📋 Planned
+
+- [ ] Evaluate git server integration
+- [ ] Evaluate memory server integration
+- [ ] Research GitHub official integration
+- [ ] Test fetch server for enhanced web search
+- [ ] Document each server's use case
+
+**Future MCP Servers (After PoC):**
+- git (repository analysis)
+- memory (persistent agent memory)
+- GitHub (code exploration)
+- fetch (improved web content extraction)
+
+**Dependencies:** Core chat functionality ✅ Complete  
 **Blockers:** None  
-**Estimated Time:** 3-4 weeks
+**Estimated Time:** 4-6 weeks total  
+**Documentation:** [docs/features/MCP_INTEGRATION.md](./features/MCP_INTEGRATION.md) (to be created)
+
+**Resources:**
+- [MCP Documentation](https://modelcontextprotocol.io/)
+- [MCP Specification](https://spec.modelcontextprotocol.io/)
+- [Official MCP Servers](https://github.com/modelcontextprotocol/servers)
+- [TypeScript MCP SDK](https://github.com/modelcontextprotocol/typescript-sdk)
+
+**Privacy & Security Commitment:**
+- ✅ Official servers only (no community servers)
+- ✅ Explicit user approval required for every operation
+- ✅ Sandboxed execution environment
+- ✅ Full audit logging of all MCP activity
+- ✅ No telemetry or external reporting
+- ✅ Transparent operation visible to user
 
 ---
 
@@ -467,9 +601,10 @@ SHIELD 2.0 is a privacy-first, local AI chatbot for Windows with tool integratio
 - ✅ **Code Organization Refactoring** **COMPLETED** (November 2025)
 
 ### January - February 2026 (Next Focus)
+- **MCP Integration - Research & Planning** (Phase 7.1, 7.2)
+- **MCP Integration - Filesystem PoC** (Phase 7.3, 7.4)
 - **Performance Optimization** (lazy loading, code splitting)
 - **Testing & Quality Assurance** (unit tests, integration tests)
-- Windows Tool Integration (MCP) - Phase 1
 
 ### March - April 2026
 - Security Audit
@@ -507,7 +642,7 @@ SHIELD 2.0 is a privacy-first, local AI chatbot for Windows with tool integratio
 
 ---
 
-**Last Updated:** November 4, 2025
+**Last Updated:** November 22, 2025
 
 **Recent Completions:**
 - ✅ Web Search with DuckDuckGo integration (Nov 2025)
@@ -515,8 +650,11 @@ SHIELD 2.0 is a privacy-first, local AI chatbot for Windows with tool integratio
 - ✅ Context-aware query enhancement (Nov 2025)
 - ✅ Code refactoring - all files <300 lines (Nov 2025)
 - ✅ CI/CD pipeline improvements (ESLint, Prettier, line count checks)
+- ✅ **MCP research - Official servers identified** (Nov 22, 2025)
+- ✅ **MCP security architecture designed** (Nov 22, 2025)
 
 **Next Up:**
+- MCP filesystem server proof-of-concept
+- Permission system UI development
 - Performance optimization (lazy loading completed, more optimizations planned)
-- Windows tool integration (MCP servers)
 - Enhanced testing coverage

@@ -128,6 +128,14 @@ export interface AppSettings {
     provider: "duckduckgo";
     showReasoning: boolean;
   };
+  mcp: {
+    enabled: boolean;
+    autoInitialize: boolean;
+    allowedServers: string[];
+    showPermissionDialog: boolean;
+    rememberChoices: boolean;
+    auditLogRetentionDays: number;
+  };
 }
 
 export interface SettingsAPI {
@@ -240,6 +248,84 @@ export interface WebSearchAPI {
   };
 }
 
+// MCP Types
+export interface MCPToolCall {
+  serverName: string;
+  tool: string; // Changed from toolName to match backend
+  arguments?: Record<string, unknown>;
+}
+
+export interface MCPToolResult {
+  success: boolean;
+  data?: unknown; // Changed from result to match backend
+  error?: string;
+}
+
+export interface MCPServerConfig {
+  command: string;
+  args: string[];
+  env?: Record<string, string>;
+  allowedPaths?: string[];
+}
+
+export interface AuditLogEntry {
+  id: string;
+  timestamp: Date;
+  serverName: string;
+  toolName: string;
+  arguments?: Record<string, unknown>;
+  approved: boolean;
+  result?: unknown;
+  error?: string;
+  duration?: number;
+}
+
+export interface AuditLogQueryOptions {
+  serverName?: string;
+  toolName?: string;
+  startDate?: Date;
+  endDate?: Date;
+  approved?: boolean;
+  limit?: number;
+  offset?: number;
+}
+
+export interface MCPAPI {
+  initialize: () => Promise<{ success: boolean; error?: string }>;
+  callTool: (request: MCPToolCall) => Promise<MCPToolResult>;
+  listTools: (
+    serverName: string
+  ) => Promise<{ success: boolean; tools?: unknown[]; error?: string }>;
+  getServerConfig: (
+    serverName: string
+  ) => Promise<{ success: boolean; config?: MCPServerConfig; error?: string }>;
+  isReady: () => Promise<{
+    success: boolean;
+    ready?: boolean;
+    error?: string;
+  }>;
+  audit: {
+    query: (
+      options?: AuditLogQueryOptions
+    ) => Promise<{ success: boolean; logs?: AuditLogEntry[]; error?: string }>;
+    stats: () => Promise<{
+      success: boolean;
+      stats?: {
+        totalCalls: number;
+        approvedCalls: number;
+        deniedCalls: number;
+        byServer: Record<string, number>;
+        byTool: Record<string, number>;
+      };
+      error?: string;
+    }>;
+    export: (
+      filePath: string
+    ) => Promise<{ success: boolean; error?: string }>;
+    clear: () => Promise<{ success: boolean; error?: string }>;
+  };
+}
+
 declare global {
   interface Window {
     llama: LlamaAPI;
@@ -249,7 +335,9 @@ declare global {
       settingsPersistence: SettingsPersistenceAPI;
       export: ExportAPI;
       webSearch: WebSearchAPI;
+      mcp: MCPAPI;
     };
+    _mcpToolResolve?: (result: MCPToolResult) => void;
   }
 }
 

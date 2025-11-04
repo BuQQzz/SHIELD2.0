@@ -1,6 +1,12 @@
 import type { Message } from "../hooks/useLlama";
 import type { ModelSettings } from "../types/settings";
 
+// Generate unique message IDs to prevent React key collisions
+let messageIdCounter = 0;
+function generateMessageId(): string {
+  return `${Date.now()}-${messageIdCounter++}`;
+}
+
 interface ContinuationHandlerParams {
   messages: Message[];
   setMessages: React.Dispatch<React.SetStateAction<Message[]>>;
@@ -41,7 +47,7 @@ export const createContinuationHandler = ({
 
     // Send a continuation prompt
     const userMessage: Message = {
-      id: Date.now().toString(),
+      id: generateMessageId(),
       role: "user",
       content: "Continue",
       timestamp: new Date(),
@@ -53,7 +59,7 @@ export const createContinuationHandler = ({
     setStreamingContent("");
     streamingContentRef.current = "";
 
-    const assistantMessageId = (Date.now() + 1).toString();
+    const assistantMessageId = generateMessageId();
 
     try {
       await sendStreamingMessage(
