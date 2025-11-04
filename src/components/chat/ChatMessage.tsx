@@ -168,7 +168,9 @@ export const ChatMessage = memo(function ChatMessage({
           </div>
         ) : (
           <div className="text-sm text-muted-foreground prose prose-sm max-w-none dark:prose-invert">
-            <Suspense fallback={<div className="animate-pulse">Loading...</div>}>
+            <Suspense
+              fallback={<div className="animate-pulse">Loading...</div>}
+            >
               <LazyMessageContent content={content} />
             </Suspense>
             {isStreaming && (

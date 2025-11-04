@@ -7,10 +7,7 @@ import { ChatHeader } from "./components/chat/ChatHeader";
 import { ChatPlaceholder } from "./components/chat/ChatPlaceholder";
 import { MessageList } from "./components/chat/MessageList";
 import { ChatInput, type ChatInputRef } from "./components/chat/ChatInput";
-import {
-  LazySettingsDialog,
-  LazyTemplateSelector,
-} from "./components/lazy";
+import { LazySettingsDialog, LazyTemplateSelector } from "./components/lazy";
 import { ThemeProvider } from "./components/theme/ThemeProvider";
 import { useLlama, type Message } from "./hooks/useLlama";
 import { useConversationStore } from "./stores/conversation-store";
@@ -111,23 +108,26 @@ function App() {
     currentModelId,
   ]);
 
-  const handleModelSelect = useCallback(async (model: ModelOption) => {
-    if (isLoading) return;
+  const handleModelSelect = useCallback(
+    async (model: ModelOption) => {
+      if (isLoading) return;
 
-    console.log("[App] Switching to model:", model.displayName);
-    setCurrentModelId(model.id);
+      console.log("[App] Switching to model:", model.displayName);
+      setCurrentModelId(model.id);
 
-    try {
-      await loadModel({
-        name: model.name,
-        uri: model.uri,
-        contextSize: model.contextSize,
-      });
-      console.log("[App] Model switched successfully");
-    } catch (err) {
-      console.error("[App] Failed to switch model:", err);
-    }
-  }, [isLoading, loadModel]);
+      try {
+        await loadModel({
+          name: model.name,
+          uri: model.uri,
+          contextSize: model.contextSize,
+        });
+        console.log("[App] Model switched successfully");
+      } catch (err) {
+        console.error("[App] Failed to switch model:", err);
+      }
+    },
+    [isLoading, loadModel]
+  );
 
   const handleSendMessage = createMessageHandler({
     isModelLoaded,
@@ -186,7 +186,13 @@ function App() {
     createNewConversation("New Chat", currentModelId);
     setMessages([]);
     clearHistory();
-  }, [currentConversation, saveCurrentConversation, createNewConversation, currentModelId, clearHistory]);
+  }, [
+    currentConversation,
+    saveCurrentConversation,
+    createNewConversation,
+    currentModelId,
+    clearHistory,
+  ]);
 
   const handleContinue = createContinuationHandler({
     messages,

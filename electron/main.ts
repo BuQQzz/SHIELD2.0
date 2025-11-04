@@ -57,7 +57,16 @@ function createWindow() {
   // Load the app
   if (process.env.VITE_DEV_SERVER_URL) {
     mainWindow.loadURL(process.env.VITE_DEV_SERVER_URL);
-    mainWindow.webContents.openDevTools();
+    
+    // Open DevTools (set HIDE_DEVTOOLS=1 to suppress Autofill errors)
+    if (!process.env.HIDE_DEVTOOLS) {
+      mainWindow.webContents.openDevTools();
+      
+      // Note: Autofill.enable and Autofill.setAddresses errors are harmless
+      // They occur because Chromium DevTools tries to enable the Autofill protocol
+      // which isn't available in Electron. These can be safely ignored or hidden
+      // by setting HIDE_DEVTOOLS=1 environment variable.
+    }
   } else {
     mainWindow.loadFile(path.join(__dirname, "../dist/index.html"));
   }
