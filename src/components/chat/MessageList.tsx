@@ -91,20 +91,23 @@ export function MessageList({
   // Auto-scroll when streaming (smooth, non-blocking)
   useEffect(() => {
     if (isGenerating && streamingContent) {
-      // Use a lighter approach during streaming to avoid stutter
+      // Use requestAnimationFrame for smooth, efficient scrolling
       const container = scrollContainerRef.current;
-      if (!container) return;
+      const endElement = messagesEndRef.current;
+      
+      if (!container || !endElement) return;
 
-      // Only auto-scroll if user is near the bottom (within 100px)
+      // Only auto-scroll if user is near the bottom (within 150px)
       const isNearBottom =
         container.scrollHeight - container.scrollTop - container.clientHeight <
-        100;
+        150;
 
       if (isNearBottom) {
-        // Instant scroll during streaming for smoothness
-        messagesEndRef.current?.scrollIntoView({
-          block: "end",
-          inline: "nearest",
+        // Use requestAnimationFrame for smooth scroll during streaming
+        requestAnimationFrame(() => {
+          if (container && endElement) {
+            container.scrollTop = container.scrollHeight;
+          }
         });
       }
     }
