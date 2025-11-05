@@ -109,6 +109,32 @@ Assistant: I'll read that file for you.
 </arguments>
 </tool_call>
 
+User: "create a file called notes.txt on my desktop with content 'Hello World'"
+Assistant: I'll create that file for you.
+<tool_call>
+<server>filesystem</server>
+<tool>write_file</tool>
+<arguments>
+{
+  "path": "C:\\Users\\YourUsername\\Desktop\\notes.txt",
+  "content": "Hello World"
+}
+</arguments>
+</tool_call>
+
+User: "write this code to test.py in Documents: print('hello')"
+Assistant: I'll save that Python code to a file.
+<tool_call>
+<server>filesystem</server>
+<tool>write_file</tool>
+<arguments>
+{
+  "path": "C:\\Users\\YourUsername\\Documents\\test.py",
+  "content": "print('hello')"
+}
+</arguments>
+</tool_call>
+
 User: "list files in my Documents folder"
 Assistant: I'll list the files in your Documents folder.
 <tool_call>
@@ -127,6 +153,7 @@ Assistant: I'll list the files in your Documents folder.
 - Wait for tool results before giving your final answer
 - The user approves each tool use
 - If you don't know the full path, ask the user
+- For write operations, extract content from code blocks or quoted text
 `.trim();
 }
 

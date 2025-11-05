@@ -48,27 +48,64 @@ function detectReadIntent(message: string): FileOperationIntent | null {
 }
 
 /**
+ * Extract content from message
+ * Handles markdown code blocks, quoted content, and natural language
+ */
+function extractContent(message: string): string | undefined {
+  // Try to extract from markdown code block first (most reliable)
+  const codeBlockMatch = message.match(/```(?:\w+)?\n([\s\S]+?)\n```/);
+  if (codeBlockMatch?.[1]) {
+    return codeBlockMatch[1].trim();
+  }
+
+  // Try to extract from inline code
+  const inlineCodeMatch = message.match(/`([^`]+)`/);
+  if (inlineCodeMatch?.[1]) {
+    return inlineCodeMatch[1].trim();
+  }
+
+  // Try to extract from quoted content
+  const quotedMatch = message.match(/["']([^"']{10,})["']/); // At least 10 chars
+  if (quotedMatch?.[1]) {
+    return quotedMatch[1].trim();
+  }
+
+  // Try to extract from "with content: ..." or "containing: ..."
+  const contentMatch = message.match(/(?:with\s+content|containing|that\s+says?):?\s*(.+)/i);
+  if (contentMatch?.[1]) {
+    return contentMatch[1].trim();
+  }
+
+  return undefined;
+}
+
+/**
  * Detect if user is asking to write a file
  */
 function detectWriteIntent(message: string): FileOperationIntent | null {
   // Handle quoted filenames and filenames with spaces
   const writePatterns = [
-    /write\s+(?:to\s+)?["']([^"']+)["']/i,  // Quoted: "my file.txt"
-    /write\s+(?:to\s+)?(.+?)\s+(?:on|in|to)/i,  // Unquoted with location
+    /write\s+(?:to\s+)?(?:a\s+file\s+(?:called\s+)?)?["']([^"']+)["']/i,  // Quoted: "my file.txt"
+    /write\s+(?:to\s+)?(?:a\s+file\s+(?:called\s+)?)?(.+?)\s+(?:on|in|to|with)/i,  // Unquoted with location
     /create\s+(?:a\s+)?file\s+(?:called\s+)?["']([^"']+)["']/i,
     /create\s+(?:a\s+)?file\s+(?:called\s+)?(.+?)\s+(?:on|in|with)/i,
-    /save\s+(?:to\s+)?["']([^"']+)["']/i,
-    /save\s+(?:to\s+)?(.+?)\s+(?:on|in)/i,
+    /save\s+(?:this\s+)?(?:to\s+)?["']([^"']+)["']/i,
+    /save\s+(?:this\s+)?(?:to\s+)?(.+?)\s+(?:on|in)/i,
+    /make\s+(?:a\s+)?file\s+(?:called\s+)?["']([^"']+)["']/i,
+    /make\s+(?:a\s+)?file\s+(?:called\s+)?(.+?)\s+(?:on|in|with)/i,
   ];
 
   for (const pattern of writePatterns) {
     const match = message.match(pattern);
     if (match?.[1]) {
       const filename = match[1].trim();
+      const content = extractContent(message);
+      
       return {
         operation: 'write',
         filename,
-        confidence: 0.7,
+        content,
+        confidence: content ? 0.9 : 0.7, // Higher confidence if we extracted content
       };
     }
   }
@@ -233,10 +270,39 @@ export function formatFileOperationResult(
       
       return `[File contents of ${filename}]:\n${content}`;
     }
-    case 'write':
+    case 'write': {
+      // MCP write_file returns success message
+      if (result.data && typeof result.data === 'object') {
+        const data = result.data as { content?: Array<{ type: string; text?: string }> };
+        if (data.content && Array.isArray(data.content)) {
+          const message = data.content
+            .filter((item) => item.type === 'text' && item.text)
+            .map((item) => item.text)
+            .join('\n');
+          return `[${message}]`;
+        }
+      }
       return `[Successfully wrote to ${filename}]`;
-    case 'list':
-      return `[Files in directory]:\n${JSON.stringify(result.data, null, 2)}`;
+    }
+    case 'list': {
+      // MCP list_directory returns directory contents
+      let listContent = '';
+      if (result.data && typeof result.data === 'object') {
+        const data = result.data as { content?: Array<{ type: string; text?: string }> };
+        if (data.content && Array.isArray(data.content)) {
+          listContent = data.content
+            .filter((item) => item.type === 'text' && item.text)
+            .map((item) => item.text)
+            .join('\n');
+        }
+      }
+      
+      if (!listContent && result.data) {
+        listContent = typeof result.data === 'string' ? result.data : JSON.stringify(result.data, null, 2);
+      }
+      
+      return `[Files in directory]:\n${listContent}`;
+    }
     default:
       return `[Operation completed successfully]`;
   }
