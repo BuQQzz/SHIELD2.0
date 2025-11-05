@@ -117,8 +117,8 @@ async function setupIpcHandlers() {
   // Load a model
   ipcMain.handle("llama:loadModel", async (_event, config) => {
     try {
-      await llamaService.loadModel(config);
-      return { success: true };
+      const result = await llamaService.loadModel(config);
+      return { success: true, warning: result.warning };
     } catch (error) {
       return {
         success: false,

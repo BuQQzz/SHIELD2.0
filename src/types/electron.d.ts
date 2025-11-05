@@ -44,7 +44,7 @@ export interface LlamaAPI {
   initialize: () => Promise<{ success: boolean; error?: string }>;
   loadModel: (
     config: ModelConfig
-  ) => Promise<{ success: boolean; error?: string }>;
+  ) => Promise<{ success: boolean; error?: string; warning?: string }>;
   chat: (
     message: string,
     options?: ChatOptions

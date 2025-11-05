@@ -32,6 +32,7 @@ interface ChatHeaderProps {
   modelName?: string;
   isLoading?: boolean;
   error?: string | null;
+  warning?: string | null;
   onModelSelect?: (model: ModelOption) => void;
   availableModels?: ModelOption[];
   currentModelId?: string;
@@ -42,6 +43,7 @@ export function ChatHeader({
   modelName,
   isLoading,
   error,
+  warning,
   onModelSelect,
   availableModels = [],
   currentModelId,
@@ -131,6 +133,10 @@ export function ChatHeader({
             </span>
           ) : error ? (
             <span className="text-xs text-destructive">{error}</span>
+          ) : warning ? (
+            <span className="text-xs text-yellow-600 dark:text-yellow-500">
+              {warning}
+            </span>
           ) : modelName ? (
             <span className="text-xs text-muted-foreground">{modelName}</span>
           ) : null}

@@ -45,6 +45,7 @@ function App() {
     currentModel,
     isLoading,
     error,
+    warning,
     loadModel,
     sendStreamingMessage,
     clearHistory,
@@ -183,6 +184,7 @@ function App() {
           modelName={currentModel?.name}
           isLoading={isLoading || isLoadingModels}
           error={error}
+          warning={warning}
           availableModels={installedModels}
           currentModelId={currentModelId}
           onModelSelect={handleModelSelect}

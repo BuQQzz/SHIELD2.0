@@ -112,7 +112,7 @@ export class LlamaService {
   /**
    * Load a model from Hugging Face URI
    */
-  async loadModel(config: ModelConfig): Promise<void> {
+  async loadModel(config: ModelConfig): Promise<{ warning?: string }> {
     if (!this.llama) {
       throw new Error("LlamaService not initialized. Call initialize() first");
     }
@@ -124,7 +124,7 @@ export class LlamaService {
       this.context &&
       this.session
     ) {
-      return;
+      return {};
     }
 
     // Clean up existing resources
@@ -150,10 +150,69 @@ export class LlamaService {
       modelPath,
     });
 
-    // Create context
-    this.context = await this.model.createContext({
-      contextSize: config.contextSize || 2048,
-    });
+    let contextSize = config.contextSize || 2048;
+    let warning: string | undefined;
+
+    // Try to create context with requested size, fallback if insufficient VRAM
+    try {
+      this.context = await this.model.createContext({
+        contextSize,
+      });
+    } catch (error) {
+      const errorMsg = error instanceof Error ? error.message : String(error);
+
+      // Check if it's a VRAM-related error
+      if (
+        errorMsg.includes("too large") ||
+        errorMsg.includes("VRAM") ||
+        errorMsg.includes("memory")
+      ) {
+        console.warn(
+          `[LlamaService] VRAM insufficient for context size ${contextSize}, trying reduced sizes...`
+        );
+
+        // Try progressively smaller context sizes
+        const fallbackSizes = [16384, 8192, 4096, 2048];
+        let contextCreated = false;
+
+        for (const fallbackSize of fallbackSizes) {
+          if (fallbackSize >= contextSize) continue; // Skip if not smaller
+
+          try {
+            console.log(
+              `[LlamaService] Attempting context size: ${fallbackSize}`
+            );
+            this.context = await this.model.createContext({
+              contextSize: fallbackSize,
+            });
+
+            warning = `⚠️ Insufficient VRAM for requested context size (${contextSize}). Reduced to ${fallbackSize} tokens. Performance may be slower as the system will use RAM to compensate. For better performance, consider using a smaller model or upgrading your GPU.`;
+            console.warn(`[LlamaService] ${warning}`);
+            contextSize = fallbackSize;
+            contextCreated = true;
+            break;
+          } catch {
+            console.warn(
+              `[LlamaService] Context size ${fallbackSize} also failed, trying smaller...`
+            );
+            continue;
+          }
+        }
+
+        if (!contextCreated) {
+          // If all fallbacks failed, throw the original error
+          throw error;
+        }
+      } else {
+        // Non-VRAM related error, rethrow
+        throw error;
+      }
+    }
+
+    // Ensure context was created
+    if (!this.context) {
+      throw new Error("Failed to create context");
+    }
 
     // Create chat session with system prompt
     this.session = new LlamaChatSession({
@@ -161,7 +220,9 @@ export class LlamaService {
       systemPrompt: this.systemPrompt,
     });
 
-    this.currentModelConfig = config;
+    this.currentModelConfig = { ...config, contextSize };
+
+    return { warning };
   }
 
   /**

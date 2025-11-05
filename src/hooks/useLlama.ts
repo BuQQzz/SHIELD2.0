@@ -23,6 +23,7 @@ export function useLlama() {
   const [currentModel, setCurrentModel] = useState<ModelInfo | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [warning, setWarning] = useState<string | null>(null);
 
   // Initialize llama.cpp on mount
   useEffect(() => {
@@ -66,12 +67,16 @@ export function useLlama() {
     console.log("[useLlama] Loading model:", model);
     setIsLoading(true);
     setError(null);
+    setWarning(null);
     try {
       const result = await window.llama.loadModel(model);
       console.log("[useLlama] Load model result:", result);
       if (result.success) {
         setIsModelLoaded(true);
         setCurrentModel(model);
+        if (result.warning) {
+          setWarning(result.warning);
+        }
         console.log("[useLlama] Model loaded successfully");
       } else {
         setError(result.error || "Failed to load model");
@@ -272,6 +277,7 @@ export function useLlama() {
     currentModel,
     isLoading,
     error,
+    warning,
     loadModel,
     sendMessage,
     sendStreamingMessage,
