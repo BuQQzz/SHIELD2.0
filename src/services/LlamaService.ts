@@ -148,20 +148,23 @@ export class LlamaService {
 
     // Load model - let llama.cpp auto-detect optimal GPU layers
     // It will automatically offload to RAM if needed
+    // For very large models, this allows using both VRAM and system RAM
     this.model = await this.llama.loadModel({
       modelPath,
-      // gpuLayers: "auto" allows llama.cpp to determine the best split
-      // between GPU and CPU based on available VRAM
+      // Allow model to use CPU RAM if GPU VRAM is insufficient
+      // llama.cpp will automatically determine the optimal layer split
     });
 
     let contextSize = config.contextSize || 2048;
     let warning: string | undefined;
 
     // Try to create context with requested size, fallback if insufficient VRAM
+    let contextCreated = false;
     try {
       this.context = await this.model.createContext({
         contextSize,
       });
+      contextCreated = true;
     } catch (error) {
       const errorMsg = error instanceof Error ? error.message : String(error);
 
@@ -177,7 +180,6 @@ export class LlamaService {
 
         // Try progressively smaller context sizes
         const fallbackSizes = [16384, 8192, 4096, 2048, 1024, 512];
-        let contextCreated = false;
 
         for (const fallbackSize of fallbackSizes) {
           if (fallbackSize >= contextSize) continue; // Skip if not smaller
@@ -202,17 +204,21 @@ export class LlamaService {
             continue;
           }
         }
-
-        if (!contextCreated) {
-          // If all fallbacks failed, throw a more helpful error
-          throw new Error(
-            `Unable to load this model even with minimum context size. The model (${path.basename(modelPath)}) requires more VRAM than available. Try a smaller quantization (e.g., Q4_K_S instead of Q4_K_M) or a smaller model.`
-          );
-        }
       } else {
         // Non-VRAM related error, rethrow
         throw error;
       }
+    }
+
+    if (!contextCreated) {
+      // If all fallbacks failed, throw a more helpful error
+      throw new Error(
+        `Unable to load this model even with minimum context size. The model (${path.basename(modelPath)}) requires more VRAM than available. Try:\n` +
+          `1. A smaller quantization (e.g., Q4_K_S, Q3_K_M instead of Q4_K_M)\n` +
+          `2. A smaller model (e.g., 7B instead of 32B)\n` +
+          `3. Freeing up VRAM by closing other applications\n` +
+          `4. Upgrading your GPU`
+      );
     }
 
     // Ensure context was created
