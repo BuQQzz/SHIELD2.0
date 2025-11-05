@@ -21,8 +21,8 @@ import { useModelLoader } from "./hooks/useModelLoader";
 import { useMCP } from "./hooks/useMCP";
 import { useMCPDialogs } from "./hooks/useMCPDialogs";
 import { useMCPSystemPrompt } from "./hooks/useMCPSystemPrompt";
+import { useInstalledModels } from "./hooks/useInstalledModels";
 import { createAppShortcuts } from "./config/shortcuts";
-import { AVAILABLE_MODELS } from "./config/models";
 import "./App.css";
 
 function App() {
@@ -35,6 +35,9 @@ function App() {
   const [isWebSearching, setIsWebSearching] = useState(false);
   const streamingContentRef = useRef("");
   const inputRef = useRef<ChatInputRef>(null);
+
+  // Load installed models
+  const { installedModels, isLoading: isLoadingModels } = useInstalledModels();
 
   const {
     isInitialized,
@@ -177,9 +180,9 @@ function App() {
       <div className="flex h-full flex-col">
         <ChatHeader
           modelName={currentModel?.name}
-          isLoading={isLoading}
+          isLoading={isLoading || isLoadingModels}
           error={error}
-          availableModels={AVAILABLE_MODELS}
+          availableModels={installedModels}
           currentModelId={currentModelId}
           onModelSelect={handleModelSelect}
           onClearHistory={handleClearHistory}
@@ -215,7 +218,7 @@ function App() {
           open={settingsOpen}
           onOpenChange={setSettingsOpen}
           onApplySystemPrompt={setSystemPrompt}
-          currentModel={AVAILABLE_MODELS.find((m) => m.id === currentModelId)}
+          currentModel={installedModels.find((m) => m.id === currentModelId)}
         />
       </Suspense>
 
