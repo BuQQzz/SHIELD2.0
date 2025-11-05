@@ -10,8 +10,19 @@ import type {
   PrivacyOptions,
 } from "./services/WebSearchService";
 import type { CacheStats } from "./services/WebCacheService";
-import type { MCPToolCall, MCPToolResult, MCPServerConfig } from "./services/MCPService";
-import type { AuditLogEntry, AuditLogQueryOptions } from "./services/AuditLogService";
+import type {
+  MCPToolCall,
+  MCPToolResult,
+  MCPServerConfig,
+} from "./services/MCPService";
+import type {
+  AuditLogEntry,
+  AuditLogQueryOptions,
+} from "./services/AuditLogService";
+import type {
+  ModelDownloadAPI,
+  DownloadProgress,
+} from "../src/types/electron";
 
 export interface ModelConfig {
   name: string;
@@ -229,7 +240,8 @@ const mcpAPI: MCPAPI = {
   initialize: () => ipcRenderer.invoke("mcp:initialize"),
   callTool: (request) => ipcRenderer.invoke("mcp:call-tool", request),
   listTools: (serverName) => ipcRenderer.invoke("mcp:list-tools", serverName),
-  getServerConfig: (serverName) => ipcRenderer.invoke("mcp:get-server-config", serverName),
+  getServerConfig: (serverName) =>
+    ipcRenderer.invoke("mcp:get-server-config", serverName),
   isReady: () => ipcRenderer.invoke("mcp:is-ready"),
   audit: {
     query: (options) => ipcRenderer.invoke("mcp:audit-query", options),
@@ -239,12 +251,33 @@ const mcpAPI: MCPAPI = {
   },
 };
 
+const modelDownloadAPI: ModelDownloadAPI = {
+  download: (modelId) => ipcRenderer.invoke("model:download", modelId),
+  cancel: (modelId) => ipcRenderer.invoke("model:cancel", modelId),
+  getProgress: (modelId) => ipcRenderer.invoke("model:get-progress", modelId),
+  listInstalled: () => ipcRenderer.invoke("model:list-installed"),
+  isInstalled: (modelId) => ipcRenderer.invoke("model:is-installed", modelId),
+  delete: (modelId) => ipcRenderer.invoke("model:delete", modelId),
+  getDiskSpace: () => ipcRenderer.invoke("model:get-disk-space"),
+  onProgress: (callback) => {
+    const handler = (_event: Electron.IpcRendererEvent, progress: DownloadProgress) => {
+      callback(progress);
+    };
+    ipcRenderer.on("model:download-progress", handler);
+    // Return cleanup function
+    return () => {
+      ipcRenderer.removeListener("model:download-progress", handler);
+    };
+  },
+};
+
 contextBridge.exposeInMainWorld("electronAPI", {
   settings: settingsAPI,
   settingsPersistence: settingsPersistenceAPI,
   export: exportAPI,
   webSearch: webSearchAPI,
   mcp: mcpAPI,
+  modelDownload: modelDownloadAPI,
 });
 
 // Log that preload executed successfully
