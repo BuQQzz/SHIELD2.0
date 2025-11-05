@@ -76,8 +76,8 @@ export function MCPStatus({ currentModel }: MCPStatusProps) {
     );
   }
 
-  // Show ready state with warning if model doesn't support it well
-  if (isReady && mcpEnabled) {
+  // Show ready state - with warning if model doesn't support it well
+  if (mcpEnabled && isReady) {
     if (hasWarning) {
       return (
         <Button
@@ -116,8 +116,8 @@ export function MCPStatus({ currentModel }: MCPStatusProps) {
       className="gap-2 text-muted-foreground hover:text-foreground"
       title={
         hasWarning
-          ? `${warning} - Click to enable anyway`
-          : "MCP Inactive - Click to enable"
+          ? `MCP Off - ${warning} - Click to enable anyway`
+          : "MCP Off - Click to enable"
       }
     >
       <Shield className="h-4 w-4" />

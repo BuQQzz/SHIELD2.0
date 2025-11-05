@@ -80,8 +80,8 @@ export function useModelCapabilities(currentModel: ModelOption | null) {
   ): string | null => {
     switch (feature) {
       case "mcp":
-        if (!supports.toolCalling && !supports.structuredOutput) {
-          return "This model may not reliably use file operations. Consider using Qwen 7B or Mistral 7B for better results.";
+        if (!supports.toolCalling) {
+          return "This model does not support native function calling. MCP tool operations may not work reliably. Recommended models: Llama 3.3 70B, Qwen 2.5 Coder 32B, Mistral Large.";
         }
         return null;
       case "webSearch":
