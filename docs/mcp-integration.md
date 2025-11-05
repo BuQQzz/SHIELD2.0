@@ -190,6 +190,144 @@ function MyComponent() {
 }
 ```
 
+## File Operations
+
+### Read File
+
+**Natural Language**:
+- "Read the file test.txt on my desktop"
+- "Show me the contents of notes.md in documents"
+- "Open file data.json from desktop"
+
+**Tool Call Format**:
+```xml
+<tool_call>
+<server>filesystem</server>
+<tool>read_file</tool>
+<arguments>
+{
+  "path": "C:\\Users\\Username\\Desktop\\test.txt"
+}
+</arguments>
+</tool_call>
+```
+
+**Permission Dialog**: Shows file path, requests read access
+
+**Result Format**:
+```json
+{
+  "success": true,
+  "data": {
+    "content": [
+      {
+        "type": "text",
+        "text": "File contents here..."
+      }
+    ]
+  }
+}
+```
+
+### Write File
+
+**Natural Language with Content Extraction**:
+- "Create a file called notes.txt on desktop with: Hello World"
+- "Write to config.json in documents: {\"key\": \"value\"}"
+- "Save this code to test.py on desktop:"
+  ```python
+  print("Hello World")
+  ```
+
+**Tool Call Format**:
+```xml
+<tool_call>
+<server>filesystem</server>
+<tool>write_file</tool>
+<arguments>
+{
+  "path": "C:\\Users\\Username\\Desktop\\notes.txt",
+  "content": "Hello World"
+}
+</arguments>
+</tool_call>
+```
+
+**Content Extraction**:
+The system automatically extracts content from:
+- **Markdown code blocks**: ` ```language\ncode\n``` `
+- **Inline code**: `` `content` ``
+- **Quoted text**: `"content"` or `'content'`
+- **Natural language**: "with content: ...", "containing: ..."
+
+**WriteFileDialog Features**:
+- Content preview (scrollable, syntax-highlighted)
+- File size indicator
+- Path validation (blocks C:\Windows, C:\Program Files, etc.)
+- Dangerous extension warning (.exe, .dll, .bat, etc.)
+- Overwrite confirmation if file exists
+- Remember choice option
+
+**Security Checks**:
+1. ✅ Path must be in allowed directories (Desktop/Documents)
+2. ✅ Blocks restricted system paths
+3. ✅ Warns about dangerous file extensions
+4. ✅ Shows content preview before writing
+5. ✅ Requires explicit user approval
+6. ✅ Audit logs all operations
+
+**Result Format**:
+```json
+{
+  "success": true,
+  "data": {
+    "content": [
+      {
+        "type": "text",
+        "text": "Successfully wrote to file.txt"
+      }
+    ]
+  }
+}
+```
+
+### List Directory
+
+**Natural Language**:
+- "List files in my desktop"
+- "Show me files in documents folder"
+- "What files are in my desktop?"
+
+**Tool Call Format**:
+```xml
+<tool_call>
+<server>filesystem</server>
+<tool>list_directory</tool>
+<arguments>
+{
+  "path": "C:\\Users\\Username\\Desktop"
+}
+</arguments>
+</tool_call>
+```
+
+**Permission Dialog**: Shows directory path, requests list access
+
+**Result Format**:
+```json
+{
+  "success": true,
+  "data": {
+    "content": [
+      {
+        "type": "text",
+        "text": "file1.txt\nfile2.pdf\nfolder/"
+      }
+    ]
+  }
+}
+```
+
 ## Testing Checklist
 
 ### Functionality Tests
@@ -197,19 +335,35 @@ function MyComponent() {
 - [ ] Connect to filesystem server
 - [ ] List available tools
 - [ ] Read file from Documents folder
-- [ ] Write file to Documents folder
-- [ ] List directory contents
+- [ ] Read file from Desktop folder
+- [ ] Write file to Documents folder with text content
+- [ ] Write file to Desktop folder with code content
+- [ ] Write file with markdown code block extraction
+- [ ] Write file with inline code extraction
+- [ ] Write file with quoted text extraction
+- [ ] Overwrite existing file (should show warning)
+- [ ] List directory contents (Desktop)
+- [ ] List directory contents (Documents)
 - [ ] Test path restriction enforcement
-- [ ] Verify permission dialog displays correctly
+- [ ] Verify PermissionDialog displays correctly
+- [ ] Verify WriteFileDialog shows content preview
+- [ ] Verify WriteFileDialog warns about overwrites
 - [ ] Test approval/denial workflow
 - [ ] Verify audit logging captures all operations
+- [ ] Test intent detection for all operation types
 
 ### Security Tests
 - [ ] Attempt to access restricted path (should be blocked)
+- [ ] Attempt to write to C:\Windows (should be blocked)
+- [ ] Attempt to write to C:\Program Files (should be blocked)
+- [ ] Attempt to write .exe file (should warn/block)
+- [ ] Attempt to write .dll file (should warn/block)
+- [ ] Attempt to write .bat file (should warn/block)
 - [ ] Verify whitelist prevents non-official servers
 - [ ] Check audit logs contain accurate information
 - [ ] Ensure no data leaves local machine
 - [ ] Test graceful error handling
+- [ ] Verify content preview truncation for large files
 
 ### Edge Cases
 - [ ] Server fails to start
