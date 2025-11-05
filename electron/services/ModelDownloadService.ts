@@ -132,14 +132,15 @@ class ModelDownloadService {
       this.activeDownloads.delete(model.id);
 
       return modelPath;
-    } catch (error: any) {
+    } catch (error: unknown) {
       // Download failed or cancelled
-      if (error.name === "AbortError" || abortController.signal.aborted) {
-        progress.status = "cancelled";
-        progress.error = "Download cancelled by user";
+      const err = error as Error & { name?: string };
+      if (err.name === 'AbortError' || abortController.signal.aborted) {
+        progress.status = 'cancelled';
+        progress.error = 'Download cancelled by user';
       } else {
-        progress.status = "error";
-        progress.error = error.message || "Unknown error occurred";
+        progress.status = 'error';
+        progress.error = err.message || 'Unknown error occurred';
       }
 
       this.sendProgress(progress);
@@ -156,8 +157,8 @@ class ModelDownloadService {
    */
   private async downloadWithProgress(
     model: ModelMetadata,
-    signal: AbortSignal,
-    onProgress: (downloaded: number, total: number) => void
+    _signal: AbortSignal,
+    _onProgress: (downloaded: number, total: number) => void
   ): Promise<string> {
     console.log(`Downloading ${model.displayName}...`);
     console.log(`URI: ${model.uri}`);
@@ -235,7 +236,7 @@ class ModelDownloadService {
       }
 
       const [, repoPath, quantization] = uriParts;
-      const [owner, repo] = repoPath.split("/");
+      const [_owner, repo] = repoPath.split('/');
 
       // Model files are typically named: {repo}-{quantization}.gguf
       // This is a simplification - actual naming may vary
@@ -286,11 +287,11 @@ class ModelDownloadService {
       // Find the model file
       const uriParts = model.uri.split(":");
       if (uriParts[0] !== "hf" || uriParts.length < 3) {
-        throw new Error("Invalid model URI");
+        throw new Error('Invalid model URI');
       }
 
       const [, repoPath, quantization] = uriParts;
-      const [owner, repo] = repoPath.split("/");
+      const [_owner, repo] = repoPath.split('/');
 
       const possibleFilenames = [
         `${repo.toLowerCase()}.${quantization.toLowerCase()}.gguf`,

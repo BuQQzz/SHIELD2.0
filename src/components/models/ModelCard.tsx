@@ -125,7 +125,17 @@ export function ModelCard({
 
       {/* Capability Badges */}
       <CapabilityBadgeGroup
-        capabilities={model.capabilities as any}
+        capabilities={
+          model.capabilities as {
+            [key: string]: string | boolean | undefined;
+            toolCalling?: boolean;
+            codeGeneration?: boolean;
+            longContext?: boolean;
+            multilingual?: "excellent" | "good" | "basic";
+            complexReasoning?: boolean;
+            structuredOutput?: boolean;
+          }
+        }
         size="sm"
         showLabels={false}
         maxDisplay={compact ? 4 : undefined}
