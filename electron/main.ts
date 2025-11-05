@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain } from "electron";
+import { app, BrowserWindow, ipcMain, dialog } from "electron";
 import path from "path";
 import { fileURLToPath } from "url";
 import { getLlamaService } from "../src/services/LlamaService.js";
@@ -94,8 +94,14 @@ function createWindow() {
 /**
  * Set up IPC handlers for LlamaService
  */
-function setupIpcHandlers() {
-  // Initialize llama.cpp
+async function setupIpcHandlers() {
+  // Load settings and set custom model directories
+  const settings = await SettingsStorageService.loadSettings();
+  if (settings.system.modelDirectory) {
+    llamaService.setCustomModelsDir(settings.system.modelDirectory);
+  }
+
+  // Initialize llama
   ipcMain.handle("llama:initialize", async () => {
     try {
       await llamaService.initialize();
@@ -320,7 +326,15 @@ function setupIpcHandlers() {
 
   ipcMain.handle("settings:save", async (_event, settings) => {
     try {
-      return await SettingsStorageService.saveSettings(settings);
+      const result = await SettingsStorageService.saveSettings(settings);
+      
+      // Update services if modelDirectory changed
+      if (result) {
+        modelDownloadService.setCustomModelsDir(settings.system.modelDirectory);
+        llamaService.setCustomModelsDir(settings.system.modelDirectory);
+      }
+      
+      return result;
     } catch (error) {
       console.error("Failed to save settings:", error);
       return false;
@@ -668,6 +682,14 @@ function setupIpcHandlers() {
   // ========================================
   const modelDownloadService = getModelDownloadService(app.getPath("userData"));
 
+  // Load settings and set custom model directory if specified
+  const currentSettings = await SettingsStorageService.loadSettings();
+  if (currentSettings.system.modelDirectory) {
+    modelDownloadService.setCustomModelsDir(
+      currentSettings.system.modelDirectory
+    );
+  }
+
   ipcMain.handle("model:download", async (_event, modelId: string) => {
     try {
       const model = MODEL_CATALOG.find((m) => m.id === modelId);
@@ -778,6 +800,26 @@ function setupIpcHandlers() {
         success: false,
         error: error instanceof Error ? error.message : "Unknown error",
       };
+    }
+  });
+
+  // System IPC handlers
+  ipcMain.handle("system:select-directory", async () => {
+    try {
+      const result = await dialog.showOpenDialog({
+        properties: ["openDirectory", "createDirectory"],
+        title: "Select Model Directory",
+        message: "Choose where to store downloaded models",
+      });
+
+      if (result.canceled || !result.filePaths.length) {
+        return null;
+      }
+
+      return result.filePaths[0];
+    } catch (error) {
+      console.error("Failed to select directory:", error);
+      return null;
     }
   });
 }

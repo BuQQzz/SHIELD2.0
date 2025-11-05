@@ -363,6 +363,10 @@ export interface ModelDownloadAPI {
   onProgress: (callback: (progress: DownloadProgress) => void) => () => void;
 }
 
+export interface SystemAPI {
+  selectDirectory: () => Promise<string | null>;
+}
+
 declare global {
   interface Window {
     llama: LlamaAPI;
@@ -374,6 +378,7 @@ declare global {
       webSearch: WebSearchAPI;
       mcp: MCPAPI;
       modelDownload: ModelDownloadAPI;
+      system: SystemAPI;
     };
     _mcpToolResolve?: (result: MCPToolResult) => void;
   }

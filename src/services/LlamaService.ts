@@ -11,7 +11,7 @@ import { fileURLToPath } from "url";
 import { generateConversationTitle } from "./titleGenerator.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const modelsDir = path.join(__dirname, "..", "..", "models");
+const defaultModelsDir = path.join(__dirname, "..", "..", "models");
 
 export interface ChatMessage {
   role: "user" | "assistant" | "system";
@@ -46,6 +46,21 @@ export class LlamaService {
   private currentModelConfig: ModelConfig | null = null;
   private currentAbortController: AbortController | null = null;
   private systemPrompt: string = "You are a helpful AI assistant.";
+  private customModelsDir: string | undefined;
+
+  /**
+   * Set custom models directory from settings
+   */
+  setCustomModelsDir(customPath: string | undefined): void {
+    this.customModelsDir = customPath;
+  }
+
+  /**
+   * Get the current models directory (custom or default)
+   */
+  private getModelsDir(): string {
+    return this.customModelsDir || defaultModelsDir;
+  }
 
   /**
    * Initialize llama.cpp
@@ -116,6 +131,7 @@ export class LlamaService {
     await this.cleanup();
 
     // Resolve and load model
+    const modelsDir = this.getModelsDir();
     const modelPath = await resolveModelFile(config.uri, modelsDir);
 
     this.model = await this.llama.loadModel({

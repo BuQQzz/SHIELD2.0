@@ -29,13 +29,29 @@ export interface DownloadTask {
 }
 
 class ModelDownloadService {
-  private modelsDir: string;
+  private defaultModelsDir: string;
+  private customModelsDir: string | undefined;
   private activeDownloads: Map<string, DownloadTask> = new Map();
   private downloadHistory: Map<string, DownloadProgress> = new Map();
   private mainWindow: BrowserWindow | null = null;
 
   constructor(userDataPath: string) {
-    this.modelsDir = path.join(userDataPath, "models");
+    this.defaultModelsDir = path.join(userDataPath, "models");
+    this.ensureModelsDirectory();
+  }
+
+  /**
+   * Get the current models directory (custom or default)
+   */
+  private getModelsDir(): string {
+    return this.customModelsDir || this.defaultModelsDir;
+  }
+
+  /**
+   * Set custom models directory from settings
+   */
+  setCustomModelsDir(customPath: string | undefined) {
+    this.customModelsDir = customPath;
     this.ensureModelsDirectory();
   }
 
@@ -51,7 +67,8 @@ class ModelDownloadService {
    */
   private async ensureModelsDirectory() {
     try {
-      await fs.mkdir(this.modelsDir, { recursive: true });
+      const modelsDir = this.getModelsDir();
+      await fs.mkdir(modelsDir, { recursive: true });
     } catch (error) {
       console.error("Failed to create models directory:", error);
     }
@@ -160,15 +177,16 @@ class ModelDownloadService {
     signal: AbortSignal,
     onProgress: (downloaded: number, total: number) => void
   ): Promise<string> {
+    const modelsDir = this.getModelsDir();
     console.log(`Downloading ${model.displayName}...`);
     console.log(`URI: ${model.uri}`);
-    console.log(`Target: ${this.modelsDir}`);
+    console.log(`Target: ${modelsDir}`);
 
     let lastUpdateTime = Date.now();
     let lastDownloadedBytes = 0;
 
     const modelPath = await resolveModelFile(model.uri, {
-      directory: this.modelsDir,
+      directory: modelsDir,
       onProgress: (status) => {
         // status: { totalSize: number, downloadedSize: number }
         const currentTime = Date.now();
@@ -273,8 +291,9 @@ class ModelDownloadService {
         `${repo}.${quantization}.gguf`,
       ];
 
+      const modelsDir = this.getModelsDir();
       for (const filename of possibleFilenames) {
-        const modelPath = path.join(this.modelsDir, filename);
+        const modelPath = path.join(modelsDir, filename);
         try {
           await fs.access(modelPath);
           return true; // File exists
@@ -298,7 +317,8 @@ class ModelDownloadService {
    */
   async listInstalledModels(): Promise<string[]> {
     try {
-      const files = await fs.readdir(this.modelsDir);
+      const modelsDir = this.getModelsDir();
+      const files = await fs.readdir(modelsDir);
       // Filter for .gguf files
       return files.filter((file) => file.endsWith(".gguf"));
     } catch (error) {
@@ -326,8 +346,9 @@ class ModelDownloadService {
         `${repo}.${quantization}.gguf`,
       ];
 
+      const modelsDir = this.getModelsDir();
       for (const filename of possibleFilenames) {
-        const modelPath = path.join(this.modelsDir, filename);
+        const modelPath = path.join(modelsDir, filename);
         try {
           await fs.unlink(modelPath);
           console.log(`Deleted model: ${modelPath}`);
@@ -349,12 +370,13 @@ class ModelDownloadService {
    */
   async getTotalDiskSpace(): Promise<number> {
     try {
-      const files = await fs.readdir(this.modelsDir);
+      const modelsDir = this.getModelsDir();
+      const files = await fs.readdir(modelsDir);
       let totalSize = 0;
 
       for (const file of files) {
         if (file.endsWith(".gguf")) {
-          const filePath = path.join(this.modelsDir, file);
+          const filePath = path.join(modelsDir, file);
           const stats = await fs.stat(filePath);
           totalSize += stats.size;
         }

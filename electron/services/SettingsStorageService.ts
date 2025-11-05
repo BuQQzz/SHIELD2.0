@@ -16,6 +16,7 @@ interface Settings {
     autoSave: boolean;
     confirmDelete: boolean;
     theme: "light" | "dark" | "system";
+    modelDirectory?: string;
   };
   privacy: {
     telemetry: boolean;
@@ -52,6 +53,7 @@ const DEFAULT_SETTINGS: Settings = {
     autoSave: true,
     confirmDelete: true,
     theme: "system",
+    modelDirectory: undefined, // Use default (userData/models)
   },
   privacy: {
     telemetry: false,
@@ -293,7 +295,9 @@ export class SettingsStorageService {
       typeof system.autoSave !== "boolean" ||
       typeof system.confirmDelete !== "boolean" ||
       !system.theme ||
-      !["light", "dark", "system"].includes(system.theme as string)
+      !["light", "dark", "system"].includes(system.theme as string) ||
+      (system.modelDirectory !== undefined &&
+        typeof system.modelDirectory !== "string")
     ) {
       return false;
     }

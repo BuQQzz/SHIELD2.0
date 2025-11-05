@@ -22,6 +22,7 @@ import type {
 import type {
   ModelDownloadAPI,
   DownloadProgress,
+  SystemAPI,
 } from "../src/types/electron";
 
 export interface ModelConfig {
@@ -275,6 +276,10 @@ const modelDownloadAPI: ModelDownloadAPI = {
   },
 };
 
+const systemAPI: SystemAPI = {
+  selectDirectory: () => ipcRenderer.invoke("system:select-directory"),
+};
+
 contextBridge.exposeInMainWorld("electronAPI", {
   settings: settingsAPI,
   settingsPersistence: settingsPersistenceAPI,
@@ -282,6 +287,7 @@ contextBridge.exposeInMainWorld("electronAPI", {
   webSearch: webSearchAPI,
   mcp: mcpAPI,
   modelDownload: modelDownloadAPI,
+  system: systemAPI,
 });
 
 // Log that preload executed successfully

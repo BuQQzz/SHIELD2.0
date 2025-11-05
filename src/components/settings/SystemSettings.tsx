@@ -5,8 +5,9 @@ import { useSettingsStore } from "@/store/settingsStore";
 import { SystemSettings as SystemSettingsType } from "@/types/settings";
 import { useTheme } from "@/hooks/useTheme";
 import { Button } from "@/components/ui/button";
-import { Moon, Sun, Monitor, Check } from "lucide-react";
+import { Moon, Sun, Monitor, Check, FolderOpen } from "lucide-react";
 import { useState } from "react";
+import { Input } from "@/components/ui/input";
 
 interface SystemSettingsProps {
   settings: SystemSettingsType;
@@ -59,6 +60,17 @@ export function SystemSettings({
   const handleThemeChange = (newTheme: "light" | "dark" | "system") => {
     setTheme(newTheme);
     updateSettings({ system: { ...settings, theme: newTheme } });
+  };
+
+  const handleSelectDirectory = async () => {
+    const path = await window.electronAPI.system.selectDirectory();
+    if (path) {
+      updateSettings({ system: { ...settings, modelDirectory: path } });
+    }
+  };
+
+  const handleClearDirectory = () => {
+    updateSettings({ system: { ...settings, modelDirectory: undefined } });
   };
 
   return (
@@ -156,6 +168,41 @@ export function SystemSettings({
           checked={settings.confirmDelete}
           onCheckedChange={handleConfirmDeleteChange}
         />
+      </div>
+
+      <div>
+        <Label htmlFor="model-directory">Model Storage Location</Label>
+        <div className="flex gap-2 mt-2">
+          <Input
+            id="model-directory"
+            value={settings.modelDirectory || "Default (userData/models)"}
+            readOnly
+            className="flex-1"
+          />
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleSelectDirectory}
+            className="shrink-0"
+          >
+            <FolderOpen className="h-4 w-4 mr-2" />
+            Browse
+          </Button>
+          {settings.modelDirectory && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={handleClearDirectory}
+              className="shrink-0"
+            >
+              Reset
+            </Button>
+          )}
+        </div>
+        <p className="text-xs text-muted-foreground mt-1">
+          Choose where downloaded models are stored. Default is in your app data
+          folder.
+        </p>
       </div>
     </div>
   );

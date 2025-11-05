@@ -12,6 +12,7 @@ export interface SystemSettings {
   autoSave: boolean;
   confirmDelete: boolean;
   theme: "light" | "dark" | "system";
+  modelDirectory?: string; // Custom directory for model storage
 }
 
 export interface PrivacySettings {
@@ -59,6 +60,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
     autoSave: true,
     confirmDelete: true,
     theme: "system",
+    modelDirectory: undefined, // Use default (userData/models)
   },
   privacy: {
     telemetry: false,
