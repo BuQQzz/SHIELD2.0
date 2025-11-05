@@ -116,6 +116,7 @@ function App() {
     currentModelId,
     loadModel,
     setCurrentModelId,
+    installedModels,
   });
 
   // App handlers hook

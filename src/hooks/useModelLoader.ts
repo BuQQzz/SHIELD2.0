@@ -1,5 +1,4 @@
 import { useEffect, useCallback } from "react";
-import { AVAILABLE_MODELS } from "../config/models";
 import type { ModelOption } from "../components/chat/ModelSelector";
 
 interface UseModelLoaderProps {
@@ -14,6 +13,7 @@ interface UseModelLoaderProps {
     contextSize?: number;
   }) => Promise<void>;
   setCurrentModelId: (id: string) => void;
+  installedModels: ModelOption[]; // Add installed models prop
 }
 
 export function useModelLoader({
@@ -24,15 +24,27 @@ export function useModelLoader({
   currentModelId,
   loadModel,
   setCurrentModelId,
+  installedModels,
 }: UseModelLoaderProps) {
   // Auto-load model on initialization
   useEffect(() => {
-    if (isInitialized && !isModelLoaded && !isLoading && !currentModel) {
+    if (
+      isInitialized &&
+      !isModelLoaded &&
+      !isLoading &&
+      !currentModel &&
+      installedModels.length > 0
+    ) {
       console.log("[App] Auto-loading default model...");
-      const defaultModel = AVAILABLE_MODELS.find(
-        (m) => m.id === currentModelId
-      );
+      // Try to find the default model, or use the first installed model
+      const defaultModel =
+        installedModels.find((m) => m.id === currentModelId) ||
+        installedModels[0];
+
       if (defaultModel) {
+        console.log(
+          `[App] Loading ${defaultModel.displayName} (${defaultModel.id})`
+        );
         loadModel({
           name: defaultModel.name,
           uri: defaultModel.uri,
@@ -40,6 +52,8 @@ export function useModelLoader({
         }).catch((err) => {
           console.error("[App] Failed to auto-load model:", err);
         });
+      } else {
+        console.log("[App] No installed models found to auto-load");
       }
     }
   }, [
@@ -49,6 +63,7 @@ export function useModelLoader({
     currentModel,
     loadModel,
     currentModelId,
+    installedModels,
   ]);
 
   const handleModelSelect = useCallback(

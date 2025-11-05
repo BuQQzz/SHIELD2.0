@@ -28,6 +28,8 @@ export function useInstalledModels() {
         const installed: ModelOption[] = [];
 
         for (const filename of result.models) {
+          console.log(`[useInstalledModels] Checking file: ${filename}`);
+
           // Find matching model in catalog
           const catalogEntry = MODEL_CATALOG.find((model) => {
             // Extract expected filename from URI
@@ -38,33 +40,30 @@ export function useInstalledModels() {
             const [, repoPath, quantization] = uriParts;
             if (!repoPath || !quantization) return false;
 
-            // Extract repo name from path (e.g., "Qwen/Qwen2.5-7B-Instruct-GGUF" -> "Qwen2.5-7B-Instruct-GGUF")
-            const repoParts = repoPath.split("/");
-            const repoName = repoParts[repoParts.length - 1];
-            if (!repoName) return false;
+            // Extract owner and repo from path (e.g., "Qwen/Qwen2.5-7B-Instruct-GGUF")
+            const [owner, repoName] = repoPath.split("/");
+            if (!owner || !repoName) return false;
 
-            // Generate possible filename patterns
-            // node-llama-cpp typically creates filenames like: "qwen2.5-7b-instruct-gguf.q4_k_m.gguf"
-            const baseNames = [
-              repoName.toLowerCase().replace(/-gguf$/, ""),
-              repoName.toLowerCase(),
-              repoName.replace(/-GGUF$/, ""),
-            ];
+            // node-llama-cpp creates filenames in this format:
+            // hf_Owner_Repo-Name.Quantization-00001-of-00002.gguf
+            // Example: hf_Qwen_Qwen2.5-7B-Instruct.Q4_K_M-00001-of-00002.gguf
 
-            const quantLower = quantization.toLowerCase();
+            // Remove -GGUF suffix from repo name if present
+            const repoBaseName = repoName.replace(/-GGUF$/i, "");
 
-            // Check various common patterns
-            for (const baseName of baseNames) {
-              const patterns = [
-                `${baseName}.${quantLower}.gguf`,
-                `${baseName}-${quantLower}.gguf`,
-                `${baseName}_${quantLower}.gguf`,
-                `${baseName.replace(/-/g, "_")}.${quantLower}.gguf`,
-              ];
+            // Build the expected pattern
+            const expectedPrefix = `hf_${owner}_${repoBaseName}.${quantization}`;
 
-              if (patterns.some((p) => filename.toLowerCase() === p)) {
-                return true;
-              }
+            // Check if filename starts with this pattern (ignoring split file suffix)
+            const matched = filename
+              .toLowerCase()
+              .startsWith(expectedPrefix.toLowerCase());
+
+            if (matched) {
+              console.log(
+                `[useInstalledModels] Matched "${filename}" to catalog model "${model.displayName}" (${model.id})`
+              );
+              return true;
             }
 
             return false;
