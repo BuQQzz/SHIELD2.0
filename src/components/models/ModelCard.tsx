@@ -5,7 +5,14 @@
  * hardware requirements, and download/install status
  */
 
-import { Download, Check, HardDrive, Cpu, Database, X } from "lucide-react";
+import {
+  Download,
+  Check,
+  HardDrive,
+  Cpu,
+  Database,
+  Trash2,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { CapabilityBadgeGroup } from "./CapabilityBadge";
 import { DownloadProgressBar } from "./DownloadProgressBar";
@@ -19,7 +26,7 @@ interface ModelCardProps {
   downloadProgress?: DownloadProgress;
   onDownload?: (model: ModelMetadata) => void;
   onCancel?: (modelId: string) => void;
-  onDelete?: (model: ModelMetadata) => void;
+  onDeleteClick?: (model: ModelMetadata) => void;
   compact?: boolean;
 }
 
@@ -29,7 +36,7 @@ export function ModelCard({
   downloadProgress,
   onDownload,
   onCancel,
-  onDelete,
+  onDeleteClick,
   compact = false,
 }: ModelCardProps) {
   const isDownloading = downloadProgress?.status === "downloading";
@@ -80,15 +87,15 @@ export function ModelCard({
               <Check className="h-4 w-4 text-green-600" />
               Installed
             </Button>
-            {onDelete && (
+            {onDeleteClick && (
               <Button
                 size="sm"
                 variant="ghost"
-                onClick={() => onDelete(model)}
-                className="shrink-0"
+                onClick={() => onDeleteClick(model)}
+                className="shrink-0 hover:bg-destructive/10 hover:text-destructive"
                 title="Delete model"
               >
-                <Database className="h-4 w-4" />
+                <Trash2 className="h-4 w-4" />
               </Button>
             )}
           </div>
@@ -118,7 +125,7 @@ export function ModelCard({
 
       {/* Capability Badges */}
       <CapabilityBadgeGroup
-        capabilities={model.capabilities}
+        capabilities={model.capabilities as any}
         size="sm"
         showLabels={false}
         maxDisplay={compact ? 4 : undefined}
