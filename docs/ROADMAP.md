@@ -312,7 +312,7 @@ const OFFICIAL_MCP_SERVERS = {
 5. ✅ **Version Pinning** - Locked versions, manual security review before updates
 6. ✅ **Path Restrictions** - Desktop and Documents only, validated before execution
 
-#### Phase 7.3: Filesystem MCP Integration (Proof-of-Concept)
+#### Phase 7.3: Filesystem MCP Integration
 **Priority:** MEDIUM | **Status:** ✅ Completed
 
 - [x] Install @modelcontextprotocol/server-filesystem package
@@ -322,50 +322,64 @@ const OFFICIAL_MCP_SERVERS = {
 - [x] Add audit logging for file operations
 - [x] Test basic file read/write/list operations
 - [x] Document filesystem integration
-- [x] **Implement revolutionary intent-based detection system**
-- [x] **Add natural language file operation support**
-- [x] **Support filenames with spaces via regex patterns**
-- [x] **Add tilde path expansion for cross-platform compatibility**
+- [x] **Implement XML-based tool calling format**
+- [x] **Add MCP Settings UI for enable/disable control**
 - [x] **Create comprehensive error handling**
+- [x] **Build model capabilities system**
+- [x] **Remove intent detection (simplified architecture)**
 
 **Filesystem Tools Implemented:**
 - ✅ Read file contents (with path restrictions)
 - ✅ List directory contents
-- 🚧 Write files (planned for Phase 8 - File Operations)
-- 🚧 Search files (planned for Phase 8)
-- 🚧 File metadata (planned for Phase 8)
+- � Write files (requires tool-calling model)
+- 📋 Delete files (requires tool-calling model)
+- � Search files (future enhancement)
 
-**Revolutionary Features Delivered:**
-- ✅ **Intent-based detection** - Works with ANY LLM (no model-specific APIs needed)
-- ✅ **Natural language commands** - "read file hello friend.txt on my desktop"
-- ✅ **Regex pattern matching** - Detects operations from plain English
-- ✅ **Filename space support** - Handles "my file name.txt" correctly
-- ✅ **Cross-platform paths** - Tilde expansion (~) for Windows/Mac/Linux
-- ✅ **MCP Settings UI** - Enable/disable control in settings dialog
+**Tool Calling Format (XML):**
+```xml
+<tool_call>
+  <server>filesystem</server>
+  <tool>read_file</tool>
+  <arguments>
+    {"path": "C:\\Users\\Username\\Desktop\\file.txt"}
+  </arguments>
+</tool_call>
+```
 
-**Files Created (1,730+ lines):**
-- `src/handlers/intentDetector.ts` (218 lines) - NLP intent detection
+**Architectural Evolution:**
+- ✅ **Initial Approach** - Intent detection for any LLM (regex-based)
+- ✅ **November 2025 Update** - Removed intent detection, XML-only format
+- ✅ **Current State** - Clean XML tool calling, model capabilities system
+- ✅ **Reason** - Focus on proper tool-calling models, simpler maintenance
+
+**Files Created (1,500+ lines):**
 - `electron/services/MCPService.ts` (284 lines) - MCP lifecycle management
 - `electron/services/MCPServerConfig.ts` (105 lines) - Security configuration
 - `src/components/settings/MCPSettings.tsx` (49 lines) - Settings UI
 - `electron/services/AuditLogService.ts` (248 lines) - Operation tracking
 - `src/hooks/useMCP.ts` (165 lines) - React integration
 - `src/components/dialogs/PermissionDialog.tsx` (177 lines) - Permission UI
+- `src/hooks/useModelCapabilities.ts` (97 lines) - Capability detection
+
+**Files Removed (-418 lines for cleaner architecture):**
+- ~~`src/handlers/intentDetector.ts`~~ (deleted - 218 lines)
+- ~~`src/handlers/intentDetector.test.ts`~~ (deleted - 200 lines)
 
 **Documentation:**
 - ✅ [docs/features/MCP_INTEGRATION.md](./features/MCP_INTEGRATION.md) - Complete integration guide
 - ✅ [docs/features/MCP_TESTING_GUIDE.md](./features/MCP_TESTING_GUIDE.md) - Manual testing procedures
-- ✅ [docs/features/MCP_MERGE_SUMMARY.md](./features/MCP_MERGE_SUMMARY.md) - Merge summary
+- ✅ [docs/features/MODEL_CAPABILITIES.md](./features/MODEL_CAPABILITIES.md) - Model requirements
+- ✅ [docs/mcp-integration.md](./mcp-integration.md) - System overview
 
 #### Phase 7.4: Permission System UI
 **Priority:** HIGH | **Status:** ✅ Completed
 
 - [x] Design permission dialog component
 - [x] Implement approval workflow
-- [x] Add "Remember this choice" option (per-path basis)
-- [x] Build permission history viewer (via audit logs)
-- [x] Create revoke permissions UI (via settings)
+- [x] Add audit log entry creation
 - [x] Test permission denial handling
+- [x] Build MCP status indicator (Off/Ready/Limited/Error)
+- [x] Add capability warnings in UI
 
 **Permission Dialog Features:**
 - ✅ Clear description of requested operation
@@ -375,8 +389,14 @@ const OFFICIAL_MCP_SERVERS = {
 - ✅ Graceful handling of user denial
 - ✅ Framer Motion animations for smooth UX
 
+**MCP Status Indicator:**
+- ✅ **Off (gray)** - MCP disabled
+- ✅ **Ready (green)** - Compatible model with tool calling
+- ✅ **Limited (yellow)** - Model without tool calling support
+- ✅ **Error (red)** - MCP initialization failed
+
 #### Phase 7.5: Additional Official Servers
-**Priority:** LOW | **Status:** 📋 Planned (Phase 9+)
+**Priority:** LOW | **Status:** 📋 Planned (Phase 10+)
 
 - [ ] Evaluate git server integration
 - [ ] Evaluate memory server integration
@@ -384,7 +404,7 @@ const OFFICIAL_MCP_SERVERS = {
 - [ ] Test fetch server for enhanced web search
 - [ ] Document each server's use case
 
-**Future MCP Servers (After File Operations):**
+**Future MCP Servers (After Tool-Calling Models):**
 - git (repository analysis)
 - memory (persistent agent memory)
 - GitHub (code exploration)
@@ -392,8 +412,8 @@ const OFFICIAL_MCP_SERVERS = {
 
 **Dependencies:** Core chat functionality ✅ Complete  
 **Blockers:** None  
-**Completion Date:** November 4, 2025  
-**Total Development Time:** ~3 weeks (accelerated from 4-6 week estimate)
+**Completion Date:** November 2025  
+**Total Development Time:** ~3 weeks
 **Documentation:** ✅ Complete - [docs/features/MCP_INTEGRATION.md](./features/MCP_INTEGRATION.md)
 
 **Resources:**
@@ -409,6 +429,13 @@ const OFFICIAL_MCP_SERVERS = {
 - ✅ Full audit logging of all MCP activity
 - ✅ No telemetry or external reporting
 - ✅ Transparent operation visible to user
+
+**Architectural Simplification (November 2025):**
+- ✅ Removed intent detection system (-418 lines)
+- ✅ Single tool calling format (XML only)
+- ✅ Model capabilities system (dynamic feature gating)
+- ✅ Clear warnings for incompatible models
+- ✅ Focus on proper tool-calling models (Llama 3.3 70B, Qwen 2.5 Coder 32B)
 
 ---
 
@@ -525,34 +552,136 @@ const OFFICIAL_MCP_SERVERS = {
 
 ---
 
-### Phase 8: File Operations (Current Focus)
+### Phase 8: Model Capabilities & Tool Calling
 
-**Status:** 🔄 In Progress | **Branch:** `feature/file-operations`
+**Status:** ✅ Completed (November 2025) | **Branch:** Merged to `main`
 
-Building on the revolutionary MCP integration, this phase expands file operation capabilities with write, delete, and advanced features.
+Following the MCP integration, this phase implemented a dynamic model capabilities system and simplified tool calling architecture.
 
-#### 8.1: Write Operations
+#### 8.1: Model Capabilities System
+**Priority:** HIGH | **Status:** ✅ Completed
+
+- [x] Design ModelCapabilities interface (toolCalling, complexReasoning, etc.)
+- [x] Create useModelCapabilities hook for React integration
+- [x] Add capability metadata to all models
+- [x] Implement capability-based feature gating
+- [x] Build warning system for incompatible models
+- [x] Update MCP status to show "Limited" for incompatible models
+- [x] Create MODEL_CAPABILITIES.md documentation
+
+**Completed Features:**
+- ✅ **ModelCapabilities interface** - Structured capability flags
+- ✅ **useModelCapabilities hook** - `supports`, `shouldEnable`, `getWarning(feature)`
+- ✅ **Model metadata** - All models have capability definitions
+- ✅ **Dynamic feature gating** - MCP auto-enabled for tool-calling models
+- ✅ **Warning system** - Clear messages for feature limitations
+- ✅ **MCP status indicator** - Shows "Limited" (yellow) for incompatible models
+- ✅ **UI warnings** - Chat header + settings warnings for limited capability
+- ✅ **Comprehensive documentation** - [MODEL_CAPABILITIES.md](./features/MODEL_CAPABILITIES.md)
+
+**Current Model Capabilities:**
+```typescript
+// Qwen 7B, Llama 3B, Mistral 7B (Current)
+{ toolCalling: false, complexReasoning: false, codeGeneration: true }
+
+// Recommended for MCP (Future)
+// Llama 3.3 70B, Qwen 2.5 Coder 32B, Mistral Large
+{ toolCalling: true, complexReasoning: true, codeGeneration: true }
+```
+
+**Files Created:**
+- `src/hooks/useModelCapabilities.ts` (97 lines)
+- `docs/features/MODEL_CAPABILITIES.md` (165 lines)
+
+**Dependencies:** MCP Integration ✅ Complete  
+**Completion Date:** November 2025  
+**Documentation:** [MODEL_CAPABILITIES.md](./features/MODEL_CAPABILITIES.md)
+
+#### 8.2: Architecture Simplification - Intent Detection Removal
+**Priority:** HIGH | **Status:** ✅ Completed
+
+- [x] Remove intent detection system (intentDetector.ts, intentDetector.test.ts)
+- [x] Update messageHandler.ts to remove fallback logic
+- [x] Focus on XML-only tool calling format
+- [x] Update all documentation to reflect changes
+- [x] Add migration notes to CHANGELOG
+
+**Architectural Changes:**
+- ✅ **Removed intentDetector.ts** (218 lines) - Regex-based NLP detection
+- ✅ **Removed intentDetector.test.ts** (200 lines) - Intent detection tests
+- ✅ **Cleaned messageHandler.ts** (110 lines removed) - Removed fallback logic
+- ✅ **XML-only tool calling** - Single format for all operations
+- ✅ **Simplified architecture** - No dual-system complexity
+
+**Rationale:**
+- Intent detection added maintenance burden with two systems
+- XML tool calling is MCP standard format
+- Better to focus on models with native function calling
+- Clearer user expectations via capability warnings
+
+**Tool Calling Format (XML):**
+```xml
+<tool_call>
+  <server>filesystem</server>
+  <tool>read_file</tool>
+  <arguments>
+    {"path": "C:\\Users\\Username\\Desktop\\file.txt"}
+  </arguments>
+</tool_call>
+```
+
+**Files Deleted:**
+- `src/handlers/intentDetector.ts` (218 lines)
+- `src/handlers/intentDetector.test.ts` (200 lines)
+
+**Documentation Updates:**
+- ✅ Updated [mcp-integration.md](./mcp-integration.md) - Warning banner
+- ✅ Updated [MODEL_CAPABILITIES.md](./features/MODEL_CAPABILITIES.md) - Removal notice
+- ✅ Updated [CHANGELOG.md](../CHANGELOG.md) - Breaking changes
+- ✅ Updated test guides - New enable procedures
+
+**Dependencies:** MCP Integration ✅ Complete  
+**Completion Date:** November 2025  
+**Code Reduction:** -418 lines (cleaner codebase)
+
+---
+
+### Phase 9: File Operations (Future)
+
+**Status:** 📋 Planned | **Branch:** TBD
+
+Building on the MCP XML tool calling format, this phase will expand file operations with proper tool-calling models.
+
+**Note:** This phase requires models with native function calling support (see MODEL_CAPABILITIES.md for recommendations).
+
+#### 9.1: Write Operations
 **Priority:** HIGH | **Status:** 📋 Planned
 
-- [ ] Implement write file intent detection
-- [ ] Extract content from natural language and code blocks
+- [ ] Download model with native function calling (Llama 3.3 70B, Qwen 2.5 Coder 32B)
+- [ ] Test XML tool calling for write operations
 - [ ] Add write permission dialog with content preview
 - [ ] Handle file overwrite confirmations
-- [ ] Support multi-line content
+- [ ] Support multi-line content via XML arguments
 - [ ] Validate safe file extensions (.txt, .md, .json, .csv)
 - [ ] Block dangerous extensions (.exe, .bat, .ps1)
 - [ ] Add write operation audit logging
 - [ ] Test write operations end-to-end
 
-**Pattern Examples:**
-- "write 'hello world' to file.txt on desktop"
-- "create a file called notes.txt with this content: ..."
-- "save the following to test.txt: [content]"
+**XML Format Example:**
+```xml
+<tool_call>
+  <server>filesystem</server>
+  <tool>write_file</tool>
+  <arguments>
+    {"path": "C:\\Users\\User\\Desktop\\file.txt", "content": "Hello World"}
+  </arguments>
+</tool_call>
+```
 
-**Dependencies:** MCP Integration ✅ Complete  
-**Estimated Time:** 1 week
+**Dependencies:** Model with toolCalling: true  
+**Estimated Time:** 1 week (after model download)
 
-#### 8.2: Enhanced List Operations
+#### 9.2: Enhanced List Operations
 **Priority:** MEDIUM | **Status:** 📋 Planned
 
 - [ ] Format directory listings for readability
@@ -563,13 +692,13 @@ Building on the revolutionary MCP integration, this phase expands file operation
 - [ ] Support filtering by extension
 - [ ] Implement recursive listing option
 
-**Dependencies:** MCP Integration ✅ Complete  
+**Dependencies:** Model with toolCalling: true  
 **Estimated Time:** 3-5 days
 
-#### 8.3: Delete Operations
+#### 9.3: Delete Operations
 **Priority:** MEDIUM | **Status:** 📋 Planned
 
-- [ ] Implement delete file intent detection
+- [ ] Test XML tool calling for delete operations
 - [ ] Create strong confirmation dialogs
 - [ ] Display file details before deletion
 - [ ] Prevent system file deletion
@@ -577,19 +706,25 @@ Building on the revolutionary MCP integration, this phase expands file operation
 - [ ] Optional move to Recycle Bin (if possible)
 - [ ] Test permission denial handling
 
-**Pattern Examples:**
-- "delete file.txt from desktop"
-- "remove old_notes.txt"
-- "trash the file test.txt"
+**XML Format Example:**
+```xml
+<tool_call>
+  <server>filesystem</server>
+  <tool>delete_file</tool>
+  <arguments>
+    {"path": "C:\\Users\\User\\Desktop\\old.txt"}
+  </arguments>
+</tool_call>
+```
 
-**Dependencies:** MCP Integration ✅ Complete  
+**Dependencies:** Model with toolCalling: true  
 **Estimated Time:** 3-5 days
 
-#### 8.4: Advanced Features (Future)
+#### 9.4: Advanced Features (Future)
 **Priority:** LOW | **Status:** 📋 Planned
 
 - [ ] File moving/renaming
-- [ ] Batch operations ("delete all .tmp files")
+- [ ] Batch operations
 - [ ] File search by name pattern
 - [ ] Content search (grep-like)
 - [ ] JSON parsing and querying
@@ -597,9 +732,6 @@ Building on the revolutionary MCP integration, this phase expands file operation
 
 **Dependencies:** Write + Delete operations  
 **Estimated Time:** 1-2 weeks
-
-**Documentation:**
-- 📄 [docs/features/FILE_OPERATIONS_ROADMAP.md](./features/FILE_OPERATIONS_ROADMAP.md) - Complete roadmap
 
 ---
 
@@ -729,7 +861,15 @@ Building on the revolutionary MCP integration, this phase expands file operation
   - Intent-Based Detection ✅
 
 ### December 2025 (Current Focus)
-- 🔄 **File Operations** (Phase 8 - In Progress)
+- 🎯 **Model Capabilities & Architecture Simplification** ✅ **COMPLETED**
+  - Model capabilities system ✅
+  - Intent detection removal ✅
+  - XML-only tool calling ✅
+  - Documentation updates ✅
+- **Download Tool-Calling Models** (next priority)
+  - Llama 3.3 70B or Qwen 2.5 Coder 32B
+  - Test MCP with native function calling
+- **File Operations** (after model download)
   - Write operations
   - Enhanced list formatting
   - Delete operations
@@ -782,12 +922,21 @@ Building on the revolutionary MCP integration, this phase expands file operation
 
 ---
 
-**Last Updated:** November 4, 2025
+**Last Updated:** November 2025
 
 **Recent Completions:**
-- ✅ **MCP Integration - COMPLETE** (Nov 4, 2025)
-  - Intent-based detection system (works with ANY LLM)
-  - Filesystem operations (read, list)
+- ✅ **Model Capabilities System - COMPLETE** (Nov 2025)
+  - Dynamic feature gating based on model capabilities
+  - MCP status shows "Limited" for incompatible models
+  - Warning system in UI (header + settings)
+  - Comprehensive documentation (MODEL_CAPABILITIES.md)
+- ✅ **Architecture Simplification - COMPLETE** (Nov 2025)
+  - Removed intent detection system (-418 lines)
+  - XML-only tool calling format
+  - Cleaner, more maintainable codebase
+  - Updated all documentation
+- ✅ **MCP Integration - COMPLETE** (Nov 2025)
+  - Filesystem operations with XML tool calling
   - Permission dialog system
   - Audit logging
   - Security architecture
@@ -799,13 +948,12 @@ Building on the revolutionary MCP integration, this phase expands file operation
 - ✅ CI/CD pipeline improvements (ESLint, Prettier, line count checks)
 
 **Current Focus:**
-- 🔄 File Operations (write, delete, advanced features)
-- Branch: `feature/file-operations`
-- Documentation: [FILE_OPERATIONS_ROADMAP.md](./features/FILE_OPERATIONS_ROADMAP.md)
+- 🎯 Download models with native function calling (Llama 3.3 70B, Qwen 2.5 Coder 32B)
+- 🎯 Test MCP with tool-calling models
+- 🎯 Verify MCP shows "Ready" (green) for compatible models
 
 **Next Up:**
-- Write file operations with content extraction
-- Enhanced directory listings with formatting
-- Delete operations with safety confirmations
+- File Operations (write, delete, advanced features) - requires tool-calling model
 - Performance optimization (comprehensive testing)
 - Additional MCP servers (git, memory, GitHub)
+- Documentation polish and user guides
