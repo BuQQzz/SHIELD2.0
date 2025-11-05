@@ -146,8 +146,12 @@ export class LlamaService {
       console.log(`[LlamaService] Loading catalog model: ${modelPath}`);
     }
 
+    // Load model - let llama.cpp auto-detect optimal GPU layers
+    // It will automatically offload to RAM if needed
     this.model = await this.llama.loadModel({
       modelPath,
+      // gpuLayers: "auto" allows llama.cpp to determine the best split
+      // between GPU and CPU based on available VRAM
     });
 
     let contextSize = config.contextSize || 2048;
@@ -172,7 +176,7 @@ export class LlamaService {
         );
 
         // Try progressively smaller context sizes
-        const fallbackSizes = [16384, 8192, 4096, 2048];
+        const fallbackSizes = [16384, 8192, 4096, 2048, 1024, 512];
         let contextCreated = false;
 
         for (const fallbackSize of fallbackSizes) {
@@ -186,7 +190,7 @@ export class LlamaService {
               contextSize: fallbackSize,
             });
 
-            warning = `⚠️ Insufficient VRAM for requested context size (${contextSize}). Reduced to ${fallbackSize} tokens. Performance may be slower as the system will use RAM to compensate. For better performance, consider using a smaller model or upgrading your GPU.`;
+            warning = `⚠️ Insufficient VRAM for requested context size (${contextSize}). Reduced to ${fallbackSize} tokens. This large model is using system RAM for some layers, which will be slower. For better performance, consider using a smaller model or upgrading your GPU.`;
             console.warn(`[LlamaService] ${warning}`);
             contextSize = fallbackSize;
             contextCreated = true;
@@ -200,8 +204,10 @@ export class LlamaService {
         }
 
         if (!contextCreated) {
-          // If all fallbacks failed, throw the original error
-          throw error;
+          // If all fallbacks failed, throw a more helpful error
+          throw new Error(
+            `Unable to load this model even with minimum context size. The model (${path.basename(modelPath)}) requires more VRAM than available. Try a smaller quantization (e.g., Q4_K_S instead of Q4_K_M) or a smaller model.`
+          );
         }
       } else {
         // Non-VRAM related error, rethrow
