@@ -9,6 +9,7 @@ import { MessageList } from "./components/chat/MessageList";
 import { ChatInput, type ChatInputRef } from "./components/chat/ChatInput";
 import { LazySettingsDialog, LazyTemplateSelector } from "./components/lazy";
 import { PermissionDialog, type PermissionRequest } from "./components/dialogs/PermissionDialog";
+import { WriteFileDialog, type WriteFileRequest } from "./components/dialogs/WriteFileDialog";
 import { ThemeProvider } from "./components/theme/ThemeProvider";
 import { useLlama, type Message } from "./hooks/useLlama";
 import { useConversationStore } from "./stores/conversation-store";
@@ -35,6 +36,7 @@ function App() {
   const [templateSelectorOpen, setTemplateSelectorOpen] = useState(false);
   const [isWebSearching, setIsWebSearching] = useState(false);
   const [permissionRequest, setPermissionRequest] = useState<PermissionRequest | null>(null);
+  const [writeFileRequest, setWriteFileRequest] = useState<WriteFileRequest | null>(null);
   const streamingContentRef = useRef("");
   const inputRef = useRef<ChatInputRef>(null);
 
@@ -132,17 +134,31 @@ function App() {
   // MCP tool call handler - shows permission dialog and executes approved tools
   const handleToolCallRequest = async (toolCall: ToolCallRequest): Promise<MCPToolResult> => {
     return new Promise((resolve) => {
-      // Set the permission request to show the dialog
-      setPermissionRequest({
-        serverName: toolCall.serverName,
-        toolName: toolCall.tool,
-        arguments: toolCall.arguments,
-      });
-      
-      // Store the resolve function to call when user approves/denies
-      // For now, we'll handle this in the dialog callbacks
-      // This is a simplified version - in production you'd want a more robust queue system
-      window._mcpToolResolve = resolve;
+      // Check if this is a write_file operation
+      if (toolCall.tool === 'write_file') {
+        const path = toolCall.arguments.path as string;
+        const content = toolCall.arguments.content as string;
+        
+        // Show WriteFileDialog instead of generic PermissionDialog
+        setWriteFileRequest({
+          path,
+          content,
+          fileExists: false, // TODO: Check if file exists via IPC
+        });
+        
+        // Store the resolve function
+        window._mcpToolResolve = resolve;
+      } else {
+        // For read and list operations, use the generic PermissionDialog
+        setPermissionRequest({
+          serverName: toolCall.serverName,
+          toolName: toolCall.tool,
+          arguments: toolCall.arguments,
+        });
+        
+        // Store the resolve function
+        window._mcpToolResolve = resolve;
+      }
     });
   };
 
@@ -305,6 +321,60 @@ function App() {
           }
           
           setPermissionRequest(null);
+        }}
+      />
+
+      <WriteFileDialog
+        open={!!writeFileRequest}
+        request={writeFileRequest}
+        onApprove={async (_remember: boolean) => {
+          if (!writeFileRequest) return;
+          
+          try {
+            const result = await callTool({
+              serverName: 'filesystem',
+              tool: 'write_file',
+              arguments: {
+                path: writeFileRequest.path,
+                content: writeFileRequest.content,
+              },
+            });
+            
+            console.log("[MCP] Write file result:", result);
+            
+            // Resolve the promise if one is waiting
+            if (window._mcpToolResolve) {
+              window._mcpToolResolve(result);
+              delete window._mcpToolResolve;
+            }
+          } catch (error) {
+            console.error("[MCP] Write file failed:", error);
+            
+            // Resolve with error
+            if (window._mcpToolResolve) {
+              window._mcpToolResolve({
+                success: false,
+                error: error instanceof Error ? error.message : "Unknown error",
+              });
+              delete window._mcpToolResolve;
+            }
+          } finally {
+            setWriteFileRequest(null);
+          }
+        }}
+        onDeny={() => {
+          console.log("[MCP] User denied write file request");
+          
+          // Resolve with denial
+          if (window._mcpToolResolve) {
+            window._mcpToolResolve({
+              success: false,
+              error: "User denied permission",
+            });
+            delete window._mcpToolResolve;
+          }
+          
+          setWriteFileRequest(null);
         }}
       />
     </ChatLayout>
