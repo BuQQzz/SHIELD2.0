@@ -20,12 +20,29 @@ export function useModelDownload(options: UseModelDownloadOptions = {}) {
   useEffect(() => {
     const init = async () => {
       try {
+        // Load installed models
         const result = await window.electronAPI.modelDownload.listInstalled();
         if (result.success && result.models) {
           setInstalledModels(new Set(result.models));
         }
+
+        // Check for any active downloads and restore their progress
+        // This ensures progress is shown even after navigating away and back
+        const activeDownloadIds =
+          await window.electronAPI.modelDownload.getActiveDownloads();
+        if (activeDownloadIds && activeDownloadIds.length > 0) {
+          const progressMap = new Map<string, DownloadProgress>();
+          for (const modelId of activeDownloadIds) {
+            const progressResult =
+              await window.electronAPI.modelDownload.getProgress(modelId);
+            if (progressResult.success && progressResult.progress) {
+              progressMap.set(modelId, progressResult.progress);
+            }
+          }
+          setActiveDownloads(progressMap);
+        }
       } catch (error) {
-        console.error("Failed to load installed models:", error);
+        console.error("Failed to initialize model download state:", error);
       }
     };
 

@@ -345,6 +345,7 @@ export interface ModelDownloadAPI {
     progress?: DownloadProgress | null;
     error?: string;
   }>;
+  getActiveDownloads: () => Promise<string[]>;
   listInstalled: () => Promise<{
     success: boolean;
     models?: string[];

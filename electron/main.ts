@@ -711,6 +711,16 @@ function setupIpcHandlers() {
     }
   });
 
+  ipcMain.handle("model:get-active-downloads", async () => {
+    try {
+      const activeDownloads = modelDownloadService.getActiveDownloads();
+      return activeDownloads;
+    } catch (error) {
+      console.error("Failed to get active downloads:", error);
+      return [];
+    }
+  });
+
   ipcMain.handle("model:list-installed", async () => {
     try {
       const models = await modelDownloadService.listInstalledModels();

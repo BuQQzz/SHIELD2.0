@@ -157,25 +157,53 @@ class ModelDownloadService {
    */
   private async downloadWithProgress(
     model: ModelMetadata,
-    _signal: AbortSignal,
-    _onProgress: (downloaded: number, total: number) => void
+    signal: AbortSignal,
+    onProgress: (downloaded: number, total: number) => void
   ): Promise<string> {
     console.log(`Downloading ${model.displayName}...`);
     console.log(`URI: ${model.uri}`);
     console.log(`Target: ${this.modelsDir}`);
 
-    // node-llama-cpp's resolveModelFile handles progress internally
-    // For now, we'll use it directly and enhance with custom tracking later
+    let lastUpdateTime = Date.now();
+    let lastDownloadedBytes = 0;
+
     const modelPath = await resolveModelFile(model.uri, {
       directory: this.modelsDir,
-      // downloadOptions: { signal }, // Add when supported
-    });
+      onProgress: (status) => {
+        // status: { totalSize: number, downloadedSize: number }
+        const currentTime = Date.now();
+        const timeDelta = (currentTime - lastUpdateTime) / 1000; // seconds
 
-    // TODO: Implement custom progress tracking by:
-    // 1. Intercepting HTTP download stream
-    // 2. Tracking bytes downloaded
-    // 3. Calling onProgress callback
-    // For MVP, we'll simulate progress based on file size estimation
+        const totalDownloaded = status.downloadedSize;
+        const totalSize = status.totalSize;
+
+        // Calculate speed (bytes per second)
+        const bytesDelta = totalDownloaded - lastDownloadedBytes;
+        const speed = timeDelta > 0 ? bytesDelta / timeDelta : 0;
+
+        // Calculate ETA (seconds)
+        const remainingBytes = totalSize - totalDownloaded;
+        const eta = speed > 0 ? remainingBytes / speed : 0;
+
+        // Update progress
+        const progress: DownloadProgress = {
+          modelId: model.id,
+          status: 'downloading',
+          progress: totalSize > 0 ? (totalDownloaded / totalSize) * 100 : 0,
+          downloadedBytes: totalDownloaded,
+          totalBytes: totalSize,
+          speed: Math.round(speed),
+          eta: Math.round(eta),
+        };
+
+        this.sendProgress(progress);
+        this.downloadHistory.set(model.id, progress);
+
+        lastUpdateTime = currentTime;
+        lastDownloadedBytes = totalDownloaded;
+        onProgress(totalDownloaded, totalSize);
+      },
+    });
 
     return modelPath;
   }
