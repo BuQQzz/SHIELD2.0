@@ -26,21 +26,27 @@
 
 ### Test 1: Enable MCP ✅
 
-**Steps:**
+**Method A: Header Button**
 1. Open SHIELD 2.0
-2. Click the **Settings** (gear icon) button
-3. Scroll to **MCP Settings** section
-4. Toggle **Enable MCP** to ON
-5. Click **Initialize MCP** button
+2. Click the **"MCP Off"** button in the top-right header
 
-**Expected Results:**
-- Status indicator in header changes from "Inactive" (gray) → "Initializing" (yellow) → "Ready" (green)
-- No errors appear in console
-- Settings are saved automatically
+**Method B: Settings Panel**
+1. Open SHIELD 2.0
+2. Click the **Settings** (gear icon)
+3. Navigate to **MCP Integration** section
+4. Toggle **Enable MCP** switch
+
+**Expected Results (Both Methods):**
+- Status changes: "MCP Off" → "Initializing..." → "MCP Ready" ✅
+- Header button shows green "MCP Ready" indicator
+- Settings toggle shows as enabled
+- Console shows: `[MCP] Initialization successful`
+- No errors appear
 
 **What to Watch For:**
-- Console should show: `[MCP] Initialization successful`
-- MCP status badge should be visible in top-right of chat header
+- Both UI locations stay in sync
+- Disabling from either location disables MCP
+- Settings persist after app restart
 
 ---
 
@@ -311,7 +317,7 @@ Open DevTools (F12) and watch for these log patterns:
 **Issue: Status shows "Error"**
 - Check: @modelcontextprotocol/server-filesystem is installed
 - Check: Node.js version is compatible
-- Restart application and reinitialize MCP
+- Restart application and toggle MCP off/on to re-initialize
 
 ---
 

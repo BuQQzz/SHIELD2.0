@@ -1,8 +1,22 @@
-# MCP Integration - Proof of Concept
+# MCP Integration
+
+## ⚠️ Important Update (November 2025)
+
+**Intent Detection System Removed**: This document previously described a regex-based intent detection system. This has been removed in favor of focusing on models with native tool calling support. The MCP integration now requires models trained on XML/function calling formats.
+
+**Recommended Models**:
+- Llama 3.3 70B (excellent function calling)
+- Qwen 2.5 Coder 32B (trained on tool use)
+- Mistral Large (native function calling)
+- Command R+ (strong tool calling)
+
+Current models (Qwen 7B, Llama 3B, Mistral 7B) will show "MCP Limited" status as they don't support native tool calling.
+
+---
 
 ## Overview
 
-SHIELD 2.0 now includes Model Context Protocol (MCP) integration, enabling the AI assistant to interact with external tools and services in a secure, privacy-first manner. This proof-of-concept focuses on filesystem operations using the official MCP filesystem server.
+SHIELD 2.0 includes Model Context Protocol (MCP) integration, enabling the AI assistant to interact with external tools and services in a secure, privacy-first manner. This implementation focuses on filesystem operations using the official MCP filesystem server with XML-based tool calling.
 
 ## Architecture
 
@@ -331,7 +345,7 @@ The system automatically extracts content from:
 ## Testing Checklist
 
 ### Functionality Tests
-- [ ] Initialize MCP service on app startup
+- [ ] Enable MCP from settings (auto-initialization)
 - [ ] Connect to filesystem server
 - [ ] List available tools
 - [ ] Read file from Documents folder

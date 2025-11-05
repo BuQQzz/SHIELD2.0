@@ -238,7 +238,9 @@ export function useLlama() {
     }
     try {
       await window.llama.setSystemPrompt(prompt);
-      console.log("[useLlama] System prompt updated");
+      console.log("[useLlama] ✅ System prompt updated");
+      console.log("[useLlama] Prompt length:", prompt.length);
+      console.log("[useLlama] Prompt preview:", prompt.substring(0, 200));
     } catch (err) {
       console.error("[useLlama] setSystemPrompt failed:", err);
       setError(err instanceof Error ? err.message : "Unknown error");

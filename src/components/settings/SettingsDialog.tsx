@@ -14,17 +14,20 @@ import { WebSearchSettings } from "./WebSearchSettings";
 import { MCPSettings } from "./MCPSettings";
 import { HelpSettings } from "./HelpSettings";
 import { useSettingsStore } from "@/store/settingsStore";
+import type { ModelOption } from "@/components/chat/ModelSelector";
 
 interface SettingsDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onApplySystemPrompt?: (prompt: string) => Promise<void>;
+  currentModel?: ModelOption | null;
 }
 
 export function SettingsDialog({
   open,
   onOpenChange,
   onApplySystemPrompt,
+  currentModel,
 }: SettingsDialogProps) {
   const { settings } = useSettingsStore();
   const [activeTab, setActiveTab] = useState("model");
@@ -69,7 +72,7 @@ export function SettingsDialog({
           </TabsContent>
 
           <TabsContent value="mcp" className="space-y-4 mt-4">
-            <MCPSettings settings={settings.mcp} />
+            <MCPSettings settings={settings.mcp} currentModel={currentModel} />
           </TabsContent>
 
           <TabsContent value="help" className="space-y-4 mt-4">
