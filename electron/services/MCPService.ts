@@ -8,7 +8,6 @@
 
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
-import { spawn, ChildProcess } from 'child_process';
 import path from 'path';
 import os from 'os';
 import { app } from 'electron';
@@ -37,7 +36,6 @@ function expandTildePath(filepath: string): string {
 class MCPService {
   private static instance: MCPService | null = null;
   private clients: Map<string, Client> = new Map();
-  private processes: Map<string, ChildProcess> = new Map();
   private isInitialized = false;
 
   /**
@@ -237,18 +235,7 @@ class MCPService {
       }
     }
 
-    // Kill all server processes
-    for (const [serverName, process] of this.processes.entries()) {
-      try {
-        process.kill();
-        console.log(`[MCPService] Killed ${serverName} process`);
-      } catch (error) {
-        console.error(`[MCPService] Error killing ${serverName}:`, error);
-      }
-    }
-
     this.clients.clear();
-    this.processes.clear();
     this.isInitialized = false;
 
     console.log('[MCPService] Shutdown complete');
