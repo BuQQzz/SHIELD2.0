@@ -21,6 +21,12 @@ export interface ModelCapabilities {
   multilingual: "excellent" | "good" | "basic";
   /** Recommended temperature range */
   temperatureRange: { min: number; max: number; default: number };
+  /** Allow additional capability keys */
+  [key: string]:
+    | boolean
+    | string
+    | { min: number; max: number; default: number }
+    | undefined;
 }
 
 /**

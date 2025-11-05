@@ -5,29 +5,39 @@
  * hardware requirements, and download/install status
  */
 
-import { Download, Check, HardDrive, Cpu, Database } from "lucide-react";
+import { Download, Check, HardDrive, Cpu, Database, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { CapabilityBadgeGroup } from "./CapabilityBadge";
+import { DownloadProgressBar } from "./DownloadProgressBar";
 import type { ModelMetadata } from "@/config/models";
+import type { DownloadProgress } from "@/types/electron";
 import { cn } from "@/lib/utils";
 
 interface ModelCardProps {
   model: ModelMetadata;
+  isInstalled: boolean;
+  downloadProgress?: DownloadProgress;
   onDownload?: (model: ModelMetadata) => void;
-  isDownloading?: boolean;
-  downloadProgress?: number;
+  onCancel?: (modelId: string) => void;
+  onDelete?: (model: ModelMetadata) => void;
   compact?: boolean;
 }
 
 export function ModelCard({
   model,
-  onDownload,
-  isDownloading = false,
+  isInstalled,
   downloadProgress,
+  onDownload,
+  onCancel,
+  onDelete,
   compact = false,
 }: ModelCardProps) {
-  const handleDownload = () => {
-    if (onDownload && !model.isInstalled && !isDownloading) {
+  const isDownloading = downloadProgress?.status === "downloading";
+
+  const handleAction = () => {
+    if (isDownloading && onCancel) {
+      onCancel(model.id);
+    } else if (!isInstalled && !isDownloading && onDownload) {
       onDownload(model);
     }
   };
@@ -59,22 +69,40 @@ export function ModelCard({
         </div>
 
         {/* Download/Status Button */}
-        {model.isInstalled ? (
+        {isInstalled ? (
+          <div className="flex items-center gap-2">
+            <Button
+              size="sm"
+              variant="outline"
+              disabled
+              className="shrink-0 gap-2"
+            >
+              <Check className="h-4 w-4 text-green-600" />
+              Installed
+            </Button>
+            {onDelete && (
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={() => onDelete(model)}
+                className="shrink-0"
+                title="Delete model"
+              >
+                <Database className="h-4 w-4" />
+              </Button>
+            )}
+          </div>
+        ) : isDownloading ? (
           <Button
             size="sm"
             variant="outline"
-            disabled
+            onClick={handleAction}
             className="shrink-0 gap-2"
           >
-            <Check className="h-4 w-4 text-green-600" />
-            Installed
-          </Button>
-        ) : isDownloading ? (
-          <Button size="sm" variant="outline" disabled className="shrink-0">
-            {downloadProgress !== undefined ? `${downloadProgress}%` : "..."}
+            Cancel
           </Button>
         ) : (
-          <Button size="sm" onClick={handleDownload} className="shrink-0 gap-2">
+          <Button size="sm" onClick={handleAction} className="shrink-0 gap-2">
             <Download className="h-4 w-4" />
             Download
           </Button>
@@ -113,18 +141,12 @@ export function ModelCard({
       </div>
 
       {/* Download Progress Bar */}
-      {isDownloading && downloadProgress !== undefined && (
-        <div className="space-y-1">
-          <div className="h-2 bg-muted rounded-full overflow-hidden">
-            <div
-              className="h-full bg-primary transition-all duration-300"
-              style={{ width: `${downloadProgress}%` }}
-            />
-          </div>
-          <p className="text-xs text-muted-foreground text-center">
-            Downloading... {downloadProgress}%
-          </p>
-        </div>
+      {isDownloading && downloadProgress && (
+        <DownloadProgressBar
+          progress={downloadProgress}
+          size="md"
+          showDetails
+        />
       )}
     </div>
   );

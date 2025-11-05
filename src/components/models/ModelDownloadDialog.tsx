@@ -25,13 +25,12 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { ModelCard } from "./ModelCard";
 import { MODEL_CATALOG, type ModelMetadata } from "@/config/models";
+import { useModelDownload } from "@/hooks/useModelDownload";
 import { cn } from "@/lib/utils";
 
 interface ModelDownloadDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onDownload?: (model: ModelMetadata) => void;
-  downloadingModels?: Map<string, number>; // modelId -> progress %
 }
 
 type FilterType = "all" | "tool-calling" | "coding" | "efficient" | "installed";
@@ -39,11 +38,28 @@ type FilterType = "all" | "tool-calling" | "coding" | "efficient" | "installed";
 export function ModelDownloadDialog({
   open,
   onOpenChange,
-  onDownload,
-  downloadingModels = new Map(),
 }: ModelDownloadDialogProps) {
   const [filter, setFilter] = useState<FilterType>("all");
   const [searchQuery, setSearchQuery] = useState("");
+
+  // Use download hook
+  const {
+    installedModels,
+    startDownload,
+    cancelDownload,
+    deleteModel,
+    isInstalled,
+    getProgress,
+  } = useModelDownload({
+    onComplete: (modelId) => {
+      const model = MODEL_CATALOG.find((m) => m.id === modelId);
+      console.log(`Download complete: ${model?.displayName}`);
+    },
+    onError: (modelId, error) => {
+      const model = MODEL_CATALOG.find((m) => m.id === modelId);
+      console.error(`Download failed for ${model?.displayName}:`, error);
+    },
+  });
 
   // Filter models based on selected filter and search
   const filteredModels = useMemo(() => {
@@ -64,7 +80,7 @@ export function ModelDownloadDialog({
         });
         break;
       case "installed":
-        models = models.filter((m) => m.isInstalled);
+        models = models.filter((m) => isInstalled(m.id));
         break;
       // "all" - no filter
     }
@@ -82,7 +98,7 @@ export function ModelDownloadDialog({
     }
 
     return models;
-  }, [filter, searchQuery]);
+  }, [filter, searchQuery, isInstalled]);
 
   // Group models by category
   const groupedModels = useMemo(() => {
@@ -107,7 +123,7 @@ export function ModelDownloadDialog({
   }, [filteredModels]);
 
   const totalModels = MODEL_CATALOG.length;
-  const installedCount = MODEL_CATALOG.filter((m) => m.isInstalled).length;
+  const installedCount = installedModels.size;
   const toolCallingCount = MODEL_CATALOG.filter(
     (m) => m.capabilities.toolCalling
   ).length;
@@ -198,9 +214,11 @@ export function ModelDownloadDialog({
                       <ModelCard
                         key={model.id}
                         model={model}
-                        onDownload={onDownload}
-                        isDownloading={downloadingModels.has(model.id)}
-                        downloadProgress={downloadingModels.get(model.id)}
+                        isInstalled={isInstalled(model.id)}
+                        downloadProgress={getProgress(model.id)}
+                        onDownload={startDownload}
+                        onCancel={cancelDownload}
+                        onDelete={deleteModel}
                       />
                     ))}
                   </div>
@@ -228,9 +246,11 @@ export function ModelDownloadDialog({
                       <ModelCard
                         key={model.id}
                         model={model}
-                        onDownload={onDownload}
-                        isDownloading={downloadingModels.has(model.id)}
-                        downloadProgress={downloadingModels.get(model.id)}
+                        isInstalled={isInstalled(model.id)}
+                        downloadProgress={getProgress(model.id)}
+                        onDownload={startDownload}
+                        onCancel={cancelDownload}
+                        onDelete={deleteModel}
                       />
                     ))}
                   </div>
@@ -258,9 +278,11 @@ export function ModelDownloadDialog({
                       <ModelCard
                         key={model.id}
                         model={model}
-                        onDownload={onDownload}
-                        isDownloading={downloadingModels.has(model.id)}
-                        downloadProgress={downloadingModels.get(model.id)}
+                        isInstalled={isInstalled(model.id)}
+                        downloadProgress={getProgress(model.id)}
+                        onDownload={startDownload}
+                        onCancel={cancelDownload}
+                        onDelete={deleteModel}
                       />
                     ))}
                   </div>
