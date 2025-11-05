@@ -132,7 +132,19 @@ export class LlamaService {
 
     // Resolve and load model
     const modelsDir = this.getModelsDir();
-    const modelPath = await resolveModelFile(config.uri, modelsDir);
+    let modelPath: string;
+
+    // Check if it's a custom local file (file:// URI) or Hugging Face URI
+    if (config.uri.startsWith("file://")) {
+      // Custom model: extract filename and build path
+      const filename = config.uri.replace("file://", "");
+      modelPath = path.join(modelsDir, filename);
+      console.log(`[LlamaService] Loading custom model: ${modelPath}`);
+    } else {
+      // Standard Hugging Face model
+      modelPath = await resolveModelFile(config.uri, modelsDir);
+      console.log(`[LlamaService] Loading catalog model: ${modelPath}`);
+    }
 
     this.model = await this.llama.loadModel({
       modelPath,

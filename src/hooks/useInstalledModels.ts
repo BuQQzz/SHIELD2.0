@@ -83,10 +83,37 @@ export function useInstalledModels() {
               capabilities: catalogEntry.capabilities,
             });
           } else {
-            // If no catalog match, log for debugging
+            // Unknown model - create a basic entry for it
+            // This allows users to use any .gguf model they've added manually
+            const modelName = filename.replace(/\.gguf$/i, "");
+            const displayName = modelName
+              .split(/[-._]/)
+              .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+              .join(" ");
+
             console.log(
-              `[useInstalledModels] No catalog match for file: ${filename}`
+              `[useInstalledModels] Adding unknown model: ${filename}`
             );
+
+            installed.push({
+              id: `custom-${modelName}`,
+              name: modelName,
+              displayName: displayName,
+              uri: `file://${filename}`, // Use file:// to indicate it's a local file
+              size: "Unknown",
+              description: "Custom model (not in catalog)",
+              contextSize: 4096, // Default context size
+              capabilities: {
+                toolCalling: false,
+                complexReasoning: true,
+                webSearch: true,
+                structuredOutput: false,
+                longContext: false,
+                codeGeneration: true,
+                multilingual: "basic" as const,
+                temperatureRange: { min: 0.1, max: 1.5, default: 0.7 },
+              },
+            });
           }
         }
 
