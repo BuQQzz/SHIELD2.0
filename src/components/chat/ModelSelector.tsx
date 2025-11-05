@@ -8,6 +8,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import type { ModelCapabilities } from "@/config/models";
 
 export interface ModelOption {
   id: string;
@@ -17,6 +18,7 @@ export interface ModelOption {
   size: string;
   description: string;
   contextSize: number;
+  capabilities?: ModelCapabilities;
 }
 
 interface ModelSelectorProps {

@@ -29,6 +29,13 @@ interface Settings {
     provider: "duckduckgo";
     showReasoning: boolean;
   };
+  mcp: {
+    enabled: boolean;
+    allowedServers: string[];
+    showPermissionDialog: boolean;
+    rememberChoices: boolean;
+    auditLogRetentionDays: number;
+  };
 }
 
 const DEFAULT_SETTINGS: Settings = {
@@ -57,6 +64,13 @@ const DEFAULT_SETTINGS: Settings = {
     cacheTTL: 1440,
     provider: "duckduckgo",
     showReasoning: false,
+  },
+  mcp: {
+    enabled: false,
+    allowedServers: ["filesystem"],
+    showPermissionDialog: true,
+    rememberChoices: false,
+    auditLogRetentionDays: 30,
   },
 };
 
@@ -242,6 +256,10 @@ export class SettingsStorageService {
         ...DEFAULT_SETTINGS.webSearch,
         ...settings.webSearch,
       },
+      mcp: {
+        ...DEFAULT_SETTINGS.mcp,
+        ...settings.mcp,
+      },
     };
   }
 
@@ -301,6 +319,21 @@ export class SettingsStorageService {
         typeof webSearch.cacheTTL !== "number" ||
         webSearch.provider !== "duckduckgo" ||
         typeof webSearch.showReasoning !== "boolean"
+      ) {
+        return false;
+      }
+    }
+
+    // Check mcp settings (optional for backward compatibility)
+    if (obj.mcp) {
+      if (typeof obj.mcp !== "object") return false;
+      const mcp = obj.mcp as Record<string, unknown>;
+      if (
+        typeof mcp.enabled !== "boolean" ||
+        !Array.isArray(mcp.allowedServers) ||
+        typeof mcp.showPermissionDialog !== "boolean" ||
+        typeof mcp.rememberChoices !== "boolean" ||
+        typeof mcp.auditLogRetentionDays !== "number"
       ) {
         return false;
       }

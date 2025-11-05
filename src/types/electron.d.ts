@@ -130,7 +130,6 @@ export interface AppSettings {
   };
   mcp: {
     enabled: boolean;
-    autoInitialize: boolean;
     allowedServers: string[];
     showPermissionDialog: boolean;
     rememberChoices: boolean;

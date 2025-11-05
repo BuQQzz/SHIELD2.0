@@ -8,7 +8,7 @@ import { ChatPlaceholder } from "./components/chat/ChatPlaceholder";
 import { MessageList } from "./components/chat/MessageList";
 import { ChatInput, type ChatInputRef } from "./components/chat/ChatInput";
 import { LazySettingsDialog, LazyTemplateSelector } from "./components/lazy";
-import { PermissionDialog, type PermissionRequest } from "./components/dialogs/PermissionDialog";
+import { MCPDialogs } from "./components/dialogs/MCPDialogs";
 import { ThemeProvider } from "./components/theme/ThemeProvider";
 import { useLlama, type Message } from "./hooks/useLlama";
 import { useConversationStore } from "./stores/conversation-store";
@@ -19,11 +19,10 @@ import { useWebSearch } from "./hooks/useWebSearch";
 import { useAppHandlers } from "./hooks/useAppHandlers";
 import { useModelLoader } from "./hooks/useModelLoader";
 import { useMCP } from "./hooks/useMCP";
+import { useMCPDialogs } from "./hooks/useMCPDialogs";
+import { useMCPSystemPrompt } from "./hooks/useMCPSystemPrompt";
 import { createAppShortcuts } from "./config/shortcuts";
 import { AVAILABLE_MODELS } from "./config/models";
-import { getMCPSystemPrompt } from "./handlers/mcpToolHandler";
-import type { ToolCallRequest } from "./handlers/mcpToolHandler";
-import type { MCPToolResult } from "./types/electron";
 import "./App.css";
 
 function App() {
@@ -34,7 +33,6 @@ function App() {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [templateSelectorOpen, setTemplateSelectorOpen] = useState(false);
   const [isWebSearching, setIsWebSearching] = useState(false);
-  const [permissionRequest, setPermissionRequest] = useState<PermissionRequest | null>(null);
   const streamingContentRef = useRef("");
   const inputRef = useRef<ChatInputRef>(null);
 
@@ -65,41 +63,30 @@ function App() {
   const { performSearch, clearResults } = useWebSearch();
   const { isReady: isMCPReady, callTool } = useMCP();
 
+  // MCP dialog management
+  const {
+    permissionRequest,
+    writeFileRequest,
+    handleToolCallRequest,
+    handlePermissionApprove,
+    handlePermissionDeny,
+    handleWriteFileApprove,
+    handleWriteFileDeny,
+  } = useMCPDialogs({ callTool });
+
   // Load settings on mount
   useEffect(() => {
     loadSettings();
   }, [loadSettings]);
 
-  // Update system prompt when MCP status changes OR when model loads
-  useEffect(() => {
-    console.log("[MCP] System prompt effect triggered", {
-      isModelLoaded,
-      isMCPReady,
-      mcpEnabled: settings.mcp?.enabled,
-      shouldAddMCP: isMCPReady && settings.mcp?.enabled
-    });
-    
-    // Only set system prompt if model is loaded
-    if (!isModelLoaded) {
-      console.log("[MCP] ⏳ Model not loaded yet, skipping system prompt update");
-      return;
-    }
-    
-    if (isMCPReady && settings.mcp?.enabled) {
-      const basePrompt = settings.system.systemPrompt;
-      const mcpPrompt = getMCPSystemPrompt();
-      const fullPrompt = `${basePrompt}\n\n${mcpPrompt}`;
-      console.log("[MCP] ✅ MCP is ready and enabled, adding system prompt");
-      console.log("[MCP] Full system prompt length:", fullPrompt.length);
-      console.log("[MCP] MCP tools section:", mcpPrompt);
-      setSystemPrompt(fullPrompt);
-    } else {
-      console.log("[MCP] ❌ MCP not ready or not enabled, using base system prompt only");
-      console.log("[MCP] - isMCPReady:", isMCPReady);
-      console.log("[MCP] - settings.mcp?.enabled:", settings.mcp?.enabled);
-      setSystemPrompt(settings.system.systemPrompt);
-    }
-  }, [isModelLoaded, isMCPReady, settings.mcp?.enabled, settings.system.systemPrompt, setSystemPrompt]);
+  // MCP system prompt management
+  useMCPSystemPrompt({
+    isModelLoaded,
+    isMCPReady,
+    mcpEnabled: settings.mcp?.enabled ?? false,
+    baseSystemPrompt: settings.system.systemPrompt,
+    setSystemPrompt,
+  });
 
   // Initialize a new conversation if none exists
   useEffect(() => {
@@ -129,23 +116,6 @@ function App() {
   });
 
   // App handlers hook
-  // MCP tool call handler - shows permission dialog and executes approved tools
-  const handleToolCallRequest = async (toolCall: ToolCallRequest): Promise<MCPToolResult> => {
-    return new Promise((resolve) => {
-      // Set the permission request to show the dialog
-      setPermissionRequest({
-        serverName: toolCall.serverName,
-        toolName: toolCall.tool,
-        arguments: toolCall.arguments,
-      });
-      
-      // Store the resolve function to call when user approves/denies
-      // For now, we'll handle this in the dialog callbacks
-      // This is a simplified version - in production you'd want a more robust queue system
-      window._mcpToolResolve = resolve;
-    });
-  };
-
   const {
     handleSendMessage,
     handleStopGenerating,
@@ -245,6 +215,7 @@ function App() {
           open={settingsOpen}
           onOpenChange={setSettingsOpen}
           onApplySystemPrompt={setSystemPrompt}
+          currentModel={AVAILABLE_MODELS.find(m => m.id === currentModelId)}
         />
       </Suspense>
 
@@ -257,55 +228,13 @@ function App() {
         </Suspense>
       )}
 
-      <PermissionDialog
-        open={!!permissionRequest}
-        request={permissionRequest}
-        onApprove={async (_remember: boolean) => {
-          if (!permissionRequest) return;
-          
-          try {
-            const result = await callTool({
-              serverName: permissionRequest.serverName,
-              tool: permissionRequest.toolName,
-              arguments: permissionRequest.arguments || {},
-            });
-            
-            console.log("[MCP] Tool result:", result);
-            
-            // Resolve the promise if one is waiting
-            if (window._mcpToolResolve) {
-              window._mcpToolResolve(result);
-              delete window._mcpToolResolve;
-            }
-          } catch (error) {
-            console.error("[MCP] Tool call failed:", error);
-            
-            // Resolve with error
-            if (window._mcpToolResolve) {
-              window._mcpToolResolve({
-                success: false,
-                error: error instanceof Error ? error.message : "Unknown error",
-              });
-              delete window._mcpToolResolve;
-            }
-          } finally {
-            setPermissionRequest(null);
-          }
-        }}
-        onDeny={() => {
-          console.log("[MCP] User denied tool request");
-          
-          // Resolve with denial
-          if (window._mcpToolResolve) {
-            window._mcpToolResolve({
-              success: false,
-              error: "User denied permission",
-            });
-            delete window._mcpToolResolve;
-          }
-          
-          setPermissionRequest(null);
-        }}
+      <MCPDialogs
+        permissionRequest={permissionRequest}
+        writeFileRequest={writeFileRequest}
+        onPermissionApprove={handlePermissionApprove}
+        onPermissionDeny={handlePermissionDeny}
+        onWriteFileApprove={handleWriteFileApprove}
+        onWriteFileDeny={handleWriteFileDeny}
       />
     </ChatLayout>
   );

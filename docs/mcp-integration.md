@@ -1,8 +1,22 @@
-# MCP Integration - Proof of Concept
+# MCP Integration
+
+## ⚠️ Important Update (November 2025)
+
+**Intent Detection System Removed**: This document previously described a regex-based intent detection system. This has been removed in favor of focusing on models with native tool calling support. The MCP integration now requires models trained on XML/function calling formats.
+
+**Recommended Models**:
+- Llama 3.3 70B (excellent function calling)
+- Qwen 2.5 Coder 32B (trained on tool use)
+- Mistral Large (native function calling)
+- Command R+ (strong tool calling)
+
+Current models (Qwen 7B, Llama 3B, Mistral 7B) will show "MCP Limited" status as they don't support native tool calling.
+
+---
 
 ## Overview
 
-SHIELD 2.0 now includes Model Context Protocol (MCP) integration, enabling the AI assistant to interact with external tools and services in a secure, privacy-first manner. This proof-of-concept focuses on filesystem operations using the official MCP filesystem server.
+SHIELD 2.0 includes Model Context Protocol (MCP) integration, enabling the AI assistant to interact with external tools and services in a secure, privacy-first manner. This implementation focuses on filesystem operations using the official MCP filesystem server with XML-based tool calling.
 
 ## Architecture
 
@@ -190,26 +204,180 @@ function MyComponent() {
 }
 ```
 
+## File Operations
+
+### Read File
+
+**Natural Language**:
+- "Read the file test.txt on my desktop"
+- "Show me the contents of notes.md in documents"
+- "Open file data.json from desktop"
+
+**Tool Call Format**:
+```xml
+<tool_call>
+<server>filesystem</server>
+<tool>read_file</tool>
+<arguments>
+{
+  "path": "C:\\Users\\Username\\Desktop\\test.txt"
+}
+</arguments>
+</tool_call>
+```
+
+**Permission Dialog**: Shows file path, requests read access
+
+**Result Format**:
+```json
+{
+  "success": true,
+  "data": {
+    "content": [
+      {
+        "type": "text",
+        "text": "File contents here..."
+      }
+    ]
+  }
+}
+```
+
+### Write File
+
+**Natural Language with Content Extraction**:
+- "Create a file called notes.txt on desktop with: Hello World"
+- "Write to config.json in documents: {\"key\": \"value\"}"
+- "Save this code to test.py on desktop:"
+  ```python
+  print("Hello World")
+  ```
+
+**Tool Call Format**:
+```xml
+<tool_call>
+<server>filesystem</server>
+<tool>write_file</tool>
+<arguments>
+{
+  "path": "C:\\Users\\Username\\Desktop\\notes.txt",
+  "content": "Hello World"
+}
+</arguments>
+</tool_call>
+```
+
+**Content Extraction**:
+The system automatically extracts content from:
+- **Markdown code blocks**: ` ```language\ncode\n``` `
+- **Inline code**: `` `content` ``
+- **Quoted text**: `"content"` or `'content'`
+- **Natural language**: "with content: ...", "containing: ..."
+
+**WriteFileDialog Features**:
+- Content preview (scrollable, syntax-highlighted)
+- File size indicator
+- Path validation (blocks C:\Windows, C:\Program Files, etc.)
+- Dangerous extension warning (.exe, .dll, .bat, etc.)
+- Overwrite confirmation if file exists
+- Remember choice option
+
+**Security Checks**:
+1. ✅ Path must be in allowed directories (Desktop/Documents)
+2. ✅ Blocks restricted system paths
+3. ✅ Warns about dangerous file extensions
+4. ✅ Shows content preview before writing
+5. ✅ Requires explicit user approval
+6. ✅ Audit logs all operations
+
+**Result Format**:
+```json
+{
+  "success": true,
+  "data": {
+    "content": [
+      {
+        "type": "text",
+        "text": "Successfully wrote to file.txt"
+      }
+    ]
+  }
+}
+```
+
+### List Directory
+
+**Natural Language**:
+- "List files in my desktop"
+- "Show me files in documents folder"
+- "What files are in my desktop?"
+
+**Tool Call Format**:
+```xml
+<tool_call>
+<server>filesystem</server>
+<tool>list_directory</tool>
+<arguments>
+{
+  "path": "C:\\Users\\Username\\Desktop"
+}
+</arguments>
+</tool_call>
+```
+
+**Permission Dialog**: Shows directory path, requests list access
+
+**Result Format**:
+```json
+{
+  "success": true,
+  "data": {
+    "content": [
+      {
+        "type": "text",
+        "text": "file1.txt\nfile2.pdf\nfolder/"
+      }
+    ]
+  }
+}
+```
+
 ## Testing Checklist
 
 ### Functionality Tests
-- [ ] Initialize MCP service on app startup
+- [ ] Enable MCP from settings (auto-initialization)
 - [ ] Connect to filesystem server
 - [ ] List available tools
 - [ ] Read file from Documents folder
-- [ ] Write file to Documents folder
-- [ ] List directory contents
+- [ ] Read file from Desktop folder
+- [ ] Write file to Documents folder with text content
+- [ ] Write file to Desktop folder with code content
+- [ ] Write file with markdown code block extraction
+- [ ] Write file with inline code extraction
+- [ ] Write file with quoted text extraction
+- [ ] Overwrite existing file (should show warning)
+- [ ] List directory contents (Desktop)
+- [ ] List directory contents (Documents)
 - [ ] Test path restriction enforcement
-- [ ] Verify permission dialog displays correctly
+- [ ] Verify PermissionDialog displays correctly
+- [ ] Verify WriteFileDialog shows content preview
+- [ ] Verify WriteFileDialog warns about overwrites
 - [ ] Test approval/denial workflow
 - [ ] Verify audit logging captures all operations
+- [ ] Test intent detection for all operation types
 
 ### Security Tests
 - [ ] Attempt to access restricted path (should be blocked)
+- [ ] Attempt to write to C:\Windows (should be blocked)
+- [ ] Attempt to write to C:\Program Files (should be blocked)
+- [ ] Attempt to write .exe file (should warn/block)
+- [ ] Attempt to write .dll file (should warn/block)
+- [ ] Attempt to write .bat file (should warn/block)
 - [ ] Verify whitelist prevents non-official servers
 - [ ] Check audit logs contain accurate information
 - [ ] Ensure no data leaves local machine
 - [ ] Test graceful error handling
+- [ ] Verify content preview truncation for large files
 
 ### Edge Cases
 - [ ] Server fails to start

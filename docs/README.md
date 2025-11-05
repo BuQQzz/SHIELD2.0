@@ -24,6 +24,9 @@ Welcome to the SHIELD 2.0 documentation! This directory contains comprehensive g
 - **[EXPORT_IMPORT.md](./features/EXPORT_IMPORT.md)** - Conversation export/import system
 - **[HELP_PAGE.md](./features/HELP_PAGE.md)** - Built-in help & about page
 - **[TAGGING.md](./features/TAGGING.md)** - Conversation tagging system
+- **[WEB_SEARCH.md](./features/WEB_SEARCH.md)** - Web search integration
+- **[WEB_SEARCH_IMPLEMENTATION.md](./features/WEB_SEARCH_IMPLEMENTATION.md)** - Web search technical details
+- **[MODEL_CAPABILITIES.md](./features/MODEL_CAPABILITIES.md)** - Dynamic feature enabling based on model specs
 
 ### Milestones (milestones/)
 - **[M1-ChatUI.md](./milestones/M1-ChatUI.md)** - Chat UI milestone documentation

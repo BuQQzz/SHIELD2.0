@@ -8,10 +8,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Model Capabilities System** for dynamic feature management
+  - Automatically enables/disables features based on model specifications
+  - Capability detection: toolCalling, complexReasoning, webSearch, structuredOutput
+  - Visual warnings when using features model doesn't support well
+  - MCP shows "Limited" state for models without native tool calling
+  - Yellow warning boxes in settings explaining limitations
+  - Tooltips with helpful guidance on when to switch models
+  - Smart feature recommendations based on model strengths
+  - Files created:
+    - `src/hooks/useModelCapabilities.ts` (93 lines) - Capability checking hook
+    - `docs/features/MODEL_CAPABILITIES.md` - Complete documentation
+  - Updated files:
+    - `src/config/models.ts` - Added ModelCapabilities interface and metadata for all models
+    - `src/components/chat/MCPStatus.tsx` - Shows warnings for incompatible models
+    - `src/components/settings/MCPSettings.tsx` - Warning box for model limitations
+    - `src/components/chat/ModelSelector.tsx` - Added capabilities field
+    - `src/App.tsx` - Pass current model to settings dialog
+
 - **MCP (Model Context Protocol) Integration** for secure filesystem operations
-  - Revolutionary intent-based detection system that works with ANY LLM
-  - Regex pattern matching for natural language file operations
-  - No model-specific tool calling APIs required
+  - XML-based tool calling format for AI-to-system communication
+  - Requires models trained on function calling (e.g., Llama 3.3 70B, Qwen 2.5 Coder 32B)
+  - Model Capabilities System shows warnings for models without native tool calling
   - Supports filenames with spaces (e.g., "hello friend.txt")
   - Permission dialog for explicit user approval of all operations
   - Security-first approach with path restrictions
@@ -19,16 +37,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Tilde path expansion (~) for cross-platform compatibility
   - Official @modelcontextprotocol/server-filesystem v2025.8.21 integration
   - Operations supported: read_file, write_file, list_directory
-  - Natural language commands:
-    - "read the file notes.txt on my desktop"
-    - "list files on my desktop"
-    - "show me what's in project.txt from documents"
-  - MCPSettings component for enable/disable control
+  - XML tool call format:
+    ```xml
+    <tool_call>
+    <server>filesystem</server>
+    <tool>write_file</tool>
+    <arguments>{"path": "C:\\Users\\...\\file.txt", "content": "..."}</arguments>
+    </tool_call>
+    ```
+  - **Unified Toggle UX** - One-click enable/disable from main UI or settings
+  - **Header Button** - Quick access MCP toggle in chat header (top-right)
+  - **Settings Panel** - Full control in settings with helpful tips
+  - **Auto-sync** - Both UI locations stay perfectly synchronized
+  - **Auto-initialization** - Enabling automatically initializes MCP service
+  - **Persistent settings** - All MCP settings save across app restarts
+  - **Status indicators** - Clear visual feedback (Off/Initializing/Ready/Limited/Error)
+  - **Enhanced System Prompt** - Strongly directive prompting with examples
+  - **Critical Bug Fix** - setSystemPrompt() now applies immediately while preserving chat history
   - Comprehensive error handling with user-friendly messages
   - Audit logging for all file operations
   - Files created:
-    - `src/handlers/intentDetector.ts` (218 lines) - Natural language intent detection
-    - `src/components/settings/MCPSettings.tsx` (49 lines) - Settings UI
+    - `src/components/chat/MCPStatus.tsx` - Clickable status toggle button
+    - `src/components/settings/MCPSettings.tsx` - Settings panel with capability warnings
     - `electron/services/MCPService.ts` (284 lines) - MCP server lifecycle management
     - `electron/services/MCPServerConfig.ts` (105 lines) - Security configuration
     - `docs/features/MCP_INTEGRATION.md` - Integration documentation

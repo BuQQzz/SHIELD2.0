@@ -86,9 +86,8 @@ SHIELD 2.0 now includes full Model Context Protocol (MCP) integration, enabling 
 
 #### settings.ts
 ```typescript
-export interface MCPSettings {
+interface MCPSettings {
   enabled: boolean;
-  autoInitialize: boolean;
   allowedServers: string[];
   showPermissionDialog: boolean;
   rememberChoices: boolean;
@@ -127,16 +126,24 @@ All tests pass with zero failures. Test suite configured to run on all PRs via G
 
 ### Enabling MCP
 
-1. **Via Settings UI**:
+**Option 1: Main UI (Quickest)**
+   - Click the "MCP Off" button in the top-right header
+   - It will automatically initialize and change to "MCP Ready"
+   - Click again to disable
+
+**Option 2: Settings Panel**
    - Open Settings (gear icon)
    - Navigate to MCP section
-   - Toggle "Enable MCP"
-   - Click "Initialize MCP" button
+   - Toggle "Enable MCP" switch
+   - Automatically initializes when enabled
 
-2. **Programmatically**:
-   ```typescript
-   await window.electronAPI.mcp.initialize();
-   ```
+**Status Indicators:**
+- 🛡️ "MCP Off" (gray) - Inactive, click to enable
+- ⏳ "Initializing..." (gray) - Starting up
+- ✅ "MCP Ready" (green) - Active and ready to use
+- ⚠️ "MCP Error" (red) - Error occurred, click to retry
+
+Both methods sync automatically - changing one updates the other.
 
 ### Example Conversations
 
@@ -215,7 +222,6 @@ IMPORTANT:
 ```typescript
 mcp: {
   enabled: false,              // MCP disabled by default
-  autoInitialize: false,       // Manual initialization required
   allowedServers: ["filesystem"], // Only filesystem server
   showPermissionDialog: true,  // Always show permission UI
   rememberChoices: false,      // No automatic approvals

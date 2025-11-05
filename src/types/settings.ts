@@ -30,7 +30,6 @@ export interface WebSearchSettings {
 
 export interface MCPSettings {
   enabled: boolean;
-  autoInitialize: boolean;
   allowedServers: string[];
   showPermissionDialog: boolean;
   rememberChoices: boolean;
@@ -75,7 +74,6 @@ export const DEFAULT_SETTINGS: AppSettings = {
   },
   mcp: {
     enabled: false,
-    autoInitialize: false,
     allowedServers: ["filesystem"],
     showPermissionDialog: true,
     rememberChoices: false,

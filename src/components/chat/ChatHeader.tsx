@@ -139,7 +139,7 @@ export function ChatHeader({
 
       {/* Right Section */}
       <div className="flex items-center gap-2">
-        <MCPStatus />
+        <MCPStatus currentModel={availableModels.find(m => m.id === currentModelId)} />
         
         {availableModels.length > 0 && onModelSelect && (
           <ModelSelector
