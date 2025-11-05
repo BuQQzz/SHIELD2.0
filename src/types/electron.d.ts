@@ -323,6 +323,45 @@ export interface MCPAPI {
   };
 }
 
+// Model Download Types
+export interface DownloadProgress {
+  modelId: string;
+  status: "downloading" | "completed" | "error" | "cancelled";
+  progress: number; // 0-100
+  downloadedBytes: number;
+  totalBytes: number;
+  speed: number; // bytes per second
+  eta: number; // seconds remaining
+  error?: string;
+}
+
+export interface ModelDownloadAPI {
+  download: (
+    modelId: string
+  ) => Promise<{ success: boolean; path?: string; error?: string }>;
+  cancel: (modelId: string) => Promise<{ success: boolean; error?: string }>;
+  getProgress: (modelId: string) => Promise<{
+    success: boolean;
+    progress?: DownloadProgress | null;
+    error?: string;
+  }>;
+  listInstalled: () => Promise<{
+    success: boolean;
+    models?: string[];
+    error?: string;
+  }>;
+  isInstalled: (
+    modelId: string
+  ) => Promise<{ success: boolean; installed?: boolean; error?: string }>;
+  delete: (modelId: string) => Promise<{ success: boolean; error?: string }>;
+  getDiskSpace: () => Promise<{
+    success: boolean;
+    bytes?: number;
+    error?: string;
+  }>;
+  onProgress: (callback: (progress: DownloadProgress) => void) => () => void;
+}
+
 declare global {
   interface Window {
     llama: LlamaAPI;
@@ -333,6 +372,7 @@ declare global {
       export: ExportAPI;
       webSearch: WebSearchAPI;
       mcp: MCPAPI;
+      modelDownload: ModelDownloadAPI;
     };
     _mcpToolResolve?: (result: MCPToolResult) => void;
   }
