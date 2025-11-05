@@ -1,6 +1,6 @@
 /**
  * MCP Status Indicator & Toggle
- * 
+ *
  * Clickable button to enable/disable MCP from main UI
  * Syncs with settings store and respects model capabilities
  */
@@ -9,7 +9,13 @@ import { useMCP } from "@/hooks/useMCP";
 import { useSettingsStore } from "@/store/settingsStore";
 import { useModelCapabilities } from "@/hooks/useModelCapabilities";
 import { Button } from "@/components/ui/button";
-import { Shield, AlertCircle, CheckCircle2, Loader2, AlertTriangle } from "lucide-react";
+import {
+  Shield,
+  AlertCircle,
+  CheckCircle2,
+  Loader2,
+  AlertTriangle,
+} from "lucide-react";
 import type { ModelOption } from "./ModelSelector";
 
 interface MCPStatusProps {
@@ -24,7 +30,7 @@ export function MCPStatus({ currentModel }: MCPStatusProps) {
 
   const handleToggle = async () => {
     const newState = !mcpEnabled;
-    
+
     // Update settings
     await updateSettings({ mcp: { ...settings.mcp, enabled: newState } });
 
@@ -35,7 +41,7 @@ export function MCPStatus({ currentModel }: MCPStatusProps) {
   };
 
   // Check if model supports MCP well
-  const warning = getWarning('mcp');
+  const warning = getWarning("mcp");
   const hasWarning = warning !== null;
 
   // Show error state
@@ -46,7 +52,7 @@ export function MCPStatus({ currentModel }: MCPStatusProps) {
         size="sm"
         onClick={handleToggle}
         className="gap-2 text-destructive hover:text-destructive"
-        title={`MCP Error: ${error} - Click to ${mcpEnabled ? 'disable' : 'retry'}`}
+        title={`MCP Error: ${error} - Click to ${mcpEnabled ? "disable" : "retry"}`}
       >
         <AlertCircle className="h-4 w-4" />
         <span className="text-xs">MCP Error</span>
@@ -86,7 +92,7 @@ export function MCPStatus({ currentModel }: MCPStatusProps) {
         </Button>
       );
     }
-    
+
     return (
       <Button
         variant="ghost"
@@ -108,7 +114,11 @@ export function MCPStatus({ currentModel }: MCPStatusProps) {
       size="sm"
       onClick={handleToggle}
       className="gap-2 text-muted-foreground hover:text-foreground"
-      title={hasWarning ? `${warning} - Click to enable anyway` : "MCP Inactive - Click to enable"}
+      title={
+        hasWarning
+          ? `${warning} - Click to enable anyway`
+          : "MCP Inactive - Click to enable"
+      }
     >
       <Shield className="h-4 w-4" />
       <span className="text-xs">MCP Off</span>

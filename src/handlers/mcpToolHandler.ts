@@ -1,6 +1,6 @@
 /**
  * MCP Tool Handler
- * 
+ *
  * Detects and processes MCP tool calls in AI responses
  */
 
@@ -15,38 +15,49 @@ export interface ToolCallRequest {
  * Looks for XML-style tool call tags in the response
  */
 export function extractToolCalls(content: string): ToolCallRequest[] {
-  console.log("[MCPToolHandler] Extracting tool calls from content:", content.substring(0, 200));
+  console.log(
+    "[MCPToolHandler] Extracting tool calls from content:",
+    content.substring(0, 200)
+  );
   const toolCalls: ToolCallRequest[] = [];
-  
+
   // Match <tool_call> blocks
   const toolCallRegex = /<tool_call>([\s\S]*?)<\/tool_call>/g;
   let match;
-  
+
   while ((match = toolCallRegex.exec(content)) !== null) {
     console.log("[MCPToolHandler] Found tool call block:", match[0]);
     try {
       const toolCallContent = match[1]?.trim();
       if (!toolCallContent) continue;
-      
+
       // Parse server, tool, and arguments
       const serverMatch = toolCallContent.match(/<server>(.*?)<\/server>/);
       const toolMatch = toolCallContent.match(/<tool>(.*?)<\/tool>/);
-      const argsMatch = toolCallContent.match(/<arguments>([\s\S]*?)<\/arguments>/);
-      
+      const argsMatch = toolCallContent.match(
+        /<arguments>([\s\S]*?)<\/arguments>/
+      );
+
       if (serverMatch?.[1] && toolMatch?.[1]) {
         const serverName = serverMatch[1].trim();
         const tool = toolMatch[1].trim();
         let args: Record<string, unknown> = {};
-        
+
         if (argsMatch?.[1]) {
           try {
             args = JSON.parse(argsMatch[1].trim());
           } catch {
-            console.warn("[MCPToolHandler] Failed to parse arguments, using empty object");
+            console.warn(
+              "[MCPToolHandler] Failed to parse arguments, using empty object"
+            );
           }
         }
-        
-        console.log("[MCPToolHandler] ✅ Extracted tool call:", { serverName, tool, args });
+
+        console.log("[MCPToolHandler] ✅ Extracted tool call:", {
+          serverName,
+          tool,
+          args,
+        });
         toolCalls.push({
           serverName,
           tool,
@@ -57,13 +68,13 @@ export function extractToolCalls(content: string): ToolCallRequest[] {
       console.error("[MCPToolHandler] Error parsing tool call:", error);
     }
   }
-  
+
   console.log("[MCPToolHandler] Total tool calls extracted:", toolCalls.length);
   return toolCalls;
 }
 
 /**
- * Get system prompt for MCP tool awareness  
+ * Get system prompt for MCP tool awareness
  */
 export function getMCPSystemPrompt(): string {
   return `
@@ -196,10 +207,10 @@ export function formatToolResult(
   if (!result.success) {
     return `<tool_result>
 <tool>${toolCall.tool}</tool>
-<error>${result.error || 'Unknown error'}</error>
+<error>${result.error || "Unknown error"}</error>
 </tool_result>`;
   }
-  
+
   return `<tool_result>
 <tool>${toolCall.tool}</tool>
 <result>

@@ -27,7 +27,10 @@ export const useSettingsStore = create<SettingsStore>((set, get) => ({
           model: { ...DEFAULT_SETTINGS.model, ...savedSettings.model },
           system: { ...DEFAULT_SETTINGS.system, ...savedSettings.system },
           privacy: { ...DEFAULT_SETTINGS.privacy, ...savedSettings.privacy },
-          webSearch: { ...DEFAULT_SETTINGS.webSearch, ...savedSettings.webSearch },
+          webSearch: {
+            ...DEFAULT_SETTINGS.webSearch,
+            ...savedSettings.webSearch,
+          },
           mcp: { ...DEFAULT_SETTINGS.mcp, ...(savedSettings.mcp || {}) },
         };
         set({ settings: mergedSettings });
@@ -95,7 +98,10 @@ export const useSettingsStore = create<SettingsStore>((set, get) => ({
           model: { ...DEFAULT_SETTINGS.model, ...importedSettings.model },
           system: { ...DEFAULT_SETTINGS.system, ...importedSettings.system },
           privacy: { ...DEFAULT_SETTINGS.privacy, ...importedSettings.privacy },
-          webSearch: { ...DEFAULT_SETTINGS.webSearch, ...importedSettings.webSearch },
+          webSearch: {
+            ...DEFAULT_SETTINGS.webSearch,
+            ...importedSettings.webSearch,
+          },
           mcp: { ...DEFAULT_SETTINGS.mcp, ...(importedSettings.mcp || {}) },
         };
         set({ settings: mergedSettings });

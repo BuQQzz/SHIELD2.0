@@ -16,8 +16,8 @@ export function MCPSettings({ settings, currentModel }: MCPSettingsProps) {
   const { updateSettings } = useSettingsStore();
   const { isReady, isInitializing, initialize } = useMCP();
   const { getWarning } = useModelCapabilities(currentModel || null);
-  
-  const warning = getWarning('mcp');
+
+  const warning = getWarning("mcp");
   const hasWarning = warning !== null;
 
   const handleToggleMCP = async (enabled: boolean) => {
@@ -53,13 +53,13 @@ export function MCPSettings({ settings, currentModel }: MCPSettingsProps) {
         <div className="space-y-0.5">
           <Label>Enable MCP</Label>
           <div className="text-sm text-muted-foreground">
-            {settings.enabled 
-              ? "AI can access files in Documents and Desktop" 
+            {settings.enabled
+              ? "AI can access files in Documents and Desktop"
               : "Turn on to enable filesystem operations"}
           </div>
         </div>
-        <Switch 
-          checked={settings.enabled} 
+        <Switch
+          checked={settings.enabled}
           onCheckedChange={handleToggleMCP}
           disabled={isInitializing}
         />

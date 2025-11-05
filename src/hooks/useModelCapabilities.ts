@@ -11,73 +11,85 @@ export function useModelCapabilities(currentModel: ModelOption | null) {
     return currentModel?.capabilities || null;
   }, [currentModel]);
 
-  const supports = useMemo(() => ({
-    /**
-     * Can the model reliably use tool calling/function calling?
-     */
-    toolCalling: capabilities?.toolCalling ?? false,
+  const supports = useMemo(
+    () => ({
+      /**
+       * Can the model reliably use tool calling/function calling?
+       */
+      toolCalling: capabilities?.toolCalling ?? false,
 
-    /**
-     * Is the model good at complex reasoning tasks?
-     */
-    complexReasoning: capabilities?.complexReasoning ?? true,
+      /**
+       * Is the model good at complex reasoning tasks?
+       */
+      complexReasoning: capabilities?.complexReasoning ?? true,
 
-    /**
-     * Does the model work well with web search?
-     */
-    webSearch: capabilities?.webSearch ?? true,
+      /**
+       * Does the model work well with web search?
+       */
+      webSearch: capabilities?.webSearch ?? true,
 
-    /**
-     * Can the model follow strict output formats (JSON, XML)?
-     */
-    structuredOutput: capabilities?.structuredOutput ?? false,
+      /**
+       * Can the model follow strict output formats (JSON, XML)?
+       */
+      structuredOutput: capabilities?.structuredOutput ?? false,
 
-    /**
-     * Can the model effectively use long context?
-     */
-    longContext: capabilities?.longContext ?? false,
+      /**
+       * Can the model effectively use long context?
+       */
+      longContext: capabilities?.longContext ?? false,
 
-    /**
-     * Is the model good at generating code?
-     */
-    codeGeneration: capabilities?.codeGeneration ?? true,
+      /**
+       * Is the model good at generating code?
+       */
+      codeGeneration: capabilities?.codeGeneration ?? true,
 
-    /**
-     * Multilingual support quality
-     */
-    multilingual: capabilities?.multilingual ?? 'basic',
+      /**
+       * Multilingual support quality
+       */
+      multilingual: capabilities?.multilingual ?? "basic",
 
-    /**
-     * Recommended temperature settings
-     */
-    temperatureRange: capabilities?.temperatureRange ?? { min: 0.1, max: 1.0, default: 0.7 },
-  }), [capabilities]);
+      /**
+       * Recommended temperature settings
+       */
+      temperatureRange: capabilities?.temperatureRange ?? {
+        min: 0.1,
+        max: 1.0,
+        default: 0.7,
+      },
+    }),
+    [capabilities]
+  );
 
   /**
    * Check if a specific feature should be enabled
    */
-  const shouldEnable = useMemo(() => ({
-    mcp: supports.toolCalling || supports.structuredOutput, // Enable MCP if model supports tools or structured output
-    webSearch: supports.webSearch,
-    advancedSettings: supports.complexReasoning,
-  }), [supports]);
+  const shouldEnable = useMemo(
+    () => ({
+      mcp: supports.toolCalling || supports.structuredOutput, // Enable MCP if model supports tools or structured output
+      webSearch: supports.webSearch,
+      advancedSettings: supports.complexReasoning,
+    }),
+    [supports]
+  );
 
   /**
    * Get warning message if feature is not recommended
    */
-  const getWarning = (feature: 'mcp' | 'webSearch' | 'structuredOutput'): string | null => {
+  const getWarning = (
+    feature: "mcp" | "webSearch" | "structuredOutput"
+  ): string | null => {
     switch (feature) {
-      case 'mcp':
+      case "mcp":
         if (!supports.toolCalling && !supports.structuredOutput) {
           return "This model may not reliably use file operations. Consider using Qwen 7B or Mistral 7B for better results.";
         }
         return null;
-      case 'webSearch':
+      case "webSearch":
         if (!supports.webSearch) {
           return "This model may struggle with processing web search results effectively.";
         }
         return null;
-      case 'structuredOutput':
+      case "structuredOutput":
         if (!supports.structuredOutput) {
           return "This model may not follow structured output formats reliably.";
         }

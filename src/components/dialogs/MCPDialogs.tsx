@@ -1,6 +1,6 @@
 /**
  * MCP Dialogs Component
- * 
+ *
  * Renders permission and write file dialogs for MCP operations
  */
 

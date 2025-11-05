@@ -215,7 +215,7 @@ function App() {
           open={settingsOpen}
           onOpenChange={setSettingsOpen}
           onApplySystemPrompt={setSystemPrompt}
-          currentModel={AVAILABLE_MODELS.find(m => m.id === currentModelId)}
+          currentModel={AVAILABLE_MODELS.find((m) => m.id === currentModelId)}
         />
       </Suspense>
 

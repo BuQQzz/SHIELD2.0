@@ -318,9 +318,7 @@ export interface MCPAPI {
       };
       error?: string;
     }>;
-    export: (
-      filePath: string
-    ) => Promise<{ success: boolean; error?: string }>;
+    export: (filePath: string) => Promise<{ success: boolean; error?: string }>;
     clear: () => Promise<{ success: boolean; error?: string }>;
   };
 }

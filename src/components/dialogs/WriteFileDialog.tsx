@@ -116,7 +116,9 @@ export function WriteFileDialog({
             </div>
             <div>
               <span className="text-xs text-muted-foreground">Size</span>
-              <p className="font-medium text-sm">{getFileSize(request.content)}</p>
+              <p className="font-medium text-sm">
+                {getFileSize(request.content)}
+              </p>
             </div>
           </div>
 
@@ -146,8 +148,8 @@ export function WriteFileDialog({
                 <div className="flex items-start gap-2 rounded-md border-2 border-yellow-500 bg-yellow-50 p-3 text-sm text-yellow-600 dark:bg-yellow-950 dark:text-yellow-400">
                   <AlertTriangle className="mt-0.5 h-4 w-4 flex-shrink-0" />
                   <p>
-                    This will overwrite the existing file. The original content will
-                    be lost.
+                    This will overwrite the existing file. The original content
+                    will be lost.
                   </p>
                 </div>
               )}
@@ -192,7 +194,9 @@ export function WriteFileDialog({
           </Button>
           <Button
             onClick={handleApprove}
-            variant={pathIsRestricted || isDangerous ? "destructive" : "default"}
+            variant={
+              pathIsRestricted || isDangerous ? "destructive" : "default"
+            }
             disabled={pathIsRestricted || isDangerous}
           >
             {pathIsRestricted || isDangerous

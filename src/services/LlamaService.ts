@@ -61,24 +61,28 @@ export class LlamaService {
    */
   async setSystemPrompt(prompt: string): Promise<void> {
     this.systemPrompt = prompt;
-    
+
     // Apply immediately if we have an active session
     if (this.context && this.session) {
-      console.log("[LlamaService] Applying new system prompt to existing session");
-      
+      console.log(
+        "[LlamaService] Applying new system prompt to existing session"
+      );
+
       // Save current chat history
       const currentHistory = this.session.getChatHistory();
-      
+
       // Recreate session with new system prompt
       this.session = new LlamaChatSession({
         contextSequence: this.context.getSequence(),
         systemPrompt: this.systemPrompt,
       });
-      
+
       // Restore chat history
       if (currentHistory && currentHistory.length > 0) {
         this.session.setChatHistory(currentHistory);
-        console.log("[LlamaService] Chat history preserved after system prompt update");
+        console.log(
+          "[LlamaService] Chat history preserved after system prompt update"
+        );
       }
     }
   }
@@ -204,7 +208,10 @@ export class LlamaService {
         }
       });
       this.session.setChatHistory(chatHistory);
-      console.log("[LlamaService] Chat history set, system prompt preserved:", this.systemPrompt.substring(0, 100));
+      console.log(
+        "[LlamaService] Chat history set, system prompt preserved:",
+        this.systemPrompt.substring(0, 100)
+      );
     }
   }
 

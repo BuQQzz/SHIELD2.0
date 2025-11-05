@@ -94,7 +94,7 @@ export function MessageList({
       // Use requestAnimationFrame for smooth, efficient scrolling
       const container = scrollContainerRef.current;
       const endElement = messagesEndRef.current;
-      
+
       if (!container || !endElement) return;
 
       // Only auto-scroll if user is near the bottom (within 150px)

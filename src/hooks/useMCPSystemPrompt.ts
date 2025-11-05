@@ -1,6 +1,6 @@
 /**
  * MCP System Prompt Hook
- * 
+ *
  * Manages MCP system prompt updates based on MCP readiness and settings
  */
 
@@ -27,15 +27,17 @@ export function useMCPSystemPrompt({
       isModelLoaded,
       isMCPReady,
       mcpEnabled,
-      shouldAddMCP: isMCPReady && mcpEnabled
+      shouldAddMCP: isMCPReady && mcpEnabled,
     });
-    
+
     // Only set system prompt if model is loaded
     if (!isModelLoaded) {
-      console.log("[MCP] ⏳ Model not loaded yet, skipping system prompt update");
+      console.log(
+        "[MCP] ⏳ Model not loaded yet, skipping system prompt update"
+      );
       return;
     }
-    
+
     if (isMCPReady && mcpEnabled) {
       const mcpPrompt = getMCPSystemPrompt();
       const fullPrompt = `${baseSystemPrompt}\n\n${mcpPrompt}`;
@@ -44,10 +46,18 @@ export function useMCPSystemPrompt({
       console.log("[MCP] MCP tools section:", mcpPrompt);
       setSystemPrompt(fullPrompt);
     } else {
-      console.log("[MCP] ❌ MCP not ready or not enabled, using base system prompt only");
+      console.log(
+        "[MCP] ❌ MCP not ready or not enabled, using base system prompt only"
+      );
       console.log("[MCP] - isMCPReady:", isMCPReady);
       console.log("[MCP] - mcpEnabled:", mcpEnabled);
       setSystemPrompt(baseSystemPrompt);
     }
-  }, [isModelLoaded, isMCPReady, mcpEnabled, baseSystemPrompt, setSystemPrompt]);
+  }, [
+    isModelLoaded,
+    isMCPReady,
+    mcpEnabled,
+    baseSystemPrompt,
+    setSystemPrompt,
+  ]);
 }

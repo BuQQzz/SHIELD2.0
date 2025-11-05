@@ -18,7 +18,7 @@ export interface ModelCapabilities {
   /** Good at code generation */
   codeGeneration: boolean;
   /** Multilingual support quality */
-  multilingual: 'excellent' | 'good' | 'basic';
+  multilingual: "excellent" | "good" | "basic";
   /** Recommended temperature range */
   temperatureRange: { min: number; max: number; default: number };
 }
@@ -39,7 +39,7 @@ export const AVAILABLE_MODELS: ModelOption[] = [
       structuredOutput: true, // Can follow formats with good prompting
       longContext: true,
       codeGeneration: true,
-      multilingual: 'excellent',
+      multilingual: "excellent",
       temperatureRange: { min: 0.1, max: 1.5, default: 0.7 },
     },
   },
@@ -58,7 +58,7 @@ export const AVAILABLE_MODELS: ModelOption[] = [
       structuredOutput: false, // Small models struggle with strict formats
       longContext: false,
       codeGeneration: false,
-      multilingual: 'basic',
+      multilingual: "basic",
       temperatureRange: { min: 0.1, max: 1.0, default: 0.7 },
     },
   },
@@ -77,7 +77,7 @@ export const AVAILABLE_MODELS: ModelOption[] = [
       structuredOutput: true,
       longContext: true,
       codeGeneration: true,
-      multilingual: 'good',
+      multilingual: "good",
       temperatureRange: { min: 0.1, max: 1.2, default: 0.7 },
     },
   },

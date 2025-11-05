@@ -1,5 +1,9 @@
 import { useState, useEffect } from "react";
-import type { MCPToolCall, MCPToolResult, AuditLogEntry } from "@/types/electron";
+import type {
+  MCPToolCall,
+  MCPToolResult,
+  AuditLogEntry,
+} from "@/types/electron";
 
 /**
  * Hook for interacting with MCP (Model Context Protocol) services
