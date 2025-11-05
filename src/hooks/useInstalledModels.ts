@@ -26,6 +26,7 @@ export function useInstalledModels() {
 
         // Map installed files to MODEL_CATALOG entries
         const installed: ModelOption[] = [];
+        const processedModels = new Set<string>(); // Track models we've already added
 
         for (const filename of result.models) {
           console.log(`[useInstalledModels] Checking file: ${filename}`);
@@ -70,6 +71,17 @@ export function useInstalledModels() {
           });
 
           if (catalogEntry) {
+            // Check if we've already added this model (deduplicate split files)
+            if (processedModels.has(catalogEntry.id)) {
+              console.log(
+                `[useInstalledModels] Skipping duplicate split file for: ${catalogEntry.displayName}`
+              );
+              continue;
+            }
+
+            // Mark this model as processed
+            processedModels.add(catalogEntry.id);
+
             // Convert to ModelOption format
             installed.push({
               id: catalogEntry.id,
@@ -84,7 +96,25 @@ export function useInstalledModels() {
           } else {
             // Unknown model - create a basic entry for it
             // This allows users to use any .gguf model they've added manually
-            const modelName = filename.replace(/\.gguf$/i, "");
+
+            // Extract base model name (remove split file suffix if present)
+            const baseFilename = filename.replace(
+              /-\d{5}-of-\d{5}\.gguf$/i,
+              ""
+            );
+            const modelName = baseFilename.replace(/\.gguf$/i, "");
+
+            // Check if we've already added this custom model (deduplicate splits)
+            const customId = `custom-${modelName}`;
+            if (processedModels.has(customId)) {
+              console.log(
+                `[useInstalledModels] Skipping duplicate split file for custom model: ${modelName}`
+              );
+              continue;
+            }
+
+            processedModels.add(customId);
+
             const displayName = modelName
               .split(/[-._]/)
               .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
@@ -95,7 +125,7 @@ export function useInstalledModels() {
             );
 
             installed.push({
-              id: `custom-${modelName}`,
+              id: customId,
               name: modelName,
               displayName: displayName,
               uri: `file://${filename}`, // Use file:// to indicate it's a local file
