@@ -15,6 +15,7 @@ import {
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { LazyMessageContent } from "../lazy";
+import { ThinkingIndicator } from "./ThinkingIndicator";
 import { useState, memo, Suspense } from "react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -26,6 +27,8 @@ interface MessageProps {
   isStreaming?: boolean;
   truncated?: boolean;
   sources?: SearchResult[];
+  thinking?: string; // Chain-of-thought analysis from models
+  isThinking?: boolean; // True while streaming thinking content
   onContinue?: () => void;
   onEdit?: (newContent: string) => void;
   onRegenerate?: () => void;
@@ -37,6 +40,8 @@ export const ChatMessage = memo(function ChatMessage({
   isStreaming,
   truncated,
   sources,
+  thinking,
+  isThinking,
   onContinue,
   onEdit,
   onRegenerate,
@@ -174,23 +179,34 @@ export const ChatMessage = memo(function ChatMessage({
             </div>
           </div>
         ) : (
-          <div className="text-sm text-muted-foreground prose prose-sm max-w-none dark:prose-invert">
-            <Suspense
-              fallback={<div className="animate-pulse">Loading...</div>}
-            >
-              <LazyMessageContent content={content} />
-            </Suspense>
-            {isStreaming && (
-              <motion.span
-                animate={{ opacity: [1, 0] }}
-                transition={{
-                  duration: 0.8,
-                  repeat: Infinity,
-                  repeatType: "reverse",
-                }}
-                className="inline-block w-2 h-4 ml-1 bg-primary"
+          <div className="space-y-2">
+            {/* Show thinking indicator for assistant messages with chain-of-thought */}
+            {!isUser && (thinking || isThinking) && (
+              <ThinkingIndicator
+                thinking={thinking || ""}
+                isStreaming={isThinking}
+                defaultExpanded={false}
               />
             )}
+
+            <div className="text-sm text-muted-foreground prose prose-sm max-w-none dark:prose-invert">
+              <Suspense
+                fallback={<div className="animate-pulse">Loading...</div>}
+              >
+                <LazyMessageContent content={content} />
+              </Suspense>
+              {isStreaming && (
+                <motion.span
+                  animate={{ opacity: [1, 0] }}
+                  transition={{
+                    duration: 0.8,
+                    repeat: Infinity,
+                    repeatType: "reverse",
+                  }}
+                  className="inline-block w-2 h-4 ml-1 bg-primary"
+                />
+              )}
+            </div>
           </div>
         )}
         {truncated && !isStreaming && (

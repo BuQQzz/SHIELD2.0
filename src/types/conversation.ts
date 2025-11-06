@@ -5,6 +5,8 @@ export interface Message {
   timestamp: Date;
   truncated?: boolean;
   reasoning?: string; // AI's step-by-step reasoning (for web search responses)
+  thinking?: string; // AI's chain-of-thought analysis (extracted from XML tags)
+  isThinking?: boolean; // True while streaming thinking content
   sources?: Array<{
     title: string;
     url: string;

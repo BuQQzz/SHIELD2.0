@@ -205,11 +205,13 @@ export function createMessageHandler({
 
       const finalContent = streamingContentRef.current;
 
-      // Parse and optionally hide reasoning steps
+      // Parse and extract thinking/reasoning content from various XML formats
       const { settings } = useSettingsStore.getState();
       let processedContent = finalContent;
       let reasoning: string | undefined;
+      let thinking: string | undefined;
 
+      // Pattern 1: <reasoning> tags (web search responses)
       if (webSearchContext) {
         const reasoningMatch = finalContent.match(
           /<reasoning>([\s\S]*?)<\/reasoning>/
@@ -231,6 +233,48 @@ export function createMessageHandler({
           }
         }
       }
+
+      // Pattern 2: Various thinking/analysis XML formats (GPT OSS, Qwen Coder, etc.)
+      // These models output chain-of-thought in structured XML
+      const thinkingPatterns = [
+        /<analysis>([\s\S]*?)<\/analysis>/i, // <analysis>...</analysis>
+        /<thinking>([\s\S]*?)<\/thinking>/i, // <thinking>...</thinking>
+        /<thought>([\s\S]*?)<\/thought>/i, // <thought>...</thought>
+        /<chain_of_thought>([\s\S]*?)<\/chain_of_thought>/i, // <chain_of_thought>...</chain_of_thought>
+        // Complex nested pattern for GPT OSS format
+        /<start>[\s\S]*?<analysis>([\s\S]*?)<\/end>/i, // <start><analysis>...<end>
+      ];
+
+      for (const pattern of thinkingPatterns) {
+        const match = finalContent.match(pattern);
+        if (match && match[1]) {
+          thinking = match[1].trim();
+
+          // Always extract thinking content from visible response
+          // User can choose to expand/collapse it via the ThinkingIndicator UI
+          processedContent = finalContent
+            .replace(pattern, "")
+            .trim();
+
+          // Also clean up any remaining XML wrapper tags
+          processedContent = processedContent
+            .replace(/<start>\s*/gi, "")
+            .replace(/<\/end>\s*/gi, "")
+            .replace(/<assistant>\s*/gi, "")
+            .replace(/<channel>\s*/gi, "")
+            .replace(/<message>\s*/gi, "")
+            .replace(/<final>\s*/gi, "")
+            .replace(/<\/message>\s*/gi, "")
+            .replace(/<\/channel>\s*/gi, "")
+            .replace(/<\/assistant>\s*/gi, "")
+            .replace(/<\/final>\s*/gi, "")
+            .trim();
+
+          break; // Found a match, stop searching
+        }
+      }
+
+      // If we found thinking content, store it separately
 
       // Detect truncation: response was cut off if it ends mid-sentence or reaches token limit
       // Token estimation: ~3-4 chars per token on average
@@ -261,7 +305,8 @@ export function createMessageHandler({
         timestamp: new Date(),
         truncated: wasTruncated,
         sources: searchSources.length > 0 ? searchSources : undefined,
-        reasoning: reasoning, // Store reasoning separately for potential future use
+        reasoning: reasoning, // Store reasoning separately for web search responses
+        thinking: thinking, // Store thinking/analysis for chain-of-thought models
       };
 
       setMessages((prev) => [...prev, assistantMessage]);
