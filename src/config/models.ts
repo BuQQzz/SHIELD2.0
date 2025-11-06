@@ -69,6 +69,8 @@ export interface ModelMetadata {
   releaseDate?: string;
   /** Model family/provider */
   provider: "Meta" | "Alibaba" | "Mistral" | "Microsoft" | "Google" | "Other";
+  /** Chat template format (llama, qwen, mistral, phi, gemma, deepseek) */
+  chatTemplate: string;
   /** Is this model currently installed? */
   isInstalled?: boolean;
   /** Download progress (0-100) if downloading */
@@ -156,6 +158,7 @@ export const MODEL_CATALOG: ModelMetadata[] = [
     contextSize: 131072,
     provider: "Meta",
     releaseDate: "2024-12",
+    chatTemplate: "llama",
     capabilities: {
       toolCalling: true,
       complexReasoning: true,
@@ -184,6 +187,7 @@ export const MODEL_CATALOG: ModelMetadata[] = [
     contextSize: 32768,
     provider: "Alibaba",
     releaseDate: "2024-11",
+    chatTemplate: "qwen",
     capabilities: {
       toolCalling: true,
       complexReasoning: true,
@@ -212,6 +216,7 @@ export const MODEL_CATALOG: ModelMetadata[] = [
     contextSize: 131072,
     provider: "Mistral",
     releaseDate: "2024-07",
+    chatTemplate: "mistral",
     capabilities: {
       toolCalling: true,
       complexReasoning: true,
@@ -241,6 +246,7 @@ export const MODEL_CATALOG: ModelMetadata[] = [
     contextSize: 8192,
     provider: "Alibaba",
     releaseDate: "2024-09",
+    chatTemplate: "qwen",
     capabilities: {
       toolCalling: false,
       complexReasoning: true,
@@ -269,6 +275,7 @@ export const MODEL_CATALOG: ModelMetadata[] = [
     contextSize: 8192,
     provider: "Mistral",
     releaseDate: "2024-05",
+    chatTemplate: "mistral",
     capabilities: {
       toolCalling: false,
       complexReasoning: true,
@@ -298,6 +305,7 @@ export const MODEL_CATALOG: ModelMetadata[] = [
     contextSize: 131072,
     provider: "Microsoft",
     releaseDate: "2024-06",
+    chatTemplate: "phi",
     capabilities: {
       toolCalling: false,
       complexReasoning: true,
@@ -327,6 +335,7 @@ export const MODEL_CATALOG: ModelMetadata[] = [
     contextSize: 4096,
     provider: "Meta",
     releaseDate: "2024-09",
+    chatTemplate: "llama",
     capabilities: {
       toolCalling: false,
       complexReasoning: false,
@@ -356,6 +365,7 @@ export const MODEL_CATALOG: ModelMetadata[] = [
     contextSize: 4096,
     provider: "Meta",
     releaseDate: "2024-09",
+    chatTemplate: "llama",
     capabilities: {
       toolCalling: false,
       complexReasoning: false,
@@ -384,6 +394,7 @@ export const MODEL_CATALOG: ModelMetadata[] = [
     contextSize: 8192,
     provider: "Alibaba",
     releaseDate: "2024-09",
+    chatTemplate: "qwen",
     capabilities: {
       toolCalling: false,
       complexReasoning: false,
@@ -413,6 +424,7 @@ export const MODEL_CATALOG: ModelMetadata[] = [
     contextSize: 16384,
     provider: "Other",
     releaseDate: "2024-01",
+    chatTemplate: "deepseek",
     capabilities: {
       toolCalling: false,
       complexReasoning: true,
@@ -440,6 +452,7 @@ export const MODEL_CATALOG: ModelMetadata[] = [
     contextSize: 8192,
     provider: "Google",
     releaseDate: "2024-06",
+    chatTemplate: "gemma",
     capabilities: {
       toolCalling: false,
       complexReasoning: true,
@@ -494,4 +507,12 @@ export function getToolCallingModels(): ModelMetadata[] {
  */
 export function getInstalledModels(): ModelMetadata[] {
   return MODEL_CATALOG.filter((model) => model.isInstalled);
+}
+
+/**
+ * Get chat template ID for a model
+ */
+export function getChatTemplateForModel(modelId: string): string {
+  const model = getModelById(modelId);
+  return model?.chatTemplate || "llama"; // Default to llama template
 }

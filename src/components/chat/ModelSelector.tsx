@@ -22,6 +22,7 @@ export interface ModelOption {
   description: string;
   contextSize: number;
   capabilities?: ModelCapabilities;
+  chatTemplate?: string;
 }
 
 interface ModelSelectorProps {
