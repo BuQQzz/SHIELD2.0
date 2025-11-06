@@ -6,35 +6,21 @@
  */
 
 import { useState, useMemo } from "react";
-import { Filter, Download } from "lucide-react";
-import { motion, AnimatePresence } from "framer-motion";
 import {
   Dialog,
   DialogContent,
   DialogHeader,
-  DialogTitle,
 } from "@/components/ui/dialog";
-import { Button } from "@/components/ui/button";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-  DropdownMenuSeparator,
-  DropdownMenuLabel,
-} from "@/components/ui/dropdown-menu";
-import { ModelCard } from "./ModelCard";
+import { ModelFilterBar, type FilterType } from "./ModelFilterBar";
+import { ModelBrowser } from "./ModelBrowser";
 import { DeleteModelDialog } from "./DeleteModelDialog";
 import { MODEL_CATALOG, type ModelMetadata } from "@/config/models";
 import { useModelDownload } from "@/hooks/useModelDownload";
-import { cn } from "@/lib/utils";
 
 interface ModelDownloadDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }
-
-type FilterType = "all" | "tool-calling" | "coding" | "efficient" | "installed";
 
 export function ModelDownloadDialog({
   open,
@@ -155,191 +141,38 @@ export function ModelDownloadDialog({
     (m) => m.capabilities.toolCalling
   ).length;
 
+  // Handle clearing filters
+  const handleClearFilters = () => {
+    setFilter("all");
+    setSearchQuery("");
+  };
+
   return (
     <>
       <Dialog open={open} onOpenChange={onOpenChange}>
         <DialogContent className="max-w-4xl max-h-[85vh] overflow-hidden flex flex-col">
-          <DialogHeader className="flex-shrink-0">
-            <div className="flex items-start justify-between gap-4">
-              <div>
-                <DialogTitle className="text-xl">Download Models</DialogTitle>
-                <p className="text-sm text-muted-foreground mt-1">
-                  {totalModels} models available • {installedCount} installed •{" "}
-                  {toolCallingCount} with tool calling
-                </p>
-              </div>
-
-              {/* Filter Dropdown */}
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button variant="outline" size="sm" className="gap-2">
-                    <Filter className="h-4 w-4" />
-                    {filter === "all" && "All Models"}
-                    {filter === "tool-calling" && "Tool Calling"}
-                    {filter === "coding" && "Code Generation"}
-                    {filter === "efficient" && "Efficient (<5GB)"}
-                    {filter === "installed" && "Installed"}
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="w-48">
-                  <DropdownMenuLabel>Filter by Category</DropdownMenuLabel>
-                  <DropdownMenuSeparator />
-                  <DropdownMenuItem onClick={() => setFilter("all")}>
-                    All Models ({totalModels})
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => setFilter("tool-calling")}>
-                    ⚡ Tool Calling ({toolCallingCount})
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => setFilter("coding")}>
-                    💻 Code Generation
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => setFilter("efficient")}>
-                    🚀 Efficient (&lt;5GB)
-                  </DropdownMenuItem>
-                  <DropdownMenuSeparator />
-                  <DropdownMenuItem onClick={() => setFilter("installed")}>
-                    ✅ Installed ({installedCount})
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
-            </div>
-
-            {/* Search Bar */}
-            <div className="mt-4">
-              <input
-                type="text"
-                placeholder="Search models..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className={cn(
-                  "w-full px-3 py-2 rounded-md border bg-background",
-                  "text-sm placeholder:text-muted-foreground",
-                  "focus:outline-none focus:ring-2 focus:ring-ring"
-                )}
-              />
-            </div>
+          <DialogHeader>
+            <ModelFilterBar
+              filter={filter}
+              onFilterChange={setFilter}
+              searchQuery={searchQuery}
+              onSearchChange={setSearchQuery}
+              totalModels={totalModels}
+              installedCount={installedCount}
+              toolCallingCount={toolCallingCount}
+            />
           </DialogHeader>
 
-          {/* Model Grid */}
-          <div className="flex-1 overflow-y-auto mt-4 -mx-6 px-6">
-            <div className="space-y-6">
-              {/* Premium Models (Tool Calling) */}
-              {groupedModels.premium.length > 0 && (
-                <AnimatePresence mode="wait">
-                  <motion.div
-                    initial={{ opacity: 0, y: 10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    className="space-y-3"
-                  >
-                    <div className="flex items-center gap-2">
-                      <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">
-                        ⚡ Premium - Tool Calling
-                      </h3>
-                      <div className="h-px flex-1 bg-border" />
-                    </div>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                      {groupedModels.premium.map((model) => (
-                        <ModelCard
-                          key={model.id}
-                          model={model}
-                          isInstalled={isInstalled(model.id)}
-                          downloadProgress={getProgress(model.id)}
-                          onDownload={startDownload}
-                          onCancel={cancelDownload}
-                          onDeleteClick={handleDeleteClick}
-                        />
-                      ))}
-                    </div>
-                  </motion.div>
-                </AnimatePresence>
-              )}
-
-              {/* Standard Models (7B-14B) */}
-              {groupedModels.standard.length > 0 && (
-                <AnimatePresence mode="wait">
-                  <motion.div
-                    initial={{ opacity: 0, y: 10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: 0.1 }}
-                    className="space-y-3"
-                  >
-                    <div className="flex items-center gap-2">
-                      <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">
-                        🎯 High Performance
-                      </h3>
-                      <div className="h-px flex-1 bg-border" />
-                    </div>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                      {groupedModels.standard.map((model) => (
-                        <ModelCard
-                          key={model.id}
-                          model={model}
-                          isInstalled={isInstalled(model.id)}
-                          downloadProgress={getProgress(model.id)}
-                          onDownload={startDownload}
-                          onCancel={cancelDownload}
-                          onDeleteClick={handleDeleteClick}
-                        />
-                      ))}
-                    </div>
-                  </motion.div>
-                </AnimatePresence>
-              )}
-
-              {/* Efficient Models (<5GB) */}
-              {groupedModels.efficient.length > 0 && (
-                <AnimatePresence mode="wait">
-                  <motion.div
-                    initial={{ opacity: 0, y: 10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: 0.2 }}
-                    className="space-y-3"
-                  >
-                    <div className="flex items-center gap-2">
-                      <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">
-                        🚀 Efficient & Fast
-                      </h3>
-                      <div className="h-px flex-1 bg-border" />
-                    </div>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                      {groupedModels.efficient.map((model) => (
-                        <ModelCard
-                          key={model.id}
-                          model={model}
-                          isInstalled={isInstalled(model.id)}
-                          downloadProgress={getProgress(model.id)}
-                          onDownload={startDownload}
-                          onCancel={cancelDownload}
-                          onDeleteClick={handleDeleteClick}
-                        />
-                      ))}
-                    </div>
-                  </motion.div>
-                </AnimatePresence>
-              )}
-
-              {/* No Results */}
-              {filteredModels.length === 0 && (
-                <div className="text-center py-12">
-                  <Download className="h-12 w-12 mx-auto text-muted-foreground/50 mb-3" />
-                  <p className="text-muted-foreground">
-                    No models found matching your criteria
-                  </p>
-                  <Button
-                    variant="link"
-                    size="sm"
-                    onClick={() => {
-                      setFilter("all");
-                      setSearchQuery("");
-                    }}
-                    className="mt-2"
-                  >
-                    Clear filters
-                  </Button>
-                </div>
-              )}
-            </div>
-          </div>
+          <ModelBrowser
+            groupedModels={groupedModels}
+            filteredModels={filteredModels}
+            isInstalled={isInstalled}
+            getProgress={getProgress}
+            onDownload={startDownload}
+            onCancel={cancelDownload}
+            onDeleteClick={handleDeleteClick}
+            onClearFilters={handleClearFilters}
+          />
         </DialogContent>
       </Dialog>
 
