@@ -8,6 +8,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Thinking Animation UI** for chain-of-thought transparency
+  - Collapsible indicator shows AI's reasoning process (like ChatGPT/Claude)
+  - Animated brain icon with pulse effect during streaming
+  - Three-dot loading animation while thinking
+  - Expand/collapse functionality for viewing reasoning
+  - Automatically detects and parses multiple XML thinking formats:
+    * `<analysis>...</analysis>`
+    * `<thinking>...</thinking>`
+    * `<thought>...</thought>`
+    * `<chain_of_thought>...</chain_of_thought>`
+    * Complex nested format `<start><analysis>...<end>` (GPT OSS 20B)
+  - Extracts thinking from response and displays separately
+  - Cleans XML wrapper tags from visible output
+  - Default collapsed state - users can expand to see reasoning
+  - Persists thinking in conversation history
+  - Works with models that output chain-of-thought analysis
+  - Improves transparency into AI decision-making
+  - See [Thinking Animation Guide](docs/features/THINKING_ANIMATION.md)
+
 - **GPU Layer Offloading** for running large models on limited hardware
   - Enables 32B+ models on GPUs with 12GB VRAM or less
   - Automatic hybrid CPU+GPU inference using llama.cpp's layer splitting
