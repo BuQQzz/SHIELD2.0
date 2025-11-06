@@ -146,13 +146,13 @@ export class LlamaService {
       console.log(`[LlamaService] Loading catalog model: ${modelPath}`);
     }
 
-    // Load model - let llama.cpp auto-detect optimal GPU layers
-    // It will automatically offload to RAM if needed
-    // For very large models, this allows using both VRAM and system RAM
+    // Load model with automatic GPU layer offloading
+    // "auto" tells llama.cpp to fit as many layers as possible in VRAM,
+    // and automatically offload remaining layers to system RAM
+    // This enables running large models (e.g., 32B) on GPUs with limited VRAM
     this.model = await this.llama.loadModel({
       modelPath,
-      // Allow model to use CPU RAM if GPU VRAM is insufficient
-      // llama.cpp will automatically determine the optimal layer split
+      gpuLayers: "auto", // Automatically split between VRAM and RAM
     });
 
     let contextSize = config.contextSize || 2048;
