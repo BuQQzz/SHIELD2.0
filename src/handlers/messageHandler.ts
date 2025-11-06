@@ -205,6 +205,11 @@ export function createMessageHandler({
 
       const finalContent = streamingContentRef.current;
 
+      console.log(
+        "[MessageHandler] Raw response (first 500 chars):",
+        finalContent.substring(0, 500)
+      );
+
       // Parse and extract thinking/reasoning content from various XML formats
       const { settings } = useSettingsStore.getState();
       let processedContent = finalContent;
@@ -237,42 +242,107 @@ export function createMessageHandler({
       // Pattern 2: Various thinking/analysis XML formats (GPT OSS, Qwen Coder, etc.)
       // These models output chain-of-thought in structured XML
       const thinkingPatterns = [
-        /<analysis>([\s\S]*?)<\/analysis>/i, // <analysis>...</analysis>
-        /<thinking>([\s\S]*?)<\/thinking>/i, // <thinking>...</thinking>
-        /<thought>([\s\S]*?)<\/thought>/i, // <thought>...</thought>
-        /<chain_of_thought>([\s\S]*?)<\/chain_of_thought>/i, // <chain_of_thought>...</chain_of_thought>
-        // Complex nested pattern for GPT OSS format
-        /<start>[\s\S]*?<analysis>([\s\S]*?)<\/end>/i, // <start><analysis>...<end>
+        {
+          name: "GPT OSS pipe format (|channel|analysis + |channel|final)",
+          // Matches: <|start|>assistant<|channel|>analysis<|message|>...<|end|><|start|>assistant<|channel|>final<|message|>...
+          pattern:
+            /<\|start\|>assistant<\|channel\|>analysis<\|message\|>([\s\S]*?)<\|end\|>[\s\S]*?<\|start\|>assistant<\|channel\|>final<\|message\|>([\s\S]*?)(?:<\|end\|>|$)/i,
+          thinkingIndex: 1, // Extract analysis content
+          contentIndex: 2, // Extract final content
+        },
+        {
+          name: "GPT OSS format (start-analysis-final-end)",
+          // Matches: <start><analysis>...</analysis>...<final>...</final>...<end>
+          pattern:
+            /<start>[\s\S]*?<analysis>([\s\S]*?)<\/analysis>[\s\S]*?<final>([\s\S]*?)<\/final>[\s\S]*?<\/end>/i,
+          thinkingIndex: 1, // Extract analysis content
+          contentIndex: 2, // Extract final content
+        },
+        {
+          name: "analysis",
+          pattern: /<analysis>([\s\S]*?)<\/analysis>/i,
+          thinkingIndex: 1,
+          contentIndex: null,
+        },
+        {
+          name: "thinking",
+          pattern: /<thinking>([\s\S]*?)<\/thinking>/i,
+          thinkingIndex: 1,
+          contentIndex: null,
+        },
+        {
+          name: "thought",
+          pattern: /<thought>([\s\S]*?)<\/thought>/i,
+          thinkingIndex: 1,
+          contentIndex: null,
+        },
+        {
+          name: "chain_of_thought",
+          pattern: /<chain_of_thought>([\s\S]*?)<\/chain_of_thought>/i,
+          thinkingIndex: 1,
+          contentIndex: null,
+        },
       ];
 
-      for (const pattern of thinkingPatterns) {
+      for (const {
+        name,
+        pattern,
+        thinkingIndex,
+        contentIndex,
+      } of thinkingPatterns) {
         const match = finalContent.match(pattern);
-        if (match && match[1]) {
-          thinking = match[1].trim();
+        console.log(
+          `[MessageHandler] Pattern '${name}': ${match ? "✅ MATCH" : "❌ no match"}`
+        );
 
-          // Always extract thinking content from visible response
-          // User can choose to expand/collapse it via the ThinkingIndicator UI
-          processedContent = finalContent
-            .replace(pattern, "")
-            .trim();
+        if (match && match[thinkingIndex]) {
+          thinking = match[thinkingIndex].trim();
 
-          // Also clean up any remaining XML wrapper tags
-          processedContent = processedContent
-            .replace(/<start>\s*/gi, "")
-            .replace(/<\/end>\s*/gi, "")
-            .replace(/<assistant>\s*/gi, "")
-            .replace(/<channel>\s*/gi, "")
-            .replace(/<message>\s*/gi, "")
-            .replace(/<final>\s*/gi, "")
-            .replace(/<\/message>\s*/gi, "")
-            .replace(/<\/channel>\s*/gi, "")
-            .replace(/<\/assistant>\s*/gi, "")
-            .replace(/<\/final>\s*/gi, "")
-            .trim();
+          // If pattern has separate content index (like GPT OSS format)
+          if (contentIndex !== null && match[contentIndex]) {
+            processedContent = match[contentIndex].trim();
+            console.log(
+              "[MessageHandler] ✅ Extracted thinking (first 100 chars):",
+              thinking.substring(0, 100)
+            );
+            console.log(
+              "[MessageHandler] ✅ Extracted final content (first 100 chars):",
+              processedContent.substring(0, 100)
+            );
+          } else {
+            // Remove the entire matched pattern from response
+            processedContent = finalContent.replace(pattern, "").trim();
+
+            // Also clean up any remaining XML wrapper tags
+            processedContent = processedContent
+              .replace(/<start>\s*/gi, "")
+              .replace(/<\/end>\s*/gi, "")
+              .replace(/<assistant>\s*/gi, "")
+              .replace(/<channel>\s*/gi, "")
+              .replace(/<message>\s*/gi, "")
+              .replace(/<final>\s*/gi, "")
+              .replace(/<\/message>\s*/gi, "")
+              .replace(/<\/channel>\s*/gi, "")
+              .replace(/<\/assistant>\s*/gi, "")
+              .replace(/<\/final>\s*/gi, "")
+              .trim();
+
+            console.log(
+              "[MessageHandler] ✅ Extracted thinking (first 100 chars):",
+              thinking.substring(0, 100)
+            );
+            console.log(
+              "[MessageHandler] ✅ Cleaned content (first 100 chars):",
+              processedContent.substring(0, 100)
+            );
+          }
 
           break; // Found a match, stop searching
         }
       }
+
+      console.log("[MessageHandler] Final thinking field:", thinking ? `${thinking.substring(0, 100)}...` : "null");
+      console.log("[MessageHandler] Final content field:", processedContent.substring(0, 100));
 
       // If we found thinking content, store it separately
 
