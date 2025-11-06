@@ -214,10 +214,20 @@ export function createMessageHandler({
       // These models output chain-of-thought in structured XML
       const thinkingPatterns = [
         {
+          name: "GPT OSS channel format (flexible)",
+          // Matches: <|start|>assistant<|channel|>ANYTHING<|message|>content<|end|>
+          // This catches commentary, analysis, thinking, etc. channels
+          // Example: <|start|>assistant<|channel|>commentary to=browser.run code<|message|>We need to browse the web.<|end|>
+          pattern:
+            /<\|start\|>assistant<\|channel\|>[^<]*<\|message\|>([\s\S]*?)(?:<\|end\|>|$)/i,
+          thinkingIndex: null, // No separate thinking for single-channel output
+          contentIndex: 1, // Extract message content
+        },
+        {
           name: "GPT OSS pipe format (|channel|analysis + |channel|final)",
           // Matches: <|start|>assistant<|channel|>analysis<|message|>...<|end|><|start|>assistant<|channel|>final<|message|>...
           pattern:
-            /<\|start\|>assistant<\|channel\|>analysis<\|message\|>([\s\S]*?)<\|end\|>[\s\S]*?<\|start\|>assistant<\|channel\|>final<\|message\|>([\s\S]*?)(?:<\|end\|>|$)/i,
+            /<\|start\|>assistant<\|channel\|>analysis[^<]*<\|message\|>([\s\S]*?)<\|end\|>[\s\S]*?<\|start\|>assistant<\|channel\|>final[^<]*<\|message\|>([\s\S]*?)(?:<\|end\|>|$)/i,
           thinkingIndex: 1, // Extract analysis content
           contentIndex: 2, // Extract final content
         },
@@ -258,13 +268,38 @@ export function createMessageHandler({
       for (const { pattern, thinkingIndex, contentIndex } of thinkingPatterns) {
         const match = finalContent.match(pattern);
 
-        if (match && match[thinkingIndex]) {
-          thinking = match[thinkingIndex].trim();
+        if (match) {
+          // Extract thinking content if pattern has a thinking index
+          if (thinkingIndex !== null && match[thinkingIndex]) {
+            thinking = match[thinkingIndex].trim();
+          }
 
-          // If pattern has separate content index (like GPT OSS format)
+          // Extract final content if pattern has a content index
           if (contentIndex !== null && match[contentIndex]) {
             processedContent = match[contentIndex].trim();
-          } else {
+
+            // Clean up any remaining XML wrapper tags for GPT-OSS format
+            processedContent = processedContent
+              .replace(/<\|start\|>\s*/gi, "")
+              .replace(/<\|end\|>\s*/gi, "")
+              .replace(/<\|assistant\|>\s*/gi, "")
+              .replace(/<\|channel\|>[^<]*\s*/gi, "") // Remove channel tags with attributes
+              .replace(/<\|message\|>\s*/gi, "")
+              .replace(/<start>\s*/gi, "")
+              .replace(/<\/end>\s*/gi, "")
+              .replace(/<assistant>\s*/gi, "")
+              .replace(/<channel>\s*/gi, "")
+              .replace(/<message>\s*/gi, "")
+              .replace(/<final>\s*/gi, "")
+              .replace(/<\/message>\s*/gi, "")
+              .replace(/<\/channel>\s*/gi, "")
+              .replace(/<\/assistant>\s*/gi, "")
+              .replace(/<\/final>\s*/gi, "")
+              .trim();
+
+            break; // Found a match, stop searching
+          } else if (thinkingIndex !== null && match[thinkingIndex]) {
+            // Pattern only has thinking, no separate content
             // Remove the entire matched pattern from response
             processedContent = finalContent.replace(pattern, "").trim();
 
@@ -281,9 +316,9 @@ export function createMessageHandler({
               .replace(/<\/assistant>\s*/gi, "")
               .replace(/<\/final>\s*/gi, "")
               .trim();
-          }
 
-          break; // Found a match, stop searching
+            break; // Found a match, stop searching
+          }
         }
       }
 
