@@ -97,16 +97,12 @@ export class WebCacheStorage {
    * Check if URL exists in cache
    */
   async has(url: string): Promise<boolean> {
-    if (!this.db) {
-      throw new Error("Storage not initialized");
-    }
-
+    if (!this.db) throw new Error("Storage not initialized");
     const result = await this.db.get(
       `SELECT 1 FROM cache WHERE url = ? AND expiresAt > ?`,
       url,
       new Date().toISOString()
     );
-
     return !!result;
   }
 
@@ -114,10 +110,7 @@ export class WebCacheStorage {
    * Delete a specific cache entry
    */
   async delete(url: string): Promise<void> {
-    if (!this.db) {
-      throw new Error("Storage not initialized");
-    }
-
+    if (!this.db) throw new Error("Storage not initialized");
     await this.db.run(`DELETE FROM cache WHERE url = ?`, url);
   }
 
@@ -125,10 +118,7 @@ export class WebCacheStorage {
    * Clear all cache entries
    */
   async clear(): Promise<void> {
-    if (!this.db) {
-      throw new Error("Storage not initialized");
-    }
-
+    if (!this.db) throw new Error("Storage not initialized");
     await this.db.run(`DELETE FROM cache`);
     await this.db.run(`VACUUM`);
   }
@@ -137,29 +127,21 @@ export class WebCacheStorage {
    * Clear expired entries
    */
   async clearExpired(): Promise<number> {
-    if (!this.db) {
-      throw new Error("Storage not initialized");
-    }
+    if (!this.db) throw new Error("Storage not initialized");
 
     const beforeCount = await this.db.get<{ count: number }>(
       `SELECT COUNT(*) as count FROM cache`
     );
-
     await this.db.run(
       `DELETE FROM cache WHERE expiresAt <= ?`,
       new Date().toISOString()
     );
-
     const afterCount = await this.db.get<{ count: number }>(
       `SELECT COUNT(*) as count FROM cache`
     );
 
     const deletedCount = (beforeCount?.count || 0) - (afterCount?.count || 0);
-
-    if (deletedCount > 0) {
-      await this.db.run(`VACUUM`);
-    }
-
+    if (deletedCount > 0) await this.db.run(`VACUUM`);
     return deletedCount;
   }
 
@@ -167,9 +149,7 @@ export class WebCacheStorage {
    * Get cache statistics
    */
   async getStats(): Promise<CacheStats> {
-    if (!this.db) {
-      throw new Error("Storage not initialized");
-    }
+    if (!this.db) throw new Error("Storage not initialized");
 
     const stats = await this.db.get<{
       totalEntries: number;
@@ -177,13 +157,9 @@ export class WebCacheStorage {
       oldestEntry?: string;
       newestEntry?: string;
     }>(
-      `SELECT
-         COUNT(*) as totalEntries,
-         SUM(size) as totalSize,
-         MIN(cachedAt) as oldestEntry,
-         MAX(cachedAt) as newestEntry
-       FROM cache
-       WHERE expiresAt > ?`,
+      `SELECT COUNT(*) as totalEntries, SUM(size) as totalSize,
+       MIN(cachedAt) as oldestEntry, MAX(cachedAt) as newestEntry
+       FROM cache WHERE expiresAt > ?`,
       new Date().toISOString()
     );
 
@@ -207,10 +183,7 @@ export class WebCacheStorage {
       size: number;
     }>
   > {
-    if (!this.db) {
-      throw new Error("Storage not initialized");
-    }
-
+    if (!this.db) throw new Error("Storage not initialized");
     return await this.db.all<{
       url: string;
       content: Buffer;
@@ -219,9 +192,7 @@ export class WebCacheStorage {
       size: number;
     }>(
       `SELECT url, content, cachedAt, expiresAt, size
-       FROM cache
-       WHERE expiresAt > ?
-       ORDER BY cachedAt DESC`,
+       FROM cache WHERE expiresAt > ? ORDER BY cachedAt DESC`,
       new Date().toISOString()
     );
   }
@@ -236,38 +207,25 @@ export class WebCacheStorage {
     if (!this.db) return 0;
 
     const stats = await this.getStats();
+    if (stats.totalSize + newEntrySize <= maxSizeBytes) return 0;
 
-    if (stats.totalSize + newEntrySize <= maxSizeBytes) {
-      return 0;
-    }
-
-    // Delete oldest entries until we have space
     let deletedCount = 0;
     let currentSize = stats.totalSize;
 
-    while (
-      currentSize + newEntrySize > maxSizeBytes &&
-      deletedCount < 100
-    ) {
+    while (currentSize + newEntrySize > maxSizeBytes && deletedCount < 100) {
       await this.db.run(`
-        DELETE FROM cache
-        WHERE url IN (
-          SELECT url FROM cache
-          ORDER BY cachedAt ASC
-          LIMIT 10
+        DELETE FROM cache WHERE url IN (
+          SELECT url FROM cache ORDER BY cachedAt ASC LIMIT 10
         )
       `);
       deletedCount += 10;
 
       const newStats = await this.getStats();
-      if (newStats.totalSize >= currentSize) break; // Safety check
+      if (newStats.totalSize >= currentSize) break;
       currentSize = newStats.totalSize;
     }
 
-    if (deletedCount > 0) {
-      await this.db.run(`VACUUM`);
-    }
-
+    if (deletedCount > 0) await this.db.run(`VACUUM`);
     return deletedCount;
   }
 
@@ -276,16 +234,11 @@ export class WebCacheStorage {
    */
   private async createTables(): Promise<void> {
     if (!this.db) return;
-
     await this.db.exec(`
       CREATE TABLE IF NOT EXISTS cache (
-        url TEXT PRIMARY KEY,
-        content BLOB NOT NULL,
-        cachedAt TEXT NOT NULL,
-        expiresAt TEXT NOT NULL,
-        size INTEGER NOT NULL
+        url TEXT PRIMARY KEY, content BLOB NOT NULL,
+        cachedAt TEXT NOT NULL, expiresAt TEXT NOT NULL, size INTEGER NOT NULL
       );
-
       CREATE INDEX IF NOT EXISTS idx_expiresAt ON cache(expiresAt);
       CREATE INDEX IF NOT EXISTS idx_cachedAt ON cache(cachedAt);
     `);
