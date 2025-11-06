@@ -1,17 +1,6 @@
 import { ipcRenderer } from "electron";
-import type { LlamaAPI } from "../src/types/electron";
+import type { LlamaAPI, ModelConfig, ChatOptions } from "../src/types/electron";
 import type { Message } from "../src/types/conversation";
-
-export interface ModelConfig {
-  name: string;
-  uri: string;
-  contextSize?: number;
-}
-
-export interface ChatOptions {
-  temperature?: number;
-  maxTokens?: number;
-}
 
 export const llamaAPI: LlamaAPI = {
   initialize: () => ipcRenderer.invoke("llama:initialize"),
