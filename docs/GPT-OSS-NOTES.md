@@ -66,12 +66,33 @@ Since we're using llama.cpp bindings directly, we need to:
 1. **Ensure we're passing the right chat template** when initializing the model
 2. **Or post-process** to extract thinking (current approach)
 
-### Current Implementation Status
+## Current Implementation Status
 
-✅ XML parsing patterns added to `messageHandler.ts`  
-✅ ThinkingIndicator component created  
-✅ Integration complete  
-❌ **Pattern not matching actual output** - needs debugging
+### ✅ Fixed (2025-01-XX)
+- **Flexible XML Parsing Pattern**: Now matches any GPT-OSS channel type
+- **Channel Attributes Support**: Handles attributes like `to=browser.run code`
+- **Pattern Priority**: Single-channel patterns tried first for most common case
+- **Null-Safe Logic**: Properly handles patterns without thinking/content separation
+- **Comprehensive Tag Cleanup**: Removes all GPT-OSS XML tags and attributes
+
+### Implementation Details
+The parser now uses a flexible regex pattern that matches:
+```
+<|start|>assistant<|channel|>CHANNEL_TYPE ATTRIBUTES<|message|>content<|end|>
+```
+
+**Supported formats:**
+1. Single-channel (most common): `<|start|>assistant<|channel|>commentary to=browser.run code<|message|>We need to browse<|end|>`
+2. Dual-channel: `<|start|>assistant<|channel|>analysis<|message|>thinking<|end|><|start|>assistant<|channel|>final<|message|>answer<|end|>`
+3. XML wrapper format: `<start><analysis>...</analysis><final>...</final></end>`
+
+**Pattern details:**
+- `[^<]*` matches any channel type and attributes flexibly
+- Tries most specific patterns first (dual-channel) then falls back to flexible
+- Null-safe indexing prevents crashes when patterns only have content
+
+### File Location
+`src/handlers/messageHandler.ts` - lines ~215-310
 
 ### Next Steps
 
