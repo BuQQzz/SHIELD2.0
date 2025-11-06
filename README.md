@@ -6,6 +6,7 @@ Privacy-first local AI chatbot for Windows. All processing happens locally - no 
 
 Local AI assistant powered by llama.cpp with:
 - **Local inference** - Everything runs on your Windows machine
+- **GPU layer offloading** - Run large models (32B+) on limited VRAM by automatically splitting layers between VRAM and RAM
 - **File operations** - Read/write files via MCP with explicit permission dialogs
 - **Web search** - DuckDuckGo integration with local encrypted caching
 - **Chain-of-Thought reasoning** - Transparent AI analysis before answering
@@ -63,6 +64,7 @@ npm run build         # Production build
 - **Development Progress**: [docs/ROADMAP.md](docs/ROADMAP.md) - Detailed feature tracking and plans
 - **Changelog**: [CHANGELOG.md](CHANGELOG.md) - Version history and changes
 - **LLM Integration**: [docs/LLM-INTEGRATION.md](docs/LLM-INTEGRATION.md) - Technical integration guide
+- **GPU Layer Offloading**: [docs/features/GPU_LAYER_OFFLOADING.md](docs/features/GPU_LAYER_OFFLOADING.md) - Running large models on limited hardware
 - **MCP Integration**: [docs/features/MCP_INTEGRATION.md](docs/features/MCP_INTEGRATION.md) - File operations guide
 - **Component API**: [docs/COMPONENT-API.md](docs/COMPONENT-API.md) - UI component reference
 
