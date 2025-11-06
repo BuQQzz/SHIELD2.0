@@ -5,14 +5,19 @@
 These files MUST be refactored before the next merge to main:
 
 ### 🔴 CRITICAL (500+ lines)
-- **electron/main.ts** - 770 lines
-  - **Action**: Split into multiple modules:
-    - `electron/ipc/llamaHandlers.ts` - llama.cpp IPC handlers
-    - `electron/ipc/conversationHandlers.ts` - conversation IPC handlers
-    - `electron/ipc/mcpHandlers.ts` - MCP IPC handlers
-    - `electron/ipc/searchHandlers.ts` - web search IPC handlers
-    - `electron/setup/windowSetup.ts` - window creation and setup
-    - Keep only app initialization in main.ts
+- **electron/main.ts** - ~~770 lines~~ ✅ **COMPLETED** (68 lines)
+  - **Status**: Refactored into modular handler files
+  - **Files created**:
+    - `electron/services/LlamaIPCHandlers.ts` - llama.cpp IPC handlers (180 lines)
+    - `electron/services/ConversationIPCHandlers.ts` - conversation IPC handlers (64 lines)
+    - `electron/services/SearchIPCHandlers.ts` - web search IPC handlers (219 lines)
+    - `electron/services/MCPIPCHandlers.ts` - MCP IPC handlers (132 lines)
+    - `electron/services/SettingsIPCHandlers.ts` - settings IPC handlers (80 lines)
+    - `electron/services/ModelIPCHandlers.ts` - model download IPC handlers (124 lines)
+    - `electron/services/SystemIPCHandlers.ts` - system IPC handlers (27 lines)
+    - `electron/services/WindowSetup.ts` - window creation and setup (66 lines)
+    - `electron/services/SharedServiceInstances.ts` - shared service singletons (11 lines)
+  - See `docs/TESTING_MAIN_REFACTORING.md` for testing plan
 
 - **electron/services/WebCacheService.ts** - 449 lines
   - **Action**: Split into:
