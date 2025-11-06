@@ -10,6 +10,9 @@ import { enhanceQueryWithContext } from "../utils/queryEnhancer";
 import { processMCPToolCalls } from "./mcpMessageHandler";
 import type { ToolCallRequest } from "./mcpToolHandler";
 import type { MCPToolResult } from "@/types";
+import { extractThinking } from "../utils/thinkingParser";
+import { detectTruncation } from "../utils/messageTruncation";
+import { buildWebSearchPrompt } from "../utils/webSearchPrompt";
 
 /**
  * Generate a unique message ID
@@ -117,51 +120,9 @@ export function createMessageHandler({
 
     try {
       // Combine user query with web search context
-      let messageWithContext: string;
-
-      if (webSearchContext) {
-        // Be EXTREMELY aggressive - repeat key info multiple times
-        // SANDWICH APPROACH: Put search results before AND after question
-        messageWithContext = `${webSearchContext}`;
-        messageWithContext += `\n⚠️⚠️⚠️ REMINDER: Today is ${new Date().toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" })} ⚠️⚠️⚠️\n\n`;
-        messageWithContext += `===== USER'S QUESTION =====\n${content}\n`;
-        messageWithContext += `===== END USER'S QUESTION =====\n\n`;
-
-        // Chain-of-Thought + Attribution approach for grounding
-        messageWithContext += `⚠️ CRITICAL: You MUST follow this 3-step reasoning process ⚠️\n\n`;
-
-        messageWithContext += `IMPORTANT: Wrap your reasoning in <reasoning> tags, and your final answer outside.\n`;
-        messageWithContext += `Format:\n<reasoning>\nSTEP 1: [your analysis]\nSTEP 2: [your analysis]\nSTEP 3: [your conclusion]\n</reasoning>\n[Your final answer to the user]\n\n`;
-
-        messageWithContext += `STEP 1 - EXTRACT KEY FACTS:\n`;
-        messageWithContext += `List the specific facts from the search results that relate to the question.\n`;
-        messageWithContext += `Quote the exact text: [Quote: "exact words from search result"]\n\n`;
-
-        messageWithContext += `STEP 2 - ANALYZE:\n`;
-        messageWithContext += `Explain what those facts mean. Pay attention to:\n`;
-        messageWithContext += `- Today's date: ${new Date().toLocaleDateString("en-US", { weekday: "long", year: "numeric", month: "long", day: "numeric" })}\n`;
-        messageWithContext += `- CRITICAL DATE LOGIC:\n`;
-        messageWithContext += `  * If scheduled date is in the FUTURE (after today) = NOT released yet\n`;
-        messageWithContext += `  * If scheduled date is in the PAST (before today) = ALREADY released\n`;
-        messageWithContext += `  * If results explicitly say "not yet released" = NOT released (even if date passed)\n`;
-        messageWithContext += `- Example: If something was scheduled for October 29, 2025 and today is November 4, 2025, it ALREADY HAPPENED\n\n`;
-
-        messageWithContext += `STEP 3 - ANSWER:\n`;
-        messageWithContext += `Based ONLY on the facts you extracted, answer the user's question.\n`;
-        messageWithContext += `If the search results don't contain the answer, say "The search results don't provide this information."\n\n`;
-
-        messageWithContext += `Example Format:\n`;
-        messageWithContext += `<reasoning>\n`;
-        messageWithContext += `STEP 1: [Quote: "The Outer Worlds 2 will launch... this coming October 2025"] [Quote: "scheduled for release in late October 2025"]\n`;
-        messageWithContext += `STEP 2: The game was scheduled for October 2025. Today is November 4, 2025, which is AFTER October 2025. This means the scheduled date has passed, so the game ALREADY released.\n`;
-        messageWithContext += `STEP 3: Yes, The Outer Worlds 2 has been released (it came out in October 2025).\n`;
-        messageWithContext += `</reasoning>\n`;
-        messageWithContext += `Yes, The Outer Worlds 2 has already been released! It came out on October 29, 2025 for PS5, Xbox Series X|S, and PC.\n\n`;
-
-        messageWithContext += `Now follow these steps for the user's question:\n`;
-      } else {
-        messageWithContext = content;
-      }
+      const messageWithContext = webSearchContext
+        ? buildWebSearchPrompt(content, webSearchContext)
+        : content;
 
       await sendStreamingMessage(
         messageWithContext,
@@ -208,98 +169,17 @@ export function createMessageHandler({
             );
           }
         }
-      }
-
-      // Pattern 2: Various thinking/analysis XML formats (GPT OSS, Qwen Coder, etc.)
-      // These models output chain-of-thought in structured XML
-      const thinkingPatterns = [
-        {
-          name: "GPT OSS pipe format (|channel|analysis + |channel|final)",
-          // Matches: <|start|>assistant<|channel|>analysis<|message|>...<|end|><|start|>assistant<|channel|>final<|message|>...
-          pattern:
-            /<\|start\|>assistant<\|channel\|>analysis<\|message\|>([\s\S]*?)<\|end\|>[\s\S]*?<\|start\|>assistant<\|channel\|>final<\|message\|>([\s\S]*?)(?:<\|end\|>|$)/i,
-          thinkingIndex: 1, // Extract analysis content
-          contentIndex: 2, // Extract final content
-        },
-        {
-          name: "GPT OSS format (start-analysis-final-end)",
-          // Matches: <start><analysis>...</analysis>...<final>...</final>...<end>
-          pattern:
-            /<start>[\s\S]*?<analysis>([\s\S]*?)<\/analysis>[\s\S]*?<final>([\s\S]*?)<\/final>[\s\S]*?<\/end>/i,
-          thinkingIndex: 1, // Extract analysis content
-          contentIndex: 2, // Extract final content
-        },
-        {
-          name: "analysis",
-          pattern: /<analysis>([\s\S]*?)<\/analysis>/i,
-          thinkingIndex: 1,
-          contentIndex: null,
-        },
-        {
-          name: "thinking",
-          pattern: /<thinking>([\s\S]*?)<\/thinking>/i,
-          thinkingIndex: 1,
-          contentIndex: null,
-        },
-        {
-          name: "thought",
-          pattern: /<thought>([\s\S]*?)<\/thought>/i,
-          thinkingIndex: 1,
-          contentIndex: null,
-        },
-        {
-          name: "chain_of_thought",
-          pattern: /<chain_of_thought>([\s\S]*?)<\/chain_of_thought>/i,
-          thinkingIndex: 1,
-          contentIndex: null,
-        },
-      ];
-
-      for (const { pattern, thinkingIndex, contentIndex } of thinkingPatterns) {
-        const match = finalContent.match(pattern);
-
-        if (match && match[thinkingIndex]) {
-          thinking = match[thinkingIndex].trim();
-
-          // If pattern has separate content index (like GPT OSS format)
-          if (contentIndex !== null && match[contentIndex]) {
-            processedContent = match[contentIndex].trim();
-          } else {
-            // Remove the entire matched pattern from response
-            processedContent = finalContent.replace(pattern, "").trim();
-
-            // Also clean up any remaining XML wrapper tags
-            processedContent = processedContent
-              .replace(/<start>\s*/gi, "")
-              .replace(/<\/end>\s*/gi, "")
-              .replace(/<assistant>\s*/gi, "")
-              .replace(/<channel>\s*/gi, "")
-              .replace(/<message>\s*/gi, "")
-              .replace(/<final>\s*/gi, "")
-              .replace(/<\/message>\s*/gi, "")
-              .replace(/<\/channel>\s*/gi, "")
-              .replace(/<\/assistant>\s*/gi, "")
-              .replace(/<\/final>\s*/gi, "")
-              .trim();
-          }
-
-          break; // Found a match, stop searching
+      } else {
+        // Pattern 2: Various thinking/analysis XML formats (GPT OSS, Qwen Coder, etc.)
+        const thinkingResult = extractThinking(finalContent);
+        if (thinkingResult.thinking) {
+          thinking = thinkingResult.thinking;
+          processedContent = thinkingResult.processedContent;
         }
       }
 
-      // If we found thinking content, store it separately
-
       // Detect truncation: response was cut off if it ends mid-sentence or reaches token limit
-      // Token estimation: ~3-4 chars per token on average
-      const estimatedTokens = Math.ceil(finalContent.length / 3.5);
-      const tokenLimitReached =
-        estimatedTokens >= modelSettings.maxTokens * 0.9;
-
-      // Also check if response ends abruptly (no ending punctuation)
-      const endsWithPunctuation = /[.!?][\s]*$/.test(finalContent.trim());
-      const endsWithCodeBlock = /```[\s]*$/.test(finalContent.trim());
-      const wasTruncated =
-        tokenLimitReached && (!endsWithPunctuation || endsWithCodeBlock);
+      const wasTruncated = detectTruncation(finalContent, modelSettings.maxTokens);
 
       const assistantMessage: Message = {
         id: assistantMessageId,
