@@ -8,6 +8,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **GPU Layer Offloading** for running large models on limited hardware
+  - Enables 32B+ models on GPUs with 12GB VRAM or less
+  - Automatic hybrid CPU+GPU inference using llama.cpp's layer splitting
+  - `gpuLayers: "auto"` parameter intelligently distributes layers between VRAM and RAM
+  - Warning system notifies users when offloading occurs
+  - Performance trade-off: slower than full VRAM but enables model access
+  - Comprehensive documentation at `docs/features/GPU_LAYER_OFFLOADING.md`
+  - Technical details:
+    - llama.cpp splits model into layers
+    - Loads as many layers as possible into VRAM (fast)
+    - Automatically offloads remaining layers to system RAM (slower)
+    - No user configuration needed - works automatically
+  - Example: Qwen 2.5 Coder 32B (18GB) on RTX 3060 (12GB VRAM)
+    - ~25 layers in VRAM, ~8 layers in RAM
+    - Achieves ~8-12 tokens/s (vs impossible without offloading)
+  - Based on research from llama.cpp and node-llama-cpp documentation
+  - See [GPU Layer Offloading Guide](docs/features/GPU_LAYER_OFFLOADING.md)
+
 - **Model Capabilities System** for dynamic feature management
   - Automatically enables/disables features based on model specifications
   - Capability detection: toolCalling, complexReasoning, webSearch, structuredOutput
