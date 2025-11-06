@@ -5,6 +5,7 @@ import {
   LlamaContext,
   LlamaChatSession,
   resolveModelFile,
+  resolveChatWrapper,
 } from "node-llama-cpp";
 import path from "path";
 import { fileURLToPath } from "url";
@@ -78,13 +79,17 @@ export class LlamaService {
     this.systemPrompt = prompt;
 
     // Apply immediately if we have an active session
-    if (this.context && this.session) {
+    if (this.context && this.session && this.model) {
       // Save current chat history
       const currentHistory = this.session.getChatHistory();
+
+      // Resolve chat wrapper from model to maintain correct template format
+      const chatWrapper = resolveChatWrapper(this.model);
 
       // Recreate session with new system prompt
       this.session = new LlamaChatSession({
         contextSequence: this.context.getSequence(),
+        chatWrapper,
         systemPrompt: this.systemPrompt,
       });
 
@@ -212,8 +217,13 @@ export class LlamaService {
     }
 
     // Create chat session with system prompt
+    // Explicitly resolve chat wrapper from model's GGUF metadata to ensure
+    // correct template format (Llama, Qwen, Mistral, etc.) is used
+    const chatWrapper = resolveChatWrapper(this.model);
+
     this.session = new LlamaChatSession({
       contextSequence: this.context.getSequence(),
+      chatWrapper,
       systemPrompt: this.systemPrompt,
     });
 
@@ -313,10 +323,14 @@ export class LlamaService {
   async applySystemPrompt(prompt: string): Promise<void> {
     this.systemPrompt = prompt;
 
-    if (this.context) {
+    if (this.context && this.model) {
+      // Resolve chat wrapper from model to maintain correct template format
+      const chatWrapper = resolveChatWrapper(this.model);
+
       // Recreate session with new system prompt
       this.session = new LlamaChatSession({
         contextSequence: this.context.getSequence(),
+        chatWrapper,
         systemPrompt: this.systemPrompt,
       });
     }
