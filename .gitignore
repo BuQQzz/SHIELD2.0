@@ -72,6 +72,9 @@ tmp/
 temp/
 *.tmp
 *.temp
+create-preload-dir.sh
+electron/preload.test.ts
+scripts/create-preload-dir.js
 
 # Test coverage
 coverage/
