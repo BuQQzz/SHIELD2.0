@@ -1,11 +1,6 @@
 import { ipcMain } from "electron";
+import { llamaService, modelDownloadService } from "./SharedServiceInstances.js";
 import { SettingsStorageService } from "./SettingsStorageService.js";
-import { getLlamaService } from "../../src/services/LlamaService.js";
-import { getModelDownloadService } from "./ModelDownloadService.js";
-import { app } from "electron";
-
-const llamaService = getLlamaService();
-const modelDownloadService = getModelDownloadService(app.getPath("userData"));
 
 /**
  * Register all settings management IPC handlers
@@ -76,6 +71,4 @@ export async function registerSettingsHandlers() {
 /**
  * Get the model download service instance
  */
-export function getModelDownloadServiceInstance() {
-  return modelDownloadService;
-}
+export { modelDownloadService };

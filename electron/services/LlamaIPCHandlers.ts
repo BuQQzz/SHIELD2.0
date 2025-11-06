@@ -1,8 +1,6 @@
 import { ipcMain } from "electron";
 import type { BrowserWindow } from "electron";
-import { getLlamaService } from "../../src/services/LlamaService.js";
-
-const llamaService = getLlamaService();
+import { llamaService } from "./SharedServiceInstances.js";
 
 /**
  * Register all llama.cpp related IPC handlers
@@ -176,6 +174,4 @@ export function registerLlamaHandlers(mainWindow: BrowserWindow | null) {
 /**
  * Get the llama service instance for cleanup
  */
-export function getLlamaServiceInstance() {
-  return llamaService;
-}
+export { llamaService };

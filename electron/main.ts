@@ -2,11 +2,11 @@ import { app, BrowserWindow } from "electron";
 import { SettingsStorageService } from "./services/SettingsStorageService.js";
 import { mcpService } from "./services/MCPService.js";
 import { createMainWindow } from "./services/WindowSetup.js";
-import { registerLlamaHandlers, getLlamaServiceInstance } from "./services/LlamaIPCHandlers.js";
+import { registerLlamaHandlers, llamaService } from "./services/LlamaIPCHandlers.js";
 import { registerConversationHandlers } from "./services/ConversationIPCHandlers.js";
 import { registerSearchHandlers, getSearchServiceInstances } from "./services/SearchIPCHandlers.js";
 import { registerMCPHandlers } from "./services/MCPIPCHandlers.js";
-import { registerSettingsHandlers, getModelDownloadServiceInstance } from "./services/SettingsIPCHandlers.js";
+import { registerSettingsHandlers } from "./services/SettingsIPCHandlers.js";
 import { registerModelHandlers } from "./services/ModelIPCHandlers.js";
 import { registerSystemHandlers } from "./services/SystemIPCHandlers.js";
 
@@ -52,7 +52,6 @@ app.whenReady().then(() => {
 });
 
 app.on("window-all-closed", async () => {
-  const llamaService = getLlamaServiceInstance();
   const { webSearchService, webCacheService } = getSearchServiceInstances();
   
   await llamaService.dispose();

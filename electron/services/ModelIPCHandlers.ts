@@ -1,8 +1,6 @@
-import { ipcMain, app } from "electron";
-import { getModelDownloadService } from "./ModelDownloadService.js";
+import { ipcMain } from "electron";
+import { modelDownloadService } from "./SharedServiceInstances.js";
 import { MODEL_CATALOG } from "../../src/config/models.js";
-
-const modelDownloadService = getModelDownloadService(app.getPath("userData"));
 
 /**
  * Register all model download related IPC handlers
@@ -120,11 +118,4 @@ export function registerModelHandlers() {
       };
     }
   });
-}
-
-/**
- * Get the model download service instance
- */
-export function getModelDownloadServiceInstance() {
-  return modelDownloadService;
 }
