@@ -5,6 +5,7 @@ Privacy-first local AI chatbot for Windows. All processing happens locally - no 
 ## What It Is
 
 Local AI assistant powered by llama.cpp with:
+
 - **Local inference** - Everything runs on your Windows machine
 - **Thinking animation** - See AI's reasoning process with collapsible chain-of-thought display
 - **GPU layer offloading** - Run large models (32B+) on limited VRAM by automatically splitting layers between VRAM and RAM
@@ -21,12 +22,14 @@ See [docs/ROADMAP.md](docs/ROADMAP.md) for detailed development progress and pla
 ## Quick Start
 
 ### Prerequisites
+
 - Windows 10/11
 - Node.js 18+
 - 16GB+ RAM (32GB optimal)
 - NVIDIA GPU with 12GB+ VRAM recommended (RTX 4070 or better)
 
 ### Installation
+
 ```powershell
 git clone https://github.com/BuQQzz/SHIELD2.0.git
 cd SHIELD2.0
@@ -55,6 +58,7 @@ npm run build         # Production build
 ```
 
 **Code Guidelines**:
+
 - Files <300 lines (refactor when approaching limit)
 - Feature branch workflow (no direct commits to main)
 - All tests must pass before merge

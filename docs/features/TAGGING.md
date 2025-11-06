@@ -1,11 +1,13 @@
 # Conversation Tagging System
 
 ## Overview
+
 The conversation tagging system allows users to organize their conversations with custom tags for better categorization and visual identification.
 
 ## Features
 
 ### Tag Management
+
 - **Add Tags**: Create custom tags via the ChatHeader dropdown menu
 - **Remove Tags**: Delete tags individually with a single click
 - **Visual Display**: Tags appear as colored badges in the conversation list
@@ -15,6 +17,7 @@ The conversation tagging system allows users to organize their conversations wit
 ### User Interface
 
 #### Tag Component (`Tag.tsx`)
+
 - **Two Variants**:
   - `default`: Standard size (px-2.5 py-1 text-sm)
   - `compact`: Space-efficient for sidebar (px-2 py-0.5 text-xs)
@@ -26,7 +29,9 @@ The conversation tagging system allows users to organize their conversations wit
   - Accessible with aria-labels
 
 #### Tag Management UI
+
 Located in ChatHeader dropdown menu (three-dot icon):
+
 1. Click the three-dot menu in chat header
 2. Select "Manage Tags" to open sub-menu
 3. View existing tags with remove buttons
@@ -37,6 +42,7 @@ Located in ChatHeader dropdown menu (three-dot icon):
 ### Implementation Details
 
 #### Data Structure
+
 ```typescript
 interface Conversation {
   id: string;
@@ -50,22 +56,26 @@ interface Conversation {
 ```
 
 #### Storage
+
 - Tags stored as `string[]` in conversation metadata
 - Persisted to JSON files in Electron userData directory
 - Included in conversation exports (JSON and Markdown)
 - Restored when importing conversations
 
 #### Tag Display
+
 - **ConversationList**: Shows tags below conversation preview
 - **Compact variant**: Used for space efficiency in sidebar
 - **Conditional rendering**: Only displays if tags exist
 - **Animation**: Fade in/out when tags are added/removed
 
 ### Keyboard Shortcuts
+
 - **Enter**: Submit new tag when input is focused
 - **Escape**: Cancel tag input and close input field
 
 ### Future Enhancements
+
 - Tag-based filtering in conversation search
 - Tag color customization
 - Tag suggestions based on conversation content
@@ -75,11 +85,13 @@ interface Conversation {
 ## Technical Architecture
 
 ### Components
+
 - **Tag.tsx** (34 lines): Reusable tag display component
 - **ChatHeader.tsx**: Tag management UI and handlers
 - **ConversationList.tsx**: Tag display integration
 
 ### Handlers
+
 ```typescript
 // Add tag with validation
 const handleAddTag = async (tag: string) => {
@@ -102,11 +114,13 @@ const handleRemoveTag = async (tag: string) => {
 ```
 
 ### State Management
+
 - Uses Zustand conversation store
 - `updateConversation`: Updates current conversation
 - `saveCurrentConversation`: Persists to storage and refreshes list
 
 ## Testing Checklist
+
 - [ ] Add tag to conversation
 - [ ] Remove tag from conversation
 - [ ] Prevent duplicate tags
@@ -119,12 +133,14 @@ const handleRemoveTag = async (tag: string) => {
 - [ ] Tag removal doesn't trigger conversation selection
 
 ## Best Practices
+
 - Keep tag names short and descriptive (1-3 words)
 - Use consistent naming conventions (e.g., lowercase, kebab-case)
 - Limit tags per conversation to maintain readability (recommended: 3-5 tags)
 - Use tags for categorization, not full descriptions
 
 ## Privacy & Security
+
 - All tag data stored locally on user's machine
 - No external API calls or cloud sync
 - Tags included in conversation exports for data portability

@@ -5,11 +5,13 @@ Welcome to the SHIELD 2.0 documentation! This directory contains comprehensive g
 ## 📚 Documentation Structure
 
 ### Core Documentation
+
 - **[ROADMAP.md](./ROADMAP.md)** - Project roadmap with development phases and milestones
 - **[CONTRIBUTING.md](./CONTRIBUTING.md)** - Guidelines for contributing to the project
 - **[QUICK-START.md](./QUICK-START.md)** - Quick start guide for new users
 
 ### Technical Documentation
+
 - **[COMPONENT-API.md](./COMPONENT-API.md)** - Component API reference and usage
 - **[IMPLEMENTATION-SUMMARY.md](./IMPLEMENTATION-SUMMARY.md)** - Implementation details and architecture
 - **[LLM-INTEGRATION.md](./LLM-INTEGRATION.md)** - llama.cpp integration guide
@@ -17,10 +19,12 @@ Welcome to the SHIELD 2.0 documentation! This directory contains comprehensive g
 - **[COLOR-FIX-NOTES.md](./COLOR-FIX-NOTES.md)** - Color rendering fixes for Electron
 
 ### Performance Documentation
+
 - **[PERFORMANCE.md](./PERFORMANCE.md)** - Comprehensive performance optimization report
 - **[PERFORMANCE_SUMMARY.md](./PERFORMANCE_SUMMARY.md)** - Quick performance metrics summary
 
 ### Feature Documentation (features/)
+
 - **[EXPORT_IMPORT.md](./features/EXPORT_IMPORT.md)** - Conversation export/import system
 - **[HELP_PAGE.md](./features/HELP_PAGE.md)** - Built-in help & about page
 - **[TAGGING.md](./features/TAGGING.md)** - Conversation tagging system
@@ -29,27 +33,32 @@ Welcome to the SHIELD 2.0 documentation! This directory contains comprehensive g
 - **[MODEL_CAPABILITIES.md](./features/MODEL_CAPABILITIES.md)** - Dynamic feature enabling based on model specs
 
 ### Milestones (milestones/)
+
 - **[M1-ChatUI.md](./milestones/M1-ChatUI.md)** - Chat UI milestone documentation
 
 ## 🎯 Quick Links
 
 ### For New Contributors
+
 1. Start with [CONTRIBUTING.md](./CONTRIBUTING.md) for contribution guidelines
 2. Review [ROADMAP.md](./ROADMAP.md) to understand project direction
 3. Check [QUICK-START.md](./QUICK-START.md) for setup instructions
 
 ### For Developers
+
 1. [COMPONENT-API.md](./COMPONENT-API.md) - Component usage and APIs
 2. [LLM-INTEGRATION.md](./LLM-INTEGRATION.md) - LLM integration details
 3. [PERFORMANCE.md](./PERFORMANCE.md) - Performance optimization guide
 
 ### For Troubleshooting
+
 1. [TROUBLESHOOTING.md](./TROUBLESHOOTING.md) - Common issues
 2. [COLOR-FIX-NOTES.md](./COLOR-FIX-NOTES.md) - Electron rendering fixes
 
 ## 📊 Recent Updates
 
 ### Performance Optimizations (November 2025)
+
 - **82% bundle size reduction** (1,327 KB → 244 KB)
 - **65% initial transfer reduction** (440 KB → 155 KB gzipped)
 - Lazy loading for heavy components
@@ -57,6 +66,7 @@ Welcome to the SHIELD 2.0 documentation! This directory contains comprehensive g
 - See [PERFORMANCE.md](./PERFORMANCE.md) for details
 
 ### Documentation Reorganization (November 2025)
+
 - Moved ROADMAP.md and CONTRIBUTING.md to docs/ folder
 - All project documentation now centralized in docs/
 - Improved navigation and discoverability

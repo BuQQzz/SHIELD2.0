@@ -4,16 +4,7 @@ import { useRef, useEffect, useCallback } from "react";
 import { ChatMessage } from "./ChatMessage";
 import { motion } from "framer-motion";
 import { Globe, Loader2 } from "lucide-react";
-import type { SearchResult } from "@/types/electron";
-
-interface Message {
-  id: string;
-  role: "user" | "assistant";
-  content: string;
-  timestamp: Date;
-  truncated?: boolean;
-  sources?: SearchResult[];
-}
+import type { Message } from "@/types/conversation";
 
 interface MessageListProps {
   messages: Message[];

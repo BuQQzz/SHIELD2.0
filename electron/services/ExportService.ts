@@ -71,8 +71,12 @@ export class ExportService {
     // Header
     lines.push(`# ${conversation.title}`);
     lines.push("");
-    lines.push(`**Created:** ${new Date(conversation.createdAt).toLocaleString()}`);
-    lines.push(`**Updated:** ${new Date(conversation.updatedAt).toLocaleString()}`);
+    lines.push(
+      `**Created:** ${new Date(conversation.createdAt).toLocaleString()}`
+    );
+    lines.push(
+      `**Updated:** ${new Date(conversation.updatedAt).toLocaleString()}`
+    );
     lines.push(`**Model:** ${conversation.modelId || "Unknown"}`);
     lines.push(`**Messages:** ${conversation.messages.length}`);
     lines.push("");
@@ -125,7 +129,11 @@ export class ExportService {
       }
 
       // Remove export metadata if present
-      const { exportedAt: _exportedAt, version: _version, ...conversation } = data;
+      const {
+        exportedAt: _exportedAt,
+        version: _version,
+        ...conversation
+      } = data;
 
       return conversation as Conversation;
     } catch (error) {
@@ -139,9 +147,9 @@ export class ExportService {
    */
   private static isValidConversation(data: unknown): boolean {
     if (!data || typeof data !== "object") return false;
-    
+
     const obj = data as Record<string, unknown>;
-    
+
     if (!obj.id || !obj.title || !Array.isArray(obj.messages)) return false;
     if (!obj.createdAt || !obj.updatedAt) return false;
 
@@ -149,8 +157,13 @@ export class ExportService {
     for (const msg of obj.messages) {
       if (!msg || typeof msg !== "object") return false;
       const message = msg as Record<string, unknown>;
-      
-      if (!message.id || !message.role || !message.content || !message.timestamp) {
+
+      if (
+        !message.id ||
+        !message.role ||
+        !message.content ||
+        !message.timestamp
+      ) {
         return false;
       }
       if (message.role !== "user" && message.role !== "assistant") {

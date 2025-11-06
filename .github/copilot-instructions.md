@@ -1,21 +1,24 @@
 # SHIELD 2.0 - GitHub Copilot Instructions
 
 ## Project Overview
+
 SHIELD 2.0 is a privacy-first, local AI chatbot for Windows with tool integration capabilities. The application enables users to interact with an AI assistant that can navigate Windows and perform tasks on their PC with explicit permission. This is an experimental project focused on local inference using llama.cpp.
 
 ## Core Development Principles
 
 ### Code Organization & Structure
+
 - **Strict Line Limit**: No single code file should exceed 300 lines of code
 - **Modular Architecture**: If a file approaches the line limit, refactor into smaller, focused modules
 - **Clear Separation of Concerns**: Each module should have a single, well-defined responsibility
 - **Directory Structure**: Maintain a clear, logical folder hierarchy that reflects the application architecture
 
 ### Automation & MCP Tools
+
 - **MCP-First Approach**: Utilize Model Context Protocol (MCP) tools for automated tasks before requesting manual user intervention
 - **Automated Testing**: Use available tools to run tests, check code quality, and validate changes
 - **CI/CD Integration**: Leverage automation for builds, deployments, and validations wherever possible
-- **GitHub Actions**: 
+- **GitHub Actions**:
   - Automated test runs on all pull requests
   - Lint and type-check automation
   - Build verification before merge
@@ -23,11 +26,12 @@ SHIELD 2.0 is a privacy-first, local AI chatbot for Windows with tool integratio
   - Use status checks as merge gates
 
 ### Git Workflow & Branching Strategy
+
 - **Protected Main Branch**: Never merge directly to `main` branch
 - **Feature Branches**: Create dedicated feature branches for all new development
   - Naming convention: `feature/description` or `fix/description`
 - **Testing Branches**: Use test branches for experimental features
-- **Merge Requirements**: 
+- **Merge Requirements**:
   - **ALL test suites MUST pass before merging to main**
   - Run complete test suite before creating pull request
   - All lint checks must pass with zero warnings
@@ -44,6 +48,7 @@ SHIELD 2.0 is a privacy-first, local AI chatbot for Windows with tool integratio
   6. CI/CD checks passing
 
 ### UI/UX Guidelines
+
 - **Design System**: Use shadcn/ui components for consistent, accessible UI
 - **Icons**: Use Lucide React for all iconography
 - **Design Philosophy**: Minimalistic, clean, and user-friendly interface
@@ -51,12 +56,13 @@ SHIELD 2.0 is a privacy-first, local AI chatbot for Windows with tool integratio
 - **Responsive Design**: Support various window sizes and display configurations
 
 ### Technology Stack
+
 - **AI Engine**: llama.cpp for local LLM inference
   - Stay updated with latest llama.cpp releases
   - Monitor and integrate performance improvements
   - Follow llama.cpp best practices for model loading and inference
   - **Check web for latest llama.cpp updates before implementation**
-- **Modern Language Features**: 
+- **Modern Language Features**:
   - Use latest stable features of TypeScript/JavaScript
   - Leverage modern Python features (3.11+)
   - Use async/await patterns for non-blocking operations
@@ -69,6 +75,7 @@ SHIELD 2.0 is a privacy-first, local AI chatbot for Windows with tool integratio
 - **State Management**: Use modern React patterns (hooks, context)
 
 ### Web Research Requirements
+
 - **Always Check Latest Updates**: Before implementing features, search the web for:
   - Latest version numbers and release notes
   - Breaking changes in dependencies
@@ -82,16 +89,18 @@ SHIELD 2.0 is a privacy-first, local AI chatbot for Windows with tool integratio
 - **Documentation Sources**: Prioritize official documentation, GitHub repos, and trusted sources
 
 ### Windows Integration
+
 - **Native APIs**: Utilize Windows APIs for system integration
 - **Permission Model**: Explicit user consent required for all system operations
 - **Security First**: Implement proper sandboxing and permission checks
 - **Privacy**: All data processing occurs locally, no external API calls
 
 ### Code Quality Standards
+
 - **Type Safety**: Use TypeScript for all frontend code
 - **Error Handling**: Comprehensive error handling and user feedback
 - **Logging**: Structured logging for debugging and monitoring
-- **Documentation**: 
+- **Documentation**:
   - JSDoc/TSDoc comments for public APIs
   - README files for each major module
   - Inline comments for complex logic
@@ -109,12 +118,14 @@ SHIELD 2.0 is a privacy-first, local AI chatbot for Windows with tool integratio
   - Mock external dependencies appropriately
 
 ### Performance Considerations
+
 - **Lazy Loading**: Load components and modules on-demand
 - **Memory Management**: Monitor and optimize memory usage for LLM operations
 - **Async Operations**: Use non-blocking patterns for I/O and inference
 - **Caching**: Cache compiled models and frequently accessed data
 
 ### Security & Privacy
+
 - **Local-First**: All AI inference runs locally
 - **Data Protection**: User data never leaves the local machine
 - **Permission System**: Granular permissions for Windows operations
@@ -154,6 +165,7 @@ SHIELD 2.0 is a privacy-first, local AI chatbot for Windows with tool integratio
 ## Module Refactoring Guidelines
 
 When a file approaches 300 lines:
+
 1. Identify logical groupings of related functions
 2. Extract to separate modules with clear interfaces
 3. Use barrel exports (index.ts) for clean imports
@@ -161,6 +173,7 @@ When a file approaches 300 lines:
 5. Ensure tests still pass after refactoring
 
 ## Naming Conventions
+
 - **Files**: kebab-case for filenames (`user-service.ts`)
 - **Components**: PascalCase for React components (`ChatInterface.tsx`)
 - **Functions**: camelCase for functions and variables
@@ -170,17 +183,19 @@ When a file approaches 300 lines:
 ## Documentation Standards
 
 ### Keep Documentation Clean and Organized
+
 - **Consistency**: Use consistent formatting, terminology, and structure
 - **Accuracy**: Ensure all documentation reflects current implementation
 - **Completeness**: Document all public APIs, configuration options, and workflows
 - **Clarity**: Write clear, concise documentation for various skill levels
-- **Organization**: 
+- **Organization**:
   - Group related documentation together
   - Use clear hierarchies and navigation
   - Maintain a docs/ folder for extensive documentation
   - Keep README files focused and scannable
 
 ### Documentation Maintenance
+
 - **Update Immediately**: When code changes, update related documentation in the same commit
 - **Remove Deprecated Content**: Delete outdated documentation promptly
 - **Version Notes**: Document breaking changes and migration paths
@@ -188,6 +203,7 @@ When a file approaches 300 lines:
 - **Changelog**: Maintain a CHANGELOG.md for tracking project evolution
 
 ### Types of Documentation to Maintain
+
 1. **README.md**: Project overview, setup, and quick start
 2. **Module READMEs**: Purpose and usage for each major directory
 3. **API Documentation**: JSDoc/TSDoc for all public interfaces
@@ -197,6 +213,7 @@ When a file approaches 300 lines:
 7. **Changelog**: Version history and notable changes
 
 ## Continuous Improvement
+
 - **Regularly Update Dependencies**: Check weekly for updates
 - **Monitor llama.cpp Repository**: Subscribe to releases and discussions
 - **Stay Current with shadcn/ui**: Check component updates and new additions

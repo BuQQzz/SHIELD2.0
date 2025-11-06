@@ -135,16 +135,18 @@ export class WebSearchService {
 
       // Extract search results
       const html = await page.content();
-      
+
       // Debug: Log HTML snippet to diagnose parsing issues
       console.log("[WebSearch] HTML snippet:", html.substring(0, 500));
-      
+
       await page.close();
 
       return this.parseSearchResults(html, maxResults);
     } catch (error) {
       console.error("[WebSearch] Search failed:", error);
-      throw new Error(`Search failed: ${error instanceof Error ? error.message : "Unknown error"}`);
+      throw new Error(
+        `Search failed: ${error instanceof Error ? error.message : "Unknown error"}`
+      );
     }
   }
 
@@ -195,16 +197,16 @@ export class WebSearchService {
       };
     } catch (error) {
       console.error("[WebSearch] Page fetch failed:", error);
-      throw new Error(`Failed to fetch page: ${error instanceof Error ? error.message : "Unknown error"}`);
+      throw new Error(
+        `Failed to fetch page: ${error instanceof Error ? error.message : "Unknown error"}`
+      );
     }
   }
 
   /**
    * Create a privacy-focused browser page with tracker blocking
    */
-  private async createPrivacyPage(
-    options: PrivacyOptions
-  ): Promise<Page> {
+  private async createPrivacyPage(options: PrivacyOptions): Promise<Page> {
     if (!this.browser) {
       throw new Error("Browser not initialized");
     }
@@ -218,35 +220,34 @@ export class WebSearchService {
     // Stealth: Override navigator properties to hide automation
     await page.addInitScript(() => {
       // Override webdriver property
-      Object.defineProperty(navigator, 'webdriver', {
+      Object.defineProperty(navigator, "webdriver", {
         get: () => false,
       });
-      
+
       // Override plugins to look like a real browser
-      Object.defineProperty(navigator, 'plugins', {
+      Object.defineProperty(navigator, "plugins", {
         get: () => [1, 2, 3, 4, 5],
       });
-      
+
       // Override languages
-      Object.defineProperty(navigator, 'languages', {
-        get: () => ['en-US', 'en'],
+      Object.defineProperty(navigator, "languages", {
+        get: () => ["en-US", "en"],
       });
-      
+
       // Chrome runtime
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       (window as any).chrome = {
         runtime: {},
       };
-      
+
       // Permissions API
       const originalQuery = window.navigator.permissions.query;
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      (window.navigator.permissions as any).query = (parameters: any) => (
-        parameters.name === 'notifications' ?
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          Promise.resolve({ state: Notification.permission as any }) :
-          originalQuery(parameters)
-      );
+      (window.navigator.permissions as any).query = (parameters: any) =>
+        parameters.name === "notifications"
+          ? // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            Promise.resolve({ state: Notification.permission as any })
+          : originalQuery(parameters);
     });
 
     // Block trackers and analytics
@@ -261,8 +262,7 @@ export class WebSearchService {
         );
 
         // Block analytics scripts and pixels
-        const isAnalytics =
-          resourceType === "image" && url.includes("pixel");
+        const isAnalytics = resourceType === "image" && url.includes("pixel");
 
         if (isTracker || isAnalytics) {
           route.abort();
@@ -274,7 +274,7 @@ export class WebSearchService {
 
     // Set additional privacy headers
     await page.setExtraHTTPHeaders({
-      "DNT": "1", // Do Not Track
+      DNT: "1", // Do Not Track
       "Accept-Language": "en-US,en;q=0.9",
       "Sec-Ch-Ua": '"Not_A Brand";v="8", "Chromium";v="120"',
       "Sec-Ch-Ua-Mobile": "?0",
@@ -291,10 +291,7 @@ export class WebSearchService {
   /**
    * Parse DuckDuckGo HTML search results
    */
-  private parseSearchResults(
-    html: string,
-    maxResults: number
-  ): SearchResult[] {
+  private parseSearchResults(html: string, maxResults: number): SearchResult[] {
     const $ = cheerio.load(html);
     const results: SearchResult[] = [];
 
@@ -302,7 +299,7 @@ export class WebSearchService {
     console.log("[WebSearch] Looking for .result elements");
     console.log("[WebSearch] Found .result count:", $(".result").length);
     console.log("[WebSearch] Found .result__a count:", $(".result__a").length);
-    
+
     $(".result").each((index, element) => {
       if (index >= maxResults) return false;
 
@@ -314,7 +311,9 @@ export class WebSearchService {
       const url = $link.attr("href");
       const snippet = $snippet.text().trim();
 
-      console.log(`[WebSearch] Result ${index}: title="${title?.substring(0, 50)}", url="${url?.substring(0, 50)}"`);
+      console.log(
+        `[WebSearch] Result ${index}: title="${title?.substring(0, 50)}", url="${url?.substring(0, 50)}"`
+      );
 
       if (title && url) {
         results.push({
@@ -391,18 +390,18 @@ export class WebSearchService {
     try {
       // Fix protocol-relative URLs
       let cleanUrl = url;
-      if (cleanUrl.startsWith('//')) {
-        cleanUrl = 'https:' + cleanUrl;
+      if (cleanUrl.startsWith("//")) {
+        cleanUrl = "https:" + cleanUrl;
       }
-      
+
       // DuckDuckGo sometimes wraps URLs in redirects
       const urlObj = new URL(cleanUrl);
       const uddg = urlObj.searchParams.get("uddg");
       return uddg ? decodeURIComponent(uddg) : cleanUrl;
     } catch {
       // If URL parsing fails, try fixing protocol
-      if (url.startsWith('//')) {
-        return 'https:' + url;
+      if (url.startsWith("//")) {
+        return "https:" + url;
       }
       return url;
     }

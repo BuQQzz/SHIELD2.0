@@ -7,7 +7,9 @@ SHIELD 2.0 includes a RAG-based (Retrieval-Augmented Generation) learning system
 ## How It Works
 
 ### 1. **Conversation Memory (RAG)**
+
 The system stores conversation exchanges with metadata:
+
 - User questions
 - Assistant responses
 - Topic keywords
@@ -15,20 +17,25 @@ The system stores conversation exchanges with metadata:
 - Corrections
 
 When you ask a question, the system:
+
 1. Searches past conversations for relevant context
 2. Retrieves similar interactions
 3. Provides that context to the LLM
 4. Helps maintain consistency across conversations
 
 ### 2. **User Preference Tracking**
+
 The system learns your preferences over time:
+
 - **Response style**: Brief vs detailed, technical vs casual
 - **Domain knowledge**: Specialized topics you discuss frequently
 - **Corrections**: Facts you've corrected in past conversations
 - **Format preferences**: Code style, explanation depth, etc.
 
 ### 3. **Feedback Loop**
+
 You can help the AI learn by:
+
 - **Thumbs up/down**: Mark responses as helpful or not
 - **Corrections**: When the AI gets something wrong, your correction is stored
 - **Follow-ups**: Clarifying questions help refine understanding
@@ -36,6 +43,7 @@ You can help the AI learn by:
 ## Current Implementation Status
 
 ### ✅ **Implemented**
+
 - Memory database schema (SQLite)
 - Conversation storage with metadata
 - Preference tracking system
@@ -43,12 +51,14 @@ You can help the AI learn by:
 - Basic keyword-based memory search
 
 ### 🚧 **In Progress**
+
 - Full integration into message flow
 - UI feedback buttons (thumbs up/down)
 - Automatic memory retrieval
 - Topic extraction from conversations
 
 ### 📋 **Planned**
+
 - **Embeddings for semantic search**: Use vector embeddings for better memory retrieval
 - **Automatic preference learning**: Extract preferences from conversation patterns
 - **Memory consolidation**: Merge similar memories to improve relevance
@@ -58,6 +68,7 @@ You can help the AI learn by:
 ## Usage (When Fully Integrated)
 
 ### Providing Feedback
+
 ```
 # Future UI will include:
 - 👍 / 👎 buttons on each response
@@ -66,7 +77,9 @@ You can help the AI learn by:
 ```
 
 ### How Corrections Work
+
 When you correct the AI:
+
 ```
 You: "What's the capital of Canada?"
 AI: "The capital of Canada is Toronto."
@@ -77,6 +90,7 @@ You: "Actually, it's Ottawa."
 ```
 
 ### Preference Learning Example
+
 ```
 # After several brief responses:
 You: "Please provide more detailed explanations."
@@ -88,9 +102,11 @@ You: "Please provide more detailed explanations."
 ## Technical Details
 
 ### Memory Service
+
 Located in: `electron/services/MemoryService.ts`
 
 Key features:
+
 - **Storage**: SQLite database for fast, local storage
 - **Privacy**: All data stays on your machine
 - **Cleanup**: Automatically manages memory size (keeps last 1000 interactions)
@@ -99,6 +115,7 @@ Key features:
 ### Database Schema
 
 **memories table**:
+
 ```sql
 - id: Unique identifier
 - conversationId: Links to conversation
@@ -112,6 +129,7 @@ Key features:
 ```
 
 **preferences table**:
+
 ```sql
 - key: Preference identifier
 - value: Preference value
@@ -121,18 +139,21 @@ Key features:
 ## Privacy & Control
 
 ### What Gets Stored
+
 - Conversation history (user questions and AI responses)
 - Feedback you explicitly provide (thumbs up/down)
 - Corrections you make
 - Preferences you set
 
 ### What DOESN'T Get Stored
+
 - No telemetry sent to external servers
 - No personal information unless you choose to share it
 - No automatic tracking of behavior
 - All data stays 100% local
 
 ### User Controls (Planned)
+
 - Clear all memories
 - Clear specific conversation memories
 - Export your learning data
@@ -143,6 +164,7 @@ Key features:
 ## Benefits
 
 ### For Users
+
 1. **Consistency**: AI remembers your preferences across sessions
 2. **Improved accuracy**: Learns from corrections
 3. **Personalization**: Adapts to your communication style
@@ -150,6 +172,7 @@ Key features:
 5. **Privacy**: Everything stays local
 
 ### For the AI
+
 1. **Better responses**: Access to relevant past context
 2. **Fewer hallucinations**: Learns from corrections
 3. **Domain adaptation**: Builds knowledge in topics you discuss
@@ -158,10 +181,12 @@ Key features:
 ## Future Enhancements
 
 ### Semantic Search with Embeddings
+
 Current: Simple keyword matching
 Planned: Vector embeddings for true semantic search
 
 Example:
+
 ```
 Query: "How do I optimize performance?"
 Current: Matches keyword "performance"
@@ -169,13 +194,17 @@ Future: Also retrieves "speed up application", "reduce latency", "improve effici
 ```
 
 ### Automatic Topic Extraction
+
 Extract key topics from conversations automatically using NLP:
+
 - Technical terms
 - Named entities
 - Domain-specific concepts
 
 ### Memory Consolidation
+
 Merge similar memories to improve relevance:
+
 ```
 Memory 1: "Python uses indentation for blocks"
 Memory 2: "Python code blocks use spaces/tabs"
@@ -183,13 +212,17 @@ Consolidated: "Python uses indentation (spaces/tabs) for code blocks"
 ```
 
 ### Adaptive Learning Rate
+
 Learn more quickly from:
+
 - Explicit corrections
 - Repeated patterns
 - User confirmations
 
 ### Context Window Management
+
 Intelligently select which memories to include based on:
+
 - Relevance score
 - Recency
 - User feedback
@@ -199,24 +232,28 @@ Intelligently select which memories to include based on:
 ## Development Roadmap
 
 ### Phase 1: Foundation (Current)
+
 - [x] Memory service implementation
 - [x] Database schema
 - [ ] IPC handlers for memory operations
 - [ ] Integration into message flow
 
 ### Phase 2: UI Integration
+
 - [ ] Feedback buttons (thumbs up/down)
 - [ ] Correction interface
 - [ ] Memory viewer
 - [ ] Preference settings panel
 
 ### Phase 3: Intelligence
+
 - [ ] Implement embedding-based search
 - [ ] Automatic topic extraction
 - [ ] Preference inference
 - [ ] Memory consolidation
 
 ### Phase 4: Polish
+
 - [ ] Export/import functionality
 - [ ] Memory analytics dashboard
 - [ ] Privacy controls
@@ -244,4 +281,4 @@ For questions or feature requests related to the learning system, please open an
 
 ---
 
-*Note: This is an experimental feature. The learning system is designed to improve your experience while maintaining complete privacy and local control.*
+_Note: This is an experimental feature. The learning system is designed to improve your experience while maintaining complete privacy and local control._

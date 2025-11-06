@@ -7,16 +7,20 @@ SHIELD 2.0 now supports **GPU layer offloading**, a feature that enables running
 ## How It Works
 
 ### The Problem
+
 - Large models like Qwen 2.5 Coder 32B can be 18GB+ in size
 - Many GPUs have only 12GB or less VRAM
 - Previously, loading such models would fail with "insufficient VRAM" errors
 
 ### The Solution
+
 llama.cpp supports splitting model layers between:
+
 - **GPU VRAM**: Fast, limited capacity
 - **System RAM**: Slower, but much larger capacity
 
 By specifying `gpuLayers: "auto"` when loading a model, llama.cpp:
+
 1. Analyzes available VRAM and RAM
 2. Calculates optimal layer distribution
 3. Loads as many layers as possible into VRAM
@@ -41,6 +45,7 @@ this.model = await this.llama.loadModel({
 SHIELD 2.0 automatically uses `gpuLayers: "auto"` for all model loads. No user configuration needed!
 
 Simply:
+
 1. Download a large model from the catalog (e.g., Qwen 2.5 Coder 32B)
 2. Select it from the model picker
 3. The application will automatically:
@@ -50,12 +55,13 @@ Simply:
 
 ### Performance Expectations
 
-| Layer Location | Speed | Capacity |
-|---------------|-------|----------|
+| Layer Location | Speed     | Capacity             |
+| -------------- | --------- | -------------------- |
 | **VRAM (GPU)** | Very Fast | Limited (e.g., 12GB) |
-| **RAM (CPU)** | Slower | Large (e.g., 32GB+) |
+| **RAM (CPU)**  | Slower    | Large (e.g., 32GB+)  |
 
 **Example: Qwen 2.5 Coder 32B on 12GB VRAM**
+
 - Model size: ~18GB
 - VRAM: ~10-12GB of layers (fast)
 - RAM: ~6-8GB of layers (slower)
@@ -66,13 +72,14 @@ Simply:
 When GPU offloading occurs, SHIELD displays:
 
 ```
-⚠️ Insufficient VRAM for requested context size (8192). 
-Reduced to 4096 tokens. This large model is using system RAM 
-for some layers, which will be slower. For better performance, 
+⚠️ Insufficient VRAM for requested context size (8192).
+Reduced to 4096 tokens. This large model is using system RAM
+for some layers, which will be slower. For better performance,
 consider using a smaller model or upgrading your GPU.
 ```
 
 This appears:
+
 - In the ChatHeader component (yellow/amber text)
 - Only when offloading is active
 - Provides actionable recommendations
@@ -82,30 +89,37 @@ This appears:
 While SHIELD uses `"auto"` by default, node-llama-cpp supports several `gpuLayers` options:
 
 ### 1. `"auto"` (Default)
+
 ```typescript
-gpuLayers: "auto"
+gpuLayers: "auto";
 ```
+
 - Intelligently fits as many layers as possible in VRAM
 - Considers context size requirements
 - Safest option for most users
 
 ### 2. `"max"`
+
 ```typescript
-gpuLayers: "max"
+gpuLayers: "max";
 ```
+
 - Attempts to load ALL layers into VRAM
 - Throws error if VRAM insufficient
 - Use only if you know model fits
 
 ### 3. Specific Number
+
 ```typescript
-gpuLayers: 30
+gpuLayers: 30;
 ```
+
 - Load exactly 30 layers into VRAM
 - Throws error if not enough VRAM
 - Advanced users only
 
 ### 4. Min/Max Range
+
 ```typescript
 gpuLayers: {
   min: 20,
@@ -113,6 +127,7 @@ gpuLayers: {
   fitContext: { contextSize: 8192 }
 }
 ```
+
 - Load between 20-40 layers
 - Reserve VRAM for specified context size
 - Most flexible option
@@ -122,6 +137,7 @@ gpuLayers: {
 ### Research Sources
 
 Based on research from:
+
 - **llama.cpp GitHub**: Confirms "CPU+GPU hybrid inference to partially accelerate models larger than the total VRAM capacity"
 - **node-llama-cpp documentation**: Extensive test suite showing `gpuLayers` options
 - **Ollama architecture**: Uses llama.cpp backend with same GPU offloading approach
@@ -141,7 +157,7 @@ const res = await resolveGpuLayers("auto", {
   totalVram: s1GB * 6,
   freeVram: s1GB * 3.5,
   totalRam: s1GB * 8,
-  freeRam: s1GB * 8
+  freeRam: s1GB * 8,
 });
 // Result: gpuLayers: 16, contextSize: 8192
 // Model partially in VRAM, partially in RAM
@@ -154,9 +170,10 @@ const res = await resolveGpuLayers("auto", {
 **Issue**: Even with offloading, model won't load
 
 **Solutions**:
+
 1. **Insufficient RAM**: Ensure you have enough system RAM
    - 7B models: ~8GB RAM minimum
-   - 13B models: ~16GB RAM minimum  
+   - 13B models: ~16GB RAM minimum
    - 32B models: ~32GB RAM minimum
 2. **Try smaller quantization**: Q4_K_S instead of Q4_K_M
 3. **Close other applications**: Free up both VRAM and RAM
@@ -167,6 +184,7 @@ const res = await resolveGpuLayers("auto", {
 **Issue**: Model loads but inference is very slow
 
 **Solutions**:
+
 1. **Expected behavior**: RAM layers are slower than VRAM layers
 2. **Use smaller model**: 7B instead of 32B for faster inference
 3. **Reduce context size**: Smaller context = less memory needed
@@ -177,6 +195,7 @@ const res = await resolveGpuLayers("auto", {
 **Issue**: Large model loaded but no warning shown
 
 **Possible reasons**:
+
 1. **Enough VRAM**: Model fully fits in VRAM (no offloading needed)
 2. **Context creation succeeded**: Warning only shows on context size reduction
 3. **Check logs**: Terminal shows `[LlamaService]` messages with details
@@ -185,18 +204,18 @@ const res = await resolveGpuLayers("auto", {
 
 ### Qwen 2.5 Coder 32B on RTX 3060 (12GB VRAM)
 
-| Configuration | VRAM Layers | RAM Layers | Speed (tokens/s) |
-|--------------|-------------|------------|------------------|
-| **Full VRAM** (not possible) | N/A | N/A | N/A - Won't load |
-| **Auto Offloading** | ~25 | ~8 | ~8-12 tokens/s |
-| **CPU Only** | 0 | 33 | ~2-4 tokens/s |
+| Configuration                | VRAM Layers | RAM Layers | Speed (tokens/s) |
+| ---------------------------- | ----------- | ---------- | ---------------- |
+| **Full VRAM** (not possible) | N/A         | N/A        | N/A - Won't load |
+| **Auto Offloading**          | ~25         | ~8         | ~8-12 tokens/s   |
+| **CPU Only**                 | 0           | 33         | ~2-4 tokens/s    |
 
 ### Smaller Model - Qwen 2.5 7B on RTX 3060 (12GB VRAM)
 
-| Configuration | VRAM Layers | RAM Layers | Speed (tokens/s) |
-|--------------|-------------|------------|------------------|
-| **Full VRAM** | 32 | 0 | ~40-60 tokens/s |
-| **Auto (same as full)** | 32 | 0 | ~40-60 tokens/s |
+| Configuration           | VRAM Layers | RAM Layers | Speed (tokens/s) |
+| ----------------------- | ----------- | ---------- | ---------------- |
+| **Full VRAM**           | 32          | 0          | ~40-60 tokens/s  |
+| **Auto (same as full)** | 32          | 0          | ~40-60 tokens/s  |
 
 ## Future Enhancements
 

@@ -65,26 +65,44 @@ export interface LlamaAPI {
     messages: Message[]
   ) => Promise<{ success: boolean; error?: string }>;
   stopGeneration: () => Promise<{ success: boolean; error?: string }>;
-  setSystemPrompt: (prompt: string) => Promise<{ success: boolean; error?: string }>;
-  getSystemPrompt: () => Promise<{ success: boolean; prompt?: string; error?: string }>;
+  setSystemPrompt: (
+    prompt: string
+  ) => Promise<{ success: boolean; error?: string }>;
+  getSystemPrompt: () => Promise<{
+    success: boolean;
+    prompt?: string;
+    error?: string;
+  }>;
   generateTitle: (
     userMessage: string
   ) => Promise<{ success: boolean; title?: string; error?: string }>;
 }
 
 export interface ConversationAPI {
-  save: (conversation: Conversation) => Promise<{ success: boolean; error?: string }>;
-  load: (conversationId: string) => Promise<{ conversation?: Conversation; error?: string }>;
-  list: () => Promise<{ conversations: ConversationMetadata[]; error?: string }>;
-  delete: (conversationId: string) => Promise<{ success: boolean; error?: string }>;
-  search: (query: string) => Promise<{ conversations: ConversationMetadata[]; error?: string }>;
+  save: (
+    conversation: Conversation
+  ) => Promise<{ success: boolean; error?: string }>;
+  load: (
+    conversationId: string
+  ) => Promise<{ conversation?: Conversation; error?: string }>;
+  list: () => Promise<{
+    conversations: ConversationMetadata[];
+    error?: string;
+  }>;
+  delete: (
+    conversationId: string
+  ) => Promise<{ success: boolean; error?: string }>;
+  search: (
+    query: string
+  ) => Promise<{ conversations: ConversationMetadata[]; error?: string }>;
 }
 
 // Expose protected methods to renderer process
 const llamaAPI: LlamaAPI = {
   initialize: () => ipcRenderer.invoke("llama:initialize"),
   loadModel: (config) => ipcRenderer.invoke("llama:loadModel", config),
-  chat: (message, options) => ipcRenderer.invoke("llama:chat", message, options),
+  chat: (message, options) =>
+    ipcRenderer.invoke("llama:chat", message, options),
   chatStreaming: (message, options) =>
     ipcRenderer.invoke("llama:chatStreaming", message, options),
   onToken: (callback) => {
@@ -96,20 +114,26 @@ const llamaAPI: LlamaAPI = {
   getModelInfo: () => ipcRenderer.invoke("llama:getModelInfo"),
   isModelLoaded: () => ipcRenderer.invoke("llama:isModelLoaded"),
   clearHistory: () => ipcRenderer.invoke("llama:clearHistory"),
-  setChatHistory: (messages) => ipcRenderer.invoke("llama:setChatHistory", messages),
+  setChatHistory: (messages) =>
+    ipcRenderer.invoke("llama:setChatHistory", messages),
   stopGeneration: () => ipcRenderer.invoke("llama:stopGeneration"),
-  setSystemPrompt: (prompt) => ipcRenderer.invoke("llama:setSystemPrompt", prompt),
+  setSystemPrompt: (prompt) =>
+    ipcRenderer.invoke("llama:setSystemPrompt", prompt),
   getSystemPrompt: () => ipcRenderer.invoke("llama:getSystemPrompt"),
-  generateTitle: (userMessage) => ipcRenderer.invoke("llama:generateTitle", userMessage),
+  generateTitle: (userMessage) =>
+    ipcRenderer.invoke("llama:generateTitle", userMessage),
 };
 
 contextBridge.exposeInMainWorld("llama", llamaAPI);
 
 const conversationAPI: ConversationAPI = {
-  save: (conversation) => ipcRenderer.invoke("conversations:save", conversation),
-  load: (conversationId) => ipcRenderer.invoke("conversations:load", conversationId),
+  save: (conversation) =>
+    ipcRenderer.invoke("conversations:save", conversation),
+  load: (conversationId) =>
+    ipcRenderer.invoke("conversations:load", conversationId),
   list: () => ipcRenderer.invoke("conversations:list"),
-  delete: (conversationId) => ipcRenderer.invoke("conversations:delete", conversationId),
+  delete: (conversationId) =>
+    ipcRenderer.invoke("conversations:delete", conversationId),
   search: (query) => ipcRenderer.invoke("conversations:search", query),
 };
 
@@ -138,7 +162,9 @@ interface AppSettings {
 
 interface SettingsAPI {
   load: () => Promise<AppSettings | null>;
-  save: (settings: AppSettings) => Promise<{ success: boolean; error?: string }>;
+  save: (
+    settings: AppSettings
+  ) => Promise<{ success: boolean; error?: string }>;
 }
 
 interface SettingsPersistenceAPI {
@@ -161,7 +187,9 @@ interface WebSearchSettings {
 }
 
 interface WebSearchAPI {
-  initialize: (settings?: WebSearchSettings) => Promise<{ success: boolean; error?: string }>;
+  initialize: (
+    settings?: WebSearchSettings
+  ) => Promise<{ success: boolean; error?: string }>;
   query: (
     query: string,
     maxResults?: number,
@@ -170,14 +198,37 @@ interface WebSearchAPI {
   fetch: (
     url: string,
     options?: PrivacyOptions
-  ) => Promise<{ success: boolean; content?: PageContent; fromCache?: boolean; error?: string }>;
+  ) => Promise<{
+    success: boolean;
+    content?: PageContent;
+    fromCache?: boolean;
+    error?: string;
+  }>;
   cache: {
-    get: (url: string) => Promise<{ success: boolean; content?: PageContent | null; error?: string }>;
-    has: (url: string) => Promise<{ success: boolean; has?: boolean; error?: string }>;
-    stats: () => Promise<{ success: boolean; stats?: CacheStats; error?: string }>;
+    get: (url: string) => Promise<{
+      success: boolean;
+      content?: PageContent | null;
+      error?: string;
+    }>;
+    has: (
+      url: string
+    ) => Promise<{ success: boolean; has?: boolean; error?: string }>;
+    stats: () => Promise<{
+      success: boolean;
+      stats?: CacheStats;
+      error?: string;
+    }>;
     clear: () => Promise<{ success: boolean; error?: string }>;
-    clearExpired: () => Promise<{ success: boolean; deletedCount?: number; error?: string }>;
-    export: () => Promise<{ success: boolean; entries?: Array<{ url: string; content: string }>; error?: string }>;
+    clearExpired: () => Promise<{
+      success: boolean;
+      deletedCount?: number;
+      error?: string;
+    }>;
+    export: () => Promise<{
+      success: boolean;
+      entries?: Array<{ url: string; content: string }>;
+      error?: string;
+    }>;
     delete: (url: string) => Promise<{ success: boolean; error?: string }>;
   };
 }
@@ -185,19 +236,31 @@ interface WebSearchAPI {
 interface MCPAPI {
   initialize: () => Promise<{ success: boolean; error?: string }>;
   callTool: (request: MCPToolCall) => Promise<MCPToolResult>;
-  listTools: (serverName: string) => Promise<{ success: boolean; tools?: unknown[]; error?: string }>;
-  getServerConfig: (serverName: string) => Promise<{ success: boolean; config?: MCPServerConfig; error?: string }>;
+  listTools: (
+    serverName: string
+  ) => Promise<{ success: boolean; tools?: unknown[]; error?: string }>;
+  getServerConfig: (
+    serverName: string
+  ) => Promise<{ success: boolean; config?: MCPServerConfig; error?: string }>;
   isReady: () => Promise<{ success: boolean; ready?: boolean; error?: string }>;
   audit: {
-    query: (options?: AuditLogQueryOptions) => Promise<{ success: boolean; logs?: AuditLogEntry[]; error?: string }>;
-    stats: () => Promise<{ success: boolean; stats?: {
-      totalCalls: number;
-      approvedCalls: number;
-      deniedCalls: number;
-      byServer: Record<string, number>;
-      byTool: Record<string, number>;
-    }; error?: string }>;
-    export: (outputPath: string) => Promise<{ success: boolean; error?: string }>;
+    query: (
+      options?: AuditLogQueryOptions
+    ) => Promise<{ success: boolean; logs?: AuditLogEntry[]; error?: string }>;
+    stats: () => Promise<{
+      success: boolean;
+      stats?: {
+        totalCalls: number;
+        approvedCalls: number;
+        deniedCalls: number;
+        byServer: Record<string, number>;
+        byTool: Record<string, number>;
+      };
+      error?: string;
+    }>;
+    export: (
+      outputPath: string
+    ) => Promise<{ success: boolean; error?: string }>;
     clear: () => Promise<{ success: boolean; error?: string }>;
   };
 }
@@ -216,13 +279,16 @@ const settingsPersistenceAPI: SettingsPersistenceAPI = {
 };
 
 const exportAPI: ExportAPI = {
-  exportJSON: (conversation) => ipcRenderer.invoke("conversation:export-json", conversation),
-  exportMarkdown: (conversation) => ipcRenderer.invoke("conversation:export-markdown", conversation),
+  exportJSON: (conversation) =>
+    ipcRenderer.invoke("conversation:export-json", conversation),
+  exportMarkdown: (conversation) =>
+    ipcRenderer.invoke("conversation:export-markdown", conversation),
   import: () => ipcRenderer.invoke("conversation:import"),
 };
 
 const webSearchAPI: WebSearchAPI = {
-  initialize: (settings) => ipcRenderer.invoke("web-search:initialize", settings),
+  initialize: (settings) =>
+    ipcRenderer.invoke("web-search:initialize", settings),
   query: (query, maxResults, options) =>
     ipcRenderer.invoke("web-search:query", query, maxResults, options),
   fetch: (url, options) => ipcRenderer.invoke("web-search:fetch", url, options),
@@ -291,4 +357,6 @@ contextBridge.exposeInMainWorld("electronAPI", {
 });
 
 // Log that preload executed successfully
-console.log("[preload] window.llama, window.conversations, window.electronAPI (settings, export, webSearch, mcp) exposed successfully");
+console.log(
+  "[preload] window.llama, window.conversations, window.electronAPI (settings, export, webSearch, mcp) exposed successfully"
+);

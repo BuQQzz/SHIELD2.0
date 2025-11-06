@@ -138,7 +138,7 @@ export class MemoryService {
     if (!this.db) throw new Error("MemoryService not initialized");
 
     const timestamp = Date.now();
-    
+
     await this.db.run(
       `INSERT INTO memories (conversationId, timestamp, userMessage, assistantResponse, topics, metadata)
        VALUES (?, ?, ?, ?, ?, ?)`,
@@ -166,20 +166,28 @@ export class MemoryService {
    * Search for relevant memories using simple keyword matching
    * In a full implementation, this would use embeddings for semantic search
    */
-  async searchMemories(query: string, limit: number = 5): Promise<SearchableMemory[]> {
+  async searchMemories(
+    query: string,
+    limit: number = 5
+  ): Promise<SearchableMemory[]> {
     if (!this.db) throw new Error("MemoryService not initialized");
 
     // Simple keyword-based search (would use embeddings in production)
-    const keywords = query.toLowerCase().split(/\s+/).filter(k => k.length > 3);
-    
+    const keywords = query
+      .toLowerCase()
+      .split(/\s+/)
+      .filter((k) => k.length > 3);
+
     if (keywords.length === 0) return [];
 
     // Build search query
     const searchCondition = keywords
-      .map(() => "(LOWER(userMessage) LIKE ? OR LOWER(assistantResponse) LIKE ?)")
+      .map(
+        () => "(LOWER(userMessage) LIKE ? OR LOWER(assistantResponse) LIKE ?)"
+      )
       .join(" OR ");
-    
-    const searchParams = keywords.flatMap(kw => [`%${kw}%`, `%${kw}%`]);
+
+    const searchParams = keywords.flatMap((kw) => [`%${kw}%`, `%${kw}%`]);
 
     const memories = await this.db.all<MemoryEntry>(
       `SELECT * FROM memories 
@@ -191,10 +199,10 @@ export class MemoryService {
       limit
     );
 
-    return memories.map(m => ({
+    return memories.map((m) => ({
       userMessage: m.userMessage,
       assistantResponse: m.assistantResponse,
-      topics: typeof m.topics === 'string' ? JSON.parse(m.topics) : [],
+      topics: typeof m.topics === "string" ? JSON.parse(m.topics) : [],
       relevanceScore: 0.5, // Simple scoring
     }));
   }
@@ -211,7 +219,9 @@ export class MemoryService {
       memoryId
     );
 
-    console.log(`[MemoryService] Feedback recorded for memory #${memoryId}: ${wasHelpful}`);
+    console.log(
+      `[MemoryService] Feedback recorded for memory #${memoryId}: ${wasHelpful}`
+    );
   }
 
   /**
@@ -263,7 +273,9 @@ export class MemoryService {
   /**
    * Get recent helpful memories for general context
    */
-  async getRecentHelpfulMemories(limit: number = 10): Promise<SearchableMemory[]> {
+  async getRecentHelpfulMemories(
+    limit: number = 10
+  ): Promise<SearchableMemory[]> {
     if (!this.db) throw new Error("MemoryService not initialized");
 
     const memories = await this.db.all<MemoryEntry>(
@@ -274,10 +286,10 @@ export class MemoryService {
       limit
     );
 
-    return memories.map(m => ({
+    return memories.map((m) => ({
       userMessage: m.userMessage,
       assistantResponse: m.assistantResponse,
-      topics: typeof m.topics === 'string' ? JSON.parse(m.topics) : [],
+      topics: typeof m.topics === "string" ? JSON.parse(m.topics) : [],
       relevanceScore: 1.0,
     }));
   }

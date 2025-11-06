@@ -12,6 +12,7 @@ When set to `1`, prevents Chrome DevTools from opening automatically in developm
 ### Why Use This?
 
 When DevTools is open, you may see harmless Autofill protocol errors in the console:
+
 ```
 Request Autofill.enable failed. {"code":-32601,"message":"'Autofill.enable' wasn't found"}
 Request Autofill.setAddresses failed. {"code":-32601,"message":"'Autofill.setAddresses' wasn't found"}
@@ -22,11 +23,13 @@ These errors occur because Chromium DevTools tries to enable the Autofill protoc
 ### Usage
 
 **PowerShell (Windows)**:
+
 ```powershell
 $env:HIDE_DEVTOOLS=1; npm run dev:electron
 ```
 
 **Bash/Zsh (Linux/macOS)**:
+
 ```bash
 HIDE_DEVTOOLS=1 npm run dev:electron
 ```
@@ -34,6 +37,7 @@ HIDE_DEVTOOLS=1 npm run dev:electron
 **Persistent Setting**:
 
 Create a `.env.local` file in the project root:
+
 ```env
 HIDE_DEVTOOLS=1
 ```
@@ -51,5 +55,6 @@ In production builds (not dev mode), DevTools is never opened, so these errors n
 ---
 
 **See Also**:
+
 - [TROUBLESHOOTING.md](./TROUBLESHOOTING.md) - Common development issues
 - Main entry point: [electron/main.ts](../electron/main.ts)

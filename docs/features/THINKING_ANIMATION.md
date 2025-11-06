@@ -23,18 +23,19 @@ SHIELD 2.0 now features a **thinking animation UI** that displays AI reasoning p
 
 ### Animation States
 
-| State | Visual Indicator |
-|-------|------------------|
+| State         | Visual Indicator                        |
+| ------------- | --------------------------------------- |
 | **Streaming** | Brain icon pulsing, three dots bouncing |
-| **Complete** | Static brain icon, expandable content |
-| **Expanded** | Shows full reasoning with scroll |
-| **Collapsed** | Hides reasoning, shows summary |
+| **Complete**  | Static brain icon, expandable content   |
+| **Expanded**  | Shows full reasoning with scroll        |
+| **Collapsed** | Hides reasoning, shows summary          |
 
 ## Supported XML Formats
 
 The system automatically detects and parses multiple chain-of-thought XML formats:
 
 ### 1. Analysis Tags
+
 ```xml
 <analysis>
 Step 1: Understand the question
@@ -44,6 +45,7 @@ Step 3: Formulate answer
 ```
 
 ### 2. Thinking Tags
+
 ```xml
 <thinking>
 Let me think through this carefully...
@@ -53,6 +55,7 @@ Then, I should...
 ```
 
 ### 3. Thought Tags
+
 ```xml
 <thought>
 My reasoning process:
@@ -63,6 +66,7 @@ My reasoning process:
 ```
 
 ### 4. Chain of Thought Tags
+
 ```xml
 <chain_of_thought>
 Breaking this down step by step:
@@ -73,6 +77,7 @@ Breaking this down step by step:
 ```
 
 ### 5. Complex Nested Format (GPT OSS)
+
 ```xml
 <start>
 <analysis>
@@ -109,6 +114,7 @@ const thinkingPatterns = [
 ### 2. Extraction Phase
 
 When a pattern matches:
+
 - Extract thinking content
 - Remove thinking XML from visible response
 - Clean up wrapper tags (`<start>`, `<channel>`, `<message>`, etc.)
@@ -117,6 +123,7 @@ When a pattern matches:
 ### 3. Display Phase
 
 In the UI:
+
 - Show `ThinkingIndicator` component above final answer
 - Default state: collapsed
 - User can expand to see reasoning
@@ -125,6 +132,7 @@ In the UI:
 ### 4. Streaming Support
 
 While thinking is being generated:
+
 - `isThinking: true` flag set on message
 - Animated brain icon pulses
 - Three-dot loading indicator bounces
@@ -138,13 +146,14 @@ While thinking is being generated:
 You: hi how are you
 
 SHIELD Assistant:
-analysis...We need to respond. No search results provided. So we can 
+analysis...We need to respond. No search results provided. So we can
 answer normally.</end>
-<start>>assistant</channel>>final>Hello! I'm doing great—thanks 
+<start>>assistant</channel>>final>Hello! I'm doing great—thanks
 for asking. How can I help you today?
 ```
 
 ❌ **Problems:**
+
 - Raw XML visible to user
 - Confusing and unprofessional
 - Reasoning mixed with answer
@@ -168,6 +177,7 @@ Hello! I'm doing great—thanks for asking. How can I help you today?
 ```
 
 ✅ **Benefits:**
+
 - Clean, professional appearance
 - Thinking separated from answer
 - User can expand to see reasoning
@@ -179,12 +189,12 @@ Hello! I'm doing great—thanks for asking. How can I help you today?
 
 These models output chain-of-thought reasoning automatically:
 
-| Model | Format | Notes |
-|-------|--------|-------|
-| **GPT OSS 20B** | `<analysis>` nested | Complex XML structure |
-| **Qwen 2.5 Coder** | `<thinking>` | Clean format |
-| **Llama 3.3 70B** | `<thought>` | Sometimes outputs CoT |
-| **DeepSeek Coder** | `<chain_of_thought>` | Detailed reasoning |
+| Model              | Format               | Notes                 |
+| ------------------ | -------------------- | --------------------- |
+| **GPT OSS 20B**    | `<analysis>` nested  | Complex XML structure |
+| **Qwen 2.5 Coder** | `<thinking>`         | Clean format          |
+| **Llama 3.3 70B**  | `<thought>`          | Sometimes outputs CoT |
+| **DeepSeek Coder** | `<chain_of_thought>` | Detailed reasoning    |
 
 ### Models Without Thinking
 
@@ -212,9 +222,9 @@ These models don't output thinking tags (normal behavior):
 interface Message {
   id: string;
   role: "user" | "assistant";
-  content: string;  // Clean final answer
-  thinking?: string;  // Extracted reasoning
-  isThinking?: boolean;  // Streaming state
+  content: string; // Clean final answer
+  thinking?: string; // Extracted reasoning
+  isThinking?: boolean; // Streaming state
   // ... other fields
 }
 ```
@@ -264,6 +274,7 @@ Currently, thinking detection is **always enabled** and **defaults to collapsed*
 ### Example 1: Simple Analysis
 
 **Model Output:**
+
 ```xml
 <analysis>
 User is greeting. Respond warmly and offer help.
@@ -272,12 +283,14 @@ Hello! I'm here to help. What can I assist you with?
 ```
 
 **UI Display:**
+
 ```
 🧠 AI Reasoning ▼
 Hello! I'm here to help. What can I assist you with?
 ```
 
 **Expanded:**
+
 ```
 🧠 AI Reasoning ▼
 ┌─────────────────────────────────────┐
@@ -290,6 +303,7 @@ Hello! I'm here to help. What can I assist you with?
 ### Example 2: Multi-Step Reasoning
 
 **Model Output:**
+
 ```xml
 <thinking>
 Step 1: Identify the question - user wants to know about Python
@@ -300,12 +314,14 @@ Python is a high-level, interpreted programming language...
 ```
 
 **UI Display:**
+
 ```
 🧠 AI Reasoning ▼
 Python is a high-level, interpreted programming language...
 ```
 
 **Expanded:**
+
 ```
 🧠 AI Reasoning ▼
 ┌─────────────────────────────────────┐
@@ -326,6 +342,7 @@ Python is a high-level, interpreted programming language...
 **Issue**: Model outputs XML but thinking doesn't appear
 
 **Solutions**:
+
 1. Check console logs for parsing errors
 2. Verify XML format matches supported patterns
 3. Check if model wraps thinking in unusual tags
@@ -336,6 +353,7 @@ Python is a high-level, interpreted programming language...
 **Issue**: XML tags visible in final response
 
 **Solutions**:
+
 1. Check `messageHandler.ts` regex patterns
 2. Verify tag extraction logic
 3. Ensure wrapper tags are being cleaned
@@ -346,6 +364,7 @@ Python is a high-level, interpreted programming language...
 **Issue**: Long reasoning cut off
 
 **Solutions**:
+
 1. Check CSS `max-height` in ThinkingIndicator
 2. Verify scroll overflow is enabled
 3. Increase container limits if needed

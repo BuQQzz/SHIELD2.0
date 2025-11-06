@@ -62,9 +62,7 @@ async function downloadModelFile(modelKey: string) {
 
     console.log(`\n✅ Model ready!`);
     console.log(`   Path: ${modelPath}`);
-    console.log(
-      `\n💡 Next: Test the model with:\n   npm run test:inference\n`
-    );
+    console.log(`\n💡 Next: Test the model with:\n   npm run test:inference\n`);
   } catch (error) {
     console.error(`\n❌ Download failed:`, error);
     process.exit(1);
@@ -94,4 +92,3 @@ console.log("SHIELD 2.0 - Model Downloader");
 console.log("=".repeat(60));
 
 downloadModelFile(modelKey);
-

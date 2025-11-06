@@ -1,22 +1,24 @@
 # Model Capabilities System
 
 ## Overview
+
 The Model Capabilities system dynamically enables/disables features based on each model's specifications and strengths. This prevents users from attempting features that their current model doesn't support well.
 
 ## Architecture
 
 ### ModelCapabilities Interface
+
 Located in `src/config/models.ts`:
 
 ```typescript
 interface ModelCapabilities {
-  toolCalling: boolean;         // Native function calling support
-  complexReasoning: boolean;    // Good at multi-step reasoning
-  webSearch: boolean;           // Works well with web search
-  structuredOutput: boolean;    // Follows JSON/XML formats
-  longContext: boolean;         // Utilizes long context effectively
-  codeGeneration: boolean;      // Good at generating code
-  multilingual: 'excellent' | 'good' | 'basic';
+  toolCalling: boolean; // Native function calling support
+  complexReasoning: boolean; // Good at multi-step reasoning
+  webSearch: boolean; // Works well with web search
+  structuredOutput: boolean; // Follows JSON/XML formats
+  longContext: boolean; // Utilizes long context effectively
+  codeGeneration: boolean; // Good at generating code
+  multilingual: "excellent" | "good" | "basic";
   temperatureRange: {
     min: number;
     max: number;
@@ -26,6 +28,7 @@ interface ModelCapabilities {
 ```
 
 ### useModelCapabilities Hook
+
 Located in `src/hooks/useModelCapabilities.ts`:
 
 ```typescript
@@ -44,6 +47,7 @@ const warning = getWarning('mcp'); // Returns warning string or null
 ## Current Model Capabilities
 
 ### Qwen 2.5 7B Instruct (Q4_K_M)
+
 - ✅ Complex reasoning
 - ✅ Structured output
 - ✅ Code generation
@@ -55,6 +59,7 @@ const warning = getWarning('mcp'); // Returns warning string or null
 **Recommended for**: General chat, code assistance, multilingual tasks
 
 ### Llama 3.2 3B Instruct (Q4_K_M)
+
 - ⚠️ Basic reasoning (smaller model)
 - ❌ Structured output (too small)
 - ⚠️ Code generation (basic)
@@ -66,6 +71,7 @@ const warning = getWarning('mcp'); // Returns warning string or null
 **Recommended for**: Simple conversations, quick responses, low resource usage
 
 ### Mistral 7B Instruct (Q4_K_M)
+
 - ✅ Complex reasoning
 - ✅ Structured output
 - ✅ Code generation
@@ -79,6 +85,7 @@ const warning = getWarning('mcp'); // Returns warning string or null
 ## UI Integration
 
 ### MCP Status Indicator
+
 The MCP status button in the chat header shows different states based on model capabilities:
 
 - **MCP Off** (gray): Feature disabled
@@ -98,6 +105,7 @@ When a model doesn't support a feature well, users see:
 ## Implementation Notes
 
 ### Why Current Models Don't Support Tool Calling
+
 None of the current models (Qwen 7B, Llama 3B, Mistral 7B) have `toolCalling: true` because:
 
 1. **Not trained on XML format**: The models weren't specifically trained to generate XML-based tool calls
@@ -105,16 +113,20 @@ None of the current models (Qwen 7B, Llama 3B, Mistral 7B) have `toolCalling: tr
 3. **Structured output ≠ tool calling**: While some can follow structured formats, they don't reliably generate tool call syntax
 
 ### Current Limitation
+
 With the current models, MCP tool calling will **not work**. The models will receive the tool calling instructions but won't generate the required XML format. The MCP status will show "Limited" to indicate this.
 
 **Recommended Solution**: Download and use models with native tool calling support:
+
 - **Llama 3.3 70B** - Excellent function calling
 - **Qwen 2.5 Coder 32B** - Trained on tool use
 - **Mistral Large** - Native function calling
 - **Command R+** - Strong tool calling capabilities
 
 ### Removed Features
+
 **Intent Detection System (Removed November 2025)**
+
 - Previously used regex pattern matching to detect file operations from natural language
 - Allowed any model to use MCP through intent recognition
 - Removed to simplify architecture and focus on proper tool-calling models

@@ -255,11 +255,7 @@ export function createMessageHandler({
         },
       ];
 
-      for (const {
-        pattern,
-        thinkingIndex,
-        contentIndex,
-      } of thinkingPatterns) {
+      for (const { pattern, thinkingIndex, contentIndex } of thinkingPatterns) {
         const match = finalContent.match(pattern);
 
         if (match && match[thinkingIndex]) {
@@ -364,7 +360,7 @@ export function createMessageHandler({
             } finally {
               setIsGenerating(false);
             }
-          }
+          },
         });
       }
 

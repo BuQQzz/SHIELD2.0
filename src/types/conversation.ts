@@ -11,6 +11,7 @@ export interface Message {
     title: string;
     url: string;
     snippet: string;
+    position: number;
   }>;
 }
 

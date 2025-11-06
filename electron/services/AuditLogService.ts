@@ -1,13 +1,13 @@
 /**
  * Audit Log Service
- * 
+ *
  * Tracks all MCP operations locally for transparency and security auditing.
  * Provides comprehensive logging of tool calls, permissions, and results.
  */
 
-import fs from 'fs/promises';
-import path from 'path';
-import { app } from 'electron';
+import fs from "fs/promises";
+import path from "path";
+import { app } from "electron";
 import {
   type AuditLogEntry,
   type AuditLogQueryOptions,
@@ -16,7 +16,7 @@ import {
   generateLogId,
   filterLogEntries,
   calculateStatistics,
-} from './AuditLogTypes.js';
+} from "./AuditLogTypes.js";
 
 /**
  * Audit Log Service Class
@@ -33,7 +33,7 @@ class AuditLogService {
    * Private constructor for singleton pattern
    */
   private constructor() {
-    this.logsDir = path.join(app.getPath('userData'), 'mcp-audit-logs');
+    this.logsDir = path.join(app.getPath("userData"), "mcp-audit-logs");
     this.currentLogFile = this.getLogFilePath();
   }
 
@@ -58,9 +58,9 @@ class AuditLogService {
       // Load recent logs into memory
       await this.loadRecentLogs();
 
-      console.log('[AuditLogService] Initialized successfully');
+      console.log("[AuditLogService] Initialized successfully");
     } catch (error) {
-      console.error('[AuditLogService] Failed to initialize:', error);
+      console.error("[AuditLogService] Failed to initialize:", error);
       throw error;
     }
   }
@@ -69,7 +69,7 @@ class AuditLogService {
    * Get log file path for current date
    */
   private getLogFilePath(date: Date = new Date()): string {
-    const dateStr = date.toISOString().split('T')[0]; // YYYY-MM-DD
+    const dateStr = date.toISOString().split("T")[0]; // YYYY-MM-DD
     return path.join(this.logsDir, `mcp-audit-${dateStr}.json`);
   }
 
@@ -79,7 +79,7 @@ class AuditLogService {
   private async loadRecentLogs(): Promise<void> {
     try {
       const logFile = this.currentLogFile;
-      
+
       // Check if log file exists
       try {
         await fs.access(logFile);
@@ -90,15 +90,15 @@ class AuditLogService {
       }
 
       // Read and parse log file
-      const content = await fs.readFile(logFile, 'utf-8');
+      const content = await fs.readFile(logFile, "utf-8");
       const entries = JSON.parse(content);
-      
+
       // Convert timestamp strings back to Date objects
       this.logs = parseLogEntries(entries);
 
       console.log(`[AuditLogService] Loaded ${this.logs.length} recent logs`);
     } catch (error) {
-      console.error('[AuditLogService] Failed to load logs:', error);
+      console.error("[AuditLogService] Failed to load logs:", error);
       this.logs = [];
     }
   }
@@ -151,7 +151,7 @@ class AuditLogService {
     id: string,
     result: { success: boolean; data?: unknown; error?: string }
   ): Promise<void> {
-    const entry = this.logs.find(log => log.id === id);
+    const entry = this.logs.find((log) => log.id === id);
     if (!entry) {
       console.warn(`[AuditLogService] Log entry ${id} not found`);
       return;
@@ -166,7 +166,9 @@ class AuditLogService {
   /**
    * Query audit logs
    */
-  public async queryLogs(options: AuditLogQueryOptions = {}): Promise<AuditLogEntry[]> {
+  public async queryLogs(
+    options: AuditLogQueryOptions = {}
+  ): Promise<AuditLogEntry[]> {
     return filterLogEntries(this.logs, options);
   }
 
@@ -177,9 +179,9 @@ class AuditLogService {
     const logFile = this.getLogFilePath(date);
 
     try {
-      const content = await fs.readFile(logFile, 'utf-8');
+      const content = await fs.readFile(logFile, "utf-8");
       const entries = JSON.parse(content);
-      
+
       return parseLogEntries(entries);
     } catch {
       return [];
@@ -198,18 +200,18 @@ class AuditLogService {
    */
   public async clearLogs(): Promise<void> {
     this.logs = [];
-    
+
     // Delete all log files
     try {
       const files = await fs.readdir(this.logsDir);
       for (const file of files) {
-        if (file.startsWith('mcp-audit-')) {
+        if (file.startsWith("mcp-audit-")) {
           await fs.unlink(path.join(this.logsDir, file));
         }
       }
-      console.log('[AuditLogService] All logs cleared');
+      console.log("[AuditLogService] All logs cleared");
     } catch (error) {
-      console.error('[AuditLogService] Failed to clear logs:', error);
+      console.error("[AuditLogService] Failed to clear logs:", error);
       throw error;
     }
   }
@@ -219,10 +221,16 @@ class AuditLogService {
    */
   public async exportLogs(outputPath: string): Promise<void> {
     try {
-      await fs.writeFile(outputPath, JSON.stringify(this.logs, null, 2), 'utf-8');
-      console.log(`[AuditLogService] Exported ${this.logs.length} logs to ${outputPath}`);
+      await fs.writeFile(
+        outputPath,
+        JSON.stringify(this.logs, null, 2),
+        "utf-8"
+      );
+      console.log(
+        `[AuditLogService] Exported ${this.logs.length} logs to ${outputPath}`
+      );
     } catch (error) {
-      console.error('[AuditLogService] Failed to export logs:', error);
+      console.error("[AuditLogService] Failed to export logs:", error);
       throw error;
     }
   }
@@ -235,14 +243,14 @@ class AuditLogService {
       await fs.writeFile(
         this.currentLogFile,
         JSON.stringify(this.logs, null, 2),
-        'utf-8'
+        "utf-8"
       );
     } catch (error) {
-      console.error('[AuditLogService] Failed to persist logs:', error);
+      console.error("[AuditLogService] Failed to persist logs:", error);
     }
   }
 }
 
 // Export singleton instance
 export const auditLogService = AuditLogService.getInstance();
-export type { AuditLogEntry, AuditLogQueryOptions } from './AuditLogTypes.js';
+export type { AuditLogEntry, AuditLogQueryOptions } from "./AuditLogTypes.js";

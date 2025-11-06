@@ -39,9 +39,9 @@ function createWindow() {
   const preloadPath = process.env.VITE_DEV_SERVER_URL
     ? path.join(__dirname, "preload.mjs")
     : path.join(__dirname, "preload.mjs");
-  
+
   console.log("[main] Preload path:", preloadPath);
-  
+
   mainWindow = new BrowserWindow({
     width: 1200,
     height: 800,
@@ -65,11 +65,11 @@ function createWindow() {
   // Load the app
   if (process.env.VITE_DEV_SERVER_URL) {
     mainWindow.loadURL(process.env.VITE_DEV_SERVER_URL);
-    
+
     // Open DevTools (set HIDE_DEVTOOLS=1 to suppress Autofill errors)
     if (!process.env.HIDE_DEVTOOLS) {
       mainWindow.webContents.openDevTools();
-      
+
       // Note: Autofill.enable and Autofill.setAddresses errors are harmless
       // They occur because Chromium DevTools tries to enable the Autofill protocol
       // which isn't available in Electron. These can be safely ignored or hidden
@@ -296,14 +296,17 @@ async function setupIpcHandlers() {
     }
   });
 
-  ipcMain.handle("conversation:export-markdown", async (_event, conversation) => {
-    try {
-      return await ExportService.exportAsMarkdown(conversation);
-    } catch (error) {
-      console.error("Failed to export conversation as Markdown:", error);
-      return false;
+  ipcMain.handle(
+    "conversation:export-markdown",
+    async (_event, conversation) => {
+      try {
+        return await ExportService.exportAsMarkdown(conversation);
+      } catch (error) {
+        console.error("Failed to export conversation as Markdown:", error);
+        return false;
+      }
     }
-  });
+  );
 
   ipcMain.handle("conversation:import", async () => {
     try {
@@ -327,13 +330,13 @@ async function setupIpcHandlers() {
   ipcMain.handle("settings:save", async (_event, settings) => {
     try {
       const result = await SettingsStorageService.saveSettings(settings);
-      
+
       // Update services if modelDirectory changed
       if (result) {
         modelDownloadService.setCustomModelsDir(settings.system.modelDirectory);
         llamaService.setCustomModelsDir(settings.system.modelDirectory);
       }
-      
+
       return result;
     } catch (error) {
       console.error("Failed to save settings:", error);
@@ -380,10 +383,13 @@ async function setupIpcHandlers() {
         await webCacheService.initialize();
         console.log("[WebSearch] Cache initialized successfully");
       } catch (cacheError) {
-        console.warn("[WebSearch] Cache initialization failed (will proceed without cache):", cacheError instanceof Error ? cacheError.message : "Unknown error");
+        console.warn(
+          "[WebSearch] Cache initialization failed (will proceed without cache):",
+          cacheError instanceof Error ? cacheError.message : "Unknown error"
+        );
         webCacheService = null; // Disable cache
       }
-      
+
       // Initialize search service (required)
       await webSearchService.initialize();
       return { success: true, cacheEnabled: webCacheService !== null };
@@ -395,17 +401,24 @@ async function setupIpcHandlers() {
     }
   });
 
-  ipcMain.handle("web-search:query", async (_event, query, maxResults, options) => {
-    try {
-      const results = await webSearchService.search(query, maxResults, options);
-      return { success: true, results };
-    } catch (error) {
-      return {
-        success: false,
-        error: error instanceof Error ? error.message : "Unknown error",
-      };
+  ipcMain.handle(
+    "web-search:query",
+    async (_event, query, maxResults, options) => {
+      try {
+        const results = await webSearchService.search(
+          query,
+          maxResults,
+          options
+        );
+        return { success: true, results };
+      } catch (error) {
+        return {
+          success: false,
+          error: error instanceof Error ? error.message : "Unknown error",
+        };
+      }
     }
-  });
+  );
 
   ipcMain.handle("web-search:fetch", async (_event, url, options) => {
     try {
@@ -565,7 +578,7 @@ async function setupIpcHandlers() {
   ipcMain.handle("mcp:call-tool", async (_event, request) => {
     try {
       const result = await mcpService.callTool(request);
-      
+
       // Log the tool call
       const logId = await auditLogService.logToolCall(
         request.serverName,
@@ -573,10 +586,10 @@ async function setupIpcHandlers() {
         request.arguments,
         result.success
       );
-      
+
       // Update log with result
       await auditLogService.updateLogResult(logId, result);
-      
+
       return result;
     } catch (error) {
       console.error("Failed to call MCP tool:", error);

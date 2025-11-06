@@ -7,18 +7,21 @@ SHIELD 2.0 now includes full Model Context Protocol (MCP) integration, enabling 
 ## Features
 
 ### 🔒 Security-First Design
+
 - **User Approval Required**: Every file operation requires explicit user consent
 - **Path Restrictions**: Only Desktop and Documents folders are accessible
 - **Audit Logging**: All operations are logged locally with timestamps
 - **Granular Permissions**: Users can approve or deny individual tool calls
 
 ### 🛠️ Capabilities
+
 - **Read Files**: AI can read file contents with user permission
 - **Write Files**: AI can create or update files with approval
 - **List Directories**: Browse folder structures
 - **Full Audit Trail**: Complete history of all MCP operations
 
 ### 🎯 AI Tool-Calling Workflow
+
 1. User asks AI to perform a file operation (e.g., "read my todo.txt file")
 2. AI generates a structured tool call request
 3. Permission dialog shows user exactly what the AI wants to do
@@ -31,23 +34,27 @@ SHIELD 2.0 now includes full Model Context Protocol (MCP) integration, enabling 
 ### Backend Services
 
 #### MCPService (`electron/services/MCPService.ts` - 266 lines)
+
 - Manages MCP server lifecycle (connect, disconnect, health checks)
 - Executes tool calls via callTool() method
 - Handles server initialization and shutdown
 - Uses MCPServerConfig.ts for validation logic (extracted to stay under 300 lines)
 
 #### MCPServerConfig (`electron/services/MCPServerConfig.ts` - 73 lines)
+
 - Filesystem path validation (Desktop/Documents only)
 - Server configuration types and schemas
 - Extracted from MCPService to maintain line limits
 
 #### AuditLogService (`electron/services/AuditLogService.ts` - 248 lines)
+
 - Logs all MCP operations with timestamps
 - Provides queryLogs() for filtering by date/operation
 - getStatistics() for usage analytics
 - Uses AuditLogTypes.ts for utilities (extracted to stay under 300 lines)
 
 #### AuditLogTypes (`electron/services/AuditLogTypes.ts` - 58 lines)
+
 - Type definitions for audit log entries
 - Utility functions for log formatting
 - Extracted from AuditLogService to maintain line limits
@@ -55,12 +62,14 @@ SHIELD 2.0 now includes full Model Context Protocol (MCP) integration, enabling 
 ### Frontend Components
 
 #### MCPStatus (`src/components/chat/MCPStatus.tsx` - 89 lines)
+
 - Real-time MCP connection status indicator
 - Shows: Inactive, Initializing, Ready, Error states
 - Color-coded badges with descriptive text
 - Integrated into ChatHeader
 
 #### PermissionDialog (`src/components/dialogs/PermissionDialog.tsx`)
+
 - User consent UI for tool calls
 - Shows server name, tool name, and arguments
 - Approve/Deny buttons with clear action descriptions
@@ -68,16 +77,19 @@ SHIELD 2.0 now includes full Model Context Protocol (MCP) integration, enabling 
 ### Handlers
 
 #### mcpToolHandler (`src/handlers/mcpToolHandler.ts` - 123 lines)
+
 - extractToolCalls(): Parses AI responses for XML-style <tool_call> blocks
 - formatToolResult(): Formats tool execution results for AI context
 - getMCPSystemPrompt(): Generates system prompt with available tools
 
 #### mcpMessageHandler (`src/handlers/mcpMessageHandler.ts` - 79 lines)
+
 - processMCPToolCalls(): Detects tool calls in messages, executes them
 - Manages conversation continuation with tool results
 - Integrates with messageHandler for seamless AI workflow
 
 #### messageHandler (`src/handlers/messageHandler.ts`)
+
 - Updated to check every AI response for tool calls
 - Automatically invokes MCP workflow when tools detected
 - Continues conversation with tool results
@@ -85,6 +97,7 @@ SHIELD 2.0 now includes full Model Context Protocol (MCP) integration, enabling 
 ### Type Definitions
 
 #### settings.ts
+
 ```typescript
 interface MCPSettings {
   enabled: boolean;
@@ -96,6 +109,7 @@ interface MCPSettings {
 ```
 
 #### index.ts
+
 ```typescript
 export interface MCPToolResult {
   success: boolean;
@@ -109,12 +123,14 @@ export interface MCPToolResult {
 ### Comprehensive Test Coverage (27 tests total)
 
 #### MCPService.test.ts (8 tests)
+
 - Server initialization and shutdown
 - Tool call execution
 - Health checks
 - Error handling
 
 #### AuditLogTypes.test.ts (15 tests)
+
 - Log entry creation and validation
 - Query filtering (by date, operation type)
 - Statistics aggregation
@@ -127,17 +143,20 @@ All tests pass with zero failures. Test suite configured to run on all PRs via G
 ### Enabling MCP
 
 **Option 1: Main UI (Quickest)**
-   - Click the "MCP Off" button in the top-right header
-   - It will automatically initialize and change to "MCP Ready"
-   - Click again to disable
+
+- Click the "MCP Off" button in the top-right header
+- It will automatically initialize and change to "MCP Ready"
+- Click again to disable
 
 **Option 2: Settings Panel**
-   - Open Settings (gear icon)
-   - Navigate to MCP section
-   - Toggle "Enable MCP" switch
-   - Automatically initializes when enabled
+
+- Open Settings (gear icon)
+- Navigate to MCP section
+- Toggle "Enable MCP" switch
+- Automatically initializes when enabled
 
 **Status Indicators:**
+
 - 🛡️ "MCP Off" (gray) - Inactive, click to enable
 - ⏳ "Initializing..." (gray) - Starting up
 - ✅ "MCP Ready" (green) - Active and ready to use
@@ -148,6 +167,7 @@ Both methods sync automatically - changing one updates the other.
 ### Example Conversations
 
 **Reading a File:**
+
 ```
 User: Can you read the file notes.txt from my Desktop?
 
@@ -169,6 +189,7 @@ AI: Here's the content of your notes.txt file:
 ```
 
 **Writing a File:**
+
 ```
 User: Create a file called todo.txt on my Desktop with "Buy groceries" as content
 
@@ -219,6 +240,7 @@ IMPORTANT:
 ## Settings & Configuration
 
 ### Default Settings
+
 ```typescript
 mcp: {
   enabled: false,              // MCP disabled by default
@@ -230,6 +252,7 @@ mcp: {
 ```
 
 ### Settings API
+
 ```typescript
 // Get current settings
 const settings = await window.electronAPI.settings.load();
@@ -247,8 +270,8 @@ All MCP operations are logged for security and debugging:
 interface AuditLogEntry {
   id: string;
   timestamp: Date;
-  operation: string;          // e.g., "read_file"
-  serverName: string;         // e.g., "filesystem"
+  operation: string; // e.g., "read_file"
+  serverName: string; // e.g., "filesystem"
   toolName: string;
   arguments: Record<string, unknown>;
   result: "success" | "error" | "denied";
@@ -258,14 +281,15 @@ interface AuditLogEntry {
 ```
 
 ### Querying Logs
+
 ```typescript
 // Get all logs
 const logs = await window.electronAPI.mcp.queryAuditLogs();
 
 // Filter by date range
 const recentLogs = await window.electronAPI.mcp.queryAuditLogs({
-  startDate: new Date('2025-01-01'),
-  endDate: new Date('2025-01-31')
+  startDate: new Date("2025-01-01"),
+  endDate: new Date("2025-01-31"),
 });
 
 // Get statistics
@@ -275,6 +299,7 @@ const stats = await window.electronAPI.mcp.getAuditStatistics();
 ## Code Quality Compliance
 
 ✅ **All files under 300 lines**
+
 - MCPService.ts: 266 lines (extracted config to MCPServerConfig.ts)
 - AuditLogService.ts: 248 lines (extracted utilities to AuditLogTypes.ts)
 - mcpToolHandler.ts: 123 lines
@@ -283,16 +308,19 @@ const stats = await window.electronAPI.mcp.getAuditStatistics();
 - MCPStatus.tsx: 89 lines
 
 ✅ **Comprehensive Testing**
+
 - 27 tests passing (8 MCP tests + 15 audit log tests + 4 existing tests)
 - Zero failures, zero warnings
 - All test suites run on PR via GitHub Actions
 
 ✅ **Build Success**
+
 - TypeScript compilation passes
 - Vite build completes without errors
 - No lint issues
 
 ✅ **Security & Privacy**
+
 - All operations require explicit user consent
 - Path restrictions enforced (Desktop/Documents only)
 - Complete audit trail
@@ -301,6 +329,7 @@ const stats = await window.electronAPI.mcp.getAuditStatistics();
 ## Future Enhancements
 
 ### Planned Features
+
 - [ ] Remember permission choices per file/operation
 - [ ] Bulk approve/deny for multiple tool calls
 - [ ] File operation previews (show diff before write)
@@ -309,6 +338,7 @@ const stats = await window.electronAPI.mcp.getAuditStatistics();
 - [ ] Additional MCP servers (web search, calculator, etc.)
 
 ### Potential Improvements
+
 - [ ] More granular path restrictions (allow custom folders)
 - [ ] Operation sandboxing with reversible changes
 - [ ] Integration with Windows file system notifications
@@ -318,21 +348,25 @@ const stats = await window.electronAPI.mcp.getAuditStatistics();
 ## Troubleshooting
 
 ### MCP Shows "Error" Status
+
 1. Check if filesystem server is installed: `npm list @modelcontextprotocol/server-filesystem`
 2. Verify settings: MCP enabled in Settings UI
 3. Check audit logs for error details
 
 ### Permission Dialog Not Appearing
+
 1. Ensure `showPermissionDialog: true` in settings
 2. Check browser console for errors
 3. Verify PermissionDialog component is rendered in App.tsx
 
 ### Tool Calls Not Detected
+
 1. AI must format tool calls exactly as shown in system prompt
 2. Check that MCP system prompt is being added (view conversation history)
 3. Verify message handler is checking for tool calls
 
 ### File Operations Failing
+
 1. Verify path is within Desktop or Documents folder
 2. Check file/folder permissions in Windows
 3. Review audit logs for specific error messages
@@ -340,6 +374,7 @@ const stats = await window.electronAPI.mcp.getAuditStatistics();
 ## Development Notes
 
 ### Adding New MCP Servers
+
 1. Install server package: `npm install @modelcontextprotocol/server-xyz`
 2. Add to `allowedServers` in settings
 3. Update `MCPServerConfig.ts` with server configuration
@@ -347,6 +382,7 @@ const stats = await window.electronAPI.mcp.getAuditStatistics();
 5. Add validation logic if needed
 
 ### Modifying Tool Call Format
+
 1. Update `extractToolCalls()` regex in mcpToolHandler.ts
 2. Update `getMCPSystemPrompt()` with new format
 3. Update tests to match new format

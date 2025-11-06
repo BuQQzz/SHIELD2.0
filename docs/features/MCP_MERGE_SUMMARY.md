@@ -11,6 +11,7 @@
 ## What Was Accomplished
 
 ### Revolutionary MCP Integration ✨
+
 - **Model-agnostic tool calling** - Works with ANY LLM (no API-specific requirements)
 - **Natural language file operations** - Users can ask in plain English
 - **Security-first design** - Permission dialogs + path restrictions
@@ -19,6 +20,7 @@
 ### Technical Achievements
 
 #### New Files Created (1,730+ lines)
+
 - `src/handlers/intentDetector.ts` (218 lines) - NLP pattern matching
 - `electron/services/MCPService.ts` (284 lines) - MCP lifecycle management
 - `electron/services/MCPServerConfig.ts` (105 lines) - Security configuration
@@ -28,6 +30,7 @@
 - `src/components/dialogs/PermissionDialog.tsx` (177 lines) - Permission UI
 
 #### Documentation
+
 - `docs/features/MCP_INTEGRATION.md` (360 lines) - Complete integration guide
 - `docs/features/MCP_TESTING_GUIDE.md` (382 lines) - Manual testing procedures
 - `docs/fixes/MESSAGE_ID_FIX.md` (62 lines) - Bug fix documentation
@@ -37,6 +40,7 @@
 ### Key Features Delivered
 
 #### 1. Intent-Based Detection System
+
 ```typescript
 // Works with ANY model - no tool calling API needed!
 "read the file hello friend.txt on my desktop"
@@ -46,12 +50,14 @@
 ```
 
 #### 2. Permission Dialog System
+
 - Shows full file path before any operation
 - User must explicitly approve
 - Cancel option always available
 - Clear action descriptions
 
 #### 3. Security Features
+
 - **Allowed directories only**: Desktop and Documents (expandable)
 - **Path validation**: Blocks traversal attacks
 - **Tilde expansion**: Cross-platform path handling
@@ -59,11 +65,13 @@
 - **Error handling**: User-friendly messages
 
 #### 4. Supported Operations
+
 - ✅ **read_file** - Read text file contents
 - ✅ **list_directory** - List files in directory
 - 🚧 **write_file** - Coming in Phase 1 (next branch)
 
 ### Bug Fixes Included
+
 - ✅ Fixed React key collision warnings (counter-based message IDs)
 - ✅ Fixed filename parsing for spaces ("hello friend.txt")
 - ✅ Fixed MCP server initialization (command-line args)
@@ -71,6 +79,7 @@
 - ✅ Fixed type consistency across frontend/backend
 
 ### Testing Status
+
 - ✅ Manual testing complete - All scenarios passing
 - ✅ Intent detection working perfectly
 - ✅ Permission dialogs functioning correctly
@@ -82,6 +91,7 @@
 ## Commits Merged
 
 ### Main Commits (7 total)
+
 1. Initial MCP infrastructure and types
 2. Permission dialog UI implementation
 3. Intent detector with NLP patterns
@@ -91,6 +101,7 @@
 7. Documentation and cleanup
 
 ### Lines Changed
+
 - **36 files changed**
 - **5,065 insertions**
 - **64 deletions**
@@ -100,12 +111,15 @@
 ## Next Steps - Feature: File Operations
 
 ### New Branch Created
+
 `feature/file-operations` - Ready for development
 
 ### Roadmap Created
+
 `docs/features/FILE_OPERATIONS_ROADMAP.md`
 
 ### Phase 1 Priorities (Immediate)
+
 1. **Write Operations**
    - Implement write_file intent detection
    - Extract content from natural language
@@ -126,6 +140,7 @@
    - Audit logging for deletions
 
 ### Testing Requirements
+
 - Unit tests for all new intents
 - Integration tests for full operations
 - Security validation tests
@@ -136,15 +151,18 @@
 ## Repository Status
 
 ### Branches
+
 - ✅ `main` - Updated with MCP integration
 - ✅ `feature/mcp-integration` - Merged and completed
 - ✅ `feature/file-operations` - Created and ready
 
 ### Remote Status
+
 - ✅ `origin/main` - Pushed successfully
 - ✅ `origin/feature/file-operations` - Pushed successfully
 
 ### Build Status
+
 - ✅ All linting checks pass
 - ✅ TypeScript compilation successful
 - ✅ Production build successful (npm run build)
@@ -154,39 +172,46 @@
 ## Key Learnings & Innovations
 
 ### 1. Intent Detection > Model Tool Calling
+
 **Discovery**: Qwen2.5-7B supports tool calling but only via specific APIs (vLLM/Transformers with Hermes format), not from basic llama.cpp inference.
 
 **Solution**: Built regex-based intent detection that works with ANY model:
+
 - Detects natural language patterns
 - Extracts file operations without model cooperation
 - Universally compatible
 - More reliable than model-dependent approaches
 
 ### 2. MCP Filesystem Server Configuration
+
 **Issue**: MCP server needs allowed paths as command-line arguments, not environment variables.
 
-**Solution**: 
+**Solution**:
+
 ```typescript
 // Wrong
-spawn('node', [serverPath], { env: { ALLOWED_PATHS: '...' } })
+spawn("node", [serverPath], { env: { ALLOWED_PATHS: "..." } });
 
 // Correct
 StdioClientTransport({
-  command: 'node',
-  args: [serverPath, '/path/to/desktop', '/path/to/documents']
-})
+  command: "node",
+  args: [serverPath, "/path/to/desktop", "/path/to/documents"],
+});
 ```
 
 ### 3. Cross-Platform Path Handling
+
 **Challenge**: Different path formats on Windows/Mac/Linux
 
 **Solution**: Tilde notation (~) expanded on backend:
+
 ```typescript
 Frontend: "~/Desktop/file.txt"
 Backend: expandTildePath() → "C:\Users\...\Desktop\file.txt"
 ```
 
 ### 4. Error Handling Layers
+
 1. **Intent detection** - Invalid patterns caught early
 2. **Path validation** - Security checks before execution
 3. **MCP response** - Check isError flag in data
@@ -197,17 +222,20 @@ Backend: expandTildePath() → "C:\Users\...\Desktop\file.txt"
 ## Documentation Updated
 
 ### Main Documentation
+
 - ✅ CHANGELOG.md - Complete feature description
 - ✅ README.md - Added MCP to feature list
 - ✅ docs/ROADMAP.md - Updated with completion status
 
 ### New Documentation
+
 - ✅ MCP_INTEGRATION.md - Technical integration guide
 - ✅ MCP_TESTING_GUIDE.md - Testing procedures
 - ✅ FILE_OPERATIONS_ROADMAP.md - Next phase planning
 - ✅ MESSAGE_ID_FIX.md - Bug fix documentation
 
 ### Code Documentation
+
 - ✅ JSDoc comments on all public functions
 - ✅ Inline comments for complex logic
 - ✅ Type definitions with descriptions
@@ -218,17 +246,20 @@ Backend: expandTildePath() → "C:\Users\...\Desktop\file.txt"
 ## Performance Impact
 
 ### Bundle Size
+
 - Main bundle: +289 KB (MCP services, intent detector, UI)
 - Lazy-loaded: Permission dialog, MCP settings
 - Total impact: ~2% increase in app size
 
 ### Runtime Performance
+
 - Intent detection: <5ms per message
 - Permission dialog: Instant rendering
 - File operations: Dependent on file size (<100ms for typical files)
 - No noticeable UI lag
 
 ### Memory Usage
+
 - MCP service: ~10MB resident
 - Audit logs: ~1KB per operation
 - Negligible impact on overall app memory
@@ -251,6 +282,7 @@ Backend: expandTildePath() → "C:\Users\...\Desktop\file.txt"
 ## Team Notes
 
 ### What Worked Well
+
 1. **Incremental development** - Building features step by step
 2. **Testing as we go** - Catching issues early
 3. **Clear documentation** - Easy to understand and extend
@@ -258,6 +290,7 @@ Backend: expandTildePath() → "C:\Users\...\Desktop\file.txt"
 5. **Problem-solving** - Research → prototype → iterate approach
 
 ### Challenges Overcome
+
 1. **Model limitations** - Switched from model-dependent to intent-based
 2. **Path handling** - Tilde expansion solved cross-platform issues
 3. **MCP configuration** - Found correct server initialization method
@@ -265,6 +298,7 @@ Backend: expandTildePath() → "C:\Users\...\Desktop\file.txt"
 5. **React warnings** - Fixed key collisions with counter-based IDs
 
 ### Best Practices Followed
+
 - ✅ Feature branch workflow
 - ✅ Comprehensive commit messages
 - ✅ Documentation alongside code
@@ -278,6 +312,7 @@ Backend: expandTildePath() → "C:\Users\...\Desktop\file.txt"
 ## Ready for Next Phase! 🚀
 
 The `feature/file-operations` branch is set up and ready for:
+
 - Write operations implementation
 - Enhanced list formatting
 - Delete operations with safety

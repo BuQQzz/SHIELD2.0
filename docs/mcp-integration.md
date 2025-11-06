@@ -5,6 +5,7 @@
 **Intent Detection System Removed**: This document previously described a regex-based intent detection system. This has been removed in favor of focusing on models with native tool calling support. The MCP integration now requires models trained on XML/function calling formats.
 
 **Recommended Models**:
+
 - Llama 3.3 70B (excellent function calling)
 - Qwen 2.5 Coder 32B (trained on tool use)
 - Mistral Large (native function calling)
@@ -23,6 +24,7 @@ SHIELD 2.0 includes Model Context Protocol (MCP) integration, enabling the AI as
 ### Core Components
 
 #### 1. MCPService (`electron/services/MCPService.ts`)
+
 - **Purpose**: Manage MCP server lifecycle and tool execution
 - **Lines**: 280 (under 300-line limit)
 - **Key Features**:
@@ -33,6 +35,7 @@ SHIELD 2.0 includes Model Context Protocol (MCP) integration, enabling the AI as
   - Graceful shutdown and cleanup
 
 #### 2. AuditLogService (`electron/services/AuditLogService.ts`)
+
 - **Purpose**: Track all MCP operations for transparency
 - **Lines**: 277 (under 300-line limit)
 - **Key Features**:
@@ -44,6 +47,7 @@ SHIELD 2.0 includes Model Context Protocol (MCP) integration, enabling the AI as
   - Privacy-first local storage
 
 #### 3. PermissionDialog (`src/components/dialogs/PermissionDialog.tsx`)
+
 - **Purpose**: User consent interface for MCP operations
 - **Lines**: 161 (under 300-line limit)
 - **Key Features**:
@@ -54,6 +58,7 @@ SHIELD 2.0 includes Model Context Protocol (MCP) integration, enabling the AI as
   - Clean, accessible UI
 
 #### 4. useMCP Hook (`src/hooks/useMCP.ts`)
+
 - **Purpose**: React integration for MCP operations
 - **Lines**: 147 (under 300-line limit)
 - **Key Features**:
@@ -66,6 +71,7 @@ SHIELD 2.0 includes Model Context Protocol (MCP) integration, enabling the AI as
 ### IPC Integration
 
 **Main Process Handlers** (`electron/main.ts`):
+
 - `mcp:initialize` - Initialize services
 - `mcp:call-tool` - Execute tools with logging
 - `mcp:list-tools` - Get available tools
@@ -77,6 +83,7 @@ SHIELD 2.0 includes Model Context Protocol (MCP) integration, enabling the AI as
 - `mcp:audit-clear` - Clear logs
 
 **Preload API** (`electron/preload.ts`):
+
 - Exposes `window.electronAPI.mcp` interface
 - Type-safe TypeScript definitions
 - Secure IPC bridge to main process
@@ -100,10 +107,12 @@ const OFFICIAL_MCP_SERVERS = {
 ### Path Restrictions
 
 Filesystem operations are limited to safe directories:
+
 - Documents folder
 - Desktop folder
 
 **Blocked paths**:
+
 - `C:\Windows`
 - `C:\Program Files`
 - `C:\System32`
@@ -112,6 +121,7 @@ Filesystem operations are limited to safe directories:
 ### User Consent
 
 All operations require explicit user approval via PermissionDialog:
+
 1. Display operation details
 2. Show target path with security indicators
 3. Warn about restricted directories
@@ -147,6 +157,7 @@ interface AuditLogEntry {
 ### Query Capabilities
 
 Filter logs by:
+
 - Server name
 - Tool name
 - Date range
@@ -185,7 +196,7 @@ function MyComponent() {
       ...permissionRequest,
       approved: true,
     });
-    
+
     console.log("Operation result:", result);
     setPermissionRequest(null);
   };
@@ -209,11 +220,13 @@ function MyComponent() {
 ### Read File
 
 **Natural Language**:
+
 - "Read the file test.txt on my desktop"
 - "Show me the contents of notes.md in documents"
 - "Open file data.json from desktop"
 
 **Tool Call Format**:
+
 ```xml
 <tool_call>
 <server>filesystem</server>
@@ -229,6 +242,7 @@ function MyComponent() {
 **Permission Dialog**: Shows file path, requests read access
 
 **Result Format**:
+
 ```json
 {
   "success": true,
@@ -246,6 +260,7 @@ function MyComponent() {
 ### Write File
 
 **Natural Language with Content Extraction**:
+
 - "Create a file called notes.txt on desktop with: Hello World"
 - "Write to config.json in documents: {\"key\": \"value\"}"
 - "Save this code to test.py on desktop:"
@@ -254,6 +269,7 @@ function MyComponent() {
   ```
 
 **Tool Call Format**:
+
 ```xml
 <tool_call>
 <server>filesystem</server>
@@ -269,12 +285,14 @@ function MyComponent() {
 
 **Content Extraction**:
 The system automatically extracts content from:
+
 - **Markdown code blocks**: ` ```language\ncode\n``` `
 - **Inline code**: `` `content` ``
 - **Quoted text**: `"content"` or `'content'`
 - **Natural language**: "with content: ...", "containing: ..."
 
 **WriteFileDialog Features**:
+
 - Content preview (scrollable, syntax-highlighted)
 - File size indicator
 - Path validation (blocks C:\Windows, C:\Program Files, etc.)
@@ -283,6 +301,7 @@ The system automatically extracts content from:
 - Remember choice option
 
 **Security Checks**:
+
 1. ✅ Path must be in allowed directories (Desktop/Documents)
 2. ✅ Blocks restricted system paths
 3. ✅ Warns about dangerous file extensions
@@ -291,6 +310,7 @@ The system automatically extracts content from:
 6. ✅ Audit logs all operations
 
 **Result Format**:
+
 ```json
 {
   "success": true,
@@ -308,11 +328,13 @@ The system automatically extracts content from:
 ### List Directory
 
 **Natural Language**:
+
 - "List files in my desktop"
 - "Show me files in documents folder"
 - "What files are in my desktop?"
 
 **Tool Call Format**:
+
 ```xml
 <tool_call>
 <server>filesystem</server>
@@ -328,6 +350,7 @@ The system automatically extracts content from:
 **Permission Dialog**: Shows directory path, requests list access
 
 **Result Format**:
+
 ```json
 {
   "success": true,
@@ -345,6 +368,7 @@ The system automatically extracts content from:
 ## Testing Checklist
 
 ### Functionality Tests
+
 - [ ] Enable MCP from settings (auto-initialization)
 - [ ] Connect to filesystem server
 - [ ] List available tools
@@ -367,6 +391,7 @@ The system automatically extracts content from:
 - [ ] Test intent detection for all operation types
 
 ### Security Tests
+
 - [ ] Attempt to access restricted path (should be blocked)
 - [ ] Attempt to write to C:\Windows (should be blocked)
 - [ ] Attempt to write to C:\Program Files (should be blocked)
@@ -380,6 +405,7 @@ The system automatically extracts content from:
 - [ ] Verify content preview truncation for large files
 
 ### Edge Cases
+
 - [ ] Server fails to start
 - [ ] Tool call timeout
 - [ ] Invalid arguments
@@ -401,6 +427,7 @@ The system automatically extracts content from:
 ## Code Organization
 
 All files maintain the 300-line limit:
+
 - `MCPService.ts`: 280 lines
 - `AuditLogService.ts`: 277 lines
 - `PermissionDialog.tsx`: 161 lines
@@ -409,24 +436,28 @@ All files maintain the 300-line limit:
 ## Next Steps
 
 ### Phase 1: Testing & Refinement
+
 1. Implement end-to-end tests
 2. Test all filesystem operations
 3. Verify security restrictions
 4. Validate audit logging accuracy
 
 ### Phase 2: UI Enhancement
+
 1. Add audit log viewer component
 2. Create settings panel for MCP configuration
 3. Implement permission memory/preferences
 4. Add visual feedback for operations
 
 ### Phase 3: Additional Servers
+
 1. Research other official MCP servers
 2. Implement web search MCP integration
 3. Add API client server support
 4. Explore custom server development
 
 ### Phase 4: Advanced Features
+
 1. Tool chaining capabilities
 2. Batch operations
 3. Operation history/replay
@@ -453,7 +484,7 @@ All files maintain the 300-line limit:
 ✅ **User Control**: Explicit consent for every operation  
 ✅ **Audit Trail**: Complete operation history stored locally  
 ✅ **Path Restrictions**: System directories protected  
-✅ **Whitelist Security**: Only verified servers allowed  
+✅ **Whitelist Security**: Only verified servers allowed
 
 ---
 

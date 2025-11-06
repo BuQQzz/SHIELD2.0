@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+
 - **GPT-OSS Model Documentation** - Comprehensive guide for handling GPT-OSS specific output formats
   - Documented pipe-delimited channel format (`<|channel|>analysis<|message|>...`)
   - Added notes on chat template configuration
@@ -20,11 +21,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Three-dot loading animation while thinking
   - Expand/collapse functionality for viewing reasoning
   - Automatically detects and parses multiple XML thinking formats:
-    * `<analysis>...</analysis>`
-    * `<thinking>...</thinking>`
-    * `<thought>...</thought>`
-    * `<chain_of_thought>...</chain_of_thought>`
-    * Complex nested format `<start><analysis>...<end>` (GPT OSS 20B)
+    - `<analysis>...</analysis>`
+    - `<thinking>...</thinking>`
+    - `<thought>...</thought>`
+    - `<chain_of_thought>...</chain_of_thought>`
+    - Complex nested format `<start><analysis>...<end>` (GPT OSS 20B)
   - Extracts thinking from response and displays separately
   - Cleans XML wrapper tags from visible output
   - Default collapsed state - users can expand to see reasoning
@@ -52,6 +53,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - See [GPU Layer Offloading Guide](docs/features/GPU_LAYER_OFFLOADING.md)
 
 ### Changed
+
 - **Codebase Cleanup** - Removed verbose debug logging for production readiness
   - Cleaned `messageHandler.ts`: Removed query enhancement, prompt preview, truncation check logs
   - Cleaned `queryEnhancer.ts`: Removed verbose enhancement process logs
@@ -344,6 +346,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Button hover and tap effects
 
 ### Fixed
+
 - **Vague follow-up detection too aggressive** - blocking legitimate web search queries
   - Pattern `/^(check|look|verify|confirm)` matched "look" in "look at their positions"
   - Now requires explicit re-check keywords: "check/look **again**" to be considered vague
@@ -380,6 +383,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Mistral 7B (4.1GB) - Good general purpose
 
 ### Fixed
+
 - **Linting errors in ExportService.ts** for code quality
   - Removed unused `path` import
   - Prefixed unused destructured variables with underscore (`_exportedAt`, `_version`)
@@ -396,6 +400,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Border persistence when sidebar collapsed
 
 ### Changed
+
 - **Ultra minimal header design** for cleaner UI
   - Moved Settings from header to sidebar footer
   - Header now only contains: menu toggle, branding, model selector, options menu
@@ -439,10 +444,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Full React 19 and Vite 7 compatibility
 
 ### Removed
+
 - Removed `tailwind.config.js` (replaced by CSS-first configuration)
 - Removed `postcss.config.js` (no longer required in Tailwind v4)
 
 ### Added
+
 - Complete chat UI interface with minimalistic design
   - Responsive sidebar with chat history, search, and settings
   - Chat header with model selector and action buttons
@@ -471,10 +478,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Basic project structure and configuration files
 
 ### Changed
+
 - Refactored App.tsx to use complete chat UI system
 - Added zustand dependency for state management
 
 ### Development Guidelines Established
+
 - Feature branch workflow (no direct merges to main)
 - Mandatory test suite execution before merge
 - MCP-first automation approach
@@ -484,6 +493,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [0.1.0] - 2025-11-03
 
 ### Added
+
 - Initial repository creation
 - Project documentation (README, CONTRIBUTING, CHANGELOG)
 - Development environment configuration
@@ -493,6 +503,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ---
 
 ## Legend
+
 - `Added` - New features
 - `Changed` - Changes in existing functionality
 - `Deprecated` - Soon-to-be removed features

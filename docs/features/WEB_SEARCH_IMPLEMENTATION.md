@@ -9,9 +9,11 @@
 ### What Was Implemented
 
 #### 1. WebSearchService (Privacy-First DuckDuckGo Integration)
+
 **File**: `electron/services/WebSearchService.ts` (289 lines)
 
 **Features**:
+
 - ✅ Privacy-focused search using DuckDuckGo HTML interface (no API key required)
 - ✅ User agent rotation for request anonymization
 - ✅ Tracker blocking (Google Analytics, Facebook, DoubleClick, etc.)
@@ -22,6 +24,7 @@
 - ✅ Clean result parsing from DuckDuckGo HTML
 
 **Privacy Measures**:
+
 ```typescript
 // Blocked tracker domains (20+ tracking services)
 - google-analytics.com, googletagmanager.com
@@ -39,6 +42,7 @@ Accept-Language: en-US,en;q=0.9
 ```
 
 **Key Methods**:
+
 - `search(query, maxResults, options)` - Search DuckDuckGo
 - `fetchPage(url, options)` - Fetch and extract clean content
 - `createPrivacyPage(options)` - Create tracker-blocked browser page
@@ -46,9 +50,11 @@ Accept-Language: en-US,en;q=0.9
 - `sanitizeQuery(query)` - Clean search queries
 
 #### 2. WebCacheService (Encrypted Local Storage)
+
 **File**: `electron/services/WebCacheService.ts` (421 lines)
 
 **Features**:
+
 - ✅ AES-256-GCM encryption for all cached content
 - ✅ SQLite database with WAL mode for performance
 - ✅ Secure key generation and storage
@@ -59,6 +65,7 @@ Accept-Language: en-US,en;q=0.9
 - ✅ Expired entry cleanup
 
 **Encryption Details**:
+
 ```typescript
 Algorithm: AES-256-GCM
 Key Length: 32 bytes (256 bits)
@@ -70,6 +77,7 @@ Key Storage: ~/.cache-key (mode 0o600 - owner only)
 ```
 
 **Key Methods**:
+
 - `set(url, content)` - Encrypt and store content
 - `get(url)` - Retrieve and decrypt content
 - `has(url)` - Check if URL is cached
@@ -79,9 +87,11 @@ Key Storage: ~/.cache-key (mode 0o600 - owner only)
 - `export()` - Export cache as JSON
 
 #### 3. IPC Handlers
+
 **File**: `electron/main.ts` (additions)
 
 **Added Handlers**:
+
 - `web-search:initialize` - Initialize services with settings
 - `web-search:query` - Search DuckDuckGo
 - `web-search:fetch` - Fetch page (checks cache first)
@@ -94,13 +104,16 @@ Key Storage: ~/.cache-key (mode 0o600 - owner only)
 - `web-search:cache-delete` - Delete specific entry
 
 **Cleanup**:
+
 - Added `webSearchService.dispose()` on app quit
 - Added `webCacheService.dispose()` on app quit
 
 #### 4. Preload API
+
 **File**: `electron/preload.ts` (additions)
 
 **Exposed API**:
+
 ```typescript
 window.electronAPI.webSearch = {
   initialize(settings?): Promise<Result>
@@ -119,9 +132,11 @@ window.electronAPI.webSearch = {
 ```
 
 #### 5. Type Definitions
+
 **File**: `src/types/electron.d.ts` (additions)
 
 **New Types**:
+
 - `SearchResult` - Search result with title, URL, snippet
 - `PageContent` - Fetched content with metadata
 - `PrivacyOptions` - Search/fetch privacy settings
@@ -130,20 +145,23 @@ window.electronAPI.webSearch = {
 - `WebSearchAPI` - Complete API interface
 
 #### 6. Dependencies Installed
+
 **Total**: 40 new packages (including transitive dependencies)
 
 **Core Dependencies**:
+
 ```json
 {
-  "cheerio": "^1.0.0",           // HTML parsing (~500KB)
+  "cheerio": "^1.0.0", // HTML parsing (~500KB)
   "@mozilla/readability": "^0.5.0", // Content extraction (~50KB)
-  "playwright-core": "^1.40.0",  // Headless browser (~15-20MB)
-  "better-sqlite3": "^9.2.0",    // Fast SQLite database
-  "jsdom": "^25.0.1"             // DOM for Readability
+  "playwright-core": "^1.40.0", // Headless browser (~15-20MB)
+  "better-sqlite3": "^9.2.0", // Fast SQLite database
+  "jsdom": "^25.0.1" // DOM for Readability
 }
 ```
 
 **Dev Dependencies**:
+
 ```json
 {
   "@types/better-sqlite3": "^7.6.8",
@@ -152,14 +170,17 @@ window.electronAPI.webSearch = {
 ```
 
 **Bundle Impact**:
+
 - All dependencies marked as `external` in Vite config
 - No impact on renderer bundle size
 - Electron main process only
 
 #### 7. Vite Configuration
+
 **File**: `vite.config.ts` (modifications)
 
 **External Dependencies** (prevent browser bundling):
+
 ```javascript
 external: [
   // ... existing llama.cpp externals
@@ -168,7 +189,7 @@ external: [
   "jsdom",
   "cheerio",
   "@mozilla/readability",
-]
+];
 ```
 
 ### Build Status ✅
@@ -176,6 +197,7 @@ external: [
 **Build Command**: `npm run build`  
 **Status**: **PASSING**  
 **Bundle Sizes**:
+
 - Renderer: 244.50 KB (unchanged)
 - Main process: 40.89 KB (9.86 KB gzip)
 - Preload: 2.68 KB (0.71 KB gzip)
@@ -191,6 +213,7 @@ external: [
 ### Pending Implementation
 
 #### 1. Settings Integration
+
 - [ ] Add web search settings to `AppSettings` type
 - [ ] Create WebSearchSettings component
 - [ ] Add toggle for enabling/disabling web search
@@ -198,6 +221,7 @@ external: [
 - [ ] Add privacy options UI
 
 #### 2. Chat Integration
+
 - [ ] Add web search toggle to ChatInput
 - [ ] Implement search results display
 - [ ] Add source attribution to AI responses
@@ -205,6 +229,7 @@ external: [
 - [ ] Add loading states for search/fetch
 
 #### 3. UI Components to Create
+
 - `WebSearchSettings.tsx` - Settings panel
 - `WebSearchToggle.tsx` - Chat input toggle
 - `SearchResults.tsx` - Display search results
@@ -212,6 +237,7 @@ external: [
 - `CacheManager.tsx` - Manage cached content
 
 #### 4. Testing
+
 - [ ] Manual testing of search functionality
 - [ ] Privacy validation (no tracking, no telemetry)
 - [ ] Cache encryption verification
@@ -219,6 +245,7 @@ external: [
 - [ ] Performance benchmarks
 
 #### 5. Documentation
+
 - [ ] User guide for web search feature
 - [ ] Privacy policy updates
 - [ ] Developer API documentation
@@ -259,6 +286,7 @@ external: [
 ## Technical Metrics
 
 ### Code Quality
+
 - **Total Lines Added**: ~1,657
 - **Services Created**: 2 (WebSearchService, WebCacheService)
 - **IPC Handlers**: 10
@@ -266,12 +294,14 @@ external: [
 - **File Size**: All files < 450 lines (well under 300-line guideline after splitting)
 
 ### Performance
+
 - **Search Speed**: ~2-5 seconds (network dependent)
 - **Cache Hit**: <10ms (local SQLite)
 - **Encryption Overhead**: <5ms per entry
 - **Memory Usage**: ~50-100MB (Playwright browser)
 
 ### Security
+
 - **Encryption**: AES-256-GCM (industry standard)
 - **Key Length**: 256 bits
 - **Tracker Blocking**: 20+ domains
@@ -303,6 +333,7 @@ external: [
 ## Commit History
 
 ### Main Commit
+
 **Hash**: `857f179`  
 **Message**: "feat: implement Phase 1 MVP web search with privacy-first design"  
 **Files Changed**: 8  
@@ -310,6 +341,7 @@ external: [
 **Deletions**: 18
 
 **Files**:
+
 - ✅ `electron/services/WebSearchService.ts` (new, 289 lines)
 - ✅ `electron/services/WebCacheService.ts` (new, 421 lines)
 - ✅ `electron/main.ts` (modified, +150 lines)

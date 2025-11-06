@@ -57,9 +57,21 @@ export default defineConfig({
           // React and core libs
           "react-vendor": ["react", "react-dom"],
           // UI libraries
-          "ui-vendor": ["framer-motion", "@radix-ui/react-dialog", "@radix-ui/react-dropdown-menu", "@radix-ui/react-label", "@radix-ui/react-slot", "@radix-ui/react-switch", "@radix-ui/react-tabs"],
+          "ui-vendor": [
+            "framer-motion",
+            "@radix-ui/react-dialog",
+            "@radix-ui/react-dropdown-menu",
+            "@radix-ui/react-label",
+            "@radix-ui/react-slot",
+            "@radix-ui/react-switch",
+            "@radix-ui/react-tabs",
+          ],
           // Markdown and syntax highlighting (heavy)
-          "markdown-vendor": ["react-markdown", "remark-gfm", "react-syntax-highlighter"],
+          "markdown-vendor": [
+            "react-markdown",
+            "remark-gfm",
+            "react-syntax-highlighter",
+          ],
           // Utilities
           "utils-vendor": ["zustand", "date-fns", "clsx", "tailwind-merge"],
         },

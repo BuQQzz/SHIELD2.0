@@ -1,12 +1,12 @@
 /**
  * MCP Server Configuration and Types
- * 
+ *
  * Defines official MCP server configurations, allowed paths,
  * and type definitions for MCP operations.
  */
 
-import path from 'path';
-import os from 'os';
+import path from "path";
+import os from "os";
 
 /**
  * MCP Server Configuration
@@ -43,12 +43,12 @@ export interface MCPToolResult {
  */
 export const OFFICIAL_MCP_SERVERS: Record<string, MCPServerConfig> = {
   filesystem: {
-    package: '@modelcontextprotocol/server-filesystem',
-    version: '^2025.8.21',
-    permissions: ['read', 'write', 'list'],
+    package: "@modelcontextprotocol/server-filesystem",
+    version: "^2025.8.21",
+    permissions: ["read", "write", "list"],
     allowedPaths: [
-      path.join(os.homedir(), 'Documents'),
-      path.join(os.homedir(), 'Desktop'),
+      path.join(os.homedir(), "Documents"),
+      path.join(os.homedir(), "Desktop"),
     ],
     requiresApproval: true,
   },
@@ -65,36 +65,38 @@ export function validateFilesystemPath(
   if (!targetPath) {
     return {
       success: false,
-      error: 'No path provided',
+      error: "No path provided",
     };
   }
 
   // Normalize and resolve to absolute path
   const normalizedPath = path.resolve(path.normalize(targetPath));
 
-  console.log('[MCPServerConfig] Validating path:', {
+  console.log("[MCPServerConfig] Validating path:", {
     original: targetPath,
     normalized: normalizedPath,
     allowedPaths: config.allowedPaths,
   });
 
   // Check if path is within allowed directories
-  const isAllowed = config.allowedPaths.some(allowedPath => {
+  const isAllowed = config.allowedPaths.some((allowedPath) => {
     const normalized = path.resolve(path.normalize(allowedPath));
-    const isInside = normalizedPath.startsWith(normalized + path.sep) || normalizedPath === normalized;
-    
-    console.log('[MCPServerConfig] Checking:', {
+    const isInside =
+      normalizedPath.startsWith(normalized + path.sep) ||
+      normalizedPath === normalized;
+
+    console.log("[MCPServerConfig] Checking:", {
       allowedPath,
       normalized,
       targetPath: normalizedPath,
       isInside,
     });
-    
+
     return isInside;
   });
 
   if (!isAllowed) {
-    const allowedPathsList = config.allowedPaths.join(', ');
+    const allowedPathsList = config.allowedPaths.join(", ");
     return {
       success: false,
       error: `Access denied - path outside allowed directories: ${normalizedPath} not in [${allowedPathsList}]`,

@@ -5,6 +5,7 @@ Thank you for your interest in contributing to SHIELD 2.0! This guide will help 
 ## Development Process
 
 ### 1. Feature Development
+
 - Create a feature branch: `git checkout -b feature/your-feature-name`
 - Keep code files under 300 lines (refactor into modules if needed)
 - Write tests for all new functionality
@@ -15,6 +16,7 @@ Thank you for your interest in contributing to SHIELD 2.0! This guide will help 
 **CRITICAL**: All tests must pass before merging to main.
 
 #### Running Tests Locally
+
 ```powershell
 # Run all tests
 npm test
@@ -33,6 +35,7 @@ npm run build
 ```
 
 #### Test Coverage Requirements
+
 - Unit tests: >80% coverage for business logic
 - Integration tests: All module interactions
 - E2E tests: Critical user workflows
@@ -69,6 +72,7 @@ Before creating a pull request, verify:
 ### 5. CI/CD Pipeline
 
 Our GitHub Actions automatically run:
+
 - ✅ Lint checks
 - ✅ Type checking
 - ✅ Full test suite
@@ -80,23 +84,27 @@ Our GitHub Actions automatically run:
 ## Code Standards
 
 ### File Organization
+
 - Maximum 300 lines per file
 - Modular architecture with clear separation of concerns
 - Use barrel exports (`index.ts`) for clean imports
 
 ### Testing Standards
+
 - Write tests alongside features (not after)
 - Test file naming: `*.test.ts` or `*.spec.ts`
 - Mock external dependencies
 - Test edge cases and error conditions
 
 ### Documentation
+
 - Update README files when adding features
 - JSDoc/TSDoc comments for public APIs
 - Inline comments for complex logic
 - Keep documentation current with code changes
 
 ### Technology Usage
+
 - Use latest stable TypeScript/JavaScript features
 - Follow React best practices and hooks patterns
 - Utilize shadcn/ui components for UI

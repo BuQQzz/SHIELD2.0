@@ -2,7 +2,12 @@ import { createRequire } from "module";
 const require = createRequire(import.meta.url);
 const sqlite3 = require("sqlite3");
 
-import { createCipheriv, createDecipheriv, randomBytes, scryptSync } from "crypto";
+import {
+  createCipheriv,
+  createDecipheriv,
+  randomBytes,
+  scryptSync,
+} from "crypto";
 import { app } from "electron";
 import path from "path";
 import fs from "fs";
@@ -307,12 +312,8 @@ export class WebCacheService {
     return {
       totalEntries: stats?.totalEntries || 0,
       totalSize: stats?.totalSize || 0,
-      oldestEntry: stats?.oldestEntry
-        ? new Date(stats.oldestEntry)
-        : undefined,
-      newestEntry: stats?.newestEntry
-        ? new Date(stats.newestEntry)
-        : undefined,
+      oldestEntry: stats?.oldestEntry ? new Date(stats.oldestEntry) : undefined,
+      newestEntry: stats?.newestEntry ? new Date(stats.newestEntry) : undefined,
     };
   }
 
@@ -445,7 +446,10 @@ export class WebCacheService {
     // Extract components
     const iv = encrypted.subarray(0, this.ivLength);
     const tag = encrypted.subarray(encrypted.length - this.tagLength);
-    const data = encrypted.subarray(this.ivLength, encrypted.length - this.tagLength);
+    const data = encrypted.subarray(
+      this.ivLength,
+      encrypted.length - this.tagLength
+    );
 
     const decipher = createDecipheriv(this.algorithm, this.encryptionKey, iv);
     decipher.setAuthTag(tag);
@@ -468,7 +472,10 @@ export class WebCacheService {
 
     // Delete oldest entries until we have space
     let deletedCount = 0;
-    while (stats.totalSize + newEntrySize > maxSizeBytes && deletedCount < 100) {
+    while (
+      stats.totalSize + newEntrySize > maxSizeBytes &&
+      deletedCount < 100
+    ) {
       await this.db.run(`
         DELETE FROM cache
         WHERE url IN (

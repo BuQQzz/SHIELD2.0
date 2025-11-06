@@ -1,16 +1,19 @@
 # Performance Optimization Report
 
 ## Overview
+
 This document summarizes the performance optimizations implemented in SHIELD 2.0 to improve initial load time, reduce bundle size, and enhance runtime performance.
 
 ## Bundle Size Analysis
 
 ### Before Optimization
+
 - **Single Bundle**: 1,327.77 KB (439.78 KB gzipped)
 - **Warning**: Bundle exceeded 1000 KB limit
 - All dependencies loaded upfront
 
 ### After Optimization
+
 - **Main Bundle**: 244.50 KB (73.14 KB gzipped) ⚡ **82% reduction**
 - **React Vendor**: 11.79 KB (4.21 KB gzipped)
 - **UI Vendor**: 202.31 KB (67.10 KB gzipped)
@@ -28,21 +31,26 @@ This document summarizes the performance optimizations implemented in SHIELD 2.0
 ### 1. Code Splitting & Lazy Loading
 
 #### Lazy-Loaded Components
+
 All heavy components are loaded on-demand using React.lazy() and Suspense:
 
 **SettingsDialog** (32.33 KB)
+
 - Loaded only when user opens settings
 - Location: `src/components/lazy/index.ts`
 
 **TemplateSelector** (9.29 KB)
+
 - Loaded when user clicks "New from template"
 - Defers template UI and logic
 
 **CodeBlock** (13.36 KB + syntax highlighting)
+
 - Loaded when code blocks appear in messages
 - Includes react-syntax-highlighter (heavy)
 
 **MessageContent** (779.48 KB markdown vendor)
+
 - Lazy loads react-markdown and remark-gfm
 - Defers markdown rendering until messages exist
 - Biggest optimization win
@@ -61,6 +69,7 @@ manualChunks: {
 ```
 
 **Benefits**:
+
 - Better browser caching
 - Parallel chunk loading
 - Faster incremental updates
@@ -70,14 +79,17 @@ manualChunks: {
 Wrapped components with React.memo() to prevent unnecessary re-renders:
 
 **ChatMessage** (`src/components/chat/ChatMessage.tsx`)
+
 - Memoized to prevent re-rendering all messages when new message arrives
 - Only re-renders when its specific props change
 
 **MessageContent** (`src/components/chat/MessageContent.tsx`)
+
 - Prevents markdown re-parsing when content unchanged
 - Major performance win for long conversations
 
 **ConversationList** (`src/components/chat/ConversationList.tsx`)
+
 - Prevents re-rendering sidebar on every message
 - Only updates when conversation list changes
 
@@ -93,38 +105,45 @@ const handleNewChat = useCallback(() => {...}, [currentConversation, ...]);
 ```
 
 **Benefits**:
+
 - Stable function references prevent child component re-renders
 - Memoized components (ChatInput, ChatHeader) benefit most
 
 ### 5. Build Optimizations
 
 **ESBuild Minification**
+
 - Switched from Terser to ESBuild for faster builds
 - 2-3x faster minification
 - Comparable output size
 
 **Bundle Visualization**
+
 - Added rollup-plugin-visualizer
 - Generates `dist/stats.html` for bundle analysis
 - Includes gzip and brotli size metrics
 
 **Chunk Size Warnings**
+
 - Set to 500 KB limit (from 1000 KB)
 - Encourages further code splitting
 
 ## Performance Metrics
 
 ### Initial Load Time (estimated)
+
 - **Before**: ~2-3 seconds on fast connection
 - **After**: ~0.8-1.2 seconds on fast connection
 - **Improvement**: ~60% faster initial render
 
 ### Bundle Transfer Size (gzipped)
+
 - **Initial Bundle**: 155 KB (from 439 KB)
 - **On-Demand Chunks**: Loaded as needed
 - **Total Savings**: 284 KB initial transfer reduction
 
 ### Runtime Performance
+
 - **Message Rendering**: Memoized, only re-renders changed messages
 - **Sidebar Updates**: Isolated from chat message renders
 - **Event Handlers**: Stable references prevent cascading re-renders
@@ -132,6 +151,7 @@ const handleNewChat = useCallback(() => {...}, [currentConversation, ...]);
 ## Tools & Dependencies
 
 ### Production Dependencies
+
 - `react@19.2.0` - Latest React with automatic batching
 - `react-markdown@^9.0.0` - Markdown rendering (lazy loaded)
 - `remark-gfm@^4.0.0` - GitHub Flavored Markdown (lazy loaded)
@@ -140,6 +160,7 @@ const handleNewChat = useCallback(() => {...}, [currentConversation, ...]);
 - `zustand@^5.0.2` - State management (in utils-vendor chunk)
 
 ### Development Dependencies
+
 - `vite@7.1.12` - Ultra-fast build tool
 - `rollup-plugin-visualizer@^5.12.0` - Bundle analysis
 - `esbuild` - Fast JavaScript minification
@@ -177,16 +198,19 @@ const handleNewChat = useCallback(() => {...}, [currentConversation, ...]);
 ## Testing Recommendations
 
 ### Performance Testing
+
 - Lighthouse CI integration
 - Target scores: >90 Performance, >95 Accessibility
 - Monitor bundle size in CI/CD
 
 ### Load Testing
+
 - Test with 100+ message conversations
 - Measure time-to-interactive
 - Profile memory usage
 
 ### Real-World Testing
+
 - Test on 8GB RAM systems (target spec)
 - Verify model loading doesn't OOM
 - Monitor llama.cpp memory footprint
@@ -194,6 +218,7 @@ const handleNewChat = useCallback(() => {...}, [currentConversation, ...]);
 ## Monitoring
 
 ### Metrics to Track
+
 - **Time to Interactive (TTI)**: Target <3s
 - **First Contentful Paint (FCP)**: Target <1.5s
 - **Largest Contentful Paint (LCP)**: Target <2.5s
@@ -201,6 +226,7 @@ const handleNewChat = useCallback(() => {...}, [currentConversation, ...]);
 - **Total Blocking Time (TBT)**: Target <200ms
 
 ### Bundle Size Monitoring
+
 - Alert if main bundle exceeds 300 KB
 - Alert if any lazy chunk exceeds 800 KB
 - Track total bundle size across releases
@@ -208,6 +234,7 @@ const handleNewChat = useCallback(() => {...}, [currentConversation, ...]);
 ## Conclusion
 
 The performance optimizations resulted in:
+
 - ✅ **82% reduction** in initial bundle size (1.3 MB → 244 KB)
 - ✅ **65% reduction** in initial transfer (440 KB → 155 KB gzipped)
 - ✅ **Lazy loading** for all heavy dependencies

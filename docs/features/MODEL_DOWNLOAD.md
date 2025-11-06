@@ -7,6 +7,7 @@ The Model Download Feature allows users to browse, download, and manage AI model
 ## Features
 
 ### 1. Model Catalog
+
 - **12 Curated Models**: Premium (tool-calling), High Performance (7B-14B), and Efficient (<5GB) categories
 - **Model Metadata**: Display name, provider, size, VRAM requirements, context window, release date
 - **Capability Badges**: Visual indicators for model features:
@@ -18,8 +19,9 @@ The Model Download Feature allows users to browse, download, and manage AI model
   - 📋 Structured Output (cyan)
 
 ### 2. Model Browser Dialog
+
 - **Access**: Click "Browse & Download Models" button in the Model Selector dropdown
-- **Filtering**: 
+- **Filtering**:
   - All Models
   - Tool Calling (premium models with function calling)
   - Code Generation (optimized for coding tasks)
@@ -29,7 +31,8 @@ The Model Download Feature allows users to browse, download, and manage AI model
 - **Grouped Display**: Models organized by category with collapse/expand animations
 
 ### 3. Download Management
-- **Real-time Progress**: 
+
+- **Real-time Progress**:
   - Progress bar with percentage
   - Downloaded/total bytes
   - Download speed (KB/s, MB/s)
@@ -45,8 +48,9 @@ The Model Download Feature allows users to browse, download, and manage AI model
   - Cancelled (grey)
 
 ### 4. Model Management
+
 - **Installation Detection**: Automatically detects installed models on app startup
-- **Delete Models**: 
+- **Delete Models**:
   - Trash icon on installed models
   - Confirmation dialog with model details
   - Permanent deletion from disk
@@ -55,12 +59,14 @@ The Model Download Feature allows users to browse, download, and manage AI model
 ## Usage
 
 ### Browsing Models
+
 1. Click the Model Selector dropdown in the chat header
 2. Click "Browse & Download Models" at the bottom
 3. Use filters or search to find desired model
 4. Review model capabilities, size, and VRAM requirements
 
 ### Downloading a Model
+
 1. Find the model in the browser dialog
 2. Click the "Download" button
 3. Monitor download progress in the model card
@@ -68,6 +74,7 @@ The Model Download Feature allows users to browse, download, and manage AI model
 5. Model automatically appears in Model Selector when complete
 
 ### Deleting a Model
+
 1. Open the Model Browser dialog
 2. Find an installed model (green checkmark)
 3. Click the trash icon
@@ -77,6 +84,7 @@ The Model Download Feature allows users to browse, download, and manage AI model
 ## Technical Implementation
 
 ### Architecture
+
 ```
 Model Download Flow:
 1. User clicks download → ModelDownloadDialog
@@ -87,6 +95,7 @@ Model Download Flow:
 ```
 
 ### Components
+
 - **ModelDownloadDialog**: Main browsing and download UI
 - **ModelCard**: Individual model display with actions
 - **DownloadProgressBar**: Real-time progress visualization
@@ -94,13 +103,15 @@ Model Download Flow:
 - **CapabilityBadge**: Visual indicators for model features
 
 ### Hooks
-- **useModelDownload**: 
+
+- **useModelDownload**:
   - Manages download state (active downloads, installed models)
   - IPC communication for download operations
   - Real-time progress updates via event listeners
   - Cleanup on unmount
 
 ### Services
+
 - **ModelDownloadService** (Electron main process):
   - Wraps node-llama-cpp's resolveModelFile
   - Progress estimation (speed, ETA)
@@ -109,6 +120,7 @@ Model Download Flow:
   - Model deletion and disk space calculation
 
 ### IPC Channels
+
 - `model:download` - Start model download
 - `model:cancel` - Cancel active download
 - `model:get-progress` - Get current download progress
@@ -121,16 +133,19 @@ Model Download Flow:
 ## Model Catalog
 
 ### Premium (Tool Calling)
+
 1. **Llama 3.3 70B Instruct** - 40GB, 48GB VRAM, 131K context
 2. **Qwen 2.5 Coder 32B Instruct** - 20GB, 24GB VRAM, 131K context
 3. **Mistral Large 2** - 25GB, 28GB VRAM, 128K context
 
 ### High Performance (7B-14B)
+
 4. **Qwen 2.5 7B Instruct** - 4.9GB, 8GB VRAM, 131K context
 5. **Mistral 7B Instruct v0.3** - 4.4GB, 8GB VRAM, 32K context
 6. **Phi-3 Medium 14B Instruct** - 8.5GB, 12GB VRAM, 128K context
 
 ### Efficient (<5GB)
+
 7. **Llama 3.2 3B Instruct** - 1.9GB, 4GB VRAM, 131K context
 8. **Llama 3.2 1B Instruct** - 750MB, 2GB VRAM, 131K context
 9. **Qwen 2.5 3B Instruct** - 1.9GB, 4GB VRAM, 32K context
@@ -142,6 +157,7 @@ All models sourced from Hugging Face with quantization (Q4_K_M format for effici
 ## Configuration
 
 ### Adding New Models
+
 Edit `src/config/models.ts`:
 
 ```typescript
@@ -174,12 +190,15 @@ Edit `src/config/models.ts`:
 ```
 
 ### Model URI Format
+
 ```
 hf://owner/repository/filename.gguf
 ```
+
 Example: `hf://Qwen/Qwen2.5-7B-Instruct-GGUF/qwen2.5-7b-instruct-q4_k_m.gguf`
 
 ## Storage Location
+
 - **Windows**: `%APPDATA%/shield2.0/models/`
 - **macOS**: `~/Library/Application Support/shield2.0/models/`
 - **Linux**: `~/.config/shield2.0/models/`
@@ -187,18 +206,21 @@ Example: `hf://Qwen/Qwen2.5-7B-Instruct-GGUF/qwen2.5-7b-instruct-q4_k_m.gguf`
 ## Error Handling
 
 ### Common Errors
+
 1. **Network Failure**: Download automatically retries; user can manually retry
 2. **Insufficient Disk Space**: Shows error before download starts
 3. **Corrupted Download**: User can delete and re-download
 4. **Model Not Found**: Indicates invalid URI or removed model
 
 ### User Feedback
+
 - Real-time error messages in download progress bar
 - Console logging for debugging
 - Error state persists briefly before auto-clearing
 - Deletion confirmation prevents accidental removal
 
 ## Future Enhancements
+
 - Pause/resume downloads (requires backend support)
 - Download queue for multiple models
 - Automatic model updates when new versions released
@@ -209,6 +231,7 @@ Example: `hf://Qwen/Qwen2.5-7B-Instruct-GGUF/qwen2.5-7b-instruct-q4_k_m.gguf`
 - Model performance benchmarks
 
 ## Testing Checklist
+
 - [ ] Browse models in dialog
 - [ ] Filter by category
 - [ ] Search functionality
@@ -225,12 +248,14 @@ Example: `hf://Qwen/Qwen2.5-7B-Instruct-GGUF/qwen2.5-7b-instruct-q4_k_m.gguf`
 - [ ] App restart with models installed
 
 ## Dependencies
+
 - `node-llama-cpp`: Model downloading and inference
 - `framer-motion`: UI animations
 - `lucide-react`: Icons
 - `shadcn/ui`: UI components
 
 ## Performance Considerations
+
 - Downloads occur in Electron main process (non-blocking)
 - Progress updates throttled to avoid UI lag
 - Large models (>20GB) show accurate ETA calculations

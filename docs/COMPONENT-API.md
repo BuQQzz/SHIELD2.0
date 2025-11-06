@@ -9,12 +9,12 @@ React hook for managing llama.cpp integration.
 ```typescript
 {
   // State
-  isInitialized: boolean;      // llama.cpp initialized
-  isModelLoaded: boolean;       // Model loaded and ready
+  isInitialized: boolean; // llama.cpp initialized
+  isModelLoaded: boolean; // Model loaded and ready
   currentModel: ModelConfig | null;
-  isLoading: boolean;           // Loading/initializing
-  error: string | null;         // Error message if any
-  
+  isLoading: boolean; // Loading/initializing
+  error: string | null; // Error message if any
+
   // Methods
   initialize: () => Promise<void>;
   loadModel: (config: ModelConfig) => Promise<void>;
@@ -33,23 +33,19 @@ React hook for managing llama.cpp integration.
 ```typescript
 interface ModelConfig {
   name: string;
-  uri: string;  // Format: "hf:owner/repo:filename"
+  uri: string; // Format: "hf:owner/repo:filename"
 }
 
 interface ChatOptions {
-  temperature?: number;  // 0.0-1.0, default 0.7
-  maxTokens?: number;    // Max response length, default 512
+  temperature?: number; // 0.0-1.0, default 0.7
+  maxTokens?: number; // Max response length, default 512
 }
 ```
 
 ### Usage Example
 
 ```typescript
-const {
-  isModelLoaded,
-  loadModel,
-  sendStreamingMessage,
-} = useLlama();
+const { isModelLoaded, loadModel, sendStreamingMessage } = useLlama();
 
 // Load model
 await loadModel({
@@ -58,11 +54,10 @@ await loadModel({
 });
 
 // Stream response
-await sendStreamingMessage(
-  "Hello!",
-  (token) => console.log(token),
-  { temperature: 0.7, maxTokens: 512 }
-);
+await sendStreamingMessage("Hello!", (token) => console.log(token), {
+  temperature: 0.7,
+  maxTokens: 512,
+});
 ```
 
 ---
@@ -79,7 +74,7 @@ interface ChatMessageProps {
     role: "user" | "assistant";
     content: string;
   };
-  isStreaming?: boolean;  // Show pulsing cursor
+  isStreaming?: boolean; // Show pulsing cursor
 }
 ```
 
@@ -102,8 +97,8 @@ Top bar showing app title and model status.
 
 ```typescript
 interface ChatHeaderProps {
-  modelName?: string;    // Display model name
-  isLoading?: boolean;   // Show loading spinner
+  modelName?: string; // Display model name
+  isLoading?: boolean; // Show loading spinner
   error?: string | null; // Display error message
 }
 ```
@@ -129,8 +124,8 @@ Scrollable container for messages with streaming support.
 ```typescript
 interface MessageListProps {
   messages: Message[];
-  streamingContent?: string;  // Current streaming message
-  isGenerating?: boolean;     // Show streaming indicator
+  streamingContent?: string; // Current streaming message
+  isGenerating?: boolean; // Show streaming indicator
 }
 
 interface Message {
@@ -162,9 +157,9 @@ Message input with auto-resize and send/stop controls.
 ```typescript
 interface ChatInputProps {
   onSend: (message: string) => void;
-  isGenerating?: boolean;  // Show stop button instead of send
-  onStop?: () => void;     // Called when user clicks stop
-  disabled?: boolean;      // Disable input (e.g., while model loads)
+  isGenerating?: boolean; // Show stop button instead of send
+  onStop?: () => void; // Called when user clicks stop
+  disabled?: boolean; // Disable input (e.g., while model loads)
 }
 ```
 
@@ -180,6 +175,7 @@ interface ChatInputProps {
 ```
 
 ### Features
+
 - Auto-resizing textarea
 - Shift+Enter for new lines
 - Enter to send
@@ -196,8 +192,8 @@ Welcome screen with suggested prompts.
 
 ```typescript
 interface ChatPlaceholderProps {
-  modelLoaded: boolean;         // Show prompts only when ready
-  isLoading: boolean;           // Show loading spinner
+  modelLoaded: boolean; // Show prompts only when ready
+  isLoading: boolean; // Show loading spinner
   onPromptClick?: (prompt: string) => void;
 }
 ```
@@ -213,6 +209,7 @@ interface ChatPlaceholderProps {
 ```
 
 ### Features
+
 - SHIELD logo and branding
 - Loading indicator during model init
 - 4 suggested prompts (only when model ready)
@@ -244,6 +241,7 @@ interface SidebarProps {
 ```
 
 ### Features
+
 - New Chat button (future: create new session)
 - Clear History button
 - Search chats (placeholder)
@@ -278,6 +276,7 @@ interface ChatLayoutProps {
 ```
 
 ### Features
+
 - Responsive sidebar toggle
 - Proper flex layout
 - Mobile-friendly
@@ -403,11 +402,13 @@ function App() {
 ## Styling Guidelines
 
 All components use:
+
 - **Tailwind CSS** for styling
 - **shadcn/ui** for base components (Button, etc.)
 - **Lucide React** for icons
 
 ### Common Classes
+
 - `text-muted-foreground` - Secondary text
 - `border-border` - Border color
 - `bg-background` - Background color
@@ -415,11 +416,13 @@ All components use:
 - `hover:bg-accent` - Hover state
 
 ### Responsive Design
+
 - Use `sm:`, `md:`, `lg:` prefixes for breakpoints
 - Sidebar collapses on mobile
 - Max width constraints for readability
 
 ### Accessibility
+
 - All interactive elements keyboard-navigable
 - ARIA labels where appropriate
 - Semantic HTML structure

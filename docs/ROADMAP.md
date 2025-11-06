@@ -1,6 +1,7 @@
 # SHIELD 2.0 Development Roadmap
 
 ## Project Overview
+
 SHIELD 2.0 is a privacy-first, local AI chatbot for Windows with tool integration capabilities. All AI processing happens locally using llama.cpp - your data never leaves your device.
 
 ---
@@ -8,6 +9,7 @@ SHIELD 2.0 is a privacy-first, local AI chatbot for Windows with tool integratio
 ## ✅ Completed Milestones
 
 ### Phase 1: Foundation & Setup
+
 - ✅ **Project initialization** - Set up Vite + React + TypeScript project structure
 - ✅ **UI framework** - Integrated shadcn/ui component library with Lucide React icons
 - ✅ **Chat interface** - Built responsive chat UI with sidebar, message list, and input
@@ -17,6 +19,7 @@ SHIELD 2.0 is a privacy-first, local AI chatbot for Windows with tool integratio
 **Status:** Foundation complete ✅
 
 ### Phase 2: Local AI Integration
+
 - ✅ **llama.cpp integration** - Integrated node-llama-cpp 3.14.2 with GPU support
 - ✅ **Model downloading** - Automatic model download from Hugging Face
 - ✅ **Model management** - LlamaService wrapper with singleton pattern
@@ -26,6 +29,7 @@ SHIELD 2.0 is a privacy-first, local AI chatbot for Windows with tool integratio
 **Status:** AI integration complete ✅
 
 ### Phase 3: Desktop Application Setup
+
 - ✅ **Electron installation** - Configured Electron 39.0.0 (latest stable)
 - ✅ **Main process** - Set up Electron main process with window management
 - ✅ **IPC configuration** - Secure IPC via contextBridge and ipcRenderer
@@ -36,6 +40,7 @@ SHIELD 2.0 is a privacy-first, local AI chatbot for Windows with tool integratio
 **Status:** Desktop app setup complete ✅
 
 ### Phase 4: Core Chat Functionality
+
 - ✅ **Chat UI integration** - Connected chat interface to llama.cpp backend
 - ✅ **Streaming responses** - Implemented token-by-token streaming display
 - ✅ **Message history** - Conversation history with clear functionality
@@ -53,6 +58,7 @@ SHIELD 2.0 is a privacy-first, local AI chatbot for Windows with tool integratio
 ### Phase 5: Enhanced Features (Current Focus)
 
 #### 1. UI/UX Improvements
+
 **Priority:** HIGH | **Status:** ✅ Completed
 
 - [x] Fix color rendering issues in Electron
@@ -76,6 +82,7 @@ SHIELD 2.0 is a privacy-first, local AI chatbot for Windows with tool integratio
 **Estimated Time:** ~~1-2 weeks~~ **COMPLETED**
 
 **Completed Features:**
+
 - ✅ Hardware-accelerated rendering color fix (yellow → white)
 - ✅ Model selector dropdown with 3 models (Qwen 7B, Llama 3B, Mistral 7B)
 - ✅ Comprehensive Framer Motion animations (messages, cursor, sidebar, buttons)
@@ -95,6 +102,7 @@ SHIELD 2.0 is a privacy-first, local AI chatbot for Windows with tool integratio
 - ✅ **Consistent design language throughout app**
 
 #### 2. Conversation Management
+
 **Priority:** MEDIUM | **Status:** ✅ Completed
 
 - [x] Persistent chat sessions (save/load)
@@ -115,6 +123,7 @@ SHIELD 2.0 is a privacy-first, local AI chatbot for Windows with tool integratio
 **Estimated Time:** ~~1-2 weeks~~ **COMPLETED**
 
 **Completed Features:**
+
 - ✅ File-based conversation storage in Electron userData directory
 - ✅ ConversationStorageService with save/load/list/delete/search operations
 - ✅ Zustand conversation store for state management
@@ -141,6 +150,7 @@ SHIELD 2.0 is a privacy-first, local AI chatbot for Windows with tool integratio
 - ✅ **Tag management UI in chat header dropdown menu**
 
 **Remaining:**
+
 - ⏳ Tag-based filtering in search (future enhancement)
 - ⏳ PDF export format (future enhancement)
 
@@ -149,11 +159,13 @@ SHIELD 2.0 is a privacy-first, local AI chatbot for Windows with tool integratio
 ### Phase 6: Web Search & Local Caching (🌟 UNIQUE FEATURE)
 
 #### Web Search with Privacy-First Local Caching
+
 **Priority:** HIGH | **Status:** ✅ **COMPLETED** (November 2025)
 
 **Vision:** Enable the local LLM to search the web, fetch content, and cache it locally for offline access while maintaining SHIELD's privacy-first philosophy.
 
 **Phase 1: Basic Web Search (MVP)** - ✅ COMPLETED
+
 - [x] DuckDuckGo search integration (privacy-focused, no API key)
 - [x] Web page fetching with content extraction
 - [x] Local JSON/SQLite cache with encryption (AES-256-GCM)
@@ -169,6 +181,7 @@ SHIELD 2.0 is a privacy-first, local AI chatbot for Windows with tool integratio
 - [x] **Smart follow-up detection** - Improved vague query filtering
 
 **Phase 2: LLM Tool Integration** - 🚧 PARTIAL
+
 - [x] LLM automatically decides when to search web (heuristic-based)
 - [x] Multi-turn conversations with web context
 - [x] Source tracking and citation system
@@ -177,6 +190,7 @@ SHIELD 2.0 is a privacy-first, local AI chatbot for Windows with tool integratio
 - [ ] Privacy confirmation dialogs
 
 **Phase 3: RAG Enhancement** - 📋 Planned
+
 - [ ] Local embedding model integration (all-MiniLM-L6-v2, 80MB)
 - [ ] Vector database for semantic search (LanceDB)
 - [ ] Content chunking and indexing
@@ -184,6 +198,7 @@ SHIELD 2.0 is a privacy-first, local AI chatbot for Windows with tool integratio
 - [ ] Automatic context expansion from cache
 
 **Completed Features:**
+
 - ✅ DuckDuckGo HTML search (no tracking, no JavaScript)
 - ✅ Playwright-based page fetching with 3s timeout
 - ✅ AES-256-GCM encrypted local cache
@@ -200,6 +215,7 @@ SHIELD 2.0 is a privacy-first, local AI chatbot for Windows with tool integratio
 - ✅ Graceful timeout and error handling
 
 **Technical Implementation:**
+
 - WebSearchService.ts - DuckDuckGo integration
 - WebCacheService.ts - Encrypted local caching
 - webSearchHelper.ts - Search orchestration logic
@@ -207,6 +223,7 @@ SHIELD 2.0 is a privacy-first, local AI chatbot for Windows with tool integratio
 - Enhanced vague detection patterns in isVagueFollowUpQuery()
 
 **Privacy Features:**
+
 - ✅ Zero tracking - no telemetry or analytics
 - ✅ Local storage - all data stays on device
 - ✅ Privacy-focused providers (DuckDuckGo)
@@ -217,6 +234,7 @@ SHIELD 2.0 is a privacy-first, local AI chatbot for Windows with tool integratio
 - ✅ Transparent operation (clear indicators)
 
 **Performance:**
+
 - ✅ Local caching (fetch once, use forever)
 - ✅ Background operations (non-blocking)
 - ✅ Smart deduplication and compression
@@ -229,6 +247,7 @@ SHIELD 2.0 is a privacy-first, local AI chatbot for Windows with tool integratio
 **Documentation:** [docs/features/WEB_SEARCH.md](./features/WEB_SEARCH.md)
 
 **Competitive Advantage:** Unlike Perplexity AI ($20/month) or ChatGPT with Bing (tracking), SHIELD offers:
+
 - No subscription required
 - Complete privacy (no tracking)
 - Offline access after fetch
@@ -246,19 +265,22 @@ SHIELD 2.0 is a privacy-first, local AI chatbot for Windows with tool integratio
 **Official Servers Only:** SHIELD will exclusively use MCP servers from `@modelcontextprotocol` organization to avoid code injection risks prevalent in community servers.
 
 **Official Reference Servers (Identified):**
+
 1. **filesystem** - Secure file operations with configurable access controls
-2. **git** - Read, search, and manipulate Git repositories  
+2. **git** - Read, search, and manipulate Git repositories
 3. **memory** - Knowledge graph-based persistent memory system
 4. **fetch** - Web content fetching and conversion
 5. **sequential-thinking** - Dynamic problem-solving through thought sequences
 
 **Official Company Integrations (Production-Ready):**
+
 - **GitHub** - Official GitHub integration
 - **Microsoft Azure** - Azure services integration
 - **Cloudflare** - Deploy, configure Cloudflare resources
 - **And 50+ more official integrations** (see [MCP Servers Repository](https://github.com/modelcontextprotocol/servers))
 
 #### Phase 7.1: MCP Research & Planning
+
 **Priority:** HIGH | **Status:** ✅ Completed
 
 - [x] Research official @modelcontextprotocol servers
@@ -269,6 +291,7 @@ SHIELD 2.0 is a privacy-first, local AI chatbot for Windows with tool integratio
 - [x] Create detailed implementation plan
 
 **Completed Research:**
+
 - ✅ Official MCP servers repository analyzed
 - ✅ 6 reference servers identified (filesystem, git, memory, fetch, sequential-thinking, everything)
 - ✅ 50+ official company integrations catalogued
@@ -277,6 +300,7 @@ SHIELD 2.0 is a privacy-first, local AI chatbot for Windows with tool integratio
 - ✅ Security architecture designed and documented
 
 #### Phase 7.2: Security Architecture Design
+
 **Priority:** HIGH | **Status:** ✅ Completed
 
 - [x] Design whitelist-based MCP server configuration
@@ -292,19 +316,20 @@ SHIELD 2.0 is a privacy-first, local AI chatbot for Windows with tool integratio
 // MCPServerConfig.ts - Production implementation
 const OFFICIAL_MCP_SERVERS = {
   filesystem: {
-    package: '@modelcontextprotocol/server-filesystem',
-    version: '^2025.8.21', // Pinned version
-    permissions: ['read', 'write', 'list'],
+    package: "@modelcontextprotocol/server-filesystem",
+    version: "^2025.8.21", // Pinned version
+    permissions: ["read", "write", "list"],
     allowedPaths: [
-      path.join(os.homedir(), 'Documents'),
-      path.join(os.homedir(), 'Desktop')
+      path.join(os.homedir(), "Documents"),
+      path.join(os.homedir(), "Desktop"),
     ],
-    requiresApproval: true // Per-operation user confirmation
-  }
+    requiresApproval: true, // Per-operation user confirmation
+  },
 };
 ```
 
 **Security Layers (All Implemented):**
+
 1. ✅ **Whitelist Validation** - Only official @modelcontextprotocol packages allowed
 2. ✅ **Sandboxed Execution** - Isolated Electron processes with contextIsolation
 3. ✅ **Permission System** - Explicit user approval for every tool call via dialogs
@@ -313,6 +338,7 @@ const OFFICIAL_MCP_SERVERS = {
 6. ✅ **Path Restrictions** - Desktop and Documents only, validated before execution
 
 #### Phase 7.3: Filesystem MCP Integration
+
 **Priority:** MEDIUM | **Status:** ✅ Completed
 
 - [x] Install @modelcontextprotocol/server-filesystem package
@@ -329,6 +355,7 @@ const OFFICIAL_MCP_SERVERS = {
 - [x] **Remove intent detection (simplified architecture)**
 
 **Filesystem Tools Implemented:**
+
 - ✅ Read file contents (with path restrictions)
 - ✅ List directory contents
 - � Write files (requires tool-calling model)
@@ -336,6 +363,7 @@ const OFFICIAL_MCP_SERVERS = {
 - � Search files (future enhancement)
 
 **Tool Calling Format (XML):**
+
 ```xml
 <tool_call>
   <server>filesystem</server>
@@ -347,12 +375,14 @@ const OFFICIAL_MCP_SERVERS = {
 ```
 
 **Architectural Evolution:**
+
 - ✅ **Initial Approach** - Intent detection for any LLM (regex-based)
 - ✅ **November 2025 Update** - Removed intent detection, XML-only format
 - ✅ **Current State** - Clean XML tool calling, model capabilities system
 - ✅ **Reason** - Focus on proper tool-calling models, simpler maintenance
 
 **Files Created (1,500+ lines):**
+
 - `electron/services/MCPService.ts` (284 lines) - MCP lifecycle management
 - `electron/services/MCPServerConfig.ts` (105 lines) - Security configuration
 - `src/components/settings/MCPSettings.tsx` (49 lines) - Settings UI
@@ -362,16 +392,19 @@ const OFFICIAL_MCP_SERVERS = {
 - `src/hooks/useModelCapabilities.ts` (97 lines) - Capability detection
 
 **Files Removed (-418 lines for cleaner architecture):**
+
 - ~~`src/handlers/intentDetector.ts`~~ (deleted - 218 lines)
 - ~~`src/handlers/intentDetector.test.ts`~~ (deleted - 200 lines)
 
 **Documentation:**
+
 - ✅ [docs/features/MCP_INTEGRATION.md](./features/MCP_INTEGRATION.md) - Complete integration guide
 - ✅ [docs/features/MCP_TESTING_GUIDE.md](./features/MCP_TESTING_GUIDE.md) - Manual testing procedures
 - ✅ [docs/features/MODEL_CAPABILITIES.md](./features/MODEL_CAPABILITIES.md) - Model requirements
 - ✅ [docs/mcp-integration.md](./mcp-integration.md) - System overview
 
 #### Phase 7.4: Permission System UI
+
 **Priority:** HIGH | **Status:** ✅ Completed
 
 - [x] Design permission dialog component
@@ -382,6 +415,7 @@ const OFFICIAL_MCP_SERVERS = {
 - [x] Add capability warnings in UI
 
 **Permission Dialog Features:**
+
 - ✅ Clear description of requested operation
 - ✅ Full file path display with security validation
 - ✅ Approve/Deny buttons with clear actions
@@ -390,12 +424,14 @@ const OFFICIAL_MCP_SERVERS = {
 - ✅ Framer Motion animations for smooth UX
 
 **MCP Status Indicator:**
+
 - ✅ **Off (gray)** - MCP disabled
 - ✅ **Ready (green)** - Compatible model with tool calling
 - ✅ **Limited (yellow)** - Model without tool calling support
 - ✅ **Error (red)** - MCP initialization failed
 
 #### Phase 7.5: Additional Official Servers
+
 **Priority:** LOW | **Status:** 📋 Planned (Phase 10+)
 
 - [ ] Evaluate git server integration
@@ -405,6 +441,7 @@ const OFFICIAL_MCP_SERVERS = {
 - [ ] Document each server's use case
 
 **Future MCP Servers (After Tool-Calling Models):**
+
 - git (repository analysis)
 - memory (persistent agent memory)
 - GitHub (code exploration)
@@ -417,12 +454,14 @@ const OFFICIAL_MCP_SERVERS = {
 **Documentation:** ✅ Complete - [docs/features/MCP_INTEGRATION.md](./features/MCP_INTEGRATION.md)
 
 **Resources:**
+
 - [MCP Documentation](https://modelcontextprotocol.io/)
 - [MCP Specification](https://spec.modelcontextprotocol.io/)
 - [Official MCP Servers](https://github.com/modelcontextprotocol/servers)
 - [TypeScript MCP SDK](https://github.com/modelcontextprotocol/typescript-sdk)
 
 **Privacy & Security Commitment:**
+
 - ✅ Official servers only (no community servers)
 - ✅ Explicit user approval required for every operation
 - ✅ Sandboxed execution environment
@@ -431,6 +470,7 @@ const OFFICIAL_MCP_SERVERS = {
 - ✅ Transparent operation visible to user
 
 **Architectural Simplification (November 2025):**
+
 - ✅ Removed intent detection system (-418 lines)
 - ✅ Single tool calling format (XML only)
 - ✅ Model capabilities system (dynamic feature gating)
@@ -442,6 +482,7 @@ const OFFICIAL_MCP_SERVERS = {
 ### Phase 7: User Experience & Configuration
 
 #### 4. Build Settings and Configuration System
+
 **Priority:** MEDIUM | **Status:** ✅ Completed
 
 - [x] Create settings UI component
@@ -458,6 +499,7 @@ const OFFICIAL_MCP_SERVERS = {
 **Estimated Time:** ~~1 week~~ **COMPLETED**
 
 **Completed Features:**
+
 - ✅ Settings dialog with tabbed interface
 - ✅ ModelSettings component (temperature, max tokens, top-p, top-k, repeat penalty)
 - ✅ SystemSettings component (theme selection, system prompt, toggles)
@@ -477,9 +519,11 @@ const OFFICIAL_MCP_SERVERS = {
 - ✅ **Export/Import/Reset UI in Privacy settings tab**
 
 **Remaining:**
+
 - ⏳ Tool permission management (pending MCP integration in Phase 6)
 
 #### 5. Implement Advanced Chat Features
+
 **Priority:** MEDIUM | **Status:** ✅ Completed
 
 - [ ] Set up local database (SQLite) for chat history (future enhancement)
@@ -495,6 +539,7 @@ const OFFICIAL_MCP_SERVERS = {
 **Estimated Time:** ~~2 weeks~~ **COMPLETED**
 
 **Completed Features:**
+
 - ✅ System prompt customization with Apply button in settings
 - ✅ Real-time system prompt updates to active LlamaChatSession
 - ✅ IPC handlers for setSystemPrompt and getSystemPrompt
@@ -517,11 +562,13 @@ const OFFICIAL_MCP_SERVERS = {
 - ✅ CI/CD pipeline passing all checks
 
 **Remaining:**
+
 - ⏳ SQLite database migration (performance optimization)
 - ⏳ Conversation branching (advanced feature)
 - ⏳ Voice input/speech-to-text (accessibility enhancement)
 
 #### 6. Add Dark Mode and Theme Customization
+
 **Priority:** LOW | **Status:** ✅ Completed
 
 - [x] Implement dark mode toggle (CSS variables already set up)
@@ -536,6 +583,7 @@ const OFFICIAL_MCP_SERVERS = {
 **Estimated Time:** ~~3-5 days~~ **COMPLETED**
 
 **Completed Features:**
+
 - ✅ Theme provider with light/dark/system modes
 - ✅ Persistent theme selection across sessions
 - ✅ Theme toggle in settings dialog
@@ -543,6 +591,7 @@ const OFFICIAL_MCP_SERVERS = {
 - ✅ shadcn/ui dark mode integration
 
 **Remaining:**
+
 - ⏳ Custom color scheme support (future enhancement)
 - ⏳ WCAG accessibility audit
 
@@ -559,6 +608,7 @@ const OFFICIAL_MCP_SERVERS = {
 Following the MCP integration, this phase implemented a dynamic model capabilities system and simplified tool calling architecture.
 
 #### 8.1: Model Capabilities System
+
 **Priority:** HIGH | **Status:** ✅ Completed
 
 - [x] Design ModelCapabilities interface (toolCalling, complexReasoning, etc.)
@@ -570,6 +620,7 @@ Following the MCP integration, this phase implemented a dynamic model capabiliti
 - [x] Create MODEL_CAPABILITIES.md documentation
 
 **Completed Features:**
+
 - ✅ **ModelCapabilities interface** - Structured capability flags
 - ✅ **useModelCapabilities hook** - `supports`, `shouldEnable`, `getWarning(feature)`
 - ✅ **Model metadata** - All models have capability definitions
@@ -580,6 +631,7 @@ Following the MCP integration, this phase implemented a dynamic model capabiliti
 - ✅ **Comprehensive documentation** - [MODEL_CAPABILITIES.md](./features/MODEL_CAPABILITIES.md)
 
 **Current Model Capabilities:**
+
 ```typescript
 // Qwen 7B, Llama 3B, Mistral 7B (Current)
 { toolCalling: false, complexReasoning: false, codeGeneration: true }
@@ -590,6 +642,7 @@ Following the MCP integration, this phase implemented a dynamic model capabiliti
 ```
 
 **Files Created:**
+
 - `src/hooks/useModelCapabilities.ts` (97 lines)
 - `docs/features/MODEL_CAPABILITIES.md` (165 lines)
 
@@ -598,6 +651,7 @@ Following the MCP integration, this phase implemented a dynamic model capabiliti
 **Documentation:** [MODEL_CAPABILITIES.md](./features/MODEL_CAPABILITIES.md)
 
 #### 8.2: Architecture Simplification - Intent Detection Removal
+
 **Priority:** HIGH | **Status:** ✅ Completed
 
 - [x] Remove intent detection system (intentDetector.ts, intentDetector.test.ts)
@@ -607,6 +661,7 @@ Following the MCP integration, this phase implemented a dynamic model capabiliti
 - [x] Add migration notes to CHANGELOG
 
 **Architectural Changes:**
+
 - ✅ **Removed intentDetector.ts** (218 lines) - Regex-based NLP detection
 - ✅ **Removed intentDetector.test.ts** (200 lines) - Intent detection tests
 - ✅ **Cleaned messageHandler.ts** (110 lines removed) - Removed fallback logic
@@ -614,12 +669,14 @@ Following the MCP integration, this phase implemented a dynamic model capabiliti
 - ✅ **Simplified architecture** - No dual-system complexity
 
 **Rationale:**
+
 - Intent detection added maintenance burden with two systems
 - XML tool calling is MCP standard format
 - Better to focus on models with native function calling
 - Clearer user expectations via capability warnings
 
 **Tool Calling Format (XML):**
+
 ```xml
 <tool_call>
   <server>filesystem</server>
@@ -631,10 +688,12 @@ Following the MCP integration, this phase implemented a dynamic model capabiliti
 ```
 
 **Files Deleted:**
+
 - `src/handlers/intentDetector.ts` (218 lines)
 - `src/handlers/intentDetector.test.ts` (200 lines)
 
 **Documentation Updates:**
+
 - ✅ Updated [mcp-integration.md](./mcp-integration.md) - Warning banner
 - ✅ Updated [MODEL_CAPABILITIES.md](./features/MODEL_CAPABILITIES.md) - Removal notice
 - ✅ Updated [CHANGELOG.md](../CHANGELOG.md) - Breaking changes
@@ -655,6 +714,7 @@ Building on the MCP XML tool calling format, this phase will expand file operati
 **Note:** This phase requires models with native function calling support (see MODEL_CAPABILITIES.md for recommendations).
 
 #### 9.1: Write Operations
+
 **Priority:** HIGH | **Status:** 📋 Planned
 
 - [ ] Download model with native function calling (Llama 3.3 70B, Qwen 2.5 Coder 32B)
@@ -668,6 +728,7 @@ Building on the MCP XML tool calling format, this phase will expand file operati
 - [ ] Test write operations end-to-end
 
 **XML Format Example:**
+
 ```xml
 <tool_call>
   <server>filesystem</server>
@@ -682,6 +743,7 @@ Building on the MCP XML tool calling format, this phase will expand file operati
 **Estimated Time:** 1 week (after model download)
 
 #### 9.2: Enhanced List Operations
+
 **Priority:** MEDIUM | **Status:** 📋 Planned
 
 - [ ] Format directory listings for readability
@@ -696,6 +758,7 @@ Building on the MCP XML tool calling format, this phase will expand file operati
 **Estimated Time:** 3-5 days
 
 #### 9.3: Delete Operations
+
 **Priority:** MEDIUM | **Status:** 📋 Planned
 
 - [ ] Test XML tool calling for delete operations
@@ -707,6 +770,7 @@ Building on the MCP XML tool calling format, this phase will expand file operati
 - [ ] Test permission denial handling
 
 **XML Format Example:**
+
 ```xml
 <tool_call>
   <server>filesystem</server>
@@ -721,6 +785,7 @@ Building on the MCP XML tool calling format, this phase will expand file operati
 **Estimated Time:** 3-5 days
 
 #### 9.4: Advanced Features (Future)
+
 **Priority:** LOW | **Status:** 📋 Planned
 
 - [ ] File moving/renaming
@@ -738,6 +803,7 @@ Building on the MCP XML tool calling format, this phase will expand file operati
 ### Phase 9: Quality & Performance
 
 #### 7. Performance Optimization and Testing
+
 **Priority:** MEDIUM | **Status:** Partially Complete
 
 - [x] Profile inference performance
@@ -751,6 +817,7 @@ Building on the MCP XML tool calling format, this phase will expand file operati
 - [ ] Optimize bundle size further
 
 **Completed Optimizations:**
+
 - ✅ Lazy loading system for heavy components
 - ✅ Code splitting with manual chunks
 - ✅ React.memo for ChatMessage, MessageContent
@@ -759,6 +826,7 @@ Building on the MCP XML tool calling format, this phase will expand file operati
 - ✅ ESBuild minification
 
 **Remaining:**
+
 - ⏳ Comprehensive unit tests
 - ⏳ Integration tests
 - ⏳ E2E test suite
@@ -768,6 +836,7 @@ Building on the MCP XML tool calling format, this phase will expand file operati
 **Estimated Time:** ~~2-3 weeks~~ (partially complete, 1-2 weeks remaining)
 
 #### 8. Security Hardening and Privacy Audit
+
 **Priority:** HIGH | **Status:** Partially Complete
 
 - [x] Implement tool execution sandboxing (MCP with permission system)
@@ -781,6 +850,7 @@ Building on the MCP XML tool calling format, this phase will expand file operati
 - [ ] Add security best practices to README
 
 **Completed Security Measures:**
+
 - ✅ MCP permission system with explicit user approval
 - ✅ Sandboxed file operations (Desktop/Documents only)
 - ✅ Audit logging for all MCP operations
@@ -789,6 +859,7 @@ Building on the MCP XML tool calling format, this phase will expand file operati
 - ✅ Version pinning for security
 
 **Remaining:**
+
 - ⏳ Formal penetration testing
 - ⏳ Comprehensive privacy policy document
 - ⏳ Security audit documentation
@@ -802,6 +873,7 @@ Building on the MCP XML tool calling format, this phase will expand file operati
 ### Phase 9: Documentation & Release
 
 #### 9. Documentation and User Guides
+
 **Priority:** MEDIUM | **Status:** In Progress
 
 - [x] Write comprehensive README
@@ -819,6 +891,7 @@ Building on the MCP XML tool calling format, this phase will expand file operati
 **Estimated Time:** 1 week
 
 #### 10. Build and Distribution Setup
+
 **Priority:** HIGH | **Status:** Not Started
 
 - [ ] Configure Electron Builder for Windows
@@ -842,6 +915,7 @@ Building on the MCP XML tool calling format, this phase will expand file operati
 **Total Estimated Time:** ~8-12 weeks remaining
 
 ### November 2025 ✅
+
 - ✅ Foundation & Framework Updates (Completed)
 - ✅ llama.cpp Integration (Completed)
 - ✅ Electron Setup (Completed)
@@ -861,6 +935,7 @@ Building on the MCP XML tool calling format, this phase will expand file operati
   - Intent-Based Detection ✅
 
 ### December 2025 (Current Focus)
+
 - 🎯 **Model Capabilities & Architecture Simplification** ✅ **COMPLETED**
   - Model capabilities system ✅
   - Intent detection removal ✅
@@ -878,12 +953,14 @@ Building on the MCP XML tool calling format, this phase will expand file operati
 - **Testing & Quality Assurance** (unit tests, integration tests)
 
 ### January 2026
+
 - Additional MCP servers (git, memory, GitHub)
 - Security Audit & Hardening
 - Comprehensive Testing Suite
 - Documentation Polish
 
 ### February - March 2026
+
 - Final Documentation
 - Build & Distribution Setup
 - Beta Testing
@@ -925,6 +1002,7 @@ Building on the MCP XML tool calling format, this phase will expand file operati
 **Last Updated:** November 2025
 
 **Recent Completions:**
+
 - ✅ **Model Capabilities System - COMPLETE** (Nov 2025)
   - Dynamic feature gating based on model capabilities
   - MCP status shows "Limited" for incompatible models
@@ -948,11 +1026,13 @@ Building on the MCP XML tool calling format, this phase will expand file operati
 - ✅ CI/CD pipeline improvements (ESLint, Prettier, line count checks)
 
 **Current Focus:**
+
 - 🎯 Download models with native function calling (Llama 3.3 70B, Qwen 2.5 Coder 32B)
 - 🎯 Test MCP with tool-calling models
 - 🎯 Verify MCP shows "Ready" (green) for compatible models
 
 **Next Up:**
+
 - File Operations (write, delete, advanced features) - requires tool-calling model
 - Performance optimization (comprehensive testing)
 - Additional MCP servers (git, memory, GitHub)

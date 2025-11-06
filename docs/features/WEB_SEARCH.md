@@ -7,6 +7,7 @@ Enable SHIELD's local LLM to optionally search the web, fetch content, and cache
 ## Core Principles (Priority Order)
 
 ### 1. 🔒 Privacy First
+
 - **Zero Tracking**: No telemetry, analytics, or user behavior tracking
 - **User Control**: Explicit opt-in for all web access
 - **Local Storage**: All fetched data stored locally, never sent to external servers
@@ -16,6 +17,7 @@ Enable SHIELD's local LLM to optionally search the web, fetch content, and cache
 - **Data Ownership**: Users can export, inspect, and delete all cached data
 
 ### 2. ✨ Ease of Use
+
 - **Simple Toggle**: One-click enable/disable in settings
 - **Auto-Detection**: LLM automatically determines when web search is needed
 - **Visual Feedback**: Clear indicators showing web sources in responses
@@ -24,6 +26,7 @@ Enable SHIELD's local LLM to optionally search the web, fetch content, and cache
 - **Clear Documentation**: In-app help explains feature and privacy implications
 
 ### 3. ⚡ Performance
+
 - **Local Caching**: Fetch once, use offline forever
 - **Lightweight Scraping**: Efficient HTML parsing, text extraction only
 - **Background Operations**: Non-blocking web requests
@@ -90,9 +93,11 @@ Enable SHIELD's local LLM to optionally search the web, fetch content, and cache
 ## Implementation Phases
 
 ### Phase 1: Basic Web Search (MVP) - 2 weeks
+
 **Goal**: Fetch web content and cache locally with privacy focus
 
 **Features**:
+
 - ✅ DuckDuckGo search integration (privacy-focused, no API key needed)
 - ✅ Simple web page fetching with content extraction
 - ✅ Local JSON-based cache with metadata
@@ -101,6 +106,7 @@ Enable SHIELD's local LLM to optionally search the web, fetch content, and cache
 - ✅ Visual source attribution in responses
 
 **Privacy Measures**:
+
 - No cookies or persistent storage in browser
 - Random user agent rotation
 - No referrer headers
@@ -108,69 +114,77 @@ Enable SHIELD's local LLM to optionally search the web, fetch content, and cache
 - Request sanitization
 
 **Components**:
+
 ```typescript
 // electron/services/WebSearchService.ts
 interface WebSearchService {
-  search(query: string, options: PrivacyOptions): Promise<SearchResult[]>
-  fetchPage(url: string): Promise<PageContent>
-  cacheContent(content: PageContent): Promise<void>
-  getCached(url: string): Promise<PageContent | null>
-  clearCache(): Promise<void>
-  exportCache(): Promise<string> // Export as JSON for user inspection
+  search(query: string, options: PrivacyOptions): Promise<SearchResult[]>;
+  fetchPage(url: string): Promise<PageContent>;
+  cacheContent(content: PageContent): Promise<void>;
+  getCached(url: string): Promise<PageContent | null>;
+  clearCache(): Promise<void>;
+  exportCache(): Promise<string>; // Export as JSON for user inspection
 }
 
 interface PrivacyOptions {
-  userAgent?: string
-  useDoH?: boolean // DNS-over-HTTPS
-  maxRetries?: number
-  timeout?: number
+  userAgent?: string;
+  useDoH?: boolean; // DNS-over-HTTPS
+  maxRetries?: number;
+  timeout?: number;
 }
 ```
 
 ### Phase 2: LLM Tool Integration - 1 week
+
 **Goal**: Let LLM decide when to search automatically
 
 **Features**:
+
 - ✅ Tool/function calling support in llama.cpp
 - ✅ LLM decides when web search is needed
 - ✅ Multi-turn conversations with web context
 - ✅ Source tracking and citation
 
 **Privacy Measures**:
+
 - User confirmation before first web search in session
 - Privacy notice in UI
 - Per-conversation web access toggle
 
 **Tool Definition**:
+
 ```typescript
 const webSearchTool = {
   type: "function",
   function: {
     name: "search_web",
-    description: "Search the internet for current information when local knowledge is insufficient. Use for: recent events, current data, specific facts not in training data.",
+    description:
+      "Search the internet for current information when local knowledge is insufficient. Use for: recent events, current data, specific facts not in training data.",
     parameters: {
       type: "object",
       properties: {
         query: {
           type: "string",
-          description: "Search query optimized for search engines"
+          description: "Search query optimized for search engines",
         },
         numResults: {
           type: "number",
           description: "Number of results to fetch (1-5)",
-          default: 3
-        }
+          default: 3,
+        },
       },
-      required: ["query"]
-    }
-  }
-}
+      required: ["query"],
+    },
+  },
+};
 ```
 
 ### Phase 3: RAG Enhancement - 2-3 weeks
+
 **Goal**: Semantic search over cached content
 
 **Features**:
+
 - ✅ Embedding model integration (all-MiniLM-L6-v2, 80MB)
 - ✅ Vector database for semantic search (LanceDB)
 - ✅ Chunking and indexing of cached content
@@ -178,41 +192,43 @@ const webSearchTool = {
 - ✅ Automatic context expansion
 
 **Privacy Measures**:
+
 - All embeddings generated locally
 - No external API calls for embeddings
 - Vector DB stored locally
 
 **Storage Structure**:
+
 ```typescript
 interface CachedContent {
-  id: string
-  url: string
-  title: string
-  content: string
-  chunks: ContentChunk[]
+  id: string;
+  url: string;
+  title: string;
+  content: string;
+  chunks: ContentChunk[];
   metadata: {
-    fetchedAt: Date
-    source: string
-    contentType: string
-    wordCount: number
-    language?: string
-  }
+    fetchedAt: Date;
+    source: string;
+    contentType: string;
+    wordCount: number;
+    language?: string;
+  };
   privacy: {
-    userAgent: string
-    searchQuery?: string
-    cacheExpiry?: Date
-  }
+    userAgent: string;
+    searchQuery?: string;
+    cacheExpiry?: Date;
+  };
 }
 
 interface ContentChunk {
-  id: string
-  text: string
-  embedding?: number[] // 384-dim vector
-  position: number
+  id: string;
+  text: string;
+  embedding?: number[]; // 384-dim vector
+  position: number;
   metadata: {
-    heading?: string
-    relevanceScore?: number
-  }
+    heading?: string;
+    relevanceScore?: number;
+  };
 }
 ```
 
@@ -284,6 +300,7 @@ interface ContentChunk {
 ### Chat Interface Integration
 
 **Input Area**:
+
 ```
 ┌─────────────────────────────────────────┐
 │ Type your message...                    │
@@ -293,6 +310,7 @@ interface ContentChunk {
 ```
 
 **AI Response with Web Sources**:
+
 ```
 ┌─────────────────────────────────────────┐
 │ 🤖 Assistant                            │
@@ -314,6 +332,7 @@ interface ContentChunk {
 ```
 
 **Web Search Indicator** (while searching):
+
 ```
 ┌─────────────────────────────────────────┐
 │ 🔍 Searching the web...                │
@@ -330,11 +349,12 @@ interface ContentChunk {
 ### 1. Privacy-Focused Search
 
 **DuckDuckGo HTML Scraping** (No API Key, No Tracking):
+
 ```typescript
 async searchDuckDuckGo(query: string): Promise<SearchResult[]> {
   const sanitizedQuery = this.sanitizeQuery(query)
   const userAgent = this.getRandomUserAgent()
-  
+
   const response = await fetch(
     `https://html.duckduckgo.com/html/?q=${encodeURIComponent(sanitizedQuery)}`,
     {
@@ -348,7 +368,7 @@ async searchDuckDuckGo(query: string): Promise<SearchResult[]> {
       // No cookies, no credentials
     }
   )
-  
+
   // Parse results, strip all tracking links
   return this.parseResults(await response.text())
 }
@@ -360,14 +380,14 @@ async searchDuckDuckGo(query: string): Promise<SearchResult[]> {
 async fetchPage(url: string): Promise<PageContent> {
   // Strip tracking parameters
   const cleanUrl = this.removeTrackingParams(url)
-  
+
   // Check robots.txt
   if (!await this.isAllowedByRobots(cleanUrl)) {
     throw new Error('Blocked by robots.txt')
   }
-  
+
   const page = await this.browser.newPage()
-  
+
   // Block trackers, ads, analytics
   await page.setRequestInterception(true)
   page.on('request', (req) => {
@@ -377,24 +397,24 @@ async fetchPage(url: string): Promise<PageContent> {
       'doubleclick.net',
       // ... comprehensive tracker list
     ]
-    
+
     if (blockedDomains.some(d => req.url().includes(d))) {
       req.abort()
     } else {
       req.continue()
     }
   })
-  
+
   await page.goto(cleanUrl, { waitUntil: 'domcontentloaded' })
-  
+
   // Extract clean text content only
   const content = await page.evaluate(() => {
     // Use Readability.js or similar
     return document.body.innerText
   })
-  
+
   await page.close()
-  
+
   return {
     url: cleanUrl,
     content: this.sanitizeContent(content),
@@ -407,25 +427,25 @@ async fetchPage(url: string): Promise<PageContent> {
 
 ```typescript
 class PrivacyCache {
-  private encryptionKey: Buffer
-  
+  private encryptionKey: Buffer;
+
   async cacheContent(content: PageContent): Promise<void> {
-    const encrypted = await this.encrypt(JSON.stringify(content))
-    
+    const encrypted = await this.encrypt(JSON.stringify(content));
+
     await this.db.put({
       id: this.hashUrl(content.url),
       data: encrypted,
       metadata: {
         domain: new URL(content.url).hostname,
         cachedAt: Date.now(),
-        size: encrypted.length
-      }
-    })
+        size: encrypted.length,
+      },
+    });
   }
-  
+
   private encrypt(data: string): Promise<Buffer> {
     // AES-256-GCM encryption
-    const cipher = crypto.createCipheriv('aes-256-gcm', this.encryptionKey, iv)
+    const cipher = crypto.createCipheriv("aes-256-gcm", this.encryptionKey, iv);
     // ... encryption logic
   }
 }
@@ -462,39 +482,43 @@ We'll add an in-app privacy notice:
 ## Performance Optimizations
 
 ### Caching Strategy
+
 - **Memory Cache**: 50 most recent/frequent pages in RAM
 - **Disk Cache**: Encrypted SQLite database for persistence
 - **Compression**: gzip compression for text content
 - **Deduplication**: Hash-based deduplication of identical content
 
 ### Background Processing
+
 - **Queue System**: Non-blocking web requests
 - **Batch Fetching**: Fetch multiple pages concurrently (max 3)
 - **Timeout Management**: 10s timeout per request
 - **Retry Logic**: Exponential backoff for failed requests
 
 ### Resource Limits
+
 ```typescript
 interface CacheConfig {
-  maxSizeMB: 500           // Max cache size
-  maxPages: 1000           // Max cached pages
-  maxAgeHours: 168         // 7 days default expiry
-  cleanupThresholdMB: 450  // Auto-cleanup trigger
-  compressionLevel: 6      // gzip level 1-9
+  maxSizeMB: 500; // Max cache size
+  maxPages: 1000; // Max cached pages
+  maxAgeHours: 168; // 7 days default expiry
+  cleanupThresholdMB: 450; // Auto-cleanup trigger
+  compressionLevel: 6; // gzip level 1-9
 }
 ```
 
 ## Dependencies
 
 ### Core Dependencies
+
 ```json
 {
   "dependencies": {
-    "cheerio": "^1.0.0",              // HTML parsing (500KB)
+    "cheerio": "^1.0.0", // HTML parsing (500KB)
     "@mozilla/readability": "^0.5.0", // Content extraction (50KB)
-    "playwright-core": "^1.40.0",     // Headless browser (minimal)
-    "better-sqlite3": "^9.2.0",       // Local database (fast)
-    "duckduckgo-search": "^6.0.0"     // DDG search wrapper
+    "playwright-core": "^1.40.0", // Headless browser (minimal)
+    "better-sqlite3": "^9.2.0", // Local database (fast)
+    "duckduckgo-search": "^6.0.0" // DDG search wrapper
   },
   "devDependencies": {
     "@types/better-sqlite3": "^7.6.8"
@@ -505,10 +529,11 @@ interface CacheConfig {
 **Total Bundle Impact**: ~15-20MB (mostly Playwright)
 
 ### Optional (Phase 3 - RAG)
+
 ```json
 {
   "dependencies": {
-    "vectordb": "^0.4.0",             // LanceDB (2MB)
+    "vectordb": "^0.4.0", // LanceDB (2MB)
     "@xenova/transformers": "^2.10.0" // Embedding model (local)
   }
 }
@@ -517,6 +542,7 @@ interface CacheConfig {
 ## Testing Strategy
 
 ### Privacy Testing
+
 - ✅ Verify no external API calls without user consent
 - ✅ Confirm tracker blocking works
 - ✅ Validate encryption at rest
@@ -524,6 +550,7 @@ interface CacheConfig {
 - ✅ Verify no telemetry in production builds
 
 ### Functional Testing
+
 - ✅ Search accuracy and relevance
 - ✅ Content extraction quality
 - ✅ Cache hit/miss logic
@@ -531,6 +558,7 @@ interface CacheConfig {
 - ✅ Error handling (network failures, timeouts)
 
 ### Performance Testing
+
 - ✅ Cache lookup speed (<50ms)
 - ✅ Web fetch timing (3-10s acceptable)
 - ✅ Memory usage under load
@@ -541,16 +569,19 @@ interface CacheConfig {
 ### Threats & Mitigations
 
 **1. Malicious Web Content**
+
 - ✅ Content sanitization (strip scripts, iframes)
 - ✅ Text-only extraction
 - ✅ Sandboxed browser context
 
 **2. Privacy Leaks**
+
 - ✅ No cookies or localStorage persistence
 - ✅ Request header sanitization
 - ✅ URL parameter cleaning
 
 **3. Cache Poisoning**
+
 - ✅ URL validation
 - ✅ Content hash verification
 - ✅ Source attribution
@@ -558,18 +589,21 @@ interface CacheConfig {
 ## Success Metrics
 
 ### Privacy (Most Important)
+
 - ✅ Zero external tracking detected
 - ✅ All data stored locally
 - ✅ User has full control (export/delete)
 - ✅ Privacy audit passes
 
 ### Ease of Use
+
 - ✅ One-click enable in settings
 - ✅ Auto-detection works 90%+ of time
 - ✅ Clear source attribution
 - ✅ No configuration required for basic use
 
 ### Performance
+
 - ✅ Cache hit rate >70%
 - ✅ Web fetch <10s average
 - ✅ Memory usage <100MB additional
@@ -578,31 +612,36 @@ interface CacheConfig {
 ## Future Enhancements (Post-MVP)
 
 ### Advanced Privacy
+
 - Tor integration for anonymous requests
 - VPN compatibility testing
 - I2P support for ultimate privacy
 
 ### Advanced Features
+
 - PDF and document parsing
 - YouTube transcript extraction
 - Academic paper search (arXiv, PubMed)
 - Code repository search (GitHub, GitLab)
 
 ### Performance
+
 - Predictive prefetching
 - Smart cache preloading
 - Distributed caching (optional)
 
 ---
 
-**Next Steps**: 
+**Next Steps**:
+
 1. Review this specification
 2. Approve Phase 1 scope
 3. Create implementation branch
 4. Start with privacy-focused search integration
 
-**Timeline**: 
+**Timeline**:
+
 - Phase 1 MVP: 2 weeks
-- Phase 2 Tool Integration: 1 week  
+- Phase 2 Tool Integration: 1 week
 - Phase 3 RAG: 2-3 weeks
 - **Total**: 5-6 weeks to full feature
