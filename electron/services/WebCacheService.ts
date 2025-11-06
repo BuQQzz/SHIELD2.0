@@ -2,7 +2,6 @@ import type { PageContent } from "./WebSearchService";
 import { WebCacheEncryption } from "./WebCacheEncryption";
 import {
   WebCacheStorage,
-  type CacheEntry as StorageCacheEntry,
   type CacheStats,
 } from "./WebCacheStorage";
 
