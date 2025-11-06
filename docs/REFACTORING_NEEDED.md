@@ -33,11 +33,11 @@ These files MUST be refactored before the next merge to main:
     - Extract truncation logic to `utils/messageTruncation.ts`
     - Keep only core message handling flow
 
-- **electron/services/ModelDownloadService.ts** - 348 lines
-  - **Action**: Split into:
-    - `ModelDownloadService.ts` - Download orchestration
-    - `HuggingFaceClient.ts` - HF API interactions
-    - `DownloadProgress.ts` - Progress tracking logic
+- **electron/services/ModelDownloadService.ts** - ~~348 lines~~ → **255 lines** ✅ COMPLETED
+  - **Status**: ✅ Successfully refactored into modular components:
+    - `ModelDownloadService.ts` - 255 lines (Download orchestration, public API)
+    - `DownloadProgressTracker.ts` - 141 lines (Progress tracking, speed/ETA calculation)
+    - `ModelFileManager.ts` - 134 lines (File system operations)
 
 - **src/types/electron.d.ts** - 360 lines
   - **Status**: ✅ EXCLUDED (type definitions)
