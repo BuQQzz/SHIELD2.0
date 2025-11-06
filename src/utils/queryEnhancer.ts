@@ -143,26 +143,17 @@ export function enhanceQueryWithContext(
     return query;
   }
 
-  console.log(
-    "[QueryEnhancer] Detected vague query, enhancing with context..."
-  );
-
   // Extract topics from recent conversation
   const topics = extractKeyTopics(messages);
 
   if (topics.length === 0) {
-    console.log("[QueryEnhancer] No topics found, using original query");
     return query;
   }
-
-  console.log("[QueryEnhancer] Extracted topics:", topics);
 
   // Build enhanced query
   // Keep original query intent but add context
   const contextTerms = topics.slice(0, 5).join(" ");
   const enhancedQuery = `${contextTerms} ${query}`;
-
-  console.log("[QueryEnhancer] Enhanced query:", enhancedQuery);
 
   return enhancedQuery;
 }

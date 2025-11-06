@@ -8,6 +8,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **GPT-OSS Model Documentation** - Comprehensive guide for handling GPT-OSS specific output formats
+  - Documented pipe-delimited channel format (`<|channel|>analysis<|message|>...`)
+  - Added notes on chat template configuration
+  - Included grammar file workarounds for non-native tool calling
+  - Reference guide at [docs/GPT-OSS-NOTES.md](docs/GPT-OSS-NOTES.md)
+
 - **Thinking Animation UI** for chain-of-thought transparency
   - Collapsible indicator shows AI's reasoning process (like ChatGPT/Claude)
   - Animated brain icon with pulse effect during streaming
@@ -44,6 +50,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     - Achieves ~8-12 tokens/s (vs impossible without offloading)
   - Based on research from llama.cpp and node-llama-cpp documentation
   - See [GPU Layer Offloading Guide](docs/features/GPU_LAYER_OFFLOADING.md)
+
+### Changed
+- **Codebase Cleanup** - Removed verbose debug logging for production readiness
+  - Cleaned `messageHandler.ts`: Removed query enhancement, prompt preview, truncation check logs
+  - Cleaned `queryEnhancer.ts`: Removed verbose enhancement process logs
+  - Cleaned `useLlama.ts`: Removed initialization, model loading, system prompt debug logs
+  - Cleaned `LlamaService.ts`: Removed model path, context size fallback logs
+  - Cleaned `useInstalledModels.ts`: Removed file matching and model discovery logs
+  - Kept essential error logging (console.error, console.warn for issues)
+  - All files pass linter with zero warnings
+  - Production-ready logging that focuses on errors and important warnings only
 
 - **Model Capabilities System** for dynamic feature management
   - Automatically enables/disables features based on model specifications

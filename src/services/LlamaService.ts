@@ -79,10 +79,6 @@ export class LlamaService {
 
     // Apply immediately if we have an active session
     if (this.context && this.session) {
-      console.log(
-        "[LlamaService] Applying new system prompt to existing session"
-      );
-
       // Save current chat history
       const currentHistory = this.session.getChatHistory();
 
@@ -95,9 +91,6 @@ export class LlamaService {
       // Restore chat history
       if (currentHistory && currentHistory.length > 0) {
         this.session.setChatHistory(currentHistory);
-        console.log(
-          "[LlamaService] Chat history preserved after system prompt update"
-        );
       }
     }
   }
@@ -139,11 +132,9 @@ export class LlamaService {
       // Custom model: extract filename and build path
       const filename = config.uri.replace("file://", "");
       modelPath = path.join(modelsDir, filename);
-      console.log(`[LlamaService] Loading custom model: ${modelPath}`);
     } else {
       // Standard Hugging Face model
       modelPath = await resolveModelFile(config.uri, modelsDir);
-      console.log(`[LlamaService] Loading catalog model: ${modelPath}`);
     }
 
     // Load model with automatic GPU layer offloading
@@ -185,9 +176,6 @@ export class LlamaService {
           if (fallbackSize >= contextSize) continue; // Skip if not smaller
 
           try {
-            console.log(
-              `[LlamaService] Attempting context size: ${fallbackSize}`
-            );
             this.context = await this.model.createContext({
               contextSize: fallbackSize,
             });
@@ -198,9 +186,6 @@ export class LlamaService {
             contextCreated = true;
             break;
           } catch {
-            console.warn(
-              `[LlamaService] Context size ${fallbackSize} also failed, trying smaller...`
-            );
             continue;
           }
         }
@@ -309,10 +294,6 @@ export class LlamaService {
         }
       });
       this.session.setChatHistory(chatHistory);
-      console.log(
-        "[LlamaService] Chat history set, system prompt preserved:",
-        this.systemPrompt.substring(0, 100)
-      );
     }
   }
 

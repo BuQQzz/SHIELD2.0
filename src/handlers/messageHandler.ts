@@ -71,13 +71,6 @@ export function createMessageHandler({
   handleToolCallRequest,
 }: MessageHandlerProps) {
   return async (content: string, useWebSearch?: boolean) => {
-    console.log(
-      "[MessageHandler] Called with content:",
-      content,
-      "useWebSearch:",
-      useWebSearch
-    );
-
     if (!isModelLoaded) {
       alert("Please wait for the model to load");
       return;
@@ -90,24 +83,12 @@ export function createMessageHandler({
     // Detect if this is a vague follow-up query that shouldn't trigger web search
     const isVagueFollowUp = isVagueFollowUpQuery(content);
 
-    if (isVagueFollowUp) {
-      console.log(
-        "[MessageHandler] Skipping web search for vague follow-up query:",
-        content
-      );
-    }
-
     if (useWebSearch && performWebSearch && !isVagueFollowUp) {
       // Get current messages for context
       const currentMessages = currentConversation?.messages || [];
 
       // Enhance query with conversation context if needed
       const enhancedQuery = enhanceQueryWithContext(content, currentMessages);
-
-      console.log("[MessageHandler] Original query:", content);
-      if (enhancedQuery !== content) {
-        console.log("[MessageHandler] Enhanced query:", enhancedQuery);
-      }
 
       const searchResult = await performWebSearchAndBuildContext(
         enhancedQuery,
@@ -182,11 +163,6 @@ export function createMessageHandler({
         messageWithContext = content;
       }
 
-      console.log(
-        "[MessageHandler] Final prompt being sent (first 500 chars):"
-      );
-      console.log(messageWithContext.substring(0, 500));
-
       await sendStreamingMessage(
         messageWithContext,
         (token) => {
@@ -204,11 +180,6 @@ export function createMessageHandler({
       );
 
       const finalContent = streamingContentRef.current;
-
-      console.log(
-        "[MessageHandler] Raw response (first 500 chars):",
-        finalContent.substring(0, 500)
-      );
 
       // Parse and extract thinking/reasoning content from various XML formats
       const { settings } = useSettingsStore.getState();
@@ -285,15 +256,11 @@ export function createMessageHandler({
       ];
 
       for (const {
-        name,
         pattern,
         thinkingIndex,
         contentIndex,
       } of thinkingPatterns) {
         const match = finalContent.match(pattern);
-        console.log(
-          `[MessageHandler] Pattern '${name}': ${match ? "✅ MATCH" : "❌ no match"}`
-        );
 
         if (match && match[thinkingIndex]) {
           thinking = match[thinkingIndex].trim();
@@ -301,14 +268,6 @@ export function createMessageHandler({
           // If pattern has separate content index (like GPT OSS format)
           if (contentIndex !== null && match[contentIndex]) {
             processedContent = match[contentIndex].trim();
-            console.log(
-              "[MessageHandler] ✅ Extracted thinking (first 100 chars):",
-              thinking.substring(0, 100)
-            );
-            console.log(
-              "[MessageHandler] ✅ Extracted final content (first 100 chars):",
-              processedContent.substring(0, 100)
-            );
           } else {
             // Remove the entire matched pattern from response
             processedContent = finalContent.replace(pattern, "").trim();
@@ -326,23 +285,11 @@ export function createMessageHandler({
               .replace(/<\/assistant>\s*/gi, "")
               .replace(/<\/final>\s*/gi, "")
               .trim();
-
-            console.log(
-              "[MessageHandler] ✅ Extracted thinking (first 100 chars):",
-              thinking.substring(0, 100)
-            );
-            console.log(
-              "[MessageHandler] ✅ Cleaned content (first 100 chars):",
-              processedContent.substring(0, 100)
-            );
           }
 
           break; // Found a match, stop searching
         }
       }
-
-      console.log("[MessageHandler] Final thinking field:", thinking ? `${thinking.substring(0, 100)}...` : "null");
-      console.log("[MessageHandler] Final content field:", processedContent.substring(0, 100));
 
       // If we found thinking content, store it separately
 
@@ -357,16 +304,6 @@ export function createMessageHandler({
       const endsWithCodeBlock = /```[\s]*$/.test(finalContent.trim());
       const wasTruncated =
         tokenLimitReached && (!endsWithPunctuation || endsWithCodeBlock);
-
-      console.log("[MessageHandler] Truncation check:", {
-        contentLength: finalContent.length,
-        estimatedTokens,
-        maxTokens: modelSettings.maxTokens,
-        tokenLimitReached,
-        endsWithPunctuation,
-        endsWithCodeBlock,
-        wasTruncated,
-      });
 
       const assistantMessage: Message = {
         id: assistantMessageId,
@@ -386,7 +323,7 @@ export function createMessageHandler({
 
       // Check for MCP tool calls in the AI response
       if (handleToolCallRequest) {
-        const hadToolCalls = await processMCPToolCalls(assistantMessage, {
+        await processMCPToolCalls(assistantMessage, {
           onToolCallDetected: handleToolCallRequest,
           addMessage,
           continueConversation: async (toolPrompt: string) => {
@@ -427,20 +364,14 @@ export function createMessageHandler({
             } finally {
               setIsGenerating(false);
             }
-          },
+          }
         });
-
-        if (hadToolCalls) {
-          console.log("[MessageHandler] Processed MCP tool calls");
-        }
       }
 
       // Generate title for first message in conversation
       if (currentConversation && currentConversation.messages.length === 0) {
-        console.log("[App] Generating title for new conversation");
         const generatedTitle = await generateTitle(content);
         if (generatedTitle) {
-          console.log("[App] Setting conversation title:", generatedTitle);
           updateTitle(generatedTitle);
         }
       }

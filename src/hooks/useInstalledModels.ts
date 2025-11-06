@@ -29,8 +29,6 @@ export function useInstalledModels() {
         const processedModels = new Set<string>(); // Track models we've already added
 
         for (const filename of result.models) {
-          console.log(`[useInstalledModels] Checking file: ${filename}`);
-
           // Find matching model in catalog
           const catalogEntry = MODEL_CATALOG.find((model) => {
             // Extract expected filename from URI
@@ -60,22 +58,12 @@ export function useInstalledModels() {
               .toLowerCase()
               .startsWith(expectedPrefix.toLowerCase());
 
-            if (matched) {
-              console.log(
-                `[useInstalledModels] Matched "${filename}" to catalog model "${model.displayName}" (${model.id})`
-              );
-              return true;
-            }
-
-            return false;
+            return matched;
           });
 
           if (catalogEntry) {
             // Check if we've already added this model (deduplicate split files)
             if (processedModels.has(catalogEntry.id)) {
-              console.log(
-                `[useInstalledModels] Skipping duplicate split file for: ${catalogEntry.displayName}`
-              );
               continue;
             }
 
@@ -107,9 +95,6 @@ export function useInstalledModels() {
             // Check if we've already added this custom model (deduplicate splits)
             const customId = `custom-${modelName}`;
             if (processedModels.has(customId)) {
-              console.log(
-                `[useInstalledModels] Skipping duplicate split file for custom model: ${modelName}`
-              );
               continue;
             }
 
@@ -119,10 +104,6 @@ export function useInstalledModels() {
               .split(/[-._]/)
               .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
               .join(" ");
-
-            console.log(
-              `[useInstalledModels] Adding unknown model: ${filename}`
-            );
 
             installed.push({
               id: customId,

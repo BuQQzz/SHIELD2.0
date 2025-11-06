@@ -30,8 +30,6 @@ export function useLlama() {
   // Initialize llama.cpp on mount
   useEffect(() => {
     const init = async () => {
-      console.log("[useLlama] Checking for window.llama...");
-
       // Wait for Electron bridge to be available
       let retries = 0;
       const maxRetries = 50; // 5 seconds max
@@ -46,13 +44,10 @@ export function useLlama() {
         return;
       }
 
-      console.log("[useLlama] Initializing llama.cpp...");
       try {
         const result = await window.llama.initialize();
-        console.log("[useLlama] Initialize result:", result);
         if (result.success) {
           setIsInitialized(true);
-          console.log("[useLlama] Initialized successfully");
         } else {
           setError(result.error || "Failed to initialize");
           console.error("[useLlama] Initialize failed:", result.error);
@@ -66,20 +61,17 @@ export function useLlama() {
   }, []);
 
   const loadModel = useCallback(async (model: ModelInfo) => {
-    console.log("[useLlama] Loading model:", model);
     setIsLoading(true);
     setError(null);
     setWarning(null);
     try {
       const result = await window.llama.loadModel(model);
-      console.log("[useLlama] Load model result:", result);
       if (result.success) {
         setIsModelLoaded(true);
         setCurrentModel(model);
         if (result.warning) {
           setWarning(result.warning);
         }
-        console.log("[useLlama] Model loaded successfully");
       } else {
         setError(result.error || "Failed to load model");
         console.error("[useLlama] Load model failed:", result.error);
@@ -206,7 +198,6 @@ export function useLlama() {
     }
     try {
       await window.llama.setChatHistory(messages);
-      console.log("[useLlama] Chat history set successfully");
     } catch (err) {
       console.error("[useLlama] setChatHistory failed:", err);
       setError(err instanceof Error ? err.message : "Unknown error");
@@ -224,7 +215,6 @@ export function useLlama() {
       try {
         const result = await window.llama.generateTitle(userMessage);
         if (result.success && result.title) {
-          console.log("[useLlama] Generated title:", result.title);
           return result.title;
         }
         return null;
@@ -245,9 +235,6 @@ export function useLlama() {
     }
     try {
       await window.llama.setSystemPrompt(prompt);
-      console.log("[useLlama] ✅ System prompt updated");
-      console.log("[useLlama] Prompt length:", prompt.length);
-      console.log("[useLlama] Prompt preview:", prompt.substring(0, 200));
     } catch (err) {
       console.error("[useLlama] setSystemPrompt failed:", err);
       setError(err instanceof Error ? err.message : "Unknown error");
