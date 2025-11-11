@@ -6,53 +6,37 @@
  */
 
 import { resolveModelFile } from "node-llama-cpp";
-import path from "path";
-import fs from "fs/promises";
 import { BrowserWindow } from "electron";
 import type { ModelMetadata } from "../../src/config/models";
+import {
+  DownloadProgressTracker,
+  type DownloadProgress,
+} from "./DownloadProgressTracker";
+import { ModelFileManager } from "./ModelFileManager";
 
-export interface DownloadProgress {
-  modelId: string;
-  status: "downloading" | "completed" | "error" | "cancelled";
-  progress: number; // 0-100
-  downloadedBytes: number;
-  totalBytes: number;
-  speed: number; // bytes per second
-  eta: number; // seconds remaining
-  error?: string;
-}
+export { type DownloadProgress } from "./DownloadProgressTracker";
 
 export interface DownloadTask {
   model: ModelMetadata;
   abortController: AbortController;
   startTime: number;
+  progressTracker: DownloadProgressTracker;
 }
 
 class ModelDownloadService {
-  private defaultModelsDir: string;
-  private customModelsDir: string | undefined;
   private activeDownloads: Map<string, DownloadTask> = new Map();
-  private downloadHistory: Map<string, DownloadProgress> = new Map();
   private mainWindow: BrowserWindow | null = null;
+  private fileManager: ModelFileManager;
 
   constructor(userDataPath: string) {
-    this.defaultModelsDir = path.join(userDataPath, "models");
-    this.ensureModelsDirectory();
-  }
-
-  /**
-   * Get the current models directory (custom or default)
-   */
-  private getModelsDir(): string {
-    return this.customModelsDir || this.defaultModelsDir;
+    this.fileManager = new ModelFileManager(userDataPath);
   }
 
   /**
    * Set custom models directory from settings
    */
   setCustomModelsDir(customPath: string | undefined) {
-    this.customModelsDir = customPath;
-    this.ensureModelsDirectory();
+    this.fileManager.setCustomModelsDir(customPath);
   }
 
   /**
@@ -60,18 +44,6 @@ class ModelDownloadService {
    */
   setMainWindow(window: BrowserWindow) {
     this.mainWindow = window;
-  }
-
-  /**
-   * Ensure models directory exists
-   */
-  private async ensureModelsDirectory() {
-    try {
-      const modelsDir = this.getModelsDir();
-      await fs.mkdir(modelsDir, { recursive: true });
-    } catch (error) {
-      console.error("Failed to create models directory:", error);
-    }
   }
 
   /**
@@ -93,75 +65,58 @@ class ModelDownloadService {
     }
 
     // Check if model already exists
-    const isInstalled = await this.isModelInstalled(model);
+    const isInstalled = await this.fileManager.isModelInstalled(model);
     if (isInstalled) {
       throw new Error(`Model ${model.displayName} is already installed`);
     }
 
     const abortController = new AbortController();
+    const progressTracker = new DownloadProgressTracker();
     const task: DownloadTask = {
       model,
       abortController,
       startTime: Date.now(),
+      progressTracker,
     };
 
     this.activeDownloads.set(model.id, task);
 
-    const progress: DownloadProgress = {
-      modelId: model.id,
-      status: "downloading",
-      progress: 0,
-      downloadedBytes: 0,
-      totalBytes: 0,
-      speed: 0,
-      eta: 0,
-    };
+    const initialProgress = progressTracker.createInitialProgress(model.id);
 
     try {
-      this.sendProgress(progress);
+      this.sendProgress(initialProgress);
 
       // Use node-llama-cpp's resolveModelFile with progress tracking
-      // Note: We'll need to wrap this with a custom progress tracker
       const modelPath = await this.downloadWithProgress(
         model,
-        abortController.signal,
-        (downloadedBytes: number, totalBytes: number) => {
-          const elapsedSeconds = (Date.now() - task.startTime) / 1000;
-          const speed = downloadedBytes / elapsedSeconds;
-          const remainingBytes = totalBytes - downloadedBytes;
-          const eta = speed > 0 ? remainingBytes / speed : 0;
-
-          progress.progress = Math.round((downloadedBytes / totalBytes) * 100);
-          progress.downloadedBytes = downloadedBytes;
-          progress.totalBytes = totalBytes;
-          progress.speed = speed;
-          progress.eta = eta;
-
-          this.sendProgress(progress);
-        }
+        task,
+        abortController.signal
       );
 
       // Download completed successfully
-      progress.status = "completed";
-      progress.progress = 100;
-      this.sendProgress(progress);
-      this.downloadHistory.set(model.id, progress);
+      const completedProgress = progressTracker.markCompleted(
+        model.id,
+        progressTracker.getProgress(model.id)?.totalBytes || 0
+      );
+      this.sendProgress(completedProgress);
       this.activeDownloads.delete(model.id);
 
       return modelPath;
     } catch (error: unknown) {
       // Download failed or cancelled
       const err = error as Error & { name?: string };
+      let errorProgress: DownloadProgress;
+
       if (err.name === "AbortError" || abortController.signal.aborted) {
-        progress.status = "cancelled";
-        progress.error = "Download cancelled by user";
+        errorProgress = progressTracker.markCancelled(model.id);
       } else {
-        progress.status = "error";
-        progress.error = err.message || "Unknown error occurred";
+        errorProgress = progressTracker.markError(
+          model.id,
+          err.message || "Unknown error occurred"
+        );
       }
 
-      this.sendProgress(progress);
-      this.downloadHistory.set(model.id, progress);
+      this.sendProgress(errorProgress);
       this.activeDownloads.delete(model.id);
 
       throw error;
@@ -174,52 +129,28 @@ class ModelDownloadService {
    */
   private async downloadWithProgress(
     model: ModelMetadata,
-    signal: AbortSignal,
-    onProgress: (downloaded: number, total: number) => void
+    task: DownloadTask,
+    signal: AbortSignal
   ): Promise<string> {
-    const modelsDir = this.getModelsDir();
+    const modelsDir = this.fileManager.getModelsDir();
     console.log(`Downloading ${model.displayName}...`);
     console.log(`URI: ${model.uri}`);
     console.log(`Target: ${modelsDir}`);
 
-    let lastUpdateTime = Date.now();
-    let lastDownloadedBytes = 0;
+    task.progressTracker.reset();
 
     const modelPath = await resolveModelFile(model.uri, {
       directory: modelsDir,
       onProgress: (status) => {
         // status: { totalSize: number, downloadedSize: number }
-        const currentTime = Date.now();
-        const timeDelta = (currentTime - lastUpdateTime) / 1000; // seconds
-
-        const totalDownloaded = status.downloadedSize;
-        const totalSize = status.totalSize;
-
-        // Calculate speed (bytes per second)
-        const bytesDelta = totalDownloaded - lastDownloadedBytes;
-        const speed = timeDelta > 0 ? bytesDelta / timeDelta : 0;
-
-        // Calculate ETA (seconds)
-        const remainingBytes = totalSize - totalDownloaded;
-        const eta = speed > 0 ? remainingBytes / speed : 0;
-
-        // Update progress
-        const progress: DownloadProgress = {
-          modelId: model.id,
-          status: "downloading",
-          progress: totalSize > 0 ? (totalDownloaded / totalSize) * 100 : 0,
-          downloadedBytes: totalDownloaded,
-          totalBytes: totalSize,
-          speed: Math.round(speed),
-          eta: Math.round(eta),
-        };
+        const progress = task.progressTracker.calculateProgress(
+          model.id,
+          status.downloadedSize,
+          status.totalSize,
+          task.startTime
+        );
 
         this.sendProgress(progress);
-        this.downloadHistory.set(model.id, progress);
-
-        lastUpdateTime = currentTime;
-        lastDownloadedBytes = totalDownloaded;
-        onProgress(totalDownloaded, totalSize);
       },
     });
 
@@ -238,19 +169,8 @@ class ModelDownloadService {
     task.abortController.abort();
     this.activeDownloads.delete(modelId);
 
-    const progress: DownloadProgress = {
-      modelId,
-      status: "cancelled",
-      progress: 0,
-      downloadedBytes: 0,
-      totalBytes: 0,
-      speed: 0,
-      eta: 0,
-      error: "Cancelled by user",
-    };
-
+    const progress = task.progressTracker.markCancelled(modelId);
     this.sendProgress(progress);
-    this.downloadHistory.set(modelId, progress);
 
     return true;
   }
@@ -259,7 +179,15 @@ class ModelDownloadService {
    * Get current download progress for a model
    */
   getDownloadProgress(modelId: string): DownloadProgress | null {
-    return this.downloadHistory.get(modelId) || null;
+    // Check active downloads first
+    const task = this.activeDownloads.get(modelId);
+    if (task) {
+      return task.progressTracker.getProgress(modelId);
+    }
+
+    // If not actively downloading, we don't have historical data
+    // This is intentional - progress is only tracked during active downloads
+    return null;
   }
 
   /**
@@ -273,120 +201,28 @@ class ModelDownloadService {
    * Check if a model is installed
    */
   async isModelInstalled(model: ModelMetadata): Promise<boolean> {
-    try {
-      // Check if model file exists in models directory
-      // Extract model filename from URI: hf:Qwen/Qwen2.5-7B-Instruct-GGUF:Q4_K_M
-      const uriParts = model.uri.split(":");
-      if (uriParts[0] !== "hf" || uriParts.length < 3) {
-        return false;
-      }
-
-      const [, repoPath, quantization] = uriParts;
-      const [_owner, repo] = repoPath.split("/");
-
-      // Model files are typically named: {repo}-{quantization}.gguf
-      // This is a simplification - actual naming may vary
-      const possibleFilenames = [
-        `${repo.toLowerCase()}.${quantization.toLowerCase()}.gguf`,
-        `${repo}.${quantization}.gguf`,
-      ];
-
-      const modelsDir = this.getModelsDir();
-      for (const filename of possibleFilenames) {
-        const modelPath = path.join(modelsDir, filename);
-        try {
-          await fs.access(modelPath);
-          return true; // File exists
-        } catch {
-          continue; // Try next filename
-        }
-      }
-
-      // Also check if resolveModelFile can find it
-      // Skip this check for now as it might trigger downloads
-      // We'll rely on filesystem checks only
-      return false;
-    } catch (error) {
-      console.error(`Error checking if model ${model.id} is installed:`, error);
-      return false;
-    }
+    return this.fileManager.isModelInstalled(model);
   }
 
   /**
    * Get list of installed models
    */
   async listInstalledModels(): Promise<string[]> {
-    try {
-      const modelsDir = this.getModelsDir();
-      const files = await fs.readdir(modelsDir);
-      // Filter for .gguf files
-      return files.filter((file) => file.endsWith(".gguf"));
-    } catch (error) {
-      console.error("Error listing installed models:", error);
-      return [];
-    }
+    return this.fileManager.listInstalledModels();
   }
 
   /**
    * Delete a model
    */
   async deleteModel(model: ModelMetadata): Promise<boolean> {
-    try {
-      // Find the model file
-      const uriParts = model.uri.split(":");
-      if (uriParts[0] !== "hf" || uriParts.length < 3) {
-        throw new Error("Invalid model URI");
-      }
-
-      const [, repoPath, quantization] = uriParts;
-      const [_owner, repo] = repoPath.split("/");
-
-      const possibleFilenames = [
-        `${repo.toLowerCase()}.${quantization.toLowerCase()}.gguf`,
-        `${repo}.${quantization}.gguf`,
-      ];
-
-      const modelsDir = this.getModelsDir();
-      for (const filename of possibleFilenames) {
-        const modelPath = path.join(modelsDir, filename);
-        try {
-          await fs.unlink(modelPath);
-          console.log(`Deleted model: ${modelPath}`);
-          return true;
-        } catch {
-          continue;
-        }
-      }
-
-      return false;
-    } catch (error) {
-      console.error(`Error deleting model ${model.id}:`, error);
-      return false;
-    }
+    return this.fileManager.deleteModel(model);
   }
 
   /**
    * Get total disk space used by models
    */
   async getTotalDiskSpace(): Promise<number> {
-    try {
-      const modelsDir = this.getModelsDir();
-      const files = await fs.readdir(modelsDir);
-      let totalSize = 0;
-
-      for (const file of files) {
-        if (file.endsWith(".gguf")) {
-          const filePath = path.join(modelsDir, file);
-          const stats = await fs.stat(filePath);
-          totalSize += stats.size;
-        }
-      }
-
-      return totalSize;
-    } catch (error) {
-      console.error("Error calculating disk space:", error);
-      return 0;
-    }
+    return this.fileManager.getTotalDiskSpace();
   }
 }
 
