@@ -4,6 +4,7 @@
  */
 
 import { Browser, Page } from "playwright-core";
+import * as cheerio from "cheerio";
 import { SearchResult, PrivacyOptions } from "./search-types";
 
 /**
@@ -158,8 +159,6 @@ export class DuckDuckGoProvider {
    * Parse DuckDuckGo HTML search results
    */
   private parseSearchResults(html: string, maxResults: number): SearchResult[] {
-    // Use cheerio for parsing (imported dynamically in WebSearchService)
-    const cheerio = require("cheerio");
     const $ = cheerio.load(html);
     const results: SearchResult[] = [];
 

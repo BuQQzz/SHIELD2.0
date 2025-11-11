@@ -3,7 +3,7 @@
  * Handles fetching and extracting clean content from web pages
  */
 
-import { Browser, Page } from "playwright-core";
+import { Browser } from "playwright-core";
 import { Readability } from "@mozilla/readability";
 import { JSDOM } from "jsdom";
 import { PageContent, PrivacyOptions } from "./search-types";
