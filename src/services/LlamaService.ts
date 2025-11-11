@@ -4,19 +4,16 @@ import {
   LlamaModel,
   LlamaContext,
   LlamaChatSession,
-  resolveModelFile,
 } from "node-llama-cpp";
 import path from "path";
 import { fileURLToPath } from "url";
 import { generateConversationTitle } from "./titleGenerator.js";
+import { ModelLoader, ModelConfig } from "./ModelLoader.js";
+import { ContextManager } from "./ContextManager.js";
+import { SessionManager, ChatMessage } from "./SessionManager.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const defaultModelsDir = path.join(__dirname, "..", "..", "models");
-
-export interface ChatMessage {
-  role: "user" | "assistant" | "system";
-  content: string;
-}
 
 export interface ChatOptions {
   temperature?: number;
@@ -28,15 +25,12 @@ export interface ChatOptions {
   signal?: AbortSignal;
 }
 
-export interface ModelConfig {
-  name: string;
-  uri: string;
-  contextSize?: number;
-}
+// Re-export types for external consumers
+export type { ChatMessage, ModelConfig };
 
 /**
  * Service for managing llama.cpp inference
- * Handles model loading, context management, and chat sessions
+ * Orchestrates model loading, context management, and chat sessions
  */
 export class LlamaService {
   private llama: Llama | null = null;
@@ -45,8 +39,12 @@ export class LlamaService {
   private session: LlamaChatSession | null = null;
   private currentModelConfig: ModelConfig | null = null;
   private currentAbortController: AbortController | null = null;
-  private systemPrompt: string = "You are a helpful AI assistant.";
   private customModelsDir: string | undefined;
+
+  // Specialized managers
+  private modelLoader = new ModelLoader();
+  private contextManager = new ContextManager();
+  private sessionManager = new SessionManager();
 
   /**
    * Set custom models directory from settings
@@ -75,23 +73,15 @@ export class LlamaService {
    * Applies immediately by recreating the session while preserving chat history
    */
   async setSystemPrompt(prompt: string): Promise<void> {
-    this.systemPrompt = prompt;
+    this.sessionManager.setSystemPrompt(prompt);
 
     // Apply immediately if we have an active session
     if (this.context && this.session) {
-      // Save current chat history
-      const currentHistory = this.session.getChatHistory();
-
-      // Recreate session with new system prompt
-      this.session = new LlamaChatSession({
-        contextSequence: this.context.getSequence(),
-        systemPrompt: this.systemPrompt,
-      });
-
-      // Restore chat history
-      if (currentHistory && currentHistory.length > 0) {
-        this.session.setChatHistory(currentHistory);
-      }
+      this.session = this.sessionManager.recreateSessionWithPrompt(
+        this.context,
+        this.session,
+        prompt
+      );
     }
   }
 
@@ -99,7 +89,7 @@ export class LlamaService {
    * Get the current system prompt
    */
   getSystemPrompt(): string {
-    return this.systemPrompt;
+    return this.sessionManager.getSystemPrompt();
   }
 
   /**
@@ -111,115 +101,38 @@ export class LlamaService {
     }
 
     // Check if model is already loaded
-    if (
-      this.currentModelConfig?.uri === config.uri &&
-      this.model &&
-      this.context &&
-      this.session
-    ) {
-      return {};
-    }
+    const isAlreadyLoaded = this.currentModelConfig?.uri === config.uri &&
+      this.model && this.context && this.session;
+    if (isAlreadyLoaded) return {};
 
     // Clean up existing resources
     await this.cleanup();
 
-    // Resolve and load model
-    const modelsDir = this.getModelsDir();
-    let modelPath: string;
+    // Load model using ModelLoader
+    const { model } = await this.modelLoader.loadModel(
+      this.llama,
+      config,
+      this.getModelsDir()
+    );
+    this.model = model;
 
-    // Check if it's a custom local file (file:// URI) or Hugging Face URI
-    if (config.uri.startsWith("file://")) {
-      // Custom model: extract filename and build path
-      const filename = config.uri.replace("file://", "");
-      modelPath = path.join(modelsDir, filename);
-    } else {
-      // Standard Hugging Face model
-      modelPath = await resolveModelFile(config.uri, modelsDir);
-    }
+    // Create context using ContextManager
+    const contextSize = config.contextSize || 2048;
+    const contextResult = await this.contextManager.createContext(
+      this.model,
+      { contextSize }
+    );
+    this.context = contextResult.context;
 
-    // Load model with automatic GPU layer offloading
-    // "auto" tells llama.cpp to fit as many layers as possible in VRAM,
-    // and automatically offload remaining layers to system RAM
-    // This enables running large models (e.g., 32B) on GPUs with limited VRAM
-    this.model = await this.llama.loadModel({
-      modelPath,
-      gpuLayers: "auto", // Automatically split between VRAM and RAM
-    });
+    // Create chat session using SessionManager
+    this.session = this.sessionManager.createSession(this.context);
 
-    let contextSize = config.contextSize || 2048;
-    let warning: string | undefined;
+    this.currentModelConfig = {
+      ...config,
+      contextSize: contextResult.actualContextSize,
+    };
 
-    // Try to create context with requested size, fallback if insufficient VRAM
-    let contextCreated = false;
-    try {
-      this.context = await this.model.createContext({
-        contextSize,
-      });
-      contextCreated = true;
-    } catch (error) {
-      const errorMsg = error instanceof Error ? error.message : String(error);
-
-      // Check if it's a VRAM-related error
-      if (
-        errorMsg.includes("too large") ||
-        errorMsg.includes("VRAM") ||
-        errorMsg.includes("memory")
-      ) {
-        console.warn(
-          `[LlamaService] VRAM insufficient for context size ${contextSize}, trying reduced sizes...`
-        );
-
-        // Try progressively smaller context sizes
-        const fallbackSizes = [16384, 8192, 4096, 2048, 1024, 512];
-
-        for (const fallbackSize of fallbackSizes) {
-          if (fallbackSize >= contextSize) continue; // Skip if not smaller
-
-          try {
-            this.context = await this.model.createContext({
-              contextSize: fallbackSize,
-            });
-
-            warning = `⚠️ Insufficient VRAM for requested context size (${contextSize}). Reduced to ${fallbackSize} tokens. This large model is using system RAM for some layers, which will be slower. For better performance, consider using a smaller model or upgrading your GPU.`;
-            console.warn(`[LlamaService] ${warning}`);
-            contextSize = fallbackSize;
-            contextCreated = true;
-            break;
-          } catch {
-            continue;
-          }
-        }
-      } else {
-        // Non-VRAM related error, rethrow
-        throw error;
-      }
-    }
-
-    if (!contextCreated) {
-      // If all fallbacks failed, throw a more helpful error
-      throw new Error(
-        `Unable to load this model even with minimum context size. The model (${path.basename(modelPath)}) requires more VRAM than available. Try:\n` +
-          `1. A smaller quantization (e.g., Q4_K_S, Q3_K_M instead of Q4_K_M)\n` +
-          `2. A smaller model (e.g., 7B instead of 32B)\n` +
-          `3. Freeing up VRAM by closing other applications\n` +
-          `4. Upgrading your GPU`
-      );
-    }
-
-    // Ensure context was created
-    if (!this.context) {
-      throw new Error("Failed to create context");
-    }
-
-    // Create chat session with system prompt
-    this.session = new LlamaChatSession({
-      contextSequence: this.context.getSequence(),
-      systemPrompt: this.systemPrompt,
-    });
-
-    this.currentModelConfig = { ...config, contextSize };
-
-    return { warning };
+    return { warning: contextResult.warning };
   }
 
   /**
@@ -284,16 +197,7 @@ export class LlamaService {
    */
   setChatHistory(messages: ChatMessage[]): void {
     if (this.session) {
-      // Convert our ChatMessage format to LlamaChatSession format
-      const chatHistory = messages.map((msg) => {
-        if (msg.role === "user") {
-          return { type: "user" as const, text: msg.content };
-        } else {
-          // assistant messages are "model" responses in llama.cpp
-          return { type: "model" as const, response: [msg.content] };
-        }
-      });
-      this.session.setChatHistory(chatHistory);
+      this.sessionManager.setChatHistory(this.session, messages);
     }
   }
 
@@ -302,7 +206,7 @@ export class LlamaService {
    */
   clearHistory(): void {
     if (this.session) {
-      this.session.setChatHistory([]);
+      this.sessionManager.clearHistory(this.session);
     }
   }
 
@@ -311,14 +215,11 @@ export class LlamaService {
    * Recreates the chat session with new system prompt while preserving context
    */
   async applySystemPrompt(prompt: string): Promise<void> {
-    this.systemPrompt = prompt;
+    this.sessionManager.setSystemPrompt(prompt);
 
     if (this.context) {
       // Recreate session with new system prompt
-      this.session = new LlamaChatSession({
-        contextSequence: this.context.getSequence(),
-        systemPrompt: this.systemPrompt,
-      });
+      this.session = this.sessionManager.createSession(this.context);
     }
   }
 
