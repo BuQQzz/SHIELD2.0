@@ -8,7 +8,7 @@
 import { useState, useMemo } from "react";
 import { Dialog, DialogContent, DialogHeader } from "@/components/ui/dialog";
 import { DeleteModelDialog } from "./DeleteModelDialog";
-import { ModelDownloadFilters } from "./ModelDownloadFilters";
+import { ModelDownloadFilters, type FilterType } from "./ModelDownloadFilters";
 import { ModelDownloadBrowser } from "./ModelDownloadBrowser";
 import { MODEL_CATALOG, type ModelMetadata } from "@/config/models";
 import { useModelDownload } from "@/hooks/useModelDownload";
@@ -17,8 +17,6 @@ interface ModelDownloadDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }
-
-type FilterType = "all" | "tool-calling" | "coding" | "efficient" | "installed";
 
 export function ModelDownloadDialog({
   open,

@@ -17,7 +17,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
 
-type FilterType = "all" | "tool-calling" | "coding" | "efficient" | "installed";
+export type FilterType = "all" | "tool-calling" | "coding" | "efficient" | "installed";
 
 interface ModelDownloadFiltersProps {
   filter: FilterType;
