@@ -5,23 +5,23 @@ import { BrowserWindow } from "electron";
  * Shows during app initialization before main window
  */
 export function createSplashWindow(): BrowserWindow {
-    const splash = new BrowserWindow({
-        width: 400,
-        height: 300,
-        transparent: true,
-        frame: false,
-        alwaysOnTop: true,
-        resizable: false,
-        webPreferences: {
-            nodeIntegration: false,
-            contextIsolation: true,
-        },
-        show: false,
-    });
+  const splash = new BrowserWindow({
+    width: 400,
+    height: 300,
+    transparent: true,
+    frame: false,
+    alwaysOnTop: true,
+    resizable: false,
+    webPreferences: {
+      nodeIntegration: false,
+      contextIsolation: true,
+    },
+    show: false,
+  });
 
-    // Simple HTML splash screen with SHIELD branding
-    // Uses dark gradient matching app's monochromatic theme
-    const splashHTML = `
+  // Simple HTML splash screen with SHIELD branding
+  // Uses dark gradient matching app's monochromatic theme
+  const splashHTML = `
     <!DOCTYPE html>
     <html>
       <head>
@@ -128,43 +128,48 @@ export function createSplashWindow(): BrowserWindow {
     </html>
   `;
 
-    splash.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(splashHTML)}`);
+  splash.loadURL(
+    `data:text/html;charset=utf-8,${encodeURIComponent(splashHTML)}`
+  );
 
-    splash.once("ready-to-show", () => {
-        splash.show();
-    });
+  splash.once("ready-to-show", () => {
+    splash.show();
+  });
 
-    return splash;
+  return splash;
 }
 
 /**
  * Update splash screen status message
  */
-export function updateSplashStatus(splash: BrowserWindow | null, message: string): void {
-    if (splash && !splash.isDestroyed()) {
-        splash.webContents.send("splash:status", message);
-    }
+export function updateSplashStatus(
+  splash: BrowserWindow | null,
+  message: string
+): void {
+  if (splash && !splash.isDestroyed()) {
+    splash.webContents.send("splash:status", message);
+  }
 }
 
 /**
  * Close splash and show main window with smooth transition
  */
 export function closeSplash(
-    splash: BrowserWindow | null,
-    mainWindow: BrowserWindow
+  splash: BrowserWindow | null,
+  mainWindow: BrowserWindow
 ): void {
-    if (splash && !splash.isDestroyed()) {
-        // Show main window
-        mainWindow.show();
+  if (splash && !splash.isDestroyed()) {
+    // Show main window
+    mainWindow.show();
 
-        // Small delay then close splash for smooth transition
-        setTimeout(() => {
-            if (!splash.isDestroyed()) {
-                splash.close();
-            }
-        }, 200);
-    } else {
-        // If splash already closed, just show main window
-        mainWindow.show();
-    }
+    // Small delay then close splash for smooth transition
+    setTimeout(() => {
+      if (!splash.isDestroyed()) {
+        splash.close();
+      }
+    }, 200);
+  } else {
+    // If splash already closed, just show main window
+    mainWindow.show();
+  }
 }

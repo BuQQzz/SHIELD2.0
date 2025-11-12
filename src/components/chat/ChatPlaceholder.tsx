@@ -16,9 +16,7 @@ interface ChatPlaceholderProps {
   onPromptClick?: (prompt: string) => void;
 }
 
-export function ChatPlaceholder({
-  onPromptClick,
-}: ChatPlaceholderProps) {
+export function ChatPlaceholder({ onPromptClick }: ChatPlaceholderProps) {
   return (
     <motion.div
       initial={{ opacity: 0, y: 20 }}

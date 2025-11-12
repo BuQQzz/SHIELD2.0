@@ -6,10 +6,7 @@ import {
   ContentExtractor,
   type PageContent,
 } from "./web-search/ContentExtractor";
-import {
-  SearchProvider,
-  type SearchResult,
-} from "./web-search/SearchProvider";
+import { SearchProvider, type SearchResult } from "./web-search/SearchProvider";
 
 /**
  * Privacy-focused web search and content fetching service
@@ -116,8 +113,6 @@ export class WebSearchService {
       );
     }
   }
-
-
 
   /**
    * Cleanup browser instance

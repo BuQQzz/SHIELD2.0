@@ -25,11 +25,11 @@ class ModelDownloadService {
 
   constructor(userDataPath: string) {
     this.defaultModelsDir = path.join(userDataPath, "models");
-    
+
     const getModelsDir = () => this.getModelsDir();
     this.downloadManager = new DownloadManager(getModelsDir);
     this.fileManager = new ModelFileManager(getModelsDir);
-    
+
     this.ensureModelsDirectory();
   }
 

@@ -82,11 +82,7 @@ export class DownloadManager {
     try {
       this.sendProgress(progress);
 
-      const modelPath = await this.downloadWithProgress(
-        model,
-        task,
-        progress
-      );
+      const modelPath = await this.downloadWithProgress(model, task, progress);
 
       // Download completed successfully
       progress.status = "completed";
@@ -149,7 +145,8 @@ export class DownloadManager {
         const eta = speed > 0 ? remainingBytes / speed : 0;
 
         // Update progress
-        progress.progress = totalSize > 0 ? (totalDownloaded / totalSize) * 100 : 0;
+        progress.progress =
+          totalSize > 0 ? (totalDownloaded / totalSize) * 100 : 0;
         progress.downloadedBytes = totalDownloaded;
         progress.totalBytes = totalSize;
         progress.speed = Math.round(speed);
