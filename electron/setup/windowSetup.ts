@@ -1,6 +1,7 @@
 import { BrowserWindow } from "electron";
 import path from "path";
 import { fileURLToPath } from "url";
+import fs from "fs";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -9,11 +10,11 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
  */
 export function createMainWindow(): BrowserWindow {
   // Determine preload script path
-  const preloadPath = process.env.VITE_DEV_SERVER_URL
-    ? path.join(__dirname, "../preload.mjs")
-    : path.join(__dirname, "../preload.mjs");
+  // In both dev and prod, preload.mjs is in the same directory as main.js (dist-electron/)
+  const preloadPath = path.join(__dirname, "preload.mjs");
 
   console.log("[main] Preload path:", preloadPath);
+  console.log("[main] Preload exists:", fs.existsSync(preloadPath));
 
   const mainWindow = new BrowserWindow({
     width: 1200,
