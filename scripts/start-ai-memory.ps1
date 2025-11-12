@@ -1,4 +1,4 @@
-﻿# OpenMemory Startup Script
+# OpenMemory Startup Script
 # Checks if OpenMemory is running, starts it if not
 
 $openMemoryUrl = "http://localhost:8080/health"
