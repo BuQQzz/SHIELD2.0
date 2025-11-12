@@ -2,6 +2,8 @@
 
 Privacy-first local AI chatbot for Windows. All processing happens locally - no external APIs, no data leaving your machine.
 
+> **🧠 AI Memory System**: This project uses [OpenMemory](https://github.com/CaviraOSS/OpenMemory) to give GitHub Copilot persistent memory during development. See [AI-MEMORY-README.md](./AI-MEMORY-README.md) for details.
+
 ## What It Is
 
 Local AI assistant powered by llama.cpp with:

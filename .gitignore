@@ -90,6 +90,13 @@ chat-history/
 *.sqlite
 *.sqlite3
 
+# OpenMemory AI memory data (local only)
+data/ai-memory/
+data/openmemory/
+.openmemory.env
+docker-compose.openmemory.yml
+.mcp-config.json
+
 # Windows specific
 $RECYCLE.BIN/
 *.lnk

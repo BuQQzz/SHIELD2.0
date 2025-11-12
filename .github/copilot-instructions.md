@@ -1,5 +1,36 @@
 # SHIELD 2.0 - GitHub Copilot Instructions
 
+## 🧠 AI Memory System - IMPORTANT!
+
+**OpenMemory Integration**: This project uses OpenMemory to give you (GitHub Copilot) persistent memory across sessions.
+
+### Before Each Session
+1. **Check if OpenMemory is running**: Query `http://localhost:8080/health`
+2. **If not running**, inform the user to start it:
+   ```powershell
+   cd "D:/AI Projects/OpenMemory/backend"
+   npm run dev
+   ```
+3. **Query relevant memories** at the start of each conversation to understand context
+
+### During Development
+- **Query memories** when user asks about past decisions: Use `POST /memory/query` with `user_id: "copilot-shield"`
+- **Store important decisions**: Use `POST /memory/add` for architecture choices, patterns, user preferences
+- **Categories to use**: `architecture`, `guidelines`, `tech-stack`, `refactoring`, `recent-work`, `user-preference`
+
+### Memory Commands
+```powershell
+# Query memories
+Invoke-RestMethod -Uri http://localhost:8080/memory/query -Method Post -ContentType "application/json" -Body '{"query":"your search","k":5,"filters":{"user_id":"copilot-shield"}}'
+
+# Store memory
+Invoke-RestMethod -Uri http://localhost:8080/memory/add -Method Post -ContentType "application/json" -Body '{"content":"knowledge to remember","user_id":"copilot-shield","metadata":{"category":"architecture"}}'
+```
+
+**See**: `docs/AI_MEMORY_SETUP.md` and `AI-MEMORY-README.md` for full details.
+
+---
+
 ## Project Overview
 
 SHIELD 2.0 is a privacy-first, local AI chatbot for Windows with tool integration capabilities. The application enables users to interact with an AI assistant that can navigate Windows and perform tasks on their PC with explicit permission. This is an experimental project focused on local inference using llama.cpp.

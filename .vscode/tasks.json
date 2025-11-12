@@ -1,0 +1,79 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "Start OpenMemory AI Memory",
+      "type": "shell",
+      "command": "powershell",
+      "args": [
+        "-ExecutionPolicy",
+        "Bypass",
+        "-File",
+        "${workspaceFolder}/scripts/start-ai-memory.ps1"
+      ],
+      "presentation": {
+        "reveal": "always",
+        "panel": "new",
+        "focus": false
+      },
+      "problemMatcher": [],
+      "runOptions": {
+        "runOn": "folderOpen"
+      }
+    },
+    {
+      "label": "Check OpenMemory Status",
+      "type": "shell",
+      "command": "powershell",
+      "args": [
+        "-Command",
+        "try { $r = Invoke-RestMethod http://localhost:8080/health -TimeoutSec 2; Write-Host '✅ OpenMemory is running' -ForegroundColor Green; Write-Host \"   Provider: $($r.embedding.provider)\" -ForegroundColor Gray } catch { Write-Host '❌ OpenMemory is not running' -ForegroundColor Red; Write-Host '   Run task: Start OpenMemory AI Memory' -ForegroundColor Yellow }"
+      ],
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared"
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "Stop OpenMemory",
+      "type": "shell",
+      "command": "powershell",
+      "args": [
+        "-Command",
+        "$processes = Get-Process -Name node -ErrorAction SilentlyContinue | Where-Object { $_.Path -like '*OpenMemory*' }; if ($processes) { $processes | ForEach-Object { Stop-Process -Id $_.Id -Force }; Write-Host '✅ OpenMemory stopped' -ForegroundColor Green } else { Write-Host '⚠️  No OpenMemory process found' -ForegroundColor Yellow }"
+      ],
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared"
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "Build",
+      "type": "npm",
+      "script": "build",
+      "problemMatcher": ["$tsc"],
+      "group": {
+        "kind": "build",
+        "isDefault": true
+      }
+    },
+    {
+      "label": "Test",
+      "type": "npm",
+      "script": "test",
+      "problemMatcher": [],
+      "group": {
+        "kind": "test",
+        "isDefault": true
+      }
+    },
+    {
+      "label": "Lint",
+      "type": "npm",
+      "script": "lint",
+      "problemMatcher": ["$eslint-stylish"]
+    }
+  ]
+}
