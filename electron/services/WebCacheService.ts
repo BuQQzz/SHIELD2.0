@@ -1,21 +1,11 @@
-import { createRequire } from "module";
-const require = createRequire(import.meta.url);
-const sqlite3 = require("sqlite3");
-
-import {
-  createCipheriv,
-  createDecipheriv,
-  randomBytes,
-  scryptSync,
-} from "crypto";
-import { app } from "electron";
-import path from "path";
-import fs from "fs";
 import type { PageContent } from "./WebSearchService";
-
-// Type definitions for sqlite3
-type Database = unknown;
-type SqliteError = Error | null;
+import { WebCacheStorage } from "./web-cache/WebCacheStorage";
+import { WebCacheEncryption } from "./web-cache/WebCacheEncryption";
+import {
+  CacheOperations,
+  type CacheEntry,
+  type CacheStats,
+} from "./web-cache/CacheOperations";
 
 /**
  * Encrypted local cache service for web content
@@ -23,498 +13,123 @@ type SqliteError = Error | null;
  * Migrated to sqlite3 (Node-API) for Electron 39 compatibility
  */
 
-export interface CacheEntry {
-  url: string;
-  content: PageContent;
-  cachedAt: Date;
-  expiresAt: Date;
-  size: number;
-  encrypted: boolean;
-}
-
-export interface CacheStats {
-  totalEntries: number;
-  totalSize: number;
-  oldestEntry?: Date;
-  newestEntry?: Date;
-}
-
-// Promisified database wrapper
-class DatabaseWrapper {
-  constructor(private db: Database) {}
-
-  run(sql: string, ...params: unknown[]): Promise<void> {
-    return new Promise((resolve, reject) => {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      (this.db as any).run(sql, params, (err: SqliteError) => {
-        if (err) reject(err);
-        else resolve();
-      });
-    });
-  }
-
-  get<T = unknown>(sql: string, ...params: unknown[]): Promise<T | undefined> {
-    return new Promise((resolve, reject) => {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      (this.db as any).get(sql, params, (err: SqliteError, row: unknown) => {
-        if (err) reject(err);
-        else resolve(row as T);
-      });
-    });
-  }
-
-  all<T = unknown>(sql: string, ...params: unknown[]): Promise<T[]> {
-    return new Promise((resolve, reject) => {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      (this.db as any).all(sql, params, (err: SqliteError, rows: unknown) => {
-        if (err) reject(err);
-        else resolve(rows as T[]);
-      });
-    });
-  }
-
-  exec(sql: string): Promise<void> {
-    return new Promise((resolve, reject) => {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      (this.db as any).exec(sql, (err: SqliteError) => {
-        if (err) reject(err);
-        else resolve();
-      });
-    });
-  }
-
-  close(): Promise<void> {
-    return new Promise((resolve, reject) => {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      (this.db as any).close((err: SqliteError) => {
-        if (err) reject(err);
-        else resolve();
-      });
-    });
-  }
-}
+export type { CacheEntry, CacheStats };
 
 export class WebCacheService {
-  private db: DatabaseWrapper | null = null;
-  private encryptionKey: Buffer | null = null;
-  private readonly algorithm = "aes-256-gcm";
-  private readonly keyLength = 32;
-  private readonly ivLength = 16;
-  private readonly tagLength = 16;
+  private storage: WebCacheStorage;
+  private encryption: WebCacheEncryption;
+  private operations: CacheOperations | null = null;
 
   constructor(
     private readonly maxCacheSizeMB: number = 500,
     private readonly cacheExpiryHours: number = 168
-  ) {}
+  ) {
+    this.storage = new WebCacheStorage();
+    this.encryption = new WebCacheEncryption();
+  }
 
   /**
    * Initialize the cache database and encryption
    */
   async initialize(): Promise<void> {
-    if (this.db) return;
+    if (this.storage.isInitialized()) return;
 
-    const userDataPath = app.getPath("userData");
-    const dbPath = path.join(userDataPath, "web-cache.db");
+    const db = await this.storage.initialize();
+    this.encryption.initialize();
+    this.operations = new CacheOperations(db, this.encryption);
+  }
 
-    // Ensure directory exists
-    fs.mkdirSync(path.dirname(dbPath), { recursive: true });
-
-    // Open database with Node-API
-    const rawDb = new sqlite3.Database(dbPath);
-    this.db = new DatabaseWrapper(rawDb);
-
-    // Enable WAL mode for better concurrency
-    await this.db.exec("PRAGMA journal_mode = WAL");
-
-    // Create tables
-    await this.createTables();
-
-    // Initialize encryption key
-    this.initializeEncryption();
-
-    console.log("[WebCache] Cache initialized at:", dbPath);
+  /**
+   * Ensure operations are initialized
+   */
+  private ensureInitialized(): CacheOperations {
+    if (!this.operations) {
+      throw new Error("Cache not initialized");
+    }
+    return this.operations;
   }
 
   /**
    * Store content in encrypted cache
    */
   async set(url: string, content: PageContent): Promise<void> {
-    if (!this.db || !this.encryptionKey) {
-      throw new Error("Cache not initialized");
-    }
+    const ops = this.ensureInitialized();
 
-    const now = new Date();
     const expiresAt = new Date(
-      now.getTime() + this.cacheExpiryHours * 60 * 60 * 1000
+      Date.now() + this.cacheExpiryHours * 60 * 60 * 1000
     );
 
-    // Serialize and encrypt content
     const serialized = JSON.stringify(content);
-    const encrypted = this.encrypt(serialized);
     const size = Buffer.from(serialized).length;
 
-    // Check cache size limit
-    await this.enforceSizeLimit(size);
+    // Enforce cache size limit
+    const maxSizeBytes = this.maxCacheSizeMB * 1024 * 1024;
+    await ops.enforceSizeLimit(maxSizeBytes, size);
 
-    // Upsert into database
-    await this.db.run(
-      `INSERT OR REPLACE INTO cache (url, content, cachedAt, expiresAt, size)
-       VALUES (?, ?, ?, ?, ?)`,
-      url,
-      encrypted,
-      now.toISOString(),
-      expiresAt.toISOString(),
-      size
-    );
-
-    console.log(`[WebCache] Cached: ${url} (${this.formatSize(size)})`);
+    await ops.set(url, content, expiresAt, size);
   }
 
   /**
    * Retrieve content from cache
    */
   async get(url: string): Promise<PageContent | null> {
-    if (!this.db || !this.encryptionKey) {
-      throw new Error("Cache not initialized");
-    }
-
-    const row = await this.db.get<{
-      content: Buffer;
-      cachedAt: string;
-      expiresAt: string;
-    }>(
-      `SELECT content, cachedAt, expiresAt
-       FROM cache
-       WHERE url = ? AND expiresAt > ?`,
-      url,
-      new Date().toISOString()
-    );
-
-    if (!row) {
-      console.log(`[WebCache] Cache miss: ${url}`);
-      return null;
-    }
-
-    try {
-      // Decrypt and deserialize
-      const decrypted = this.decrypt(row.content);
-      const content = JSON.parse(decrypted) as PageContent;
-
-      console.log(`[WebCache] Cache hit: ${url}`);
-      return content;
-    } catch (error) {
-      console.error("[WebCache] Failed to decrypt cache entry:", error);
-      // Delete corrupted entry
-      await this.delete(url);
-      return null;
-    }
+    const ops = this.ensureInitialized();
+    return ops.get(url);
   }
 
   /**
    * Check if URL is cached and not expired
    */
   async has(url: string): Promise<boolean> {
-    if (!this.db) {
-      throw new Error("Cache not initialized");
-    }
-
-    const result = await this.db.get(
-      `SELECT 1 FROM cache WHERE url = ? AND expiresAt > ?`,
-      url,
-      new Date().toISOString()
-    );
-
-    return !!result;
+    const ops = this.ensureInitialized();
+    return ops.has(url);
   }
 
   /**
    * Delete a specific cache entry
    */
   async delete(url: string): Promise<void> {
-    if (!this.db) {
-      throw new Error("Cache not initialized");
-    }
-
-    await this.db.run(`DELETE FROM cache WHERE url = ?`, url);
-
-    console.log(`[WebCache] Deleted: ${url}`);
+    const ops = this.ensureInitialized();
+    return ops.delete(url);
   }
 
   /**
    * Clear all cache entries
    */
   async clear(): Promise<void> {
-    if (!this.db) {
-      throw new Error("Cache not initialized");
-    }
-
-    await this.db.run(`DELETE FROM cache`);
-    await this.db.run(`VACUUM`);
-
-    console.log("[WebCache] Cache cleared");
+    const ops = this.ensureInitialized();
+    return ops.clear();
   }
 
   /**
    * Clear expired entries
    */
   async clearExpired(): Promise<number> {
-    if (!this.db) {
-      throw new Error("Cache not initialized");
-    }
-
-    const beforeCount = await this.db.get<{ count: number }>(
-      `SELECT COUNT(*) as count FROM cache`
-    );
-
-    await this.db.run(
-      `DELETE FROM cache WHERE expiresAt <= ?`,
-      new Date().toISOString()
-    );
-
-    const afterCount = await this.db.get<{ count: number }>(
-      `SELECT COUNT(*) as count FROM cache`
-    );
-
-    const deletedCount = (beforeCount?.count || 0) - (afterCount?.count || 0);
-
-    if (deletedCount > 0) {
-      await this.db.run(`VACUUM`);
-      console.log(`[WebCache] Cleared ${deletedCount} expired entries`);
-    }
-
-    return deletedCount;
+    const ops = this.ensureInitialized();
+    return ops.clearExpired();
   }
 
   /**
    * Get cache statistics
    */
   async getStats(): Promise<CacheStats> {
-    if (!this.db) {
-      throw new Error("Cache not initialized");
-    }
-
-    const stats = await this.db.get<{
-      totalEntries: number;
-      totalSize: number;
-      oldestEntry?: string;
-      newestEntry?: string;
-    }>(
-      `SELECT
-         COUNT(*) as totalEntries,
-         SUM(size) as totalSize,
-         MIN(cachedAt) as oldestEntry,
-         MAX(cachedAt) as newestEntry
-       FROM cache
-       WHERE expiresAt > ?`,
-      new Date().toISOString()
-    );
-
-    return {
-      totalEntries: stats?.totalEntries || 0,
-      totalSize: stats?.totalSize || 0,
-      oldestEntry: stats?.oldestEntry ? new Date(stats.oldestEntry) : undefined,
-      newestEntry: stats?.newestEntry ? new Date(stats.newestEntry) : undefined,
-    };
+    const ops = this.ensureInitialized();
+    return ops.getStats();
   }
 
   /**
    * Export cache as JSON
    */
   async export(): Promise<CacheEntry[]> {
-    if (!this.db || !this.encryptionKey) {
-      throw new Error("Cache not initialized");
-    }
-
-    const rows = await this.db.all<{
-      url: string;
-      content: Buffer;
-      cachedAt: string;
-      expiresAt: string;
-      size: number;
-    }>(
-      `SELECT url, content, cachedAt, expiresAt, size
-       FROM cache
-       WHERE expiresAt > ?
-       ORDER BY cachedAt DESC`,
-      new Date().toISOString()
-    );
-
-    const entries: CacheEntry[] = [];
-
-    for (const row of rows) {
-      try {
-        const decrypted = this.decrypt(row.content);
-        const content = JSON.parse(decrypted) as PageContent;
-
-        entries.push({
-          url: row.url,
-          content,
-          cachedAt: new Date(row.cachedAt),
-          expiresAt: new Date(row.expiresAt),
-          size: row.size,
-          encrypted: true,
-        });
-      } catch {
-        console.error(`[WebCache] Failed to decrypt entry: ${row.url}`);
-      }
-    }
-
-    return entries;
-  }
-
-  /**
-   * Create database tables
-   */
-  private async createTables(): Promise<void> {
-    if (!this.db) return;
-
-    await this.db.exec(`
-      CREATE TABLE IF NOT EXISTS cache (
-        url TEXT PRIMARY KEY,
-        content BLOB NOT NULL,
-        cachedAt TEXT NOT NULL,
-        expiresAt TEXT NOT NULL,
-        size INTEGER NOT NULL
-      );
-
-      CREATE INDEX IF NOT EXISTS idx_expiresAt ON cache(expiresAt);
-      CREATE INDEX IF NOT EXISTS idx_cachedAt ON cache(cachedAt);
-    `);
-  }
-
-  /**
-   * Initialize encryption key
-   */
-  private initializeEncryption(): void {
-    const userDataPath = app.getPath("userData");
-    const keyPath = path.join(userDataPath, ".cache-key");
-
-    try {
-      // Try to load existing key
-      if (fs.existsSync(keyPath)) {
-        const keyData = fs.readFileSync(keyPath);
-        this.encryptionKey = Buffer.from(keyData.toString("utf-8"), "hex");
-      } else {
-        // Generate new key
-        const salt = randomBytes(16);
-        const password = randomBytes(32).toString("hex");
-        this.encryptionKey = scryptSync(password, salt, this.keyLength);
-
-        // Save key securely
-        fs.writeFileSync(keyPath, this.encryptionKey.toString("hex"), {
-          mode: 0o600, // Read/write for owner only
-        });
-
-        console.log("[WebCache] Generated new encryption key");
-      }
-    } catch (error) {
-      console.error("[WebCache] Failed to initialize encryption:", error);
-      throw new Error("Failed to initialize cache encryption");
-    }
-  }
-
-  /**
-   * Encrypt data using AES-256-GCM
-   */
-  private encrypt(data: string): Buffer {
-    if (!this.encryptionKey) {
-      throw new Error("Encryption key not initialized");
-    }
-
-    const iv = randomBytes(this.ivLength);
-    const cipher = createCipheriv(this.algorithm, this.encryptionKey, iv);
-
-    const encrypted = Buffer.concat([
-      cipher.update(data, "utf8"),
-      cipher.final(),
-    ]);
-
-    const tag = cipher.getAuthTag();
-
-    // Combine: IV (16) + encrypted data + auth tag (16)
-    return Buffer.concat([iv, encrypted, tag]);
-  }
-
-  /**
-   * Decrypt data using AES-256-GCM
-   */
-  private decrypt(encrypted: Buffer): string {
-    if (!this.encryptionKey) {
-      throw new Error("Encryption key not initialized");
-    }
-
-    // Extract components
-    const iv = encrypted.subarray(0, this.ivLength);
-    const tag = encrypted.subarray(encrypted.length - this.tagLength);
-    const data = encrypted.subarray(
-      this.ivLength,
-      encrypted.length - this.tagLength
-    );
-
-    const decipher = createDecipheriv(this.algorithm, this.encryptionKey, iv);
-    decipher.setAuthTag(tag);
-
-    return decipher.update(data) + decipher.final("utf8");
-  }
-
-  /**
-   * Enforce cache size limit
-   */
-  private async enforceSizeLimit(newEntrySize: number): Promise<void> {
-    if (!this.db) return;
-
-    const maxSizeBytes = this.maxCacheSizeMB * 1024 * 1024;
-    const stats = await this.getStats();
-
-    if (stats.totalSize + newEntrySize <= maxSizeBytes) {
-      return;
-    }
-
-    // Delete oldest entries until we have space
-    let deletedCount = 0;
-    while (
-      stats.totalSize + newEntrySize > maxSizeBytes &&
-      deletedCount < 100
-    ) {
-      await this.db.run(`
-        DELETE FROM cache
-        WHERE url IN (
-          SELECT url FROM cache
-          ORDER BY cachedAt ASC
-          LIMIT 10
-        )
-      `);
-      deletedCount += 10;
-
-      const newStats = await this.getStats();
-      if (newStats.totalSize <= stats.totalSize) break; // Safety check
-      Object.assign(stats, newStats);
-    }
-
-    if (deletedCount > 0) {
-      await this.db.run(`VACUUM`);
-      console.log(`[WebCache] Evicted ${deletedCount} entries to free space`);
-    }
-  }
-
-  /**
-   * Format size in human-readable format
-   */
-  private formatSize(bytes: number): string {
-    if (bytes < 1024) return `${bytes} B`;
-    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(2)} KB`;
-    return `${(bytes / 1024 / 1024).toFixed(2)} MB`;
+    const ops = this.ensureInitialized();
+    return ops.export();
   }
 
   /**
    * Cleanup database connection
    */
   async dispose(): Promise<void> {
-    if (this.db) {
-      await this.db.close();
-      this.db = null;
-      console.log("[WebCache] Cache closed");
-    }
+    await this.storage.close();
   }
 }
 

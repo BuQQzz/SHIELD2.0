@@ -10,6 +10,8 @@ import { enhanceQueryWithContext } from "../utils/queryEnhancer";
 import { processMCPToolCalls } from "./mcpMessageHandler";
 import type { ToolCallRequest } from "./mcpToolHandler";
 import type { MCPToolResult } from "@/types";
+import { parseAllThinking } from "../utils/thinkingParser";
+import { detectTruncation } from "../utils/messageTruncation";
 
 /**
  * Generate a unique message ID
@@ -183,158 +185,16 @@ export function createMessageHandler({
 
       // Parse and extract thinking/reasoning content from various XML formats
       const { settings } = useSettingsStore.getState();
-      let processedContent = finalContent;
-      let reasoning: string | undefined;
-      let thinking: string | undefined;
+      const { reasoning, thinking, processedContent } = parseAllThinking(
+        finalContent,
+        !!webSearchContext,
+        settings.webSearch.showReasoning
+      );
 
-      // Pattern 1: <reasoning> tags (web search responses)
-      if (webSearchContext) {
-        const reasoningMatch = finalContent.match(
-          /<reasoning>([\s\S]*?)<\/reasoning>/
-        );
-        if (reasoningMatch && reasoningMatch[1]) {
-          reasoning = reasoningMatch[1].trim();
-
-          // If showReasoning is false, remove the reasoning tags and content
-          if (!settings.webSearch.showReasoning) {
-            processedContent = finalContent
-              .replace(/<reasoning>[\s\S]*?<\/reasoning>\s*/, "")
-              .trim();
-          } else {
-            // If showing reasoning, make it look nice
-            processedContent = finalContent.replace(
-              /<reasoning>([\s\S]*?)<\/reasoning>/,
-              "**🧠 AI Reasoning:**\n$1\n---\n"
-            );
-          }
-        }
-      }
-
-      // Pattern 2: Various thinking/analysis XML formats (GPT OSS, Qwen Coder, etc.)
-      // These models output chain-of-thought in structured XML
-      const thinkingPatterns = [
-        {
-          name: "GPT OSS channel format (flexible)",
-          // Matches: <|start|>assistant<|channel|>ANYTHING<|message|>content<|end|>
-          // This catches commentary, analysis, thinking, etc. channels
-          // Example: <|start|>assistant<|channel|>commentary to=browser.run code<|message|>We need to browse the web.<|end|>
-          pattern:
-            /<\|start\|>assistant<\|channel\|>[^<]*<\|message\|>([\s\S]*?)(?:<\|end\|>|$)/i,
-          thinkingIndex: null, // No separate thinking for single-channel output
-          contentIndex: 1, // Extract message content
-        },
-        {
-          name: "GPT OSS pipe format (|channel|analysis + |channel|final)",
-          // Matches: <|start|>assistant<|channel|>analysis<|message|>...<|end|><|start|>assistant<|channel|>final<|message|>...
-          pattern:
-            /<\|start\|>assistant<\|channel\|>analysis[^<]*<\|message\|>([\s\S]*?)<\|end\|>[\s\S]*?<\|start\|>assistant<\|channel\|>final[^<]*<\|message\|>([\s\S]*?)(?:<\|end\|>|$)/i,
-          thinkingIndex: 1, // Extract analysis content
-          contentIndex: 2, // Extract final content
-        },
-        {
-          name: "GPT OSS format (start-analysis-final-end)",
-          // Matches: <start><analysis>...</analysis>...<final>...</final>...<end>
-          pattern:
-            /<start>[\s\S]*?<analysis>([\s\S]*?)<\/analysis>[\s\S]*?<final>([\s\S]*?)<\/final>[\s\S]*?<\/end>/i,
-          thinkingIndex: 1, // Extract analysis content
-          contentIndex: 2, // Extract final content
-        },
-        {
-          name: "analysis",
-          pattern: /<analysis>([\s\S]*?)<\/analysis>/i,
-          thinkingIndex: 1,
-          contentIndex: null,
-        },
-        {
-          name: "thinking",
-          pattern: /<thinking>([\s\S]*?)<\/thinking>/i,
-          thinkingIndex: 1,
-          contentIndex: null,
-        },
-        {
-          name: "thought",
-          pattern: /<thought>([\s\S]*?)<\/thought>/i,
-          thinkingIndex: 1,
-          contentIndex: null,
-        },
-        {
-          name: "chain_of_thought",
-          pattern: /<chain_of_thought>([\s\S]*?)<\/chain_of_thought>/i,
-          thinkingIndex: 1,
-          contentIndex: null,
-        },
-      ];
-
-      for (const { pattern, thinkingIndex, contentIndex } of thinkingPatterns) {
-        const match = finalContent.match(pattern);
-
-        if (match) {
-          // Extract thinking content if pattern has a thinking index
-          if (thinkingIndex !== null && match[thinkingIndex]) {
-            thinking = match[thinkingIndex].trim();
-          }
-
-          // Extract final content if pattern has a content index
-          if (contentIndex !== null && match[contentIndex]) {
-            processedContent = match[contentIndex].trim();
-
-            // Clean up any remaining XML wrapper tags for GPT-OSS format
-            processedContent = processedContent
-              .replace(/<\|start\|>\s*/gi, "")
-              .replace(/<\|end\|>\s*/gi, "")
-              .replace(/<\|assistant\|>\s*/gi, "")
-              .replace(/<\|channel\|>[^<]*\s*/gi, "") // Remove channel tags with attributes
-              .replace(/<\|message\|>\s*/gi, "")
-              .replace(/<start>\s*/gi, "")
-              .replace(/<\/end>\s*/gi, "")
-              .replace(/<assistant>\s*/gi, "")
-              .replace(/<channel>\s*/gi, "")
-              .replace(/<message>\s*/gi, "")
-              .replace(/<final>\s*/gi, "")
-              .replace(/<\/message>\s*/gi, "")
-              .replace(/<\/channel>\s*/gi, "")
-              .replace(/<\/assistant>\s*/gi, "")
-              .replace(/<\/final>\s*/gi, "")
-              .trim();
-
-            break; // Found a match, stop searching
-          } else if (thinkingIndex !== null && match[thinkingIndex]) {
-            // Pattern only has thinking, no separate content
-            // Remove the entire matched pattern from response
-            processedContent = finalContent.replace(pattern, "").trim();
-
-            // Also clean up any remaining XML wrapper tags
-            processedContent = processedContent
-              .replace(/<start>\s*/gi, "")
-              .replace(/<\/end>\s*/gi, "")
-              .replace(/<assistant>\s*/gi, "")
-              .replace(/<channel>\s*/gi, "")
-              .replace(/<message>\s*/gi, "")
-              .replace(/<final>\s*/gi, "")
-              .replace(/<\/message>\s*/gi, "")
-              .replace(/<\/channel>\s*/gi, "")
-              .replace(/<\/assistant>\s*/gi, "")
-              .replace(/<\/final>\s*/gi, "")
-              .trim();
-
-            break; // Found a match, stop searching
-          }
-        }
-      }
-
-      // If we found thinking content, store it separately
-
-      // Detect truncation: response was cut off if it ends mid-sentence or reaches token limit
-      // Token estimation: ~3-4 chars per token on average
-      const estimatedTokens = Math.ceil(finalContent.length / 3.5);
-      const tokenLimitReached =
-        estimatedTokens >= modelSettings.maxTokens * 0.9;
-
-      // Also check if response ends abruptly (no ending punctuation)
-      const endsWithPunctuation = /[.!?][\s]*$/.test(finalContent.trim());
-      const endsWithCodeBlock = /```[\s]*$/.test(finalContent.trim());
-      const wasTruncated =
-        tokenLimitReached && (!endsWithPunctuation || endsWithCodeBlock);
+      // Detect truncation
+      const wasTruncated = detectTruncation(finalContent, {
+        maxTokens: modelSettings.maxTokens,
+      });
 
       const assistantMessage: Message = {
         id: assistantMessageId,
