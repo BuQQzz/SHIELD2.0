@@ -1,10 +1,7 @@
 import * as fs from "fs/promises";
 import * as path from "path";
 import { app } from "electron";
-import {
-  Settings,
-  DEFAULT_SETTINGS,
-} from "./settings/SettingsCategories";
+import { Settings, DEFAULT_SETTINGS } from "./settings/SettingsCategories";
 import {
   isValidSettings,
   mergeWithDefaults,
@@ -173,5 +170,4 @@ export class SettingsStorageService {
   static getDefaults(): Settings {
     return { ...DEFAULT_SETTINGS };
   }
-
 }
