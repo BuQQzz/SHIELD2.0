@@ -61,10 +61,12 @@ async function setupIpcHandlers() {
 app.whenReady().then(async () => {
   SettingsStorageService.initialize();
 
+  // Create window first
+  mainWindow = createMainWindow();
+
+  // Then set up IPC handlers with the window reference
   const { llamaService, webSearchService, getWebCacheService } =
     await setupIpcHandlers();
-
-  mainWindow = createMainWindow();
 
   app.on("activate", () => {
     if (BrowserWindow.getAllWindows().length === 0) {
