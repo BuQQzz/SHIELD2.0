@@ -5,36 +5,26 @@
  * Shows model capabilities, hardware requirements, and download progress
  */
 
-import { useState, useMemo } from "react";
-import { Filter, Download } from "lucide-react";
-import { motion, AnimatePresence } from "framer-motion";
+import { useState } from "react";
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Button } from "@/components/ui/button";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-  DropdownMenuSeparator,
-  DropdownMenuLabel,
-} from "@/components/ui/dropdown-menu";
-import { ModelCard } from "./ModelCard";
 import { DeleteModelDialog } from "./DeleteModelDialog";
 import { MODEL_CATALOG, type ModelMetadata } from "@/config/models";
 import { useModelDownload } from "@/hooks/useModelDownload";
-import { cn } from "@/lib/utils";
+import { FilterDropdown } from "./model-download/FilterDropdown";
+import { SearchBar } from "./model-download/SearchBar";
+import { ModelGrid } from "./model-download/ModelGrid";
+import { useModelFiltering } from "./model-download/useModelFiltering";
+import type { FilterType } from "./model-download/types";
 
 interface ModelDownloadDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }
-
-type FilterType = "all" | "tool-calling" | "coding" | "efficient" | "installed";
 
 export function ModelDownloadDialog({
   open,
@@ -47,7 +37,6 @@ export function ModelDownloadDialog({
   );
   const [isDeleting, setIsDeleting] = useState(false);
 
-  // Use download hook
   const {
     installedModels,
     startDownload,
@@ -66,14 +55,19 @@ export function ModelDownloadDialog({
     },
   });
 
-  // Handle delete confirmation
+  const { filteredModels, groupedModels } = useModelFiltering(
+    MODEL_CATALOG,
+    filter,
+    searchQuery,
+    isInstalled
+  );
+
   const handleDeleteClick = (model: ModelMetadata) => {
     setModelToDelete(model);
   };
 
   const handleDeleteConfirm = async () => {
     if (!modelToDelete) return;
-
     setIsDeleting(true);
     try {
       const result = await deleteModel(modelToDelete);
@@ -88,66 +82,10 @@ export function ModelDownloadDialog({
     }
   };
 
-  // Filter models based on selected filter and search
-  const filteredModels = useMemo(() => {
-    let models = MODEL_CATALOG;
-
-    // Apply category filter
-    switch (filter) {
-      case "tool-calling":
-        models = models.filter((m) => m.capabilities.toolCalling);
-        break;
-      case "coding":
-        models = models.filter((m) => m.capabilities.codeGeneration);
-        break;
-      case "efficient":
-        models = models.filter((m) => {
-          const sizeGB = parseFloat(m.size);
-          return sizeGB <= 5;
-        });
-        break;
-      case "installed":
-        models = models.filter((m) => isInstalled(m.id));
-        break;
-      // "all" - no filter
-    }
-
-    // Apply search filter
-    if (searchQuery.trim()) {
-      const query = searchQuery.toLowerCase();
-      models = models.filter(
-        (m) =>
-          m.displayName.toLowerCase().includes(query) ||
-          m.name.toLowerCase().includes(query) ||
-          m.description.toLowerCase().includes(query) ||
-          m.provider.toLowerCase().includes(query)
-      );
-    }
-
-    return models;
-  }, [filter, searchQuery, isInstalled]);
-
-  // Group models by category
-  const groupedModels = useMemo(() => {
-    const premium: ModelMetadata[] = [];
-    const standard: ModelMetadata[] = [];
-    const efficient: ModelMetadata[] = [];
-
-    filteredModels.forEach((model) => {
-      if (model.capabilities.toolCalling) {
-        premium.push(model);
-      } else {
-        const sizeGB = parseFloat(model.size);
-        if (sizeGB <= 5) {
-          efficient.push(model);
-        } else {
-          standard.push(model);
-        }
-      }
-    });
-
-    return { premium, standard, efficient };
-  }, [filteredModels]);
+  const handleClearFilters = () => {
+    setFilter("all");
+    setSearchQuery("");
+  };
 
   const totalModels = MODEL_CATALOG.length;
   const installedCount = installedModels.size;
@@ -169,181 +107,34 @@ export function ModelDownloadDialog({
                 </p>
               </div>
 
-              {/* Filter Dropdown */}
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button variant="outline" size="sm" className="gap-2">
-                    <Filter className="h-4 w-4" />
-                    {filter === "all" && "All Models"}
-                    {filter === "tool-calling" && "Tool Calling"}
-                    {filter === "coding" && "Code Generation"}
-                    {filter === "efficient" && "Efficient (<5GB)"}
-                    {filter === "installed" && "Installed"}
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="w-48">
-                  <DropdownMenuLabel>Filter by Category</DropdownMenuLabel>
-                  <DropdownMenuSeparator />
-                  <DropdownMenuItem onClick={() => setFilter("all")}>
-                    All Models ({totalModels})
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => setFilter("tool-calling")}>
-                    ⚡ Tool Calling ({toolCallingCount})
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => setFilter("coding")}>
-                    💻 Code Generation
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => setFilter("efficient")}>
-                    🚀 Efficient (&lt;5GB)
-                  </DropdownMenuItem>
-                  <DropdownMenuSeparator />
-                  <DropdownMenuItem onClick={() => setFilter("installed")}>
-                    ✅ Installed ({installedCount})
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
-            </div>
-
-            {/* Search Bar */}
-            <div className="mt-4">
-              <input
-                type="text"
-                placeholder="Search models..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className={cn(
-                  "w-full px-3 py-2 rounded-md border bg-background",
-                  "text-sm placeholder:text-muted-foreground",
-                  "focus:outline-none focus:ring-2 focus:ring-ring"
-                )}
+              <FilterDropdown
+                filter={filter}
+                setFilter={setFilter}
+                totalModels={totalModels}
+                installedCount={installedCount}
+                toolCallingCount={toolCallingCount}
               />
             </div>
+
+            <SearchBar
+              searchQuery={searchQuery}
+              setSearchQuery={setSearchQuery}
+            />
           </DialogHeader>
 
-          {/* Model Grid */}
-          <div className="flex-1 overflow-y-auto mt-4 -mx-6 px-6">
-            <div className="space-y-6">
-              {/* Premium Models (Tool Calling) */}
-              {groupedModels.premium.length > 0 && (
-                <AnimatePresence mode="wait">
-                  <motion.div
-                    initial={{ opacity: 0, y: 10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    className="space-y-3"
-                  >
-                    <div className="flex items-center gap-2">
-                      <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">
-                        ⚡ Premium - Tool Calling
-                      </h3>
-                      <div className="h-px flex-1 bg-border" />
-                    </div>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                      {groupedModels.premium.map((model) => (
-                        <ModelCard
-                          key={model.id}
-                          model={model}
-                          isInstalled={isInstalled(model.id)}
-                          downloadProgress={getProgress(model.id)}
-                          onDownload={startDownload}
-                          onCancel={cancelDownload}
-                          onDeleteClick={handleDeleteClick}
-                        />
-                      ))}
-                    </div>
-                  </motion.div>
-                </AnimatePresence>
-              )}
-
-              {/* Standard Models (7B-14B) */}
-              {groupedModels.standard.length > 0 && (
-                <AnimatePresence mode="wait">
-                  <motion.div
-                    initial={{ opacity: 0, y: 10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: 0.1 }}
-                    className="space-y-3"
-                  >
-                    <div className="flex items-center gap-2">
-                      <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">
-                        🎯 High Performance
-                      </h3>
-                      <div className="h-px flex-1 bg-border" />
-                    </div>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                      {groupedModels.standard.map((model) => (
-                        <ModelCard
-                          key={model.id}
-                          model={model}
-                          isInstalled={isInstalled(model.id)}
-                          downloadProgress={getProgress(model.id)}
-                          onDownload={startDownload}
-                          onCancel={cancelDownload}
-                          onDeleteClick={handleDeleteClick}
-                        />
-                      ))}
-                    </div>
-                  </motion.div>
-                </AnimatePresence>
-              )}
-
-              {/* Efficient Models (<5GB) */}
-              {groupedModels.efficient.length > 0 && (
-                <AnimatePresence mode="wait">
-                  <motion.div
-                    initial={{ opacity: 0, y: 10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: 0.2 }}
-                    className="space-y-3"
-                  >
-                    <div className="flex items-center gap-2">
-                      <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">
-                        🚀 Efficient & Fast
-                      </h3>
-                      <div className="h-px flex-1 bg-border" />
-                    </div>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                      {groupedModels.efficient.map((model) => (
-                        <ModelCard
-                          key={model.id}
-                          model={model}
-                          isInstalled={isInstalled(model.id)}
-                          downloadProgress={getProgress(model.id)}
-                          onDownload={startDownload}
-                          onCancel={cancelDownload}
-                          onDeleteClick={handleDeleteClick}
-                        />
-                      ))}
-                    </div>
-                  </motion.div>
-                </AnimatePresence>
-              )}
-
-              {/* No Results */}
-              {filteredModels.length === 0 && (
-                <div className="text-center py-12">
-                  <Download className="h-12 w-12 mx-auto text-muted-foreground/50 mb-3" />
-                  <p className="text-muted-foreground">
-                    No models found matching your criteria
-                  </p>
-                  <Button
-                    variant="link"
-                    size="sm"
-                    onClick={() => {
-                      setFilter("all");
-                      setSearchQuery("");
-                    }}
-                    className="mt-2"
-                  >
-                    Clear filters
-                  </Button>
-                </div>
-              )}
-            </div>
-          </div>
+          <ModelGrid
+            groupedModels={groupedModels}
+            filteredModels={filteredModels}
+            isInstalled={isInstalled}
+            getProgress={getProgress}
+            startDownload={startDownload}
+            cancelDownload={cancelDownload}
+            handleDeleteClick={handleDeleteClick}
+            onClearFilters={handleClearFilters}
+          />
         </DialogContent>
       </Dialog>
 
-      {/* Delete Confirmation Dialog */}
       <DeleteModelDialog
         open={!!modelToDelete}
         model={modelToDelete}
