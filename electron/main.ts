@@ -2,6 +2,11 @@ import { app, BrowserWindow } from "electron";
 import { SettingsStorageService } from "./services/SettingsStorageService.js";
 import { mcpService } from "./services/MCPService.js";
 import { createMainWindow } from "./setup/windowSetup.js";
+import {
+  createSplashWindow,
+  updateSplashStatus,
+  closeSplash,
+} from "./setup/splashWindow.js";
 import { registerLlamaHandlers } from "./ipc/llamaHandlers.js";
 import { registerConversationHandlers } from "./ipc/conversationHandlers.js";
 import { registerMcpHandlers } from "./ipc/mcpHandlers.js";
@@ -22,6 +27,7 @@ app.commandLine.appendSwitch("disable-features", "Autofill");
 
 // Keep a global reference to prevent garbage collection
 let mainWindow: BrowserWindow | null = null;
+let splashWindow: BrowserWindow | null = null;
 
 /**
  * Set up all IPC handlers
@@ -59,14 +65,29 @@ async function setupIpcHandlers() {
 
 // App lifecycle
 app.whenReady().then(async () => {
-  SettingsStorageService.initialize();
+  // Show splash screen immediately
+  splashWindow = createSplashWindow();
+  updateSplashStatus(splashWindow, "Initializing SHIELD...");
 
-  // Create window first
+  SettingsStorageService.initialize();
+  updateSplashStatus(splashWindow, "Loading settings...");
+
+  // Create window (but don't show yet)
   mainWindow = createMainWindow();
 
-  // Then set up IPC handlers with the window reference
+  // Set up IPC handlers with the window reference
+  updateSplashStatus(splashWindow, "Setting up services...");
   const { llamaService, webSearchService, getWebCacheService } =
     await setupIpcHandlers();
+
+  // Wait a moment for React to initialize and start model loading
+  updateSplashStatus(splashWindow, "Loading AI model...");
+  await new Promise((resolve) => setTimeout(resolve, 2000));
+
+  // Close splash and show main window
+  updateSplashStatus(splashWindow, "Ready!");
+  closeSplash(splashWindow, mainWindow);
+  splashWindow = null;
 
   app.on("activate", () => {
     if (BrowserWindow.getAllWindows().length === 0) {
