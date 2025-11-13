@@ -115,11 +115,11 @@ describe('ComponentName', () => {
   it('should handle specific user action correctly', () => {
     // Arrange
     const props = { ... };
-    
+
     // Act
     render(<Component {...props} />);
     fireEvent.click(screen.getByRole('button'));
-    
+
     // Assert
     expect(screen.getByText('expected result')).toBeInTheDocument();
   });
@@ -153,7 +153,7 @@ describe('ComponentName', () => {
 
 **Location:** `filename.ts:line-number`
 
-**Problem:** 
+**Problem:**
 Clear explanation of what's wrong
 
 **Impact:**
@@ -164,7 +164,7 @@ Why this matters (security/performance/maintainability)
 // Recommended approach with code example
 ```
 
-**Reference:** 
+**Reference:**
 Link to relevant guideline in copilot-instructions.md
 ```
 
@@ -197,7 +197,7 @@ Remove external call or:
 2. Show warning in UI before request
 3. Add to audit log
 
-**Reference:** 
+**Reference:**
 `.github/copilot-instructions.md` - Privacy & Security principles
 ```
 
@@ -255,7 +255,7 @@ it('should handle malformed markdown', () => {
 });
 ```
 
-**Impact:** 
+**Impact:**
 Better error handling confidence, fewer production bugs.
 ```
 

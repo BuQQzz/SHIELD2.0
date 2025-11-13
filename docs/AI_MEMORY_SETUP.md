@@ -13,6 +13,7 @@ OpenMemory provides **persistent long-term memory** for GitHub Copilot when work
 ## 🔒 Privacy & Security
 
 **100% Local Operation:**
+
 - All data stored in local SQLite database
 - No external API calls (using local embeddings)
 - No cloud services or data transmission
@@ -46,6 +47,7 @@ Should return `{"ok":true, "embedding": {"provider":"synthetic",...}}`
 OpenMemory is configured as an MCP server in `.mcp-config.json`. GitHub Copilot can now:
 
 **Available Tools:**
+
 - `openmemory_query` - Search for relevant memories
 - `openmemory_store` - Store new knowledge
 - `openmemory_reinforce` - Strengthen important memories
@@ -55,6 +57,7 @@ OpenMemory is configured as an MCP server in `.mcp-config.json`. GitHub Copilot 
 ## What Gets Stored
 
 ### Project Knowledge
+
 - Architecture decisions (refactoring patterns, module organization)
 - Tech stack details (llama.cpp, React, Electron, TypeScript)
 - Development guidelines (.github/copilot-instructions.md)
@@ -63,6 +66,7 @@ OpenMemory is configured as an MCP server in `.mcp-config.json`. GitHub Copilot 
 - Security considerations
 
 ### Conversation Context
+
 - User preferences and coding style
 - Recurring questions and their answers
 - Project-specific terminology
@@ -71,6 +75,7 @@ OpenMemory is configured as an MCP server in `.mcp-config.json`. GitHub Copilot 
 ## Usage Examples
 
 ### Store Memory (via API)
+
 ```bash
 curl -X POST http://localhost:8080/memory/add \
   -H "Content-Type: application/json" \
@@ -82,6 +87,7 @@ curl -X POST http://localhost:8080/memory/add \
 ```
 
 ### Query Memory
+
 ```bash
 curl -X POST http://localhost:8080/memory/query \
   -H "Content-Type: application/json" \
@@ -105,16 +111,19 @@ OpenMemory organizes memories by type:
 ## Maintenance
 
 ### View Statistics
+
 ```bash
 curl http://localhost:8080/stats
 ```
 
 ### Memory Decay
+
 - Automatic decay runs daily at 2 AM
 - Less-accessed memories gradually fade
 - Important memories can be reinforced
 
 ### Backup
+
 ```bash
 # Backup the database
 cp "D:/AI Projects/OpenMemory/backend/data/shield-ai-memory.sqlite" \
@@ -122,6 +131,7 @@ cp "D:/AI Projects/OpenMemory/backend/data/shield-ai-memory.sqlite" \
 ```
 
 ### Reset (if needed)
+
 ```bash
 # Delete database to start fresh
 rm "D:/AI Projects/OpenMemory/backend/data/shield-ai-memory.sqlite"
@@ -138,6 +148,7 @@ rm "D:/AI Projects/OpenMemory/backend/data/shield-ai-memory.sqlite"
 ## Troubleshooting
 
 ### Server Won't Start
+
 ```bash
 # Check if port 8080 is in use
 netstat -ano | findstr :8080
@@ -147,11 +158,13 @@ taskkill /PID <process_id> /F
 ```
 
 ### Connection Errors
+
 - Ensure OpenMemory backend is running
 - Check firewall settings for localhost:8080
 - Verify `.env` configuration
 
 ### Memory Not Storing
+
 - Check server logs for errors
 - Verify write permissions on data directory
 - Ensure disk space available
@@ -169,7 +182,7 @@ taskkill /PID <process_id> /F
 ✅ **Consistency** - AI remembers past decisions and patterns  
 ✅ **Faster Responses** - Quick memory retrieval vs. full file scanning  
 ✅ **Learning** - AI improves over time by building knowledge base  
-✅ **Privacy** - 100% local, no data leaves your machine  
+✅ **Privacy** - 100% local, no data leaves your machine
 
 ## Next Steps
 

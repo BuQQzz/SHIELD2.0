@@ -16,6 +16,7 @@ SHIELD 2.0 uses automated workflows to streamline PR and issue reviews, ensuring
 ### What It Does
 
 **Automated Checks on Every PR:**
+
 1. ✅ Assigns dedicated **@review-agent** (GitHub Copilot agent)
 2. 📊 Posts PR stats and review checklist as a comment
 3. ⚠️ Detects and warns about:
@@ -29,6 +30,7 @@ SHIELD 2.0 uses automated workflows to streamline PR and issue reviews, ensuring
 
 **What is @review-agent?**
 A specialized GitHub Copilot agent (`.github/agents/review-agent.md`) trained to:
+
 - Enforce SHIELD 2.0 coding standards
 - Review privacy/security compliance
 - Check architecture and modularity
@@ -36,11 +38,13 @@ A specialized GitHub Copilot agent (`.github/agents/review-agent.md`) trained to
 - Ensure documentation quality
 
 **How to use:**
+
 - Automatically assigned to all new PRs
 - Tag `@review-agent` in comments for specific reviews
 - Request focus areas: `@review-agent please review security aspects`
 
 **Review Timeline:**
+
 - Automated checks: Instant
 - Agent review: Within 24 hours
 - Human maintainer review: As needed
@@ -57,6 +61,7 @@ When you open a PR, you'll see an automated comment like:
 ## 🤖 Automated PR Review
 
 **PR Stats:**
+
 - 📁 Files changed: 6
 - ➕ Additions: 127
 - ➖ Deletions: 49
@@ -67,6 +72,7 @@ When you open a PR, you'll see an automated comment like:
 Please ensure the following before merging:
 
 **Code Quality:**
+
 - [ ] All CI/CD checks passing (tests, lint, build)
 - [ ] Code follows project guidelines
 - [ ] No files exceed 300 lines
@@ -79,6 +85,7 @@ Please ensure the following before merging:
 ### Integration with CI/CD
 
 Works alongside existing CI/CD pipeline (`.github/workflows/ci.yml`):
+
 - **CI/CD**: Runs tests, lint, type check, build
 - **PR Review**: Adds intelligent analysis and guidance
 
@@ -89,6 +96,7 @@ Works alongside existing CI/CD pipeline (`.github/workflows/ci.yml`):
 ### What It Does
 
 **Automated Actions on Every Issue:**
+
 1. 🏷️ Auto-labels issues based on content:
    - **Priority**: `high`, `medium`, `low`
    - **Type**: `bug`, `enhancement`, `documentation`, `question`
@@ -105,21 +113,21 @@ Works alongside existing CI/CD pipeline (`.github/workflows/ci.yml`):
 
 **Keywords Detected:**
 
-| Label | Trigger Keywords |
-|-------|------------------|
-| `priority: high` | critical, urgent, security |
-| `priority: medium` | enhancement, feature request |
-| `priority: low` | nice to have, suggestion |
-| `type: bug` | bug, error, crash, broken |
-| `type: enhancement` | feature, enhancement, new |
-| `type: documentation` | docs, documentation |
-| `type: question` | question, how to |
-| `area: ui` | ui, interface, component |
-| `area: llm` | llm, model, inference |
-| `area: mcp` | mcp, tool |
-| `area: electron` | electron, main process |
-| `area: web-search` | web search, brave |
-| `area: testing` | test, testing |
+| Label                 | Trigger Keywords             |
+| --------------------- | ---------------------------- |
+| `priority: high`      | critical, urgent, security   |
+| `priority: medium`    | enhancement, feature request |
+| `priority: low`       | nice to have, suggestion     |
+| `type: bug`           | bug, error, crash, broken    |
+| `type: enhancement`   | feature, enhancement, new    |
+| `type: documentation` | docs, documentation          |
+| `type: question`      | question, how to             |
+| `area: ui`            | ui, interface, component     |
+| `area: llm`           | llm, model, inference        |
+| `area: mcp`           | mcp, tool                    |
+| `area: electron`      | electron, main process       |
+| `area: web-search`    | web search, brave            |
+| `area: testing`       | test, testing                |
 
 ### Example Welcome Comment
 
@@ -131,6 +139,7 @@ This issue has been automatically triaged and labeled.
 **Labels applied:** `type: bug`, `area: ui`, `priority: high`
 
 **Bug Report Checklist:**
+
 - [ ] Steps to reproduce provided
 - [ ] Expected vs actual behavior described
 - [ ] Version/environment details included
@@ -142,6 +151,7 @@ This issue has been automatically triaged and labeled.
 ### Copilot Assignment
 
 If an issue mentions `@copilot` or includes `[copilot]` in the title:
+
 - Workflow detects the request
 - Posts guidance on Copilot assignment
 - Maintainer can manually assign via GitHub Copilot for PRs
@@ -190,16 +200,18 @@ If an issue mentions `@copilot` or includes `[copilot]` in the title:
 ### Permissions Required
 
 Both workflows require these GitHub Actions permissions:
+
 ```yaml
 permissions:
   contents: read
-  pull-requests: write  # For PR comments
-  issues: write         # For issue labels/comments
+  pull-requests: write # For PR comments
+  issues: write # For issue labels/comments
 ```
 
 ### Triggers
 
 **PR Review Automation:**
+
 ```yaml
 on:
   pull_request:
@@ -208,6 +220,7 @@ on:
 ```
 
 **Issue Triage Automation:**
+
 ```yaml
 on:
   issues:
@@ -225,6 +238,7 @@ The **@review-agent** is a specialized GitHub Copilot coding agent (`.github/age
 ### Capabilities
 
 **Automated Review Areas:**
+
 1. **Code Quality**
    - Enforces 300-line file limit
    - Verifies TypeScript type safety
@@ -264,28 +278,37 @@ The **@review-agent** is a specialized GitHub Copilot coding agent (`.github/age
 ### How to Use
 
 **Automatic Assignment:**
+
 ```markdown
 # On PR creation, @review-agent is automatically assigned
+
 # Agent reviews code within 24 hours
+
 # Posts detailed feedback with severity levels:
+
 # 🚨 CRITICAL, ⚠️ WARNING, 💡 SUGGESTION, ℹ️ INFO
 ```
 
 **Manual Requests:**
+
 ```markdown
 # Request specific review focus
+
 @review-agent please review security aspects
 
 # Request re-review after changes
+
 @review-agent please review updated files
 
 # Ask for clarification
+
 @review-agent can you explain the privacy concern in more detail?
 ```
 
 ### Review Comment Format
 
 **Example Review Comment:**
+
 ```markdown
 ⚠️ **WARNING - File Size Limit: Exceeds 300-line guideline**
 
@@ -308,6 +331,7 @@ Extract sub-components:
 ### Quality Gates
 
 **Review agent checks before approval:**
+
 - ✅ All automated CI/CD checks pass
 - ✅ No critical security/privacy issues
 - ✅ Files under 300 lines
@@ -320,6 +344,7 @@ Extract sub-components:
 `.github/agents/review-agent.md`
 
 **Customization Options:**
+
 - Review checklist items
 - Severity thresholds
 - Comment templates
@@ -332,6 +357,7 @@ Extract sub-components:
 ### Adjusting Thresholds
 
 **Large PR Warning** (currently 500 additions):
+
 ```yaml
 # In .github/workflows/pr-review.yml
 if (additions > 500) {  # Change this number
@@ -340,6 +366,7 @@ if (additions > 500) {  # Change this number
 ```
 
 **File Size Limit** (currently 300 lines):
+
 ```yaml
 # In .github/workflows/pr-review.yml (size-check job)
 if ($lines -gt 300) {  # Change this number
@@ -355,8 +382,8 @@ Edit `.github/workflows/issue-triage.yml` in the "Analyze Issue" step:
 
 ```javascript
 // Add new label logic
-if (text.includes('your-keyword')) {
-  labels.push('your-label');
+if (text.includes("your-keyword")) {
+  labels.push("your-label");
 }
 ```
 
@@ -376,6 +403,7 @@ Edit the `comment` template in `.github/workflows/issue-triage.yml` (Post Welcom
 
 **Don't want Copilot auto-review?**
 Comment out this step in `pr-review.yml`:
+
 ```yaml
 # - name: Request GitHub Copilot Review
 #   if: github.event.action == 'opened'
@@ -392,6 +420,7 @@ Comment out the "Apply Labels" step in `issue-triage.yml`.
 ### Workflow Status
 
 Check workflow runs:
+
 1. Go to **Actions** tab in GitHub
 2. Select **PR Review Automation** or **Issue Triage Automation**
 3. View recent runs and logs
@@ -399,6 +428,7 @@ Check workflow runs:
 ### Debugging
 
 If a workflow fails:
+
 1. Check the workflow run logs in Actions tab
 2. Verify permissions are correct
 3. Test the workflow locally using [act](https://github.com/nektos/act)
@@ -416,18 +446,21 @@ If a workflow fails:
 ## 🚀 Benefits
 
 ### For Contributors
+
 - ✅ Instant feedback on PRs
 - 📋 Clear checklist to follow
 - 🎯 Actionable warnings
 - 🤖 AI-powered code review
 
 ### For Maintainers
+
 - ⏱️ Saves review time
 - 🏷️ Organized issues
 - 📊 Consistent standards
 - 🔍 Early issue detection
 
 ### For the Project
+
 - 📈 Higher code quality
 - 🚀 Faster merge cycles
 - 📚 Better documentation

@@ -12,17 +12,20 @@ OpenMemory is now configured to give GitHub Copilot **persistent memory** about 
 ## Quick Commands
 
 ### Start OpenMemory (if not running)
+
 ```powershell
 cd "D:/AI Projects/OpenMemory/backend"
 npm run dev
 ```
 
 ### Check Health
+
 ```powershell
 Invoke-RestMethod http://localhost:8080/health
 ```
 
 ### Query Memories
+
 ```powershell
 Invoke-RestMethod -Uri http://localhost:8080/memory/query `
   -Method Post `
@@ -31,6 +34,7 @@ Invoke-RestMethod -Uri http://localhost:8080/memory/query `
 ```
 
 ### Store New Memory
+
 ```powershell
 Invoke-RestMethod -Uri http://localhost:8080/memory/add `
   -Method Post `
@@ -44,7 +48,7 @@ Invoke-RestMethod -Uri http://localhost:8080/memory/add `
 ✅ **Reduced Tokens** - Query specific knowledge vs re-reading files  
 ✅ **Consistency** - Maintain project standards across sessions  
 ✅ **Learning** - Build knowledge base over time  
-✅ **Privacy** - All data stays local on your machine  
+✅ **Privacy** - All data stays local on your machine
 
 ## Documentation
 
@@ -53,7 +57,7 @@ Full setup guide: [`docs/AI_MEMORY_SETUP.md`](./docs/AI_MEMORY_SETUP.md)
 ## What I Remember
 
 - SHIELD 2.0 architecture and design patterns
-- Refactoring decisions and module structure  
+- Refactoring decisions and module structure
 - Development guidelines from copilot-instructions.md
 - Tech stack (llama.cpp, Electron, React, TypeScript)
 - Recent work and project status
