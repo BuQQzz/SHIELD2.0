@@ -9,11 +9,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- **GPT-OSS Model Documentation** - Comprehensive guide for handling GPT-OSS specific output formats
-  - Documented pipe-delimited channel format (`<|channel|>analysis<|message|>...`)
-  - Added notes on chat template configuration
-  - Included grammar file workarounds for non-native tool calling
-  - Reference guide at [docs/GPT-OSS-NOTES.md](docs/GPT-OSS-NOTES.md)
+- **Splash Screen** - Professional loading experience during app initialization
+  - Dark monochromatic gradient (#0a0a0a to #1a1a1a) matching app design system
+  - Dynamic status updates (Initializing, Loading settings, Setting up services, Loading AI model)
+  - Smooth 200ms transition from splash to main window
+  - 2s initialization delay hides startup clutter
+  - Users see clean, ready-to-use UI instead of loading messages
+  - PR #36
 
 - **Thinking Animation UI** for chain-of-thought transparency
   - Collapsible indicator shows AI's reasoning process (like ChatGPT/Claude)
