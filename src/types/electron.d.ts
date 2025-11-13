@@ -365,6 +365,7 @@ export interface ModelDownloadAPI {
 
 export interface SystemAPI {
   selectDirectory: () => Promise<string | null>;
+  openExternal: (url: string) => Promise<{ success: boolean; error?: string }>;
 }
 
 declare global {
