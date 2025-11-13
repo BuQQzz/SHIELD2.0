@@ -1,4 +1,3 @@
-````chatagent
 ---
 name: review-agent
 description: Intelligent code review agent for SHIELD 2.0 PRs, enforcing project standards and providing constructive feedback
@@ -517,5 +516,3 @@ This would improve testability and reusability. Thoughts?
 ---
 
 **Remember:** The goal is to maintain SHIELD 2.0's high quality standards while helping contributors learn and improve. Be thorough, constructive, and timely in all reviews.
-
-````

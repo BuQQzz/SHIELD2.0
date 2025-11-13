@@ -336,4 +336,3 @@ A refactoring is complete when:
 
 - [Project Guidelines](.github/copilot-instructions.md)
 - [Refactoring Plan](docs/REFACTORING_NEEDED.md)
-- [Contributing Guide](docs/CONTRIBUTING.md)
