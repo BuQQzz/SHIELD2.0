@@ -176,18 +176,22 @@ jobs:
             const issue = issueResponse.data;
             const labels = issue.labels.map(l => typeof l === 'string' ? l : l.name);
             const isBugOrEnhancement = labels.includes('type: bug') || labels.includes('type: enhancement');
+            
             if (!isBugOrEnhancement) {
               core.setOutput('assign', false);
               return false;
             }
+            
             const body = (issue.body || '').toLowerCase();
             const title = (issue.title || '').toLowerCase();
+
             // Check if user wants Copilot to handle this
             const wantsCopilot = 
               body.includes('@copilot') || 
               body.includes('assign copilot') ||
               body.includes('copilot can you') ||
               title.includes('[copilot]');
+
             core.setOutput('assign', wantsCopilot);
             return wantsCopilot;
 
