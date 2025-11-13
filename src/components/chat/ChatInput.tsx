@@ -82,7 +82,7 @@ export const ChatInput = forwardRef<ChatInputRef, ChatInputProps>(
         <div className="mx-auto max-w-3xl">
           <div
             className="relative flex items-end gap-2 rounded-lg bg-background p-2 focus-within:ring-2 focus-within:ring-ring"
-            style={{ boxShadow: "0 2px 6px rgba(0, 0, 0, 0.12)" }}
+            style={{ boxShadow: "0 1px 3px rgba(0, 0, 0, 0.12)" }}
           >
             {/* Web Search Toggle - only show if enabled in settings */}
             {settings.webSearch.enabled && (
@@ -131,7 +131,6 @@ export const ChatInput = forwardRef<ChatInputRef, ChatInputProps>(
                 whileTap={{ scale: 0.95 }}
                 onClick={onStop}
                 className="shrink-0 rounded-md p-2 transition-all hover:bg-accent"
-                style={{ boxShadow: "0 1px 3px rgba(0, 0, 0, 0.12)" }}
               >
                 <Square className="h-5 w-5" />
               </motion.button>
@@ -142,16 +141,11 @@ export const ChatInput = forwardRef<ChatInputRef, ChatInputProps>(
                 onClick={handleSubmit}
                 disabled={!input.trim() || disabled}
                 className="shrink-0 rounded-md bg-primary p-2 text-primary-foreground transition-all hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed"
-                style={{ boxShadow: "0 1px 3px rgba(0, 0, 0, 0.12)" }}
               >
                 <Send className="h-5 w-5" />
               </motion.button>
             )}
           </div>
-
-          <p className="mt-2 text-center text-xs text-muted-foreground">
-            All processing happens locally. Your privacy is protected.
-          </p>
         </div>
       </div>
     );

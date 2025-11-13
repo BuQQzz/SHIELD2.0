@@ -120,7 +120,6 @@ export const ChatMessage = memo(function ChatMessage({
                 whileTap={{ scale: 0.95 }}
                 onClick={handleStartEdit}
                 className="opacity-0 group-hover:opacity-100 transition-opacity p-1.5 rounded-md hover:bg-muted"
-                style={{ boxShadow: "0 1px 3px rgba(0, 0, 0, 0.12)" }}
                 aria-label="Edit message"
               >
                 <Edit2 className="h-4 w-4 text-muted-foreground" />
@@ -132,7 +131,6 @@ export const ChatMessage = memo(function ChatMessage({
                 whileTap={{ scale: 0.95 }}
                 onClick={onRegenerate}
                 className="opacity-0 group-hover:opacity-100 transition-opacity p-1.5 rounded-md hover:bg-muted"
-                style={{ boxShadow: "0 1px 3px rgba(0, 0, 0, 0.12)" }}
                 aria-label="Regenerate response"
               >
                 <RefreshCw className="h-4 w-4 text-muted-foreground" />
@@ -143,7 +141,6 @@ export const ChatMessage = memo(function ChatMessage({
               whileTap={{ scale: 0.95 }}
               onClick={handleCopy}
               className="opacity-0 group-hover:opacity-100 transition-opacity p-1.5 rounded-md hover:bg-muted"
-              style={{ boxShadow: "0 1px 3px rgba(0, 0, 0, 0.12)" }}
               aria-label="Copy message"
             >
               {copied ? (
