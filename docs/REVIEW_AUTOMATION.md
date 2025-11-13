@@ -16,7 +16,7 @@ SHIELD 2.0 uses automated workflows to streamline PR and issue reviews, ensuring
 ### What It Does
 
 **Automated Checks on Every PR:**
-1. ✅ Requests GitHub Copilot code review automatically
+1. ✅ Assigns dedicated **@review-agent** (GitHub Copilot agent)
 2. 📊 Posts PR stats and review checklist as a comment
 3. ⚠️ Detects and warns about:
    - Missing tests for new components
@@ -24,6 +24,26 @@ SHIELD 2.0 uses automated workflows to streamline PR and issue reviews, ensuring
    - Files exceeding 300-line limit
    - Missing documentation
 4. 🎯 Provides actionable tips for improvement
+
+### Review Agent
+
+**What is @review-agent?**
+A specialized GitHub Copilot agent (`.github/agents/review-agent.md`) trained to:
+- Enforce SHIELD 2.0 coding standards
+- Review privacy/security compliance
+- Check architecture and modularity
+- Validate test coverage
+- Ensure documentation quality
+
+**How to use:**
+- Automatically assigned to all new PRs
+- Tag `@review-agent` in comments for specific reviews
+- Request focus areas: `@review-agent please review security aspects`
+
+**Review Timeline:**
+- Automated checks: Instant
+- Agent review: Within 24 hours
+- Human maintainer review: As needed
 
 ### Workflow File
 
@@ -193,6 +213,117 @@ on:
   issues:
     types: [opened, edited]
 ```
+
+---
+
+## 🤖 Review Agent
+
+### What is the Review Agent?
+
+The **@review-agent** is a specialized GitHub Copilot coding agent (`.github/agents/review-agent.md`) that provides intelligent, context-aware code reviews for SHIELD 2.0.
+
+### Capabilities
+
+**Automated Review Areas:**
+1. **Code Quality**
+   - Enforces 300-line file limit
+   - Verifies TypeScript type safety
+   - Checks error handling
+   - Validates naming conventions
+
+2. **Architecture**
+   - Modular design verification
+   - Import pattern validation
+   - Component composition review
+   - State management patterns
+
+3. **Testing**
+   - Test coverage verification (>80% target)
+   - Edge case coverage
+   - Proper mocking validation
+   - Test quality assessment
+
+4. **Privacy & Security**
+   - Local-only AI processing verification
+   - Permission check validation
+   - No external API calls without consent
+   - Audit logging compliance
+
+5. **UI/UX**
+   - Minimalism principles adherence
+   - Accessibility (ARIA, keyboard nav)
+   - Consistent component usage
+   - Responsive design
+
+6. **Documentation**
+   - JSDoc/TSDoc completeness
+   - README updates
+   - Breaking change documentation
+   - Inline comments quality
+
+### How to Use
+
+**Automatic Assignment:**
+```markdown
+# On PR creation, @review-agent is automatically assigned
+# Agent reviews code within 24 hours
+# Posts detailed feedback with severity levels:
+# 🚨 CRITICAL, ⚠️ WARNING, 💡 SUGGESTION, ℹ️ INFO
+```
+
+**Manual Requests:**
+```markdown
+# Request specific review focus
+@review-agent please review security aspects
+
+# Request re-review after changes
+@review-agent please review updated files
+
+# Ask for clarification
+@review-agent can you explain the privacy concern in more detail?
+```
+
+### Review Comment Format
+
+**Example Review Comment:**
+```markdown
+⚠️ **WARNING - File Size Limit: Exceeds 300-line guideline**
+
+**Location:** `src/components/NewFeature.tsx` (347 lines)
+
+**Problem:**
+File exceeds project's strict 300-line limit by 47 lines.
+
+**Impact:**
+Violates project guidelines, reduces maintainability.
+
+**Suggestion:**
+Extract sub-components:
+[code example]
+
+**Reference:**
+`.github/copilot-instructions.md` - Code Organization
+```
+
+### Quality Gates
+
+**Review agent checks before approval:**
+- ✅ All automated CI/CD checks pass
+- ✅ No critical security/privacy issues
+- ✅ Files under 300 lines
+- ✅ Tests included for new features
+- ✅ Documentation updated
+
+### Configuration
+
+**Agent Configuration File:**
+`.github/agents/review-agent.md`
+
+**Customization Options:**
+- Review checklist items
+- Severity thresholds
+- Comment templates
+- Special focus areas
 
 ---
 

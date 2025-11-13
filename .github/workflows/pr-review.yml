@@ -21,24 +21,42 @@ jobs:
         with:
           fetch-depth: 0  # Need full history for proper diff
 
-      - name: Request GitHub Copilot Review
+      - name: Assign Review Agent
         if: github.event.action == 'opened'
         uses: actions/github-script@v7
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
-            // Request Copilot code review for the PR
-            try {
-              await github.rest.pulls.requestReviewers({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                pull_number: context.payload.pull_request.number,
-                reviewers: ['copilot']
-              });
-              console.log('✅ Copilot review requested');
-            } catch (error) {
-              console.log('ℹ️ Copilot auto-review not available:', error.message);
-            }
+            // Post comment to trigger review-agent
+            const comment = `## 🤖 Review Agent Assigned
+            
+            **@review-agent** has been assigned to review this PR.
+            
+            The review agent will:
+            - ✅ Verify code quality and project standards
+            - 🔍 Check file sizes and architecture
+            - 🧪 Validate test coverage
+            - 📚 Review documentation
+            - 🔒 Ensure privacy/security compliance
+            
+            **Review agent will analyze:**
+            - All changed files against copilot-instructions.md
+            - Test coverage for new features
+            - Breaking changes and migration needs
+            - Privacy-first principles compliance
+            
+            **Timeline:** Review typically completes within 24 hours.
+            
+            *To request manual review by a specific agent, comment: \`@review-agent please review [specific aspect]\`*`;
+            
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.payload.pull_request.number,
+              body: comment
+            });
+            
+            console.log('✅ Review agent assigned and notified');
 
       - name: Get PR Details
         id: pr
