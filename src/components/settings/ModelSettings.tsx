@@ -1,7 +1,10 @@
+import { useState } from "react";
 import { Label } from "@/components/ui/label";
 import { Slider } from "@/components/ui/slider";
+import { Button } from "@/components/ui/button";
 import { useSettingsStore } from "@/store/settingsStore";
 import { ModelSettings as ModelSettingsType } from "@/types/settings";
+import { ChevronDown, ChevronUp } from "lucide-react";
 
 interface ModelSettingsProps {
   settings: ModelSettingsType;
@@ -9,6 +12,7 @@ interface ModelSettingsProps {
 
 export function ModelSettings({ settings }: ModelSettingsProps) {
   const { updateSettings } = useSettingsStore();
+  const [showAdvanced, setShowAdvanced] = useState(false);
 
   const handleTemperatureChange = (value: number[]) => {
     if (value[0] !== undefined) {
@@ -48,6 +52,7 @@ export function ModelSettings({ settings }: ModelSettingsProps) {
 
   return (
     <div className="space-y-6">
+      {/* Essential Settings */}
       <div>
         <div className="flex justify-between items-center mb-2">
           <Label htmlFor="temperature">Temperature</Label>
@@ -64,91 +69,8 @@ export function ModelSettings({ settings }: ModelSettingsProps) {
           onValueChange={handleTemperatureChange}
         />
         <p className="text-xs text-muted-foreground mt-1">
-          Controls randomness. Lower = focused, Higher = creative
+          Lower = focused, Higher = creative
         </p>
-      </div>
-
-      <div>
-        <div className="flex justify-between items-center mb-2">
-          <Label htmlFor="top-p">Top P</Label>
-          <span className="text-sm text-muted-foreground">
-            {settings.topP.toFixed(2)}
-          </span>
-        </div>
-        <Slider
-          id="top-p"
-          min={0}
-          max={1}
-          step={0.01}
-          value={[settings.topP]}
-          onValueChange={handleTopPChange}
-        />
-        <p className="text-xs text-muted-foreground mt-1">
-          Nucleus sampling threshold. Lower = more focused
-        </p>
-      </div>
-
-      <div>
-        <div className="flex justify-between items-center mb-2">
-          <Label htmlFor="top-k">Top K</Label>
-          <span className="text-sm text-muted-foreground">{settings.topK}</span>
-        </div>
-        <Slider
-          id="top-k"
-          min={1}
-          max={100}
-          step={1}
-          value={[settings.topK]}
-          onValueChange={handleTopKChange}
-        />
-        <p className="text-xs text-muted-foreground mt-1">
-          Limits vocabulary to top K tokens
-        </p>
-      </div>
-
-      <div>
-        <div className="flex justify-between items-center mb-2">
-          <Label htmlFor="repeat-penalty">Repeat Penalty</Label>
-          <span className="text-sm text-muted-foreground">
-            {settings.repeatPenalty.toFixed(2)}
-          </span>
-        </div>
-        <Slider
-          id="repeat-penalty"
-          min={1}
-          max={2}
-          step={0.01}
-          value={[settings.repeatPenalty]}
-          onValueChange={handleRepeatPenaltyChange}
-        />
-        <p className="text-xs text-muted-foreground mt-1">
-          Penalizes repeated tokens. Higher = less repetition
-        </p>
-      </div>
-
-      <div>
-        <div className="flex justify-between items-center mb-2">
-          <Label htmlFor="context-length">Context Length</Label>
-          <span className="text-sm text-muted-foreground">
-            {settings.contextLength}
-          </span>
-        </div>
-        <Slider
-          id="context-length"
-          min={512}
-          max={16384}
-          step={512}
-          value={[settings.contextLength]}
-          onValueChange={handleContextLengthChange}
-        />
-        <p className="text-xs text-muted-foreground mt-1">
-          Maximum conversation context size
-        </p>
-        {settings.contextLength > 8192 && (
-          <p className="text-xs text-amber-600 dark:text-amber-400 mt-1">
-            ⚠️ High values require more RAM and slower inference
-          </p>
-        )}
       </div>
 
       <div>
@@ -169,12 +91,114 @@ export function ModelSettings({ settings }: ModelSettingsProps) {
         <p className="text-xs text-muted-foreground mt-1">
           Maximum response length
         </p>
-        {settings.maxTokens > 4096 && (
-          <p className="text-xs text-amber-600 dark:text-amber-400 mt-1">
-            ⚠️ Very long responses may be slower and drift off-topic
-          </p>
-        )}
       </div>
+
+      {/* Advanced Toggle */}
+      <div className="pt-2">
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={() => setShowAdvanced(!showAdvanced)}
+          className="w-full justify-between"
+        >
+          <span className="text-sm">Advanced Settings</span>
+          {showAdvanced ? (
+            <ChevronUp className="h-4 w-4" />
+          ) : (
+            <ChevronDown className="h-4 w-4" />
+          )}
+        </Button>
+      </div>
+
+      {/* Advanced Settings (Collapsible) */}
+      {showAdvanced && (
+        <div className="space-y-6 border-t pt-4">
+          <div>
+            <div className="flex justify-between items-center mb-2">
+              <Label htmlFor="top-p">Top P</Label>
+              <span className="text-sm text-muted-foreground">
+                {settings.topP.toFixed(2)}
+              </span>
+            </div>
+            <Slider
+              id="top-p"
+              min={0}
+              max={1}
+              step={0.01}
+              value={[settings.topP]}
+              onValueChange={handleTopPChange}
+            />
+            <p className="text-xs text-muted-foreground mt-1">
+              Nucleus sampling threshold
+            </p>
+          </div>
+
+          <div>
+            <div className="flex justify-between items-center mb-2">
+              <Label htmlFor="top-k">Top K</Label>
+              <span className="text-sm text-muted-foreground">
+                {settings.topK}
+              </span>
+            </div>
+            <Slider
+              id="top-k"
+              min={1}
+              max={100}
+              step={1}
+              value={[settings.topK]}
+              onValueChange={handleTopKChange}
+            />
+            <p className="text-xs text-muted-foreground mt-1">
+              Limits vocabulary to top K tokens
+            </p>
+          </div>
+
+          <div>
+            <div className="flex justify-between items-center mb-2">
+              <Label htmlFor="repeat-penalty">Repeat Penalty</Label>
+              <span className="text-sm text-muted-foreground">
+                {settings.repeatPenalty.toFixed(2)}
+              </span>
+            </div>
+            <Slider
+              id="repeat-penalty"
+              min={1}
+              max={2}
+              step={0.01}
+              value={[settings.repeatPenalty]}
+              onValueChange={handleRepeatPenaltyChange}
+            />
+            <p className="text-xs text-muted-foreground mt-1">
+              Higher = less repetition
+            </p>
+          </div>
+
+          <div>
+            <div className="flex justify-between items-center mb-2">
+              <Label htmlFor="context-length">Context Length</Label>
+              <span className="text-sm text-muted-foreground">
+                {settings.contextLength}
+              </span>
+            </div>
+            <Slider
+              id="context-length"
+              min={512}
+              max={16384}
+              step={512}
+              value={[settings.contextLength]}
+              onValueChange={handleContextLengthChange}
+            />
+            <p className="text-xs text-muted-foreground mt-1">
+              Maximum conversation context
+            </p>
+            {settings.contextLength > 8192 && (
+              <p className="text-xs text-amber-600 dark:text-amber-400 mt-1">
+                ⚠️ High values require more RAM
+              </p>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

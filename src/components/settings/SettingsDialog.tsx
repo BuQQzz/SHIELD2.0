@@ -30,7 +30,7 @@ export function SettingsDialog({
   currentModel,
 }: SettingsDialogProps) {
   const { settings } = useSettingsStore();
-  const [activeTab, setActiveTab] = useState("model");
+  const [activeTab, setActiveTab] = useState("general");
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -43,36 +43,45 @@ export function SettingsDialog({
         </DialogHeader>
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-          <TabsList className="grid w-full grid-cols-6">
-            <TabsTrigger value="model">Model</TabsTrigger>
-            <TabsTrigger value="system">System</TabsTrigger>
+          <TabsList className="grid w-full grid-cols-4">
+            <TabsTrigger value="general">General</TabsTrigger>
+            <TabsTrigger value="features">Features</TabsTrigger>
             <TabsTrigger value="privacy">Privacy</TabsTrigger>
-            <TabsTrigger value="websearch">Web Search</TabsTrigger>
-            <TabsTrigger value="mcp">MCP</TabsTrigger>
             <TabsTrigger value="help">Help</TabsTrigger>
           </TabsList>
 
-          <TabsContent value="model" className="space-y-4 mt-4">
-            <ModelSettings settings={settings.model} />
+          <TabsContent value="general" className="space-y-6 mt-4">
+            <div className="space-y-4">
+              <h3 className="text-sm font-semibold">Model Settings</h3>
+              <ModelSettings settings={settings.model} />
+            </div>
+            <div className="space-y-4 pt-4 border-t">
+              <h3 className="text-sm font-semibold">System Prompt</h3>
+              <SystemSettings
+                settings={settings.system}
+                onApplySystemPrompt={onApplySystemPrompt}
+              />
+            </div>
           </TabsContent>
 
-          <TabsContent value="system" className="space-y-4 mt-4">
-            <SystemSettings
-              settings={settings.system}
-              onApplySystemPrompt={onApplySystemPrompt}
-            />
+          <TabsContent value="features" className="space-y-6 mt-4">
+            <div className="space-y-4">
+              <h3 className="text-sm font-semibold">Web Search</h3>
+              <WebSearchSettings settings={settings.webSearch} />
+            </div>
+            <div className="space-y-4 pt-4 border-t">
+              <h3 className="text-sm font-semibold">
+                Model Context Protocol (MCP)
+              </h3>
+              <MCPSettings
+                settings={settings.mcp}
+                currentModel={currentModel}
+              />
+            </div>
           </TabsContent>
 
           <TabsContent value="privacy" className="space-y-4 mt-4">
             <PrivacySettings settings={settings.privacy} />
-          </TabsContent>
-
-          <TabsContent value="websearch" className="space-y-4 mt-4">
-            <WebSearchSettings settings={settings.webSearch} />
-          </TabsContent>
-
-          <TabsContent value="mcp" className="space-y-4 mt-4">
-            <MCPSettings settings={settings.mcp} currentModel={currentModel} />
           </TabsContent>
 
           <TabsContent value="help" className="space-y-4 mt-4">
