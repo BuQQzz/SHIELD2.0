@@ -3,10 +3,17 @@ import { ShortcutItem } from "./HelpComponents";
 import { Button } from "@/components/ui/button";
 
 export function HelpSettings() {
-  const openDocs = () => {
-    window.electron.openExternal(
-      "https://github.com/BuQQzz/SHIELD2.0/blob/main/README.md"
-    );
+  const openDocs = async () => {
+    try {
+      const result = await window.electronAPI.system.openExternal(
+        "https://github.com/BuQQzz/SHIELD2.0/blob/main/README.md"
+      );
+      if (!result.success) {
+        console.error("Failed to open documentation:", result.error);
+      }
+    } catch (error) {
+      console.error("Failed to open documentation:", error);
+    }
   };
 
   return (
