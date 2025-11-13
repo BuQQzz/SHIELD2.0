@@ -147,6 +147,15 @@ SHIELD 2.0 is a privacy-first, local AI chatbot for Windows with tool integratio
   - Tests must pass with zero failures
   - No skipped or disabled tests without documented reason
   - Mock external dependencies appropriately
+- **CI/CD Pipeline Requirements**:
+  - **CRITICAL**: Always run `npm run format` (Prettier) before committing
+  - **CRITICAL**: Always run `npm run lint` and fix all errors/warnings before pushing
+  - **CRITICAL**: Always run `npm test` and ensure all tests pass before creating PR
+  - **CRITICAL**: Always run `npm run build` to verify successful build before pushing
+  - GitHub Actions will fail PRs if any of these checks fail
+  - Code quality checks: Prettier formatting, ESLint rules, TypeScript compilation
+  - All CI/CD checks must be green before merge is allowed
+  - Fix pipeline failures immediately - do not create new PRs until checks pass
 
 ### Performance Considerations
 
