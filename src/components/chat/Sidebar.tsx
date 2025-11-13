@@ -82,7 +82,7 @@ export function Sidebar({
           className="flex h-full flex-col bg-background"
         >
           {/* Header */}
-          <div className="flex items-center justify-between p-4 mb-2">
+          <div className="flex items-center justify-between p-3 mb-2">
             {!sidebarCollapsed ? (
               <>
                 <div className="flex items-center gap-2">
@@ -92,7 +92,7 @@ export function Sidebar({
                 <button
                   onClick={toggleSidebarCollapse}
                   title="Collapse sidebar"
-                  className="rounded-md p-1.5 transition-all hover:bg-accent"
+                  className="rounded-md p-1.5 transition-colors hover:bg-accent"
                 >
                   <PanelLeft className="h-5 w-5 text-muted-foreground" />
                 </button>
@@ -101,7 +101,7 @@ export function Sidebar({
               <button
                 onClick={toggleSidebarCollapse}
                 title="Expand sidebar"
-                className="mx-auto rounded-md p-1.5 transition-all hover:bg-accent"
+                className="mx-auto rounded-md p-1.5 transition-colors hover:bg-accent"
               >
                 <PanelRight className="h-5 w-5 text-muted-foreground" />
               </button>
@@ -145,7 +145,7 @@ export function Sidebar({
             <>
               {/* Expanded View - Full Sidebar */}
               {/* New Chat Button */}
-              <div className="px-3 pb-2">
+              <div className="p-3">
                 <div className="flex gap-2">
                   <motion.button
                     onClick={handleNewChat}
@@ -169,7 +169,7 @@ export function Sidebar({
               </div>
 
               {/* Search */}
-              <div className="px-3 pb-3">
+              <div className="p-3">
                 <div className="relative">
                   <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                   <input

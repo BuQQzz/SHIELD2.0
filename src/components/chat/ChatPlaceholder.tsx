@@ -55,7 +55,7 @@ export function ChatPlaceholder({ onPromptClick }: ChatPlaceholderProps) {
               whileHover={{ scale: 1.05 }}
               whileTap={{ scale: 0.98 }}
               onClick={() => onPromptClick?.(prompt)}
-              className="h-auto justify-start whitespace-normal rounded-md bg-background p-4 text-left transition-all hover:bg-accent"
+              className="h-auto justify-start whitespace-normal rounded-md bg-background p-4 text-left transition-colors hover:bg-accent"
             >
               {prompt}
             </motion.button>

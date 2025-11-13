@@ -16,7 +16,7 @@ export function WebSearchResults({
       <motion.div
         initial={{ opacity: 0, y: -10 }}
         animate={{ opacity: 1, y: 0 }}
-        className="mb-4 rounded-lg border bg-muted/30 p-4"
+        className="mb-4 rounded-lg border bg-muted/30 p-3"
       >
         <div className="flex items-center gap-2 text-sm text-muted-foreground">
           <motion.div
@@ -39,7 +39,7 @@ export function WebSearchResults({
     <motion.div
       initial={{ opacity: 0, y: -10 }}
       animate={{ opacity: 1, y: 0 }}
-      className="mb-4 rounded-lg border bg-muted/30 p-4"
+      className="mb-4 rounded-lg border bg-muted/30 p-3"
     >
       <div className="mb-3 flex items-center gap-2 text-sm font-medium">
         <CheckCircle2 className="h-4 w-4 text-green-500" />
@@ -53,7 +53,7 @@ export function WebSearchResults({
             initial={{ opacity: 0, x: -10 }}
             animate={{ opacity: 1, x: 0 }}
             transition={{ delay: index * 0.05 }}
-            className="group flex items-start gap-3 rounded-md p-2 transition-colors hover:bg-background/50"
+            className="group flex items-start gap-2 rounded-md p-2 transition-colors hover:bg-background/50"
           >
             <div className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-primary/10 text-xs font-medium text-primary">
               {index + 1}

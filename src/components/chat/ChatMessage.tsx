@@ -94,7 +94,7 @@ export const ChatMessage = memo(function ChatMessage({
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.3, ease: "easeOut" }}
       className={cn(
-        "flex gap-3 p-4 rounded-lg group",
+        "flex gap-2 p-4 rounded-lg group",
         isUser ? "bg-muted/50" : "bg-background"
       )}
     >

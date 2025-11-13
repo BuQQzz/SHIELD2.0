@@ -67,7 +67,7 @@ export function TemplateSelector({ onSelect, onClose }: TemplateSelectorProps) {
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
-        <div className="flex items-center justify-between p-6 border-b">
+        <div className="flex items-center justify-between p-4 border-b">
           <div>
             <h2 className="text-2xl font-semibold">Choose a Template</h2>
             <p className="text-sm text-muted-foreground mt-1">
@@ -80,8 +80,8 @@ export function TemplateSelector({ onSelect, onClose }: TemplateSelectorProps) {
         </div>
 
         {/* Templates Grid */}
-        <div className="p-6 overflow-y-auto max-h-[calc(80vh-180px)]">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="p-4 overflow-y-auto max-h-[calc(80vh-180px)]">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
             {CHAT_TEMPLATES.map((template) => {
               const Icon = getIcon(template.icon);
               const isSelected = selectedTemplate?.id === template.id;
@@ -93,7 +93,7 @@ export function TemplateSelector({ onSelect, onClose }: TemplateSelectorProps) {
                   whileTap={{ scale: 0.98 }}
                   onClick={() => handleSelectTemplate(template)}
                   className={`
-                    relative p-4 rounded-lg border-2 text-left transition-all
+                    relative p-4 rounded-lg border-2 text-left transition-colors
                     ${
                       isSelected
                         ? "border-primary bg-primary/5"
@@ -101,7 +101,7 @@ export function TemplateSelector({ onSelect, onClose }: TemplateSelectorProps) {
                     }
                   `}
                 >
-                  <div className="flex items-start gap-3">
+                  <div className="flex items-start gap-2">
                     <div
                       className={`
                       p-2 rounded-lg transition-colors
@@ -147,7 +147,7 @@ export function TemplateSelector({ onSelect, onClose }: TemplateSelectorProps) {
         </div>
 
         {/* Footer */}
-        <div className="flex items-center justify-between p-6 border-t bg-muted/30">
+        <div className="flex items-center justify-between p-4 border-t bg-muted/30">
           <div className="text-sm text-muted-foreground">
             {selectedTemplate ? (
               <span>

@@ -89,7 +89,7 @@ export const ChatInput = forwardRef<ChatInputRef, ChatInputProps>(
                     <motion.button
                       whileTap={{ scale: 0.95 }}
                       onClick={() => setWebSearchEnabled(!webSearchEnabled)}
-                      className={`shrink-0 rounded-md p-2 transition-all ${
+                      className={`shrink-0 rounded-md p-2 transition-colors ${
                         webSearchEnabled
                           ? "bg-primary text-primary-foreground"
                           : "hover:bg-accent"
@@ -127,7 +127,7 @@ export const ChatInput = forwardRef<ChatInputRef, ChatInputProps>(
               <motion.button
                 whileTap={{ scale: 0.95 }}
                 onClick={onStop}
-                className="shrink-0 rounded-md p-2 transition-all hover:bg-accent"
+                className="shrink-0 rounded-md p-2 transition-colors hover:bg-accent"
               >
                 <Square className="h-5 w-5" />
               </motion.button>
@@ -137,7 +137,7 @@ export const ChatInput = forwardRef<ChatInputRef, ChatInputProps>(
                 whileHover={{ scale: 1.05 }}
                 onClick={handleSubmit}
                 disabled={!input.trim() || disabled}
-                className="shrink-0 rounded-md bg-primary p-2 text-primary-foreground transition-all hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed"
+                className="shrink-0 rounded-md bg-primary p-2 text-primary-foreground transition-colors hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 <Send className="h-5 w-5" />
               </motion.button>
