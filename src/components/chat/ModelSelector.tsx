@@ -47,9 +47,11 @@ export function ModelSelector({
     <>
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
-          <button
+          <motion.button
             disabled={disabled || isLoading}
-            className="inline-flex items-center justify-center gap-2 rounded-md bg-background px-3 py-2 text-sm font-medium transition-all hover:bg-accent disabled:pointer-events-none disabled:opacity-50"
+            whileHover={{ scale: disabled || isLoading ? 1 : 1.02 }}
+            whileTap={{ scale: disabled || isLoading ? 1 : 0.98 }}
+            className="inline-flex items-center justify-center gap-2 rounded-md bg-background px-3 py-2 text-sm font-medium transition-colors hover:bg-accent disabled:pointer-events-none disabled:opacity-50"
           >
             {isLoading ? (
               <>
@@ -62,7 +64,7 @@ export function ModelSelector({
                 <ChevronDown className="h-4 w-4 opacity-50" />
               </>
             )}
-          </button>
+          </motion.button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" className="w-72">
           {models.map((model, index) => (

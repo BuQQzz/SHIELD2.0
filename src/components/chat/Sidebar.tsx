@@ -112,13 +112,15 @@ export function Sidebar({
           {sidebarCollapsed ? (
             <div className="flex h-full flex-col">
               <div className="flex flex-col items-center gap-2 p-2">
-                <button
+                <motion.button
                   onClick={handleNewChat}
-                  className="rounded-md p-2.5 transition-all hover:bg-accent"
+                  whileHover={{ scale: 1.1 }}
+                  whileTap={{ scale: 0.95 }}
+                  className="rounded-md p-2.5 transition-colors hover:bg-accent"
                   title="New Chat"
                 >
                   <Plus className="h-4 w-4" />
-                </button>
+                </motion.button>
               </div>
 
               {/* Spacer to push settings to bottom */}
@@ -127,13 +129,15 @@ export function Sidebar({
               {/* Settings Icon at Bottom */}
               {onOpenSettings && (
                 <div className="flex flex-col items-center p-2">
-                  <button
+                  <motion.button
                     onClick={onOpenSettings}
-                    className="rounded-md p-2.5 transition-all hover:bg-accent"
+                    whileHover={{ scale: 1.1 }}
+                    whileTap={{ scale: 0.95 }}
+                    className="rounded-md p-2.5 transition-colors hover:bg-accent"
                     title="Settings"
                   >
                     <Settings className="h-4 w-4" />
-                  </button>
+                  </motion.button>
                 </div>
               )}
             </div>
@@ -143,21 +147,24 @@ export function Sidebar({
               {/* New Chat Button */}
               <div className="px-3 pb-2">
                 <div className="flex gap-2">
-                  <button
+                  <motion.button
                     onClick={handleNewChat}
-                    className="flex-1 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-all hover:bg-primary/90"
-                    style={{ boxShadow: "0 1px 3px rgba(0, 0, 0, 0.12)" }}
+                    whileHover={{ scale: 1.02 }}
+                    whileTap={{ scale: 0.98 }}
+                    className="flex-1 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90"
                   >
                     <Plus className="mr-2 inline h-4 w-4" />
                     New Chat
-                  </button>
-                  <button
+                  </motion.button>
+                  <motion.button
                     onClick={onNewFromTemplate}
-                    className="rounded-md bg-primary px-3 py-2 text-sm font-medium text-primary-foreground transition-all hover:bg-primary/90"
+                    whileHover={{ scale: 1.05 }}
+                    whileTap={{ scale: 0.95 }}
+                    className="rounded-md bg-primary px-3 py-2 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90"
                     title="New from Template"
                   >
                     <Sparkles className="h-4 w-4" />
-                  </button>
+                  </motion.button>
                 </div>
               </div>
 
@@ -188,13 +195,15 @@ export function Sidebar({
               {/* Settings Footer */}
               {onOpenSettings && (
                 <div className="p-3">
-                  <button
+                  <motion.button
                     onClick={onOpenSettings}
-                    className="w-full rounded-md bg-background px-4 py-2 text-sm font-medium transition-all hover:bg-accent"
+                    whileHover={{ scale: 1.02 }}
+                    whileTap={{ scale: 0.98 }}
+                    className="w-full rounded-md bg-background px-4 py-2 text-sm font-medium transition-colors hover:bg-accent"
                   >
                     <Settings className="mr-2 inline h-4 w-4" />
                     Settings
-                  </button>
+                  </motion.button>
                 </div>
               )}
             </>

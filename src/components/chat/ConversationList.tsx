@@ -61,7 +61,6 @@ export const ConversationList = memo(function ConversationList({
               ? "bg-accent"
               : "hover:bg-accent/50"
           }`}
-          style={{ boxShadow: "0 1px 3px rgba(0, 0, 0, 0.08)" }}
           onClick={() => onSelect(conversation.id)}
         >
           <AnimatePresence mode="wait">

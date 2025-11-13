@@ -11,6 +11,7 @@ import {
   Tag as TagIcon,
   Plus,
 } from "lucide-react";
+import { motion } from "framer-motion";
 import { useChatStore } from "@/stores/chat-store";
 import { useConversationStore } from "@/stores/conversation-store";
 import { useSettingsStore } from "@/store/settingsStore";
@@ -116,13 +117,14 @@ export function ChatHeader({
       {/* Left Section */}
       <div className="flex items-center gap-2">
         {!sidebarOpen && (
-          <button
+          <motion.button
             onClick={toggleSidebar}
-            className="md:flex rounded-md p-2 transition-all hover:bg-accent"
-            style={{ boxShadow: "0 1px 3px rgba(0, 0, 0, 0.12)" }}
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.95 }}
+            className="md:flex rounded-md p-2 transition-colors hover:bg-accent"
           >
             <Menu className="h-5 w-5" />
-          </button>
+          </motion.button>
         )}
         <div className="flex flex-col">
           {isLoading ? (
@@ -165,9 +167,13 @@ export function ChatHeader({
         {/* Options Menu */}
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <button className="rounded-md p-2 transition-all hover:bg-accent">
+            <motion.button
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
+              className="rounded-md p-2 transition-colors hover:bg-accent"
+            >
               <MoreVertical className="h-5 w-5" />
-            </button>
+            </motion.button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-56">
             {/* Import */}
