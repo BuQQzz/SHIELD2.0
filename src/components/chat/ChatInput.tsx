@@ -80,10 +80,7 @@ export const ChatInput = forwardRef<ChatInputRef, ChatInputProps>(
     return (
       <div className="bg-background p-4">
         <div className="mx-auto max-w-3xl">
-          <div
-            className="relative flex items-end gap-2 rounded-lg bg-background p-2 focus-within:ring-2 focus-within:ring-ring"
-            style={{ boxShadow: "0 1px 3px rgba(0, 0, 0, 0.12)" }}
-          >
+          <div className="relative flex items-end gap-2 rounded-lg border bg-background p-2 focus-within:ring-2 focus-within:ring-ring">
             {/* Web Search Toggle - only show if enabled in settings */}
             {settings.webSearch.enabled && (
               <TooltipProvider>
