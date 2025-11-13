@@ -1,0 +1,213 @@
+name: Issue Triage Automation
+
+on:
+  issues:
+    types: [opened, edited]
+
+permissions:
+  issues: write
+  contents: read
+
+jobs:
+  triage:
+    name: Auto-Label and Categorize Issues
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Analyze Issue
+        id: analyze
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const issue = context.payload.issue;
+            const title = issue.title.toLowerCase();
+            const body = (issue.body || '').toLowerCase();
+            const text = title + ' ' + body;
+
+            const labels = [];
+
+            // Priority detection
+            if (text.includes('critical') || text.includes('urgent') || text.includes('security')) {
+              labels.push('priority: high');
+            } else if (text.includes('enhancement') || text.includes('feature request')) {
+              labels.push('priority: medium');
+            } else if (text.includes('nice to have') || text.includes('suggestion')) {
+              labels.push('priority: low');
+            }
+
+            // Type detection
+            if (text.includes('bug') || text.includes('error') || text.includes('crash') || text.includes('broken')) {
+              labels.push('type: bug');
+            } else if (text.includes('feature') || text.includes('enhancement') || text.includes('new')) {
+              labels.push('type: enhancement');
+            } else if (text.includes('docs') || text.includes('documentation')) {
+              labels.push('type: documentation');
+            } else if (text.includes('question') || text.includes('how to')) {
+              labels.push('type: question');
+            }
+
+            // Component detection
+            if (text.includes('ui') || text.includes('interface') || text.includes('component')) {
+              labels.push('area: ui');
+            } else if (text.includes('llm') || text.includes('model') || text.includes('inference')) {
+              labels.push('area: llm');
+            } else if (text.includes('mcp') || text.includes('tool')) {
+              labels.push('area: mcp');
+            } else if (text.includes('electron') || text.includes('main process')) {
+              labels.push('area: electron');
+            } else if (text.includes('web search') || text.includes('brave')) {
+              labels.push('area: web-search');
+            } else if (text.includes('test') || text.includes('testing')) {
+              labels.push('area: testing');
+            }
+
+            // Good first issue detection
+            if (text.includes('good first issue') || text.includes('beginner friendly')) {
+              labels.push('good first issue');
+            }
+
+            // Help wanted
+            if (text.includes('help wanted') || text.includes('need help')) {
+              labels.push('help wanted');
+            }
+
+            core.setOutput('labels', JSON.stringify(labels));
+            return labels;
+
+      - name: Apply Labels
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const labels = JSON.parse('${{ steps.analyze.outputs.labels }}');
+
+            if (labels.length > 0) {
+              await github.rest.issues.addLabels({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.payload.issue.number,
+                labels: labels
+              });
+              
+              console.log(`✅ Applied labels: ${labels.join(', ')}`);
+            }
+
+      - name: Post Welcome Comment
+        if: github.event.action == 'opened'
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const labels = JSON.parse('${{ steps.analyze.outputs.labels }}');
+            const issue = context.payload.issue;
+
+            let guidance = '';
+
+            if (labels.includes('type: bug')) {
+              guidance = `
+              **Bug Report Checklist:**
+              - [ ] Steps to reproduce provided
+              - [ ] Expected vs actual behavior described
+              - [ ] Version/environment details included
+              - [ ] Error logs/screenshots attached (if applicable)
+              
+              Please ensure all items are covered for faster resolution. See [Contributing Guide](docs/CONTRIBUTING.md) for details.`;
+            } else if (labels.includes('type: enhancement')) {
+              guidance = `
+              **Feature Request Checklist:**
+              - [ ] Clear use case described
+              - [ ] Proposed solution outlined
+              - [ ] Alternative solutions considered
+              - [ ] Impact on existing features assessed
+              
+              Thank you for the suggestion! Please provide as much detail as possible.`;
+            } else if (labels.includes('type: question')) {
+              guidance = `
+              **Question Resources:**
+              - 📚 Check [Documentation](docs/)
+              - 💡 Review [Quick Start Guide](docs/QUICK-START.md)
+              - 🔍 Search existing [Issues](../../issues?q=is%3Aissue)
+              
+              If your question isn't answered, we'll get back to you soon!`;
+            }
+
+            const comment = `## 👋 Thank you for opening this issue!
+
+            This issue has been automatically triaged and labeled.
+            ${labels.length > 0 ? `\n**Labels applied:** ${labels.map(l => \`\`${l}\`\`).join(', ')}` : ''}
+            ${guidance}
+
+            ---
+
+            **Next Steps:**
+            - A maintainer will review this issue
+            - You may be asked for additional information
+            - Track progress via labels and comments
+
+            *This is an automated response. A human will review soon!*`;
+
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: issue.number,
+              body: comment
+            });
+
+  assign-copilot:
+    name: Assign Copilot to Actionable Issues
+    runs-on: ubuntu-latest
+    if: |
+      github.event.action == 'opened' &&
+      (contains(github.event.issue.labels.*.name, 'type: bug') ||
+       contains(github.event.issue.labels.*.name, 'type: enhancement'))
+
+    steps:
+      - name: Check if Copilot Assignment Requested
+        id: check
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const issue = context.payload.issue;
+            const body = (issue.body || '').toLowerCase();
+            const title = issue.title.toLowerCase();
+
+            // Check if user wants Copilot to handle this
+            const wantsCopilot = 
+              body.includes('@copilot') || 
+              body.includes('assign copilot') ||
+              body.includes('copilot can you') ||
+              title.includes('[copilot]');
+
+            core.setOutput('assign', wantsCopilot);
+            return wantsCopilot;
+
+      - name: Comment on Copilot Assignment
+        if: steps.check.outputs.assign == 'true'
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const comment = `## 🤖 Copilot Assignment Detected
+
+            This issue mentions \`@copilot\` or requests Copilot assignment.
+
+            **To assign Copilot to this issue:**
+            1. Ensure the issue has clear, actionable requirements
+            2. Use GitHub Copilot for Pull Requests feature
+            3. Or manually trigger Copilot coding agent via MCP tools
+
+            **Note:** Copilot works best with:
+            - Well-defined bug reports with reproduction steps
+            - Feature requests with clear acceptance criteria
+            - Issues scoped to <300 lines of changes
+
+            A maintainer will review and assign if appropriate.`;
+
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.payload.issue.number,
+              body: comment
+            });

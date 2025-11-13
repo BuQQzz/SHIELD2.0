@@ -50,7 +50,6 @@ export function ModelSelector({
           <button
             disabled={disabled || isLoading}
             className="inline-flex items-center justify-center gap-2 rounded-md bg-background px-3 py-2 text-sm font-medium transition-all hover:bg-accent disabled:pointer-events-none disabled:opacity-50"
-            style={{ boxShadow: "0 1px 3px rgba(0, 0, 0, 0.12)" }}
           >
             {isLoading ? (
               <>

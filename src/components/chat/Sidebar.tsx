@@ -93,7 +93,6 @@ export function Sidebar({
                   onClick={toggleSidebarCollapse}
                   title="Collapse sidebar"
                   className="rounded-md p-1.5 transition-all hover:bg-accent"
-                  style={{ boxShadow: "0 1px 3px rgba(0, 0, 0, 0.12)" }}
                 >
                   <PanelLeft className="h-5 w-5 text-muted-foreground" />
                 </button>
@@ -103,7 +102,6 @@ export function Sidebar({
                 onClick={toggleSidebarCollapse}
                 title="Expand sidebar"
                 className="mx-auto rounded-md p-1.5 transition-all hover:bg-accent"
-                style={{ boxShadow: "0 1px 3px rgba(0, 0, 0, 0.12)" }}
               >
                 <PanelRight className="h-5 w-5 text-muted-foreground" />
               </button>
@@ -117,7 +115,6 @@ export function Sidebar({
                 <button
                   onClick={handleNewChat}
                   className="rounded-md p-2.5 transition-all hover:bg-accent"
-                  style={{ boxShadow: "0 1px 3px rgba(0, 0, 0, 0.12)" }}
                   title="New Chat"
                 >
                   <Plus className="h-4 w-4" />
@@ -133,7 +130,6 @@ export function Sidebar({
                   <button
                     onClick={onOpenSettings}
                     className="rounded-md p-2.5 transition-all hover:bg-accent"
-                    style={{ boxShadow: "0 1px 3px rgba(0, 0, 0, 0.12)" }}
                     title="Settings"
                   >
                     <Settings className="h-4 w-4" />
@@ -158,7 +154,6 @@ export function Sidebar({
                   <button
                     onClick={onNewFromTemplate}
                     className="rounded-md bg-primary px-3 py-2 text-sm font-medium text-primary-foreground transition-all hover:bg-primary/90"
-                    style={{ boxShadow: "0 1px 3px rgba(0, 0, 0, 0.12)" }}
                     title="New from Template"
                   >
                     <Sparkles className="h-4 w-4" />
@@ -176,7 +171,6 @@ export function Sidebar({
                     value={searchInput}
                     onChange={(e) => handleSearch(e.target.value)}
                     className="w-full rounded-md bg-background py-2 pl-9 pr-3 text-sm outline-none placeholder:text-muted-foreground focus-visible:ring-2 focus-visible:ring-ring"
-                    style={{ boxShadow: "0 1px 3px rgba(0, 0, 0, 0.12)" }}
                   />
                 </div>
               </div>
@@ -197,7 +191,6 @@ export function Sidebar({
                   <button
                     onClick={onOpenSettings}
                     className="w-full rounded-md bg-background px-4 py-2 text-sm font-medium transition-all hover:bg-accent"
-                    style={{ boxShadow: "0 1px 3px rgba(0, 0, 0, 0.12)" }}
                   >
                     <Settings className="mr-2 inline h-4 w-4" />
                     Settings

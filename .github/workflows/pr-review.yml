@@ -1,0 +1,272 @@
+name: PR Review Automation
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+    branches: [main]
+
+permissions:
+  contents: read
+  pull-requests: write
+  issues: write
+
+jobs:
+  auto-review:
+    name: Automated PR Review
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # Need full history for proper diff
+
+      - name: Assign Review Agent
+        if: github.event.action == 'opened'
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            // Post comment to trigger review-agent
+            const comment = `## 🤖 Review Agent Assigned
+
+            **@review-agent** has been assigned to review this PR.
+
+            The review agent will:
+            - ✅ Verify code quality and project standards
+            - 🔍 Check file sizes and architecture
+            - 🧪 Validate test coverage
+            - 📚 Review documentation
+            - 🔒 Ensure privacy/security compliance
+
+            **Review agent will analyze:**
+            - All changed files against copilot-instructions.md
+            - Test coverage for new features
+            - Breaking changes and migration needs
+            - Privacy-first principles compliance
+
+            **Timeline:** Review typically completes within 24 hours.
+
+            *To request manual review by a specific agent, comment: \`@review-agent please review [specific aspect]\`*`;
+
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.payload.pull_request.number,
+              body: comment
+            });
+
+            console.log('✅ Review agent assigned and notified');
+
+      - name: Get PR Details
+        id: pr
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const pr = context.payload.pull_request;
+
+            // Get files changed in PR
+            const files = await github.rest.pulls.listFiles({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: pr.number
+            });
+
+            // Calculate stats
+            const fileCount = files.data.length;
+            const additions = pr.additions || 0;
+            const deletions = pr.deletions || 0;
+            const hasTests = files.data.some(f => f.filename.includes('.test.'));
+            const hasNewComponents = files.data.some(f => 
+              f.filename.includes('src/components/') && f.status === 'added'
+            );
+            const hasDocs = files.data.some(f => 
+              f.filename.includes('docs/') || f.filename.includes('README')
+            );
+
+            // Check for large files
+            const largeFiles = files.data.filter(f => f.changes > 300);
+
+            core.setOutput('fileCount', fileCount);
+            core.setOutput('additions', additions);
+            core.setOutput('deletions', deletions);
+            core.setOutput('hasTests', hasTests);
+            core.setOutput('hasNewComponents', hasNewComponents);
+            core.setOutput('hasDocs', hasDocs);
+            core.setOutput('largeFiles', largeFiles.length);
+            core.setOutput('largeFilesList', largeFiles.map(f => f.filename).join('\n'));
+
+      - name: Post Review Checklist
+        if: github.event.action == 'opened'
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const fileCount = ${{ steps.pr.outputs.fileCount }};
+            const additions = ${{ steps.pr.outputs.additions }};
+            const deletions = ${{ steps.pr.outputs.deletions }};
+            const hasTests = ${{ steps.pr.outputs.hasTests }};
+            const hasNewComponents = ${{ steps.pr.outputs.hasNewComponents }};
+            const hasDocs = ${{ steps.pr.outputs.hasDocs }};
+            const largeFiles = ${{ steps.pr.outputs.largeFiles }};
+
+            let warnings = [];
+            let tips = [];
+
+            // Check for missing tests
+            if (hasNewComponents && !hasTests) {
+              warnings.push('⚠️ **New components detected but no test files found**');
+              tips.push('Consider adding tests for new components (target >80% coverage)');
+            }
+
+            // Check for large changes
+            if (additions > 500) {
+              warnings.push('⚠️ **Large PR detected** (500+ additions)');
+              tips.push('Consider breaking into smaller PRs for easier review');
+            }
+
+            // Check for missing documentation
+            if (hasNewComponents && !hasDocs) {
+              tips.push('💡 Consider updating documentation for new features');
+            }
+
+            // Check for large files
+            if (largeFiles > 0) {
+              warnings.push('⚠️ **Files with >300 line changes detected**');
+              tips.push('Review copilot-instructions.md: "No single code file should exceed 300 lines"');
+            }
+
+            const warningSection = warnings.length > 0 
+              ? `\n## ⚠️ Warnings\n\n${warnings.join('\n')}\n` 
+              : '';
+
+            const tipsSection = tips.length > 0 
+              ? `\n## 💡 Tips\n\n${tips.join('\n')}\n` 
+              : '';
+
+            const comment = `## 🤖 Automated PR Review
+
+            **PR Stats:**
+            - 📁 Files changed: ${fileCount}
+            - ➕ Additions: ${additions}
+            - ➖ Deletions: ${deletions}
+            - ✅ Tests included: ${hasTests ? 'Yes' : 'No'}
+            ${warningSection}${tipsSection}
+            ---
+
+            ## 📋 Review Checklist
+
+            Please ensure the following before merging:
+
+            **Code Quality:**
+            - [ ] All CI/CD checks passing (tests, lint, build)
+            - [ ] Code follows project guidelines (see \`.github/copilot-instructions.md\`)
+            - [ ] No files exceed 300 lines (unless type definitions/data files)
+            - [ ] Prettier formatting applied (\`npm run format\`)
+            - [ ] ESLint checks pass with 0 warnings (\`npm run lint\`)
+
+            **Testing:**
+            - [ ] All tests passing (\`npm test\`)
+            - [ ] New features have corresponding tests
+            - [ ] Test coverage maintained or improved
+
+            **Documentation:**
+            - [ ] Code comments added for complex logic
+            - [ ] README/docs updated if needed
+            - [ ] Breaking changes documented
+
+            **Best Practices:**
+            - [ ] No hardcoded secrets or sensitive data
+            - [ ] Error handling implemented
+            - [ ] Accessibility considered (for UI changes)
+            - [ ] Performance impact evaluated
+
+            ---
+
+            **Next Steps:**
+            1. Wait for CI/CD checks to complete
+            2. Address any warnings above
+            3. Request human review if needed
+            4. Merge when all checks pass ✅
+
+            *This is an automated review. For questions, see [Contributing Guide](docs/CONTRIBUTING.md).*`;
+
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.payload.pull_request.number,
+              body: comment
+            });
+
+  size-check:
+    name: File Size Analysis
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Check file sizes
+        id: size-check
+        run: |
+          $violations = @()
+          $excludePatterns = @('*.d.ts', 'models.ts', 'modelChatTemplates.ts')
+
+          Get-ChildItem -Path src,electron -Filter *.ts* -Recurse | ForEach-Object {
+            $exclude = $false
+            foreach ($pattern in $excludePatterns) {
+              if ($_.Name -like $pattern) {
+                $exclude = $true
+                break
+              }
+            }
+            
+            if (-not $exclude) {
+              $lines = (Get-Content $_.FullName | Measure-Object -Line).Lines
+              $relativePath = $_.FullName.Replace((Get-Location).Path + '\', '')
+              
+              if ($lines -gt 300) {
+                $violations += "- ``$relativePath``: $lines lines (limit: 300)"
+              }
+            }
+          }
+
+          if ($violations.Count -gt 0) {
+            $message = "⚠️ **File Size Violations Detected**`n`n" + ($violations -join "`n")
+            $message | Out-File -FilePath size-violations.txt -Encoding UTF8
+            echo "has_violations=true" >> $env:GITHUB_OUTPUT
+          } else {
+            echo "has_violations=false" >> $env:GITHUB_OUTPUT
+          }
+        shell: powershell
+
+      - name: Comment on violations
+        if: steps.size-check.outputs.has_violations == 'true'
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const fs = require('fs');
+
+            if (fs.existsSync('size-violations.txt')) {
+              const violations = fs.readFileSync('size-violations.txt', 'utf8');
+              
+              const comment = `${violations}
+              
+              **Action Required:** Please refactor these files into smaller modules per project guidelines.
+              
+              **Reference:** \`.github/copilot-instructions.md\` - Module Refactoring Guidelines
+              
+              **Tips:**
+              1. Extract logical groupings into separate modules
+              2. Use barrel exports (index.ts) for clean imports
+              3. Ensure tests still pass after refactoring`;
+              
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.payload.pull_request.number,
+                body: comment
+              });
+            }

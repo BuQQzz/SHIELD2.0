@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 import { useChatStore } from "@/stores/chat-store";
 import { useConversationStore } from "@/stores/conversation-store";
+import { useSettingsStore } from "@/store/settingsStore";
 import { ModelSelector, type ModelOption } from "./ModelSelector";
 import { useState } from "react";
 import {
@@ -56,6 +57,7 @@ export function ChatHeader({
     updateConversation,
     saveCurrentConversation,
   } = useConversationStore();
+  const { settings } = useSettingsStore();
   const [newTagInput, setNewTagInput] = useState("");
   const [showTagInput, setShowTagInput] = useState(false);
 
@@ -123,31 +125,32 @@ export function ChatHeader({
           </button>
         )}
         <div className="flex flex-col">
-          <h1 className="text-lg font-semibold">SHIELD 2.0</h1>
           {isLoading ? (
-            <span className="flex items-center gap-1 text-xs text-muted-foreground">
+            <span className="flex items-center gap-1 text-sm text-muted-foreground">
               <Loader2 className="h-3 w-3 animate-spin" />
               {modelName
                 ? `Loading ${modelName}...`
                 : "Downloading and loading model..."}
             </span>
           ) : error ? (
-            <span className="text-xs text-destructive">{error}</span>
+            <span className="text-sm text-destructive">{error}</span>
           ) : warning ? (
-            <span className="text-xs text-yellow-600 dark:text-yellow-500">
+            <span className="text-sm text-yellow-600 dark:text-yellow-500">
               {warning}
             </span>
           ) : modelName ? (
-            <span className="text-xs text-muted-foreground">{modelName}</span>
+            <span className="text-sm text-muted-foreground">{modelName}</span>
           ) : null}
         </div>
       </div>
 
       {/* Right Section */}
       <div className="flex items-center gap-2">
-        <MCPStatus
-          currentModel={availableModels.find((m) => m.id === currentModelId)}
-        />
+        {settings.mcp?.enabled && (
+          <MCPStatus
+            currentModel={availableModels.find((m) => m.id === currentModelId)}
+          />
+        )}
 
         {availableModels.length > 0 && onModelSelect && (
           <ModelSelector
@@ -162,10 +165,7 @@ export function ChatHeader({
         {/* Options Menu */}
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <button
-              className="rounded-md p-2 transition-all hover:bg-accent"
-              style={{ boxShadow: "0 1px 3px rgba(0, 0, 0, 0.12)" }}
-            >
+            <button className="rounded-md p-2 transition-all hover:bg-accent">
               <MoreVertical className="h-5 w-5" />
             </button>
           </DropdownMenuTrigger>

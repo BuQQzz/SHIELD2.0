@@ -5,6 +5,7 @@
 **OpenMemory Integration**: This project uses OpenMemory to give you (GitHub Copilot) persistent memory across sessions.
 
 ### Before Each Session
+
 1. **Check if OpenMemory is running**: Query `http://localhost:8080/health`
 2. **If not running**, inform the user to start it:
    ```powershell
@@ -14,11 +15,13 @@
 3. **Query relevant memories** at the start of each conversation to understand context
 
 ### During Development
+
 - **Query memories** when user asks about past decisions: Use `POST /memory/query` with `user_id: "copilot-shield"`
 - **Store important decisions**: Use `POST /memory/add` for architecture choices, patterns, user preferences
 - **Categories to use**: `architecture`, `guidelines`, `tech-stack`, `refactoring`, `recent-work`, `user-preference`
 
 ### Memory Commands
+
 ```powershell
 # Query memories
 Invoke-RestMethod -Uri http://localhost:8080/memory/query -Method Post -ContentType "application/json" -Body '{"query":"your search","k":5,"filters":{"user_id":"copilot-shield"}}'
@@ -55,6 +58,11 @@ SHIELD 2.0 is a privacy-first, local AI chatbot for Windows with tool integratio
   - Build verification before merge
   - Prevent merges if any checks fail
   - Use status checks as merge gates
+- **Automated Review System** (see `docs/REVIEW_AUTOMATION.md`):
+  - **PR Review Automation**: Auto-posts review checklist, detects issues, requests Copilot review
+  - **Issue Triage**: Auto-labels issues based on content, posts welcome comments
+  - **Smart Warnings**: Detects missing tests, large PRs, file size violations
+  - Saves review time and ensures consistent quality standards
 
 ### Git Workflow & Branching Strategy
 
@@ -147,6 +155,15 @@ SHIELD 2.0 is a privacy-first, local AI chatbot for Windows with tool integratio
   - Tests must pass with zero failures
   - No skipped or disabled tests without documented reason
   - Mock external dependencies appropriately
+- **CI/CD Pipeline Requirements**:
+  - **CRITICAL**: Always run `npm run format` (Prettier) before committing
+  - **CRITICAL**: Always run `npm run lint` and fix all errors/warnings before pushing
+  - **CRITICAL**: Always run `npm test` and ensure all tests pass before creating PR
+  - **CRITICAL**: Always run `npm run build` to verify successful build before pushing
+  - GitHub Actions will fail PRs if any of these checks fail
+  - Code quality checks: Prettier formatting, ESLint rules, TypeScript compilation
+  - All CI/CD checks must be green before merge is allowed
+  - Fix pipeline failures immediately - do not create new PRs until checks pass
 
 ### Performance Considerations
 
