@@ -55,6 +55,11 @@ SHIELD 2.0 is a privacy-first, local AI chatbot for Windows with tool integratio
   - Build verification before merge
   - Prevent merges if any checks fail
   - Use status checks as merge gates
+- **Automated Review System** (see `docs/REVIEW_AUTOMATION.md`):
+  - **PR Review Automation**: Auto-posts review checklist, detects issues, requests Copilot review
+  - **Issue Triage**: Auto-labels issues based on content, posts welcome comments
+  - **Smart Warnings**: Detects missing tests, large PRs, file size violations
+  - Saves review time and ensures consistent quality standards
 
 ### Git Workflow & Branching Strategy
 
