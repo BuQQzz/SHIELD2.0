@@ -56,7 +56,7 @@ export const ConversationList = memo(function ConversationList({
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
           exit={{ opacity: 0, y: -10 }}
-          className={`group relative rounded-lg p-3 transition-all cursor-pointer ${
+          className={`group relative rounded-lg p-3 transition-colors cursor-pointer ${
             currentConversationId === conversation.id
               ? "bg-accent"
               : "hover:bg-accent/50"
