@@ -157,21 +157,33 @@ jobs:
   assign-copilot:
     name: Assign Copilot to Actionable Issues
     runs-on: ubuntu-latest
-    if: |
-      github.event.action == 'opened' &&
-      (contains(github.event.issue.labels.*.name, 'type: bug') ||
-       contains(github.event.issue.labels.*.name, 'type: enhancement'))
+    needs: [triage]
+    if: github.event.action == 'opened'
 
     steps:
-      - name: Check if Copilot Assignment Requested
+      - name: Check labels and Copilot Assignment
         id: check
         uses: actions/github-script@v7
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
-            const issue = context.payload.issue;
+            // Fetch the latest issue data to get updated labels
+            const issueResponse = await github.rest.issues.get({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.payload.issue.number
+            });
+            const issue = issueResponse.data;
+            const labels = issue.labels.map(l => typeof l === 'string' ? l : l.name);
+            const isBugOrEnhancement = labels.includes('type: bug') || labels.includes('type: enhancement');
+
+            if (!isBugOrEnhancement) {
+              core.setOutput('assign', false);
+              return false;
+            }
+
             const body = (issue.body || '').toLowerCase();
-            const title = issue.title.toLowerCase();
+            const title = (issue.title || '').toLowerCase();
 
             // Check if user wants Copilot to handle this
             const wantsCopilot = 
