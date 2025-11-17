@@ -106,7 +106,11 @@ export const ChatMessage = memo(function ChatMessage({
             : "bg-muted text-muted-foreground"
         )}
       >
-        {isUser ? <User className="h-3.5 w-3.5" /> : <Bot className="h-3.5 w-3.5" />}
+        {isUser ? (
+          <User className="h-3.5 w-3.5" />
+        ) : (
+          <Bot className="h-3.5 w-3.5" />
+        )}
       </div>
       <div className="flex-1 space-y-2 overflow-hidden">
         <div className="flex items-center justify-between">
