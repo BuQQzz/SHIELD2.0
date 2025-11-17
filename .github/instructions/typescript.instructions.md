@@ -75,23 +75,24 @@ interface UserSettings {
 
 const loadSettings = async (): Promise<UserSettings> => {
   try {
-    const data = await readFile(SETTINGS_PATH, 'utf-8');
+    const data = await readFile(SETTINGS_PATH, "utf-8");
     return JSON.parse(data) as UserSettings;
   } catch (error) {
-    console.error('Failed to load settings:', error);
-    throw new Error('Settings load failed');
+    console.error("Failed to load settings:", error);
+    throw new Error("Settings load failed");
   }
 };
 
 // ❌ BAD
 interface ISettings {
-  ModelDirectory: any;  // any type, wrong casing
+  ModelDirectory: any; // any type, wrong casing
   temperature: any;
 }
 
-function LoadSettings() {  // PascalCase function, no return type
-  let data = readFileSync(SETTINGS_PATH);  // sync operation, let instead of const
-  return JSON.parse(data);  // no error handling, no type assertion
+function LoadSettings() {
+  // PascalCase function, no return type
+  let data = readFileSync(SETTINGS_PATH); // sync operation, let instead of const
+  return JSON.parse(data); // no error handling, no type assertion
 }
 ```
 

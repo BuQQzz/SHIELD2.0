@@ -344,7 +344,8 @@ const modelDownloadAPI: ModelDownloadAPI = {
 
 const systemAPI: SystemAPI = {
   selectDirectory: () => ipcRenderer.invoke("system:select-directory"),
-  openExternal: (url: string) => ipcRenderer.invoke("system:open-external", url),
+  openExternal: (url: string) =>
+    ipcRenderer.invoke("system:open-external", url),
 };
 
 contextBridge.exposeInMainWorld("electronAPI", {

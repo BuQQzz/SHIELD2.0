@@ -30,19 +30,22 @@ export function registerSystemHandlers() {
       // Validate URL to prevent security issues
       const urlObj = new URL(url);
       const allowedProtocols = ["http:", "https:"];
-      
+
       if (!allowedProtocols.includes(urlObj.protocol)) {
         console.error("Invalid protocol:", urlObj.protocol);
-        return { success: false, error: "Only HTTP and HTTPS URLs are allowed" };
+        return {
+          success: false,
+          error: "Only HTTP and HTTPS URLs are allowed",
+        };
       }
 
       await shell.openExternal(url);
       return { success: true };
     } catch (error) {
       console.error("Failed to open external URL:", error);
-      return { 
-        success: false, 
-        error: error instanceof Error ? error.message : "Unknown error" 
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : "Unknown error",
       };
     }
   });

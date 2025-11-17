@@ -179,16 +179,24 @@ export const ChatInput = memo(function ChatInput({
 ## Common Patterns
 
 ### Conditional Rendering
+
 ```tsx
 // ✅ GOOD
-{isLoading && <LoadingSpinner />}
-{error ? <ErrorMessage error={error} /> : <Content />}
+{
+  isLoading && <LoadingSpinner />;
+}
+{
+  error ? <ErrorMessage error={error} /> : <Content />;
+}
 
 // ❌ BAD (causes unnecessary re-renders)
-{isLoading === true && <LoadingSpinner />}
+{
+  isLoading === true && <LoadingSpinner />;
+}
 ```
 
 ### Event Handlers
+
 ```tsx
 // ✅ GOOD
 const handleClick = useCallback(() => {
@@ -200,6 +208,7 @@ onClick={() => doSomething()}
 ```
 
 ### Styling
+
 ```tsx
 // ✅ GOOD
 className={cn("base-styles", isActive && "active-styles")}
