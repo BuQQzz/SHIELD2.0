@@ -33,11 +33,11 @@ This file defines Electron-specific conventions for code reviews. Applies to all
 
 ```typescript
 // Pattern: "category:action"
-"system:select-directory"
-"llama:load-model"
-"mcp:list-servers"
-"settings:save"
-"conversation:create"
+"system:select-directory";
+"llama:load-model";
+"mcp:list-servers";
+"settings:save";
+"conversation:create";
 ```
 
 ### Handler Implementation
@@ -58,14 +58,14 @@ ipcMain.handle("system:open-external", async (_event, url: string) => {
     console.error("Failed to open external URL:", error);
     return {
       success: false,
-      error: error instanceof Error ? error.message : "Unknown error"
+      error: error instanceof Error ? error.message : "Unknown error",
     };
   }
 });
 
 // ❌ BAD: No validation, poor error handling
 ipcMain.handle("open-url", async (event, url) => {
-  shell.openExternal(url);  // No validation, no error handling
+  shell.openExternal(url); // No validation, no error handling
 });
 ```
 
@@ -82,7 +82,7 @@ ipcMain.handle("open-url", async (event, url) => {
 // ✅ GOOD: Controlled, typed API
 const systemAPI: SystemAPI = {
   selectDirectory: () => ipcRenderer.invoke("system:select-directory"),
-  openExternal: (url: string) => 
+  openExternal: (url: string) =>
     ipcRenderer.invoke("system:open-external", url),
 };
 
@@ -118,9 +118,10 @@ const validatePath = (filePath: string): boolean => {
   const normalized = path.normalize(filePath);
   const userDataPath = app.getPath("userData");
   const documentsPath = app.getPath("documents");
-  
-  return normalized.startsWith(userDataPath) || 
-         normalized.startsWith(documentsPath);
+
+  return (
+    normalized.startsWith(userDataPath) || normalized.startsWith(documentsPath)
+  );
 };
 
 ipcMain.handle("file:read", async (_event, filePath: string) => {
@@ -185,10 +186,7 @@ export class SettingsStorageService {
   }
 
   static async saveSettings(settings: Settings): Promise<void> {
-    await fs.writeFile(
-      this.settingsPath,
-      JSON.stringify(settings, null, 2)
-    );
+    await fs.writeFile(this.settingsPath, JSON.stringify(settings, null, 2));
   }
 
   private static getDefaultSettings(): Settings {
@@ -240,6 +238,7 @@ process.on("uncaughtException", (error) => {
 ## Common Patterns
 
 ### Dialogs
+
 ```typescript
 // ✅ GOOD: Async, returns result
 const result = await dialog.showOpenDialog({
@@ -250,14 +249,13 @@ return result.canceled ? null : result.filePaths[0];
 ```
 
 ### Native Menus
+
 ```typescript
 // Create application menu
 const template: MenuItemConstructorOptions[] = [
   {
     label: "File",
-    submenu: [
-      { role: "quit" },
-    ],
+    submenu: [{ role: "quit" }],
   },
 ];
 const menu = Menu.buildFromTemplate(template);
@@ -265,6 +263,7 @@ Menu.setApplicationMenu(menu);
 ```
 
 ### Auto-Updater
+
 ```typescript
 // Check for updates
 autoUpdater.checkForUpdatesAndNotify();

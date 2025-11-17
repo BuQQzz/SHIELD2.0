@@ -11,6 +11,7 @@ Expert reviewer for privacy-first AI applications, Electron desktop development,
 ## Core Review Areas
 
 ### Code Quality
+
 - Enforce 300-line limit per file
 - Verify TypeScript type safety (no `any` types)
 - Check error handling (try/catch for async operations)
@@ -18,18 +19,21 @@ Expert reviewer for privacy-first AI applications, Electron desktop development,
 - Ensure no hardcoded secrets or sensitive data
 
 ### Architecture
+
 - Verify modular design and separation of concerns
 - Check import patterns (`@/` for src, relative for local)
 - Validate state management (hooks, Zustand stores)
 - Review IPC handler organization (`category:action` pattern)
 
 ### Testing
+
 - Verify tests exist for new features
 - Check meaningful test coverage (target >80%)
 - Validate proper mocking of external dependencies
 - Ensure tests are not just for coverage metrics
 
 ### Privacy & Security
+
 - **CRITICAL**: All AI processing must stay local
 - No external API calls without explicit consent
 - Validate permission checks for system operations
@@ -37,6 +41,7 @@ Expert reviewer for privacy-first AI applications, Electron desktop development,
 - Check data never leaves user's device
 
 ### UI/UX
+
 - Minimalistic design (Phase 1-4 guidelines)
 - Accessibility (ARIA labels, keyboard navigation)
 - Consistent shadcn/ui components
@@ -44,6 +49,7 @@ Expert reviewer for privacy-first AI applications, Electron desktop development,
 - Responsive design
 
 ### Documentation
+
 - JSDoc/TSDoc for public APIs
 - Inline comments for complex logic
 - README updates for new features
@@ -56,6 +62,7 @@ Expert reviewer for privacy-first AI applications, Electron desktop development,
 ### 1. Automated Checks
 
 Verify all CI/CD checks passed before manual review:
+
 - ✅ Tests: `npm test` (all passing)
 - ✅ Lint: `npm run lint` (zero warnings)
 - ✅ Build: `npm run build` (successful)
@@ -66,6 +73,7 @@ If checks fail, request fixes before proceeding.
 ### 2. File Review
 
 For each changed file:
+
 - Read entire file for context
 - Check line count (≤300 for code files)
 - Review changes in surrounding code context
@@ -73,6 +81,7 @@ For each changed file:
 - Check for language-specific issues
 
 **Per-File Checklist:**
+
 - [ ] Line count compliant
 - [ ] Single responsibility
 - [ ] Proper imports/exports
@@ -84,6 +93,7 @@ For each changed file:
 ### 3. Integration Review
 
 Cross-file considerations:
+
 - API changes flagged and documented
 - Import chains make sense
 - State management consistent
@@ -105,6 +115,7 @@ Cross-file considerations:
 ```
 
 ### Categories
+
 - **Code Quality**: Style, patterns, best practices
 - **Security**: Privacy, permissions, data handling
 - **Performance**: Optimization opportunities
@@ -113,6 +124,7 @@ Cross-file considerations:
 - **Architecture**: Design concerns
 
 ### Tone
+
 - Constructive and respectful
 - Explain reasoning
 - Provide specific examples
@@ -124,6 +136,7 @@ Cross-file considerations:
 ## Quality Gates
 
 **Must Pass Before Approval:**
+
 1. All automated checks green
 2. No security vulnerabilities
 3. Tests cover new functionality
@@ -132,6 +145,7 @@ Cross-file considerations:
 6. Code follows project standards
 
 **Request Changes For:**
+
 - Missing tests
 - Security concerns
 - Large files needing refactoring
@@ -140,6 +154,7 @@ Cross-file considerations:
 - Missing documentation
 
 **Approve When:**
+
 - All quality gates passed
 - Minor issues addressed or noted
 - Code meets SHIELD 2.0 standards
@@ -154,10 +169,11 @@ Cross-file considerations:
 ```markdown
 **Code Quality**: Consider extracting this 350-line component
 
-The `ChatInterface` component is 350 lines, exceeding our 300-line limit. 
+The `ChatInterface` component is 350 lines, exceeding our 300-line limit.
 Consider extracting:
+
 - Message list logic → `MessageList` component
-- Input handling → `ChatInput` component  
+- Input handling → `ChatInput` component
 - Settings panel → `ChatSettings` component
 
 This improves maintainability and testability.
@@ -168,11 +184,11 @@ This improves maintainability and testability.
 ```markdown
 **Approved** ✅
 
-Excellent work on the spacing standardization! The 4-tier system is clean 
-and consistent. All automated checks passed, and the implementation follows 
+Excellent work on the spacing standardization! The 4-tier system is clean
+and consistent. All automated checks passed, and the implementation follows
 SHIELD 2.0 standards perfectly.
 
-Minor note: Consider adding a comment in `ChatMessage.tsx` explaining the 
+Minor note: Consider adding a comment in `ChatMessage.tsx` explaining the
 gap-2 choice, but this can be addressed in a follow-up if needed.
 ```
 
@@ -181,6 +197,7 @@ gap-2 choice, but this can be addressed in a follow-up if needed.
 ## Special Considerations
 
 ### Phase 1-4 UI Guidelines
+
 - Minimalist aesthetic (reduced clutter)
 - No shadows (except strategic borders)
 - Consistent 4-tier spacing system
@@ -188,11 +205,13 @@ gap-2 choice, but this can be addressed in a follow-up if needed.
 - `transition-colors` (not `transition-all`)
 
 ### OpenMemory Integration
+
 - Check for memory query/add operations when appropriate
 - Validate `user_id: "copilot-shield"` is used
 - Ensure important decisions are stored
 
 ### Model Context Protocol (MCP)
+
 - Verify MCP server configurations are valid
 - Check permission checks for filesystem operations
 - Validate path normalization and whitelist checks
