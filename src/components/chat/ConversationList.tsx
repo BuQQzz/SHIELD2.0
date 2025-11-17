@@ -56,7 +56,7 @@ export const ConversationList = memo(function ConversationList({
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
           exit={{ opacity: 0, y: -10 }}
-          className={`group relative rounded-lg p-3 transition-colors cursor-pointer ${
+          className={`group relative rounded-lg p-2 transition-colors cursor-pointer ${
             currentConversationId === conversation.id
               ? "bg-accent"
               : "hover:bg-accent/50"
@@ -112,15 +112,15 @@ export const ConversationList = memo(function ConversationList({
                     {conversation.preview}
                   </p>
                   {conversation.tags && conversation.tags.length > 0 && (
-                    <div className="flex flex-wrap gap-1 mt-1.5">
+                    <div className="flex flex-wrap gap-1 mt-1">
                       {conversation.tags.map((tag) => (
                         <Tag key={tag} label={tag} variant="compact" />
                       ))}
                     </div>
                   )}
-                  <div className="flex items-center gap-2 mt-1">
+                  <div className="flex items-center gap-1.5 mt-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
                     <span className="text-xs text-muted-foreground">
-                      {conversation.messageCount} messages
+                      {conversation.messageCount} msg
                     </span>
                     <span className="text-xs text-muted-foreground">•</span>
                     <span className="text-xs text-muted-foreground">

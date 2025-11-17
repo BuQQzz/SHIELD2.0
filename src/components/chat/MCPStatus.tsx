@@ -51,11 +51,10 @@ export function MCPStatus({ currentModel }: MCPStatusProps) {
         variant="ghost"
         size="sm"
         onClick={handleToggle}
-        className="gap-2 text-destructive hover:text-destructive"
+        className="px-2 text-destructive hover:text-destructive"
         title={`MCP Error: ${error} - Click to ${mcpEnabled ? "disable" : "retry"}`}
       >
         <AlertCircle className="h-4 w-4" />
-        <span className="text-xs">MCP Error</span>
       </Button>
     );
   }
@@ -67,11 +66,10 @@ export function MCPStatus({ currentModel }: MCPStatusProps) {
         variant="ghost"
         size="sm"
         disabled
-        className="gap-2 text-muted-foreground cursor-wait"
+        className="px-2 text-muted-foreground cursor-wait"
         title="MCP is initializing..."
       >
         <Loader2 className="h-4 w-4 animate-spin" />
-        <span className="text-xs">Initializing...</span>
       </Button>
     );
   }
@@ -84,11 +82,10 @@ export function MCPStatus({ currentModel }: MCPStatusProps) {
           variant="ghost"
           size="sm"
           onClick={handleToggle}
-          className="gap-2 text-yellow-600 hover:text-yellow-700 dark:text-yellow-400 dark:hover:text-yellow-300"
+          className="px-2 text-yellow-600 hover:text-yellow-700 dark:text-yellow-400 dark:hover:text-yellow-300"
           title={`MCP Ready (Limited) - ${warning} - Click to disable`}
         >
           <AlertTriangle className="h-4 w-4" />
-          <span className="text-xs">MCP Limited</span>
         </Button>
       );
     }
@@ -98,11 +95,10 @@ export function MCPStatus({ currentModel }: MCPStatusProps) {
         variant="ghost"
         size="sm"
         onClick={handleToggle}
-        className="gap-2 text-green-600 hover:text-green-700 dark:text-green-400 dark:hover:text-green-300"
+        className="px-2 text-green-600 hover:text-green-700 dark:text-green-400 dark:hover:text-green-300"
         title="MCP Ready - Click to disable"
       >
         <CheckCircle2 className="h-4 w-4" />
-        <span className="text-xs">MCP Ready</span>
       </Button>
     );
   }
@@ -113,7 +109,7 @@ export function MCPStatus({ currentModel }: MCPStatusProps) {
       variant="ghost"
       size="sm"
       onClick={handleToggle}
-      className="gap-2 text-muted-foreground hover:text-foreground"
+      className="px-2 text-muted-foreground hover:text-foreground"
       title={
         hasWarning
           ? `MCP Off - ${warning} - Click to enable anyway`
@@ -121,7 +117,6 @@ export function MCPStatus({ currentModel }: MCPStatusProps) {
       }
     >
       <Shield className="h-4 w-4" />
-      <span className="text-xs">MCP Off</span>
     </Button>
   );
 }

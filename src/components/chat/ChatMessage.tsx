@@ -94,19 +94,19 @@ export const ChatMessage = memo(function ChatMessage({
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.3, ease: "easeOut" }}
       className={cn(
-        "flex gap-2 p-4 rounded-lg group",
+        "flex gap-2 p-3 rounded-lg group",
         isUser ? "bg-muted/50" : "bg-background"
       )}
     >
       <div
         className={cn(
-          "flex h-8 w-8 shrink-0 select-none items-center justify-center rounded-md",
+          "flex h-7 w-7 shrink-0 select-none items-center justify-center rounded-md",
           isUser
             ? "bg-primary text-primary-foreground"
             : "bg-muted text-muted-foreground"
         )}
       >
-        {isUser ? <User className="h-4 w-4" /> : <Bot className="h-4 w-4" />}
+        {isUser ? <User className="h-3.5 w-3.5" /> : <Bot className="h-3.5 w-3.5" />}
       </div>
       <div className="flex-1 space-y-2 overflow-hidden">
         <div className="flex items-center justify-between">

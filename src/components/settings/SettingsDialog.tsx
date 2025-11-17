@@ -43,45 +43,39 @@ export function SettingsDialog({
         </DialogHeader>
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-          <TabsList className="grid w-full grid-cols-4">
-            <TabsTrigger value="general">General</TabsTrigger>
-            <TabsTrigger value="features">Features</TabsTrigger>
-            <TabsTrigger value="privacy">Privacy</TabsTrigger>
+          <TabsList className="grid w-full grid-cols-2">
+            <TabsTrigger value="config">Configure</TabsTrigger>
             <TabsTrigger value="help">Help</TabsTrigger>
           </TabsList>
 
-          <TabsContent value="general" className="space-y-6 mt-4">
-            <div className="space-y-4">
-              <h3 className="text-sm font-semibold">Model Settings</h3>
+          <TabsContent value="config" className="space-y-4 mt-4">
+            <div className="space-y-3">
+              <h3 className="text-sm font-semibold">Model</h3>
               <ModelSettings settings={settings.model} />
             </div>
-            <div className="space-y-4 pt-4 border-t">
+            <div className="space-y-3 pt-3 border-t">
               <h3 className="text-sm font-semibold">System Prompt</h3>
               <SystemSettings
                 settings={settings.system}
                 onApplySystemPrompt={onApplySystemPrompt}
               />
             </div>
-          </TabsContent>
-
-          <TabsContent value="features" className="space-y-6 mt-4">
-            <div className="space-y-4">
-              <h3 className="text-sm font-semibold">Web Search</h3>
-              <WebSearchSettings settings={settings.webSearch} />
+            <div className="space-y-3 pt-3 border-t">
+              <h3 className="text-sm font-semibold">Features</h3>
+              <div className="space-y-3">
+                <WebSearchSettings settings={settings.webSearch} />
+                <div className="pt-2">
+                  <MCPSettings
+                    settings={settings.mcp}
+                    currentModel={currentModel}
+                  />
+                </div>
+              </div>
             </div>
-            <div className="space-y-4 pt-4 border-t">
-              <h3 className="text-sm font-semibold">
-                Model Context Protocol (MCP)
-              </h3>
-              <MCPSettings
-                settings={settings.mcp}
-                currentModel={currentModel}
-              />
+            <div className="space-y-3 pt-3 border-t">
+              <h3 className="text-sm font-semibold">Privacy</h3>
+              <PrivacySettings settings={settings.privacy} />
             </div>
-          </TabsContent>
-
-          <TabsContent value="privacy" className="space-y-4 mt-4">
-            <PrivacySettings settings={settings.privacy} />
           </TabsContent>
 
           <TabsContent value="help" className="space-y-4 mt-4">
