@@ -40,7 +40,7 @@ win:
     - target: portable
       arch:
         - x64
-  # icon: build/icon.ico  # Uncomment when icon is added
+  icon: build/icon.ico
   artifactName: ${productName}-${version}-${arch}.${ext}
 
 # NSIS Installer configuration
@@ -49,13 +49,13 @@ nsis:
   perMachine: false
   allowToChangeInstallationDirectory: true
   allowElevation: true
-  # installerIcon: build/icon.ico  # Uncomment when icon is added
-  # uninstallerIcon: build/icon.ico  # Uncomment when icon is added
-  # installerHeaderIcon: build/icon.ico  # Uncomment when icon is added
+  installerIcon: build/icon.ico
+  uninstallerIcon: build/icon.ico
+  installerHeaderIcon: build/icon.ico
   createDesktopShortcut: true
   createStartMenuShortcut: true
   shortcutName: SHIELD 2.0
-  # license: LICENSE  # Uncomment to show license during install
+  license: LICENSE
   deleteAppDataOnUninstall: false
   runAfterFinish: true
   menuCategory: SHIELD 2.0
