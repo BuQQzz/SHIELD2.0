@@ -9,6 +9,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Windows Build System** - Distributable Windows installers via electron-builder
+  - NSIS installer with custom options (install location, shortcuts)
+  - Portable executable option for no-install usage
+  - Auto-update support via GitHub Releases (electron-updater)
+  - Custom application icons integrated
+  - Build commands: `npm run build:win:installer`, `npm run build:win:portable`
+  - Output: ~310 MB installer (models downloaded separately via in-app manager)
+  - Comprehensive documentation at `docs/WINDOWS_BUILD.md`
+  - PR #38
+
 - **Splash Screen** - Professional loading experience during app initialization
   - Dark monochromatic gradient (#0a0a0a to #1a1a1a) matching app design system
   - Dynamic status updates (Initializing, Loading settings, Setting up services, Loading AI model)

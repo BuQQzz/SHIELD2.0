@@ -32,6 +32,8 @@ export default defineConfig({
                 "jsdom",
                 "cheerio",
                 "@mozilla/readability",
+                "electron-updater",
+                "electron-log",
               ],
             },
           },

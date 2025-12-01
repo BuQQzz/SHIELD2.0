@@ -348,6 +348,56 @@ const systemAPI: SystemAPI = {
     ipcRenderer.invoke("system:open-external", url),
 };
 
+// Auto-update API
+import type {
+  AutoUpdateAPI,
+  UpdateInfo,
+  UpdateProgress,
+} from "../src/types/electron";
+
+const autoUpdateAPI: AutoUpdateAPI = {
+  checkForUpdates: () => ipcRenderer.invoke("check-for-updates"),
+  downloadUpdate: () => ipcRenderer.invoke("download-update"),
+  installUpdate: () => ipcRenderer.invoke("install-update"),
+  getAppVersion: () => ipcRenderer.invoke("get-app-version"),
+  onUpdateAvailable: (callback) => {
+    const handler = (_event: Electron.IpcRendererEvent, info: UpdateInfo) =>
+      callback(info);
+    ipcRenderer.on("update-available", handler);
+    return () => ipcRenderer.removeListener("update-available", handler);
+  },
+  onUpdateNotAvailable: (callback) => {
+    const handler = (
+      _event: Electron.IpcRendererEvent,
+      info: { version: string }
+    ) => callback(info);
+    ipcRenderer.on("update-not-available", handler);
+    return () => ipcRenderer.removeListener("update-not-available", handler);
+  },
+  onUpdateDownloading: (callback) => {
+    const handler = (
+      _event: Electron.IpcRendererEvent,
+      progress: UpdateProgress
+    ) => callback(progress);
+    ipcRenderer.on("update-download-progress", handler);
+    return () => ipcRenderer.removeListener("update-download-progress", handler);
+  },
+  onUpdateDownloaded: (callback) => {
+    const handler = (_event: Electron.IpcRendererEvent, info: UpdateInfo) =>
+      callback(info);
+    ipcRenderer.on("update-downloaded", handler);
+    return () => ipcRenderer.removeListener("update-downloaded", handler);
+  },
+  onUpdateError: (callback) => {
+    const handler = (
+      _event: Electron.IpcRendererEvent,
+      error: { message: string }
+    ) => callback(error);
+    ipcRenderer.on("update-error", handler);
+    return () => ipcRenderer.removeListener("update-error", handler);
+  },
+};
+
 contextBridge.exposeInMainWorld("electronAPI", {
   settings: settingsAPI,
   settingsPersistence: settingsPersistenceAPI,
@@ -356,9 +406,10 @@ contextBridge.exposeInMainWorld("electronAPI", {
   mcp: mcpAPI,
   modelDownload: modelDownloadAPI,
   system: systemAPI,
+  autoUpdate: autoUpdateAPI,
 });
 
 // Log that preload executed successfully
 console.log(
-  "[preload] window.llama, window.conversations, window.electronAPI (settings, export, webSearch, mcp) exposed successfully"
+  "[preload] window.llama, window.conversations, window.electronAPI (settings, export, webSearch, mcp, autoUpdate) exposed successfully"
 );

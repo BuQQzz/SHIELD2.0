@@ -368,6 +368,35 @@ export interface SystemAPI {
   openExternal: (url: string) => Promise<{ success: boolean; error?: string }>;
 }
 
+export interface UpdateInfo {
+  version: string;
+  releaseDate?: string;
+  releaseNotes?: string | null;
+}
+
+export interface UpdateProgress {
+  percent: number;
+  bytesPerSecond: number;
+  transferred: number;
+  total: number;
+}
+
+export interface AutoUpdateAPI {
+  checkForUpdates: () => Promise<void>;
+  downloadUpdate: () => Promise<void>;
+  installUpdate: () => Promise<void>;
+  getAppVersion: () => Promise<string>;
+  onUpdateAvailable: (callback: (info: UpdateInfo) => void) => () => void;
+  onUpdateNotAvailable: (
+    callback: (info: { version: string }) => void
+  ) => () => void;
+  onUpdateDownloading: (
+    callback: (progress: UpdateProgress) => void
+  ) => () => void;
+  onUpdateDownloaded: (callback: (info: UpdateInfo) => void) => () => void;
+  onUpdateError: (callback: (error: { message: string }) => void) => () => void;
+}
+
 declare global {
   interface Window {
     llama: LlamaAPI;
@@ -380,6 +409,7 @@ declare global {
       mcp: MCPAPI;
       modelDownload: ModelDownloadAPI;
       system: SystemAPI;
+      autoUpdate: AutoUpdateAPI;
     };
     _mcpToolResolve?: (result: MCPToolResult) => void;
   }

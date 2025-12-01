@@ -1,0 +1,83 @@
+# electron-builder configuration for SHIELD 2.0
+# https://www.electron.build/configuration/configuration
+
+appId: com.buqqzz.shield2
+productName: SHIELD 2.0
+copyright: Copyright © 2025 BuQQzz
+
+# Output directories
+directories:
+  output: release/${version}
+  buildResources: build
+
+# Files to include in the build
+files:
+  - dist/**/*
+  - dist-electron/**/*
+  - "!**/*.map"
+  - "!**/node_modules/*/{CHANGELOG.md,README.md,readme.md,README,readme}"
+  - "!**/node_modules/.cache/**"
+
+# Exclude models folder - users download via in-app tool
+extraFiles:
+  # Create an empty models directory for user downloads
+  - from: models/.gitkeep
+    to: models/.gitkeep
+
+# Asset handling
+asarUnpack:
+  # Native modules need to be unpacked
+  - "**/*.node"
+  - "**/node-llama-cpp/**"
+  - "**/sqlite3/**"
+
+# Windows build configuration
+win:
+  target:
+    - target: nsis
+      arch:
+        - x64
+    - target: portable
+      arch:
+        - x64
+  icon: build/icon.ico
+  artifactName: ${productName}-${version}-${arch}.${ext}
+
+# NSIS Installer configuration
+nsis:
+  oneClick: false
+  perMachine: false
+  allowToChangeInstallationDirectory: true
+  allowElevation: true
+  installerIcon: build/icon.ico
+  uninstallerIcon: build/icon.ico
+  installerHeaderIcon: build/icon.ico
+  createDesktopShortcut: true
+  createStartMenuShortcut: true
+  shortcutName: SHIELD 2.0
+  license: LICENSE
+  deleteAppDataOnUninstall: false
+  runAfterFinish: true
+  menuCategory: SHIELD 2.0
+
+# Portable configuration
+portable:
+  artifactName: ${productName}-${version}-portable.${ext}
+
+# Publishing configuration for auto-updates
+# Uncomment and configure when ready to publish releases
+publish:
+  provider: github
+  owner: BuQQzz
+  repo: SHIELD2.0
+  releaseType: release
+
+# Compression settings
+compression: normal
+
+# Remove default app protocol
+removePackageScripts: true
+
+# Prevent auto-downloading of language files
+electronDownload:
+  cache: .cache/electron

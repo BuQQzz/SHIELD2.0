@@ -50,6 +50,21 @@ First launch downloads the model (~4.4GB) and loads it automatically.
 - **Web Search**: Playwright + DuckDuckGo
 - **Storage**: sqlite3, AES-256-GCM encryption
 
+## Windows Build
+
+Build distributable Windows installers:
+
+```powershell
+npm run build:win:installer  # NSIS installer (~310 MB)
+npm run build:win:portable   # Portable executable
+```
+
+Output: `release/{version}/SHIELD 2.0-{version}-x64.exe`
+
+**Note**: Models are not bundled - users download via in-app model manager.
+
+See [docs/WINDOWS_BUILD.md](docs/WINDOWS_BUILD.md) for detailed build documentation.
+
 ## Development
 
 ```powershell
@@ -68,6 +83,7 @@ npm run build         # Production build
 
 ## Documentation
 
+- **Windows Build**: [docs/WINDOWS_BUILD.md](docs/WINDOWS_BUILD.md) - Building installers
 - **Development Progress**: [docs/ROADMAP.md](docs/ROADMAP.md) - Detailed feature tracking and plans
 - **Changelog**: [CHANGELOG.md](CHANGELOG.md) - Version history and changes
 - **LLM Integration**: [docs/LLM-INTEGRATION.md](docs/LLM-INTEGRATION.md) - Technical integration guide
