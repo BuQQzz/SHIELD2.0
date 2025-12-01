@@ -1,5 +1,7 @@
-import { autoUpdater, UpdateInfo } from "electron-updater";
-import { BrowserWindow, ipcMain } from "electron";
+import pkg from "electron-updater";
+const { autoUpdater } = pkg;
+import type { UpdateInfo } from "electron-updater";
+import { BrowserWindow, ipcMain, app } from "electron";
 import log from "electron-log";
 
 // Configure logging for auto-updater
@@ -123,7 +125,6 @@ export function registerAutoUpdateHandlers(): void {
   });
 
   ipcMain.handle("get-app-version", () => {
-    const { app } = require("electron");
     return app.getVersion();
   });
 }

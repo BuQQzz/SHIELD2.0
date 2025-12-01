@@ -50,7 +50,9 @@ export function createMainWindow(): BrowserWindow {
       // by setting HIDE_DEVTOOLS=1 environment variable.
     }
   } else {
-    mainWindow.loadFile(path.join(__dirname, "../../dist/index.html"));
+    // In production, __dirname is inside app.asar/dist-electron/
+    // dist folder is at app.asar/dist/
+    mainWindow.loadFile(path.join(__dirname, "../dist/index.html"));
   }
 
   // Show window when ready to prevent flashing
