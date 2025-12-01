@@ -59,6 +59,8 @@
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "date-fns": "^4.1.0",
+    "electron-log": "^5.4.3",
+    "electron-updater": "^6.6.2",
     "framer-motion": "^12.23.24",
     "lucide-react": "^0.451.0",
     "node-llama-cpp": "^3.14.2",

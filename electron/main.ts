@@ -14,6 +14,10 @@ import { registerSearchHandlers } from "./ipc/searchHandlers.js";
 import { registerSettingsHandlers } from "./ipc/settingsHandlers.js";
 import { registerModelHandlers } from "./ipc/modelHandlers.js";
 import { registerSystemHandlers } from "./ipc/systemHandlers.js";
+import {
+  initAutoUpdater,
+  registerAutoUpdateHandlers,
+} from "./services/AutoUpdateService.js";
 
 // Disable hardware acceleration color corrections
 // This prevents the gradual color shift/wash-out issue
@@ -83,6 +87,12 @@ app.whenReady().then(async () => {
   // Wait a moment for React to initialize and start model loading
   updateSplashStatus(splashWindow, "Loading AI model...");
   await new Promise((resolve) => setTimeout(resolve, 2000));
+
+  // Initialize auto-updater (only in production)
+  if (!process.env.VITE_DEV_SERVER_URL) {
+    registerAutoUpdateHandlers();
+    initAutoUpdater(mainWindow);
+  }
 
   // Close splash and show main window
   updateSplashStatus(splashWindow, "Ready!");

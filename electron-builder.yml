@@ -40,7 +40,7 @@ win:
     - target: portable
       arch:
         - x64
-  icon: build/icon.ico
+  # icon: build/icon.ico  # Uncomment when icon is added
   artifactName: ${productName}-${version}-${arch}.${ext}
 
 # NSIS Installer configuration
@@ -49,13 +49,13 @@ nsis:
   perMachine: false
   allowToChangeInstallationDirectory: true
   allowElevation: true
-  installerIcon: build/icon.ico
-  uninstallerIcon: build/icon.ico
-  installerHeaderIcon: build/icon.ico
+  # installerIcon: build/icon.ico  # Uncomment when icon is added
+  # uninstallerIcon: build/icon.ico  # Uncomment when icon is added
+  # installerHeaderIcon: build/icon.ico  # Uncomment when icon is added
   createDesktopShortcut: true
   createStartMenuShortcut: true
   shortcutName: SHIELD 2.0
-  license: LICENSE
+  # license: LICENSE  # Uncomment to show license during install
   deleteAppDataOnUninstall: false
   runAfterFinish: true
   menuCategory: SHIELD 2.0
@@ -64,8 +64,13 @@ nsis:
 portable:
   artifactName: ${productName}-${version}-portable.${ext}
 
-# Publishing (disabled for now - local builds only)
-publish: null
+# Publishing configuration for auto-updates
+# Uncomment and configure when ready to publish releases
+publish:
+  provider: github
+  owner: BuQQzz
+  repo: SHIELD2.0
+  releaseType: release
 
 # Compression settings
 compression: normal
