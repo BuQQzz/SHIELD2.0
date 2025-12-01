@@ -387,8 +387,12 @@ export interface AutoUpdateAPI {
   installUpdate: () => Promise<void>;
   getAppVersion: () => Promise<string>;
   onUpdateAvailable: (callback: (info: UpdateInfo) => void) => () => void;
-  onUpdateNotAvailable: (callback: (info: { version: string }) => void) => () => void;
-  onUpdateDownloading: (callback: (progress: UpdateProgress) => void) => () => void;
+  onUpdateNotAvailable: (
+    callback: (info: { version: string }) => void
+  ) => () => void;
+  onUpdateDownloading: (
+    callback: (progress: UpdateProgress) => void
+  ) => () => void;
   onUpdateDownloaded: (callback: (info: UpdateInfo) => void) => () => void;
   onUpdateError: (callback: (error: { message: string }) => void) => () => void;
 }
