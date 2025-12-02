@@ -83,6 +83,19 @@ function App() {
     loadSettings();
   }, [loadSettings]);
 
+  // Sync HuggingFace token to main process when settings load
+  useEffect(() => {
+    const syncHfToken = async () => {
+      const token = settings.system.huggingFaceToken;
+      try {
+        await window.electronAPI.modelDownload.setHfToken(token || undefined);
+      } catch (error) {
+        console.error("Failed to sync HF token:", error);
+      }
+    };
+    syncHfToken();
+  }, [settings.system.huggingFaceToken]);
+
   // MCP system prompt management
   useMCPSystemPrompt({
     isModelLoaded,

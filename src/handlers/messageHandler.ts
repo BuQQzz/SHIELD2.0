@@ -78,7 +78,18 @@ export function createMessageHandler({
       return;
     }
 
-    // Perform web search if requested
+    // Add user message FIRST so UI updates immediately
+    const userMessage: Message = {
+      id: generateMessageId(),
+      role: "user",
+      content,
+      timestamp: new Date(),
+    };
+
+    setMessages((prev) => [...prev, userMessage]);
+    addMessage(userMessage);
+
+    // Perform web search if requested (after user message is shown)
     let webSearchContext = "";
     let searchSources: SearchResult[] = [];
 
@@ -100,16 +111,6 @@ export function createMessageHandler({
       webSearchContext = searchResult.context;
       searchSources = searchResult.sources;
     }
-
-    const userMessage: Message = {
-      id: generateMessageId(),
-      role: "user",
-      content,
-      timestamp: new Date(),
-    };
-
-    setMessages((prev) => [...prev, userMessage]);
-    addMessage(userMessage);
 
     setIsGenerating(true);
     setStreamingContent("");

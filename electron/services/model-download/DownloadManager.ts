@@ -19,6 +19,10 @@ export interface DownloadTask {
   startTime: number;
 }
 
+export interface DownloadOptions {
+  huggingFaceToken?: string;
+}
+
 /**
  * Manages active downloads and progress tracking
  */
@@ -26,14 +30,22 @@ export class DownloadManager {
   private activeDownloads: Map<string, DownloadTask> = new Map();
   private downloadHistory: Map<string, DownloadProgress> = new Map();
   private mainWindow: BrowserWindow | null = null;
+  private huggingFaceToken: string | undefined;
 
-  constructor(private getModelsDir: () => string) {}
+  constructor(private getModelsDir: () => string) { }
 
   /**
    * Set the main window for IPC communication
    */
   setMainWindow(window: BrowserWindow) {
     this.mainWindow = window;
+  }
+
+  /**
+   * Set the HuggingFace token for authenticated downloads
+   */
+  setHuggingFaceToken(token: string | undefined) {
+    this.huggingFaceToken = token;
   }
 
   /**
@@ -123,11 +135,17 @@ export class DownloadManager {
     console.log(`Downloading ${model.displayName}...`);
     console.log(`URI: ${model.uri}`);
     console.log(`Target: ${modelsDir}`);
+    console.log(`HF Token: ${this.huggingFaceToken ? "Configured" : "Not set"}`);
 
     let lastUpdateTime = Date.now();
     let lastDownloadedBytes = 0;
 
-    const modelPath = await resolveModelFile(model.uri, {
+    // Build download options with token if available
+    const downloadOptions: {
+      directory: string;
+      onProgress: (status: { downloadedSize: number; totalSize: number }) => void;
+      tokens?: { huggingFace?: string };
+    } = {
       directory: modelsDir,
       onProgress: (status) => {
         const currentTime = Date.now();
@@ -158,7 +176,16 @@ export class DownloadManager {
         lastUpdateTime = currentTime;
         lastDownloadedBytes = totalDownloaded;
       },
-    });
+    };
+
+    // Add HuggingFace token if available
+    if (this.huggingFaceToken) {
+      downloadOptions.tokens = {
+        huggingFace: this.huggingFaceToken,
+      };
+    }
+
+    const modelPath = await resolveModelFile(model.uri, downloadOptions);
 
     return modelPath;
   }

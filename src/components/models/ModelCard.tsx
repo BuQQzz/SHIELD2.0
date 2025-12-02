@@ -12,6 +12,7 @@ import {
   Cpu,
   Database,
   Trash2,
+  Lock,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { CapabilityBadgeGroup } from "./CapabilityBadge";
@@ -67,6 +68,15 @@ export function ModelCard({
             {model.capabilities.toolCalling && (
               <span className="text-xs px-1.5 py-0.5 rounded-full bg-green-100 dark:bg-green-950 text-green-700 dark:text-green-300 font-medium">
                 ⚡ Premium
+              </span>
+            )}
+            {model.requiresAuth && (
+              <span
+                className="text-xs px-1.5 py-0.5 rounded-full bg-amber-100 dark:bg-amber-950 text-amber-700 dark:text-amber-300 font-medium flex items-center gap-1"
+                title="Requires HuggingFace token"
+              >
+                <Lock className="h-3 w-3" />
+                Gated
               </span>
             )}
           </div>

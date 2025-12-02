@@ -13,6 +13,7 @@ export interface SystemSettings {
   confirmDelete: boolean;
   theme: "light" | "dark" | "system";
   modelDirectory?: string; // Custom directory for model storage
+  huggingFaceToken?: string; // HuggingFace API token for gated models (stored securely)
 }
 
 export interface PrivacySettings {
@@ -61,6 +62,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
     confirmDelete: true,
     theme: "system",
     modelDirectory: undefined, // Use default (userData/models)
+    huggingFaceToken: undefined, // User's HuggingFace token
   },
   privacy: {
     telemetry: false,

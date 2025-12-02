@@ -49,6 +49,13 @@ class ModelDownloadService {
   }
 
   /**
+   * Set HuggingFace token for authenticated downloads
+   */
+  setHuggingFaceToken(token: string | undefined) {
+    this.downloadManager.setHuggingFaceToken(token);
+  }
+
+  /**
    * Set the main window for IPC communication
    */
   setMainWindow(window: BrowserWindow) {

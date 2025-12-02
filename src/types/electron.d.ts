@@ -361,6 +361,9 @@ export interface ModelDownloadAPI {
     error?: string;
   }>;
   onProgress: (callback: (progress: DownloadProgress) => void) => () => void;
+  setHfToken: (
+    token: string | undefined
+  ) => Promise<{ success: boolean; error?: string }>;
 }
 
 export interface SystemAPI {

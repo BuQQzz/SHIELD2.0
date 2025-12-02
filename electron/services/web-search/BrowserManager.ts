@@ -45,6 +45,13 @@ const USER_AGENTS = [
 ];
 
 /**
+ * Utility to yield to event loop - prevents UI freezing
+ */
+function yieldToEventLoop(): Promise<void> {
+  return new Promise((resolve) => setImmediate(resolve));
+}
+
+/**
  * Manages browser instance and privacy-focused page creation
  */
 export class BrowserManager {
@@ -53,11 +60,14 @@ export class BrowserManager {
 
   /**
    * Initialize the browser instance for web scraping
+   * Uses event loop yielding to prevent UI freezing
    */
   async initialize(): Promise<void> {
     if (this.isInitialized) return;
 
     try {
+      await yieldToEventLoop(); // Allow UI to update before heavy operation
+
       this.browser = await chromium.launch({
         headless: true,
         args: [
@@ -70,6 +80,8 @@ export class BrowserManager {
           "--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
         ],
       });
+
+      await yieldToEventLoop(); // Allow UI to update after browser launch
       this.isInitialized = true;
       console.log("[WebSearch] Browser initialized");
     } catch (error) {
@@ -121,7 +133,7 @@ export class BrowserManager {
       (window.navigator.permissions as any).query = (parameters: any) =>
         parameters.name === "notifications"
           ? // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            Promise.resolve({ state: Notification.permission as any })
+          Promise.resolve({ state: Notification.permission as any })
           : originalQuery(parameters);
     });
 

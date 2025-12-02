@@ -340,6 +340,7 @@ const modelDownloadAPI: ModelDownloadAPI = {
       ipcRenderer.removeListener("model:download-progress", handler);
     };
   },
+  setHfToken: (token) => ipcRenderer.invoke("model:set-hf-token", token),
 };
 
 const systemAPI: SystemAPI = {

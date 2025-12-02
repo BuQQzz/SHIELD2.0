@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Moon, Sun, Monitor, Check, FolderOpen } from "lucide-react";
 import { useState } from "react";
 import { Input } from "@/components/ui/input";
+import { HuggingFaceTokenInput } from "./HuggingFaceTokenInput";
 
 interface SystemSettingsProps {
   settings: SystemSettingsType;
@@ -71,6 +72,10 @@ export function SystemSettings({
 
   const handleClearDirectory = () => {
     updateSettings({ system: { ...settings, modelDirectory: undefined } });
+  };
+
+  const handleHfTokenSave = (token: string | undefined) => {
+    updateSettings({ system: { ...settings, huggingFaceToken: token } });
   };
 
   return (
@@ -204,6 +209,11 @@ export function SystemSettings({
           folder.
         </p>
       </div>
+
+      <HuggingFaceTokenInput
+        token={settings.huggingFaceToken}
+        onSave={handleHfTokenSave}
+      />
     </div>
   );
 }

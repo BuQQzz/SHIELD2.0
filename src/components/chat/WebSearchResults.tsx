@@ -1,5 +1,6 @@
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import { Globe, ExternalLink, Clock, CheckCircle2 } from "lucide-react";
+import { SearchingIndicator } from "./SearchingIndicator";
 import type { SearchResult } from "@/types/electron";
 
 interface WebSearchResultsProps {
@@ -13,21 +14,9 @@ export function WebSearchResults({
 }: WebSearchResultsProps) {
   if (isSearching) {
     return (
-      <motion.div
-        initial={{ opacity: 0, y: -10 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="mb-4 rounded-lg border bg-muted/30 p-3"
-      >
-        <div className="flex items-center gap-2 text-sm text-muted-foreground">
-          <motion.div
-            animate={{ rotate: 360 }}
-            transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
-          >
-            <Globe className="h-4 w-4" />
-          </motion.div>
-          <span>Searching the web...</span>
-        </div>
-      </motion.div>
+      <AnimatePresence>
+        <SearchingIndicator className="mb-4" />
+      </AnimatePresence>
     );
   }
 

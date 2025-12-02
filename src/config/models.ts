@@ -75,6 +75,8 @@ export interface ModelMetadata {
   isInstalled?: boolean;
   /** Download progress (0-100) if downloading */
   downloadProgress?: number;
+  /** Requires HuggingFace authentication (gated model) */
+  requiresAuth?: boolean;
 }
 
 /**
@@ -157,6 +159,7 @@ export const MODEL_CATALOG: ModelMetadata[] = [
       "🌟 Meta's flagship model with native tool calling. Exceptional reasoning and coding.",
     contextSize: 131072,
     provider: "Meta",
+    requiresAuth: true,
     releaseDate: "2024-12",
     chatTemplate: "llama",
     capabilities: {
@@ -334,6 +337,7 @@ export const MODEL_CATALOG: ModelMetadata[] = [
     description: "Faster responses, smaller model, good for quick tasks",
     contextSize: 4096,
     provider: "Meta",
+    requiresAuth: true,
     releaseDate: "2024-09",
     chatTemplate: "llama",
     capabilities: {
@@ -364,6 +368,7 @@ export const MODEL_CATALOG: ModelMetadata[] = [
       "Ultra-fast responses, minimal resource usage. Perfect for testing.",
     contextSize: 4096,
     provider: "Meta",
+    requiresAuth: true,
     releaseDate: "2024-09",
     chatTemplate: "llama",
     capabilities: {

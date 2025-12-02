@@ -16,6 +16,13 @@ import { SearchProvider, type SearchResult } from "./web-search/SearchProvider";
 
 export type { SearchResult, PageContent, PrivacyOptions };
 
+/**
+ * Utility to yield to event loop - prevents UI freezing
+ */
+function yieldToEventLoop(): Promise<void> {
+  return new Promise((resolve) => setImmediate(resolve));
+}
+
 export class WebSearchService {
   private browserManager: BrowserManager;
   private contentExtractor: ContentExtractor;
@@ -36,6 +43,7 @@ export class WebSearchService {
 
   /**
    * Search DuckDuckGo with privacy focus (no API key required)
+   * Uses event loop yielding to prevent UI freezing
    */
   async search(
     query: string,
@@ -43,6 +51,7 @@ export class WebSearchService {
     options: PrivacyOptions = {}
   ): Promise<SearchResult[]> {
     await this.initialize();
+    await yieldToEventLoop(); // Allow UI to update
 
     const sanitizedQuery = this.searchProvider.sanitizeQuery(query);
 
@@ -50,6 +59,7 @@ export class WebSearchService {
 
     try {
       const page = await this.browserManager.createPrivacyPage(options);
+      await yieldToEventLoop(); // Allow UI to update after page creation
 
       // Navigate to DuckDuckGo HTML version (no JavaScript required)
       await page.goto(
@@ -59,6 +69,7 @@ export class WebSearchService {
           timeout: options.timeout || 15000,
         }
       );
+      await yieldToEventLoop(); // Allow UI to update after navigation
 
       // Extract search results
       const html = await page.content();
@@ -67,6 +78,7 @@ export class WebSearchService {
       console.log("[WebSearch] HTML snippet:", html.substring(0, 500));
 
       await page.close();
+      await yieldToEventLoop(); // Allow UI to update
 
       return this.searchProvider.parseSearchResults(html, maxResults);
     } catch (error) {
@@ -79,28 +91,33 @@ export class WebSearchService {
 
   /**
    * Fetch and extract clean content from a web page
+   * Uses event loop yielding to prevent UI freezing
    */
   async fetchPage(
     url: string,
     options: PrivacyOptions = {}
   ): Promise<PageContent> {
     await this.initialize();
+    await yieldToEventLoop(); // Allow UI to update
 
     const cleanUrl = this.contentExtractor.removeTrackingParams(url);
     console.log(`[WebSearch] Fetching page: ${cleanUrl}`);
 
     try {
       const page = await this.browserManager.createPrivacyPage(options);
+      await yieldToEventLoop(); // Allow UI to update after page creation
 
       // Navigate to the page
       await page.goto(cleanUrl, {
         waitUntil: "domcontentloaded",
         timeout: options.timeout || 5000, // Reduced from 20s to 5s
       });
+      await yieldToEventLoop(); // Allow UI to update after navigation
 
       // Get page HTML
       const html = await page.content();
       const pageTitle = await page.title();
+      await yieldToEventLoop(); // Allow UI to update
 
       await page.close();
 

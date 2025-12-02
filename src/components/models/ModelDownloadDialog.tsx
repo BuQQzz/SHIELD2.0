@@ -6,7 +6,7 @@
  */
 
 import { useState, useMemo } from "react";
-import { Filter, Download } from "lucide-react";
+import { Filter, Download, AlertTriangle } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Dialog,
@@ -27,6 +27,7 @@ import { ModelCard } from "./ModelCard";
 import { DeleteModelDialog } from "./DeleteModelDialog";
 import { MODEL_CATALOG, type ModelMetadata } from "@/config/models";
 import { useModelDownload } from "@/hooks/useModelDownload";
+import { useSettingsStore } from "@/store/settingsStore";
 import { cn } from "@/lib/utils";
 
 interface ModelDownloadDialogProps {
@@ -46,6 +47,10 @@ export function ModelDownloadDialog({
     null
   );
   const [isDeleting, setIsDeleting] = useState(false);
+
+  // Check for HuggingFace token
+  const { settings } = useSettingsStore();
+  const hasHfToken = Boolean(settings.system.huggingFaceToken);
 
   // Use download hook
   const {
@@ -149,6 +154,10 @@ export function ModelDownloadDialog({
     return { premium, standard, efficient };
   }, [filteredModels]);
 
+  // Check if any displayed models require authentication
+  const hasGatedModels = filteredModels.some((m) => m.requiresAuth);
+  const showAuthWarning = hasGatedModels && !hasHfToken;
+
   const totalModels = MODEL_CATALOG.length;
   const installedCount = installedModels.size;
   const toolCallingCount = MODEL_CATALOG.filter(
@@ -218,6 +227,22 @@ export function ModelDownloadDialog({
                 )}
               />
             </div>
+
+            {/* Gated Model Warning */}
+            {showAuthWarning && (
+              <div className="mt-3 flex items-start gap-2 p-3 rounded-md bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800">
+                <AlertTriangle className="h-4 w-4 text-amber-600 dark:text-amber-400 mt-0.5 shrink-0" />
+                <div className="flex-1 text-sm">
+                  <p className="text-amber-800 dark:text-amber-200 font-medium">
+                    Some models require HuggingFace authentication
+                  </p>
+                  <p className="text-amber-700 dark:text-amber-300 text-xs mt-0.5">
+                    Models marked with 🔒 Gated need a HuggingFace token. Add
+                    your token in Settings → System.
+                  </p>
+                </div>
+              </div>
+            )}
           </DialogHeader>
 
           {/* Model Grid */}
