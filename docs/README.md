@@ -65,6 +65,13 @@ Welcome to the SHIELD 2.0 documentation! This directory contains comprehensive g
 - React.memo and useCallback optimizations
 - See [PERFORMANCE.md](./PERFORMANCE.md) for details
 
+### HuggingFace Authentication (December 2025)
+
+- **Gated Model Support**: Download protected models like Meta Llama
+- **Secure Token Storage**: HuggingFace token stored locally in settings
+- **Visual Indicators**: 🔒 Gated badge and warning banners in download dialog
+- See [MODEL_DOWNLOAD.md](./features/MODEL_DOWNLOAD.md) for setup instructions
+
 ### Documentation Reorganization (November 2025)
 
 - Moved ROADMAP.md and CONTRIBUTING.md to docs/ folder

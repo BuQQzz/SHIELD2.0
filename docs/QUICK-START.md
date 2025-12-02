@@ -90,6 +90,19 @@ Remove-Item -Recurse -Force models/*
 npm run dev:electron
 ```
 
+### "401 Unauthorized" for Model Downloads
+
+**Cause**: Some models (like Meta Llama) are "gated" and require HuggingFace authentication.
+
+**Solution**:
+1. Create a HuggingFace account at [huggingface.co](https://huggingface.co)
+2. Go to the model page and accept the license agreement
+3. Generate a token at [huggingface.co/settings/tokens](https://huggingface.co/settings/tokens)
+4. Enable: **"Read access to contents of all public gated repos you can access"**
+5. In SHIELD 2.0: **Settings → System → HuggingFace Token** → paste token → Save
+
+Models marked with 🔒 **Gated** in the download dialog require this setup.
+
 ### "App won't start"
 
 **Check**: Node.js version is 18+

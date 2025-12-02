@@ -222,19 +222,19 @@ external: [
 
 #### 2. Chat Integration
 
-- [ ] Add web search toggle to ChatInput
-- [ ] Implement search results display
-- [ ] Add source attribution to AI responses
-- [ ] Show cached vs. fresh content indicator
-- [ ] Add loading states for search/fetch
+- [x] Add web search toggle to ChatInput
+- [x] Implement search results display
+- [x] Add source attribution to AI responses
+- [x] Show cached vs. fresh content indicator
+- [x] Add loading states for search/fetch
+- [x] Add animated searching indicator (December 2025)
 
-#### 3. UI Components to Create
+#### 3. UI Components Created
 
-- `WebSearchSettings.tsx` - Settings panel
-- `WebSearchToggle.tsx` - Chat input toggle
-- `SearchResults.tsx` - Display search results
-- `SourceAttribution.tsx` - Show sources in responses
-- `CacheManager.tsx` - Manage cached content
+- `WebSearchSettings.tsx` - Settings panel ✅
+- `WebSearchToggle.tsx` - Chat input toggle ✅
+- `WebSearchResults.tsx` - Display search results with source links ✅
+- `SearchingIndicator.tsx` - Animated loading indicator during web search ✅
 
 #### 4. Testing
 

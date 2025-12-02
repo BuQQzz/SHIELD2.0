@@ -163,6 +163,26 @@ npm run dev:electron
 - Allow Node.js through Windows Firewall
 - Allow connections to huggingface.co
 
+#### 401 Unauthorized Error
+
+**Symptoms:** Download fails with "401 Unauthorized" error message.
+
+**Cause:** The model is "gated" and requires HuggingFace authentication. Models like Meta's Llama require you to accept a license agreement and provide an access token.
+
+**Solution:**
+
+1. **Accept License**: Go to the model's HuggingFace page and accept the license agreement
+2. **Create Token**: Visit [huggingface.co/settings/tokens](https://huggingface.co/settings/tokens)
+3. **Set Permission**: Enable "Read access to contents of all public gated repos you can access"
+4. **Add to SHIELD**: Go to **Settings → System → HuggingFace Token**, paste your token, and click Save
+
+**Gated models in SHIELD:**
+- Llama 3.3 70B Instruct
+- Llama 3.2 3B Instruct  
+- Llama 3.2 1B Instruct
+
+These models show a 🔒 **Gated** badge in the download dialog.
+
 #### Download Progress Not Showing
 
 **Symptoms:** No progress indicator during download.

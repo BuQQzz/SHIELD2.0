@@ -17,8 +17,35 @@ The Model Download Feature allows users to browse, download, and manage AI model
   - 🌍 Multilingual Support (orange)
   - 🧠 Complex Reasoning (indigo)
   - 📋 Structured Output (cyan)
+- **Gated Model Indicators**: 🔒 Gated badge for models requiring HuggingFace authentication
 
-### 2. Model Browser Dialog
+### 2. HuggingFace Authentication
+
+Some models (like Meta's Llama) are "gated" and require HuggingFace authentication to download.
+
+#### Setting Up Authentication
+
+1. Create a HuggingFace account at [huggingface.co](https://huggingface.co)
+2. Accept the model license agreement on the model's page (e.g., for Llama models)
+3. Generate an access token at [huggingface.co/settings/tokens](https://huggingface.co/settings/tokens)
+4. Enable the permission: **"Read access to contents of all public gated repos you can access"**
+5. In SHIELD 2.0, go to **Settings → System → HuggingFace Token**
+6. Paste your token and click **Save**
+
+#### Gated Models
+
+The following models require authentication:
+- Llama 3.3 70B Instruct
+- Llama 3.2 3B Instruct
+- Llama 3.2 1B Instruct
+
+#### Visual Indicators
+
+- **🔒 Gated Badge**: Appears next to model names that require authentication
+- **Warning Banner**: Shows in download dialog when gated models are visible but no token is configured
+- **Token Status**: Token is securely stored locally and synced automatically on app startup
+
+### 3. Model Browser Dialog
 
 - **Access**: Click "Browse & Download Models" button in the Model Selector dropdown
 - **Filtering**:
@@ -128,6 +155,7 @@ Model Download Flow:
 - `model:is-installed` - Check if specific model exists
 - `model:delete` - Delete model file
 - `model:get-disk-space` - Calculate total model storage
+- `model:set-hf-token` - Set HuggingFace authentication token
 - `model:download-progress` - Real-time progress events (event emitter)
 
 ## Model Catalog
@@ -171,6 +199,7 @@ Edit `src/config/models.ts`:
   size: '4.9GB',
   releaseDate: '2024-12',
   contextSize: 131072,
+  requiresAuth: true, // Set to true for gated models (e.g., Meta Llama)
   hardware: {
     minVRAM: 8,
     minRAM: 16,
