@@ -1,6 +1,5 @@
 "use client";
 
-import { Shield } from "lucide-react";
 import { motion } from "framer-motion";
 
 const SUGGESTED_PROMPTS = [
@@ -29,7 +28,11 @@ export function ChatPlaceholder({ onPromptClick }: ChatPlaceholderProps) {
         transition={{ duration: 0.5, delay: 0.2 }}
         className="mb-6 flex flex-col items-center gap-4"
       >
-        <Shield className="h-16 w-16 text-primary" />
+        <img
+          src="/shield-logo.png"
+          alt="SHIELD Logo"
+          className="h-20 w-20 object-contain"
+        />
         <div className="text-center">
           <h1 className="text-3xl font-bold">SHIELD 2.0</h1>
           <p className="mt-2 text-muted-foreground">

@@ -1,7 +1,6 @@
 "use client";
 
 import {
-  Shield,
   Plus,
   Search,
   PanelLeft,
@@ -86,7 +85,11 @@ export function Sidebar({
             {!sidebarCollapsed ? (
               <>
                 <div className="flex items-center gap-2">
-                  <Shield className="h-6 w-6 text-primary" />
+                  <img
+                    src="/shield-logo.png"
+                    alt="SHIELD Logo"
+                    className="h-6 w-6 object-contain"
+                  />
                   <span className="font-semibold">SHIELD 2.0</span>
                 </div>
                 <button

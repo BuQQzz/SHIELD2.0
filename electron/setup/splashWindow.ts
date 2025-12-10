@@ -108,6 +108,7 @@ export function createSplashWindow(): BrowserWindow {
       </head>
       <body>
         <div class="splash-container">
+          <img src="file://${path.join(__dirname, "../../public/shield-logo.png").replace(/\\/g, "/")}" alt="SHIELD Logo" style="width: 80px; height: 80px; margin-bottom: 16px; object-fit: contain;" />
           <div class="logo">SHIELD 2.0</div>
           <div class="tagline">Privacy-First AI Assistant</div>
           <div class="status" id="status">Initializing...</div>
