@@ -381,7 +381,8 @@ const autoUpdateAPI: AutoUpdateAPI = {
       progress: UpdateProgress
     ) => callback(progress);
     ipcRenderer.on("update-download-progress", handler);
-    return () => ipcRenderer.removeListener("update-download-progress", handler);
+    return () =>
+      ipcRenderer.removeListener("update-download-progress", handler);
   },
   onUpdateDownloaded: (callback) => {
     const handler = (_event: Electron.IpcRendererEvent, info: UpdateInfo) =>

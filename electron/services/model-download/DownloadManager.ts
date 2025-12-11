@@ -32,7 +32,7 @@ export class DownloadManager {
   private mainWindow: BrowserWindow | null = null;
   private huggingFaceToken: string | undefined;
 
-  constructor(private getModelsDir: () => string) { }
+  constructor(private getModelsDir: () => string) {}
 
   /**
    * Set the main window for IPC communication
@@ -135,7 +135,9 @@ export class DownloadManager {
     console.log(`Downloading ${model.displayName}...`);
     console.log(`URI: ${model.uri}`);
     console.log(`Target: ${modelsDir}`);
-    console.log(`HF Token: ${this.huggingFaceToken ? "Configured" : "Not set"}`);
+    console.log(
+      `HF Token: ${this.huggingFaceToken ? "Configured" : "Not set"}`
+    );
 
     let lastUpdateTime = Date.now();
     let lastDownloadedBytes = 0;
@@ -143,7 +145,10 @@ export class DownloadManager {
     // Build download options with token if available
     const downloadOptions: {
       directory: string;
-      onProgress: (status: { downloadedSize: number; totalSize: number }) => void;
+      onProgress: (status: {
+        downloadedSize: number;
+        totalSize: number;
+      }) => void;
       tokens?: { huggingFace?: string };
     } = {
       directory: modelsDir,

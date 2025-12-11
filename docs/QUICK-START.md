@@ -95,6 +95,7 @@ npm run dev:electron
 **Cause**: Some models (like Meta Llama) are "gated" and require HuggingFace authentication.
 
 **Solution**:
+
 1. Create a HuggingFace account at [huggingface.co](https://huggingface.co)
 2. Go to the model page and accept the license agreement
 3. Generate a token at [huggingface.co/settings/tokens](https://huggingface.co/settings/tokens)

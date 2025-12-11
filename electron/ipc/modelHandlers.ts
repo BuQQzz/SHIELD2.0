@@ -130,17 +130,20 @@ export function registerModelHandlers() {
   });
 
   // Set HuggingFace token for authenticated downloads
-  ipcMain.handle("model:set-hf-token", async (_event, token: string | undefined) => {
-    try {
-      modelDownloadService.setHuggingFaceToken(token);
-      return { success: true };
-    } catch (error) {
-      return {
-        success: false,
-        error: error instanceof Error ? error.message : "Unknown error",
-      };
+  ipcMain.handle(
+    "model:set-hf-token",
+    async (_event, token: string | undefined) => {
+      try {
+        modelDownloadService.setHuggingFaceToken(token);
+        return { success: true };
+      } catch (error) {
+        return {
+          success: false,
+          error: error instanceof Error ? error.message : "Unknown error",
+        };
+      }
     }
-  });
+  );
 
   return modelDownloadService;
 }

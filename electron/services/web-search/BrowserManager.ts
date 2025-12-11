@@ -133,7 +133,7 @@ export class BrowserManager {
       (window.navigator.permissions as any).query = (parameters: any) =>
         parameters.name === "notifications"
           ? // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          Promise.resolve({ state: Notification.permission as any })
+            Promise.resolve({ state: Notification.permission as any })
           : originalQuery(parameters);
     });
 

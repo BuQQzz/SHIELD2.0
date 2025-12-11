@@ -35,6 +35,7 @@ Some models (like Meta's Llama) are "gated" and require HuggingFace authenticati
 #### Gated Models
 
 The following models require authentication:
+
 - Llama 3.3 70B Instruct
 - Llama 3.2 3B Instruct
 - Llama 3.2 1B Instruct

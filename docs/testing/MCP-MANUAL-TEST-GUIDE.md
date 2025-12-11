@@ -12,6 +12,7 @@ Since automated testing through Playwright has some complexity with the Electron
 ## Manual Test Steps
 
 ### Test 1: Locate MCP Settings
+
 1. Look for the **Settings** button (gear icon) in the app header
 2. Click the Settings button
 3. Look for the **MCP** tab in the settings dialog
@@ -20,6 +21,7 @@ Since automated testing through Playwright has some complexity with the Electron
 **Expected Result**: MCP settings panel should be visible
 
 ### Test 2: Verify MCP Toggle
+
 1. In the MCP settings panel, locate the **Enable MCP** toggle
 2. Note the current state (ON/OFF)
 3. Click the toggle to change the state
@@ -28,6 +30,7 @@ Since automated testing through Playwright has some complexity with the Electron
 **Expected Result**: Toggle should switch states smoothly
 
 ### Test 3: Check MCP Configuration
+
 1. While in MCP settings, look for configuration options:
    - Allowed directories (Documents, Desktop)
    - Server whitelist
@@ -36,6 +39,7 @@ Since automated testing through Playwright has some complexity with the Electron
 **Expected Result**: Configuration UI should be clear and accessible
 
 ### Test 4: Test Status Indicator
+
 1. Close the settings dialog
 2. Look at the app header/status area
 3. Check for any MCP status indicator
@@ -43,6 +47,7 @@ Since automated testing through Playwright has some complexity with the Electron
 **Expected Result**: Status should reflect whether MCP is enabled
 
 ### Test 5: Console Check (Advanced)
+
 1. In the running Electron app, press `Ctrl+Shift+I` to open DevTools
 2. Go to the **Console** tab
 3. Look for any MCP-related logs
@@ -63,13 +68,13 @@ Tests:       27 passed, 27 total
 
 ### Integration Verification ✅ COMPLETED
 
-| Component | Status | Notes |
-|-----------|--------|-------|
-| MCPService.ts | ✅ | Singleton pattern, proper initialization |
-| MCPServerConfig.ts | ✅ | Security config, path validation |
-| mcpHandlers.ts | ✅ | 9 IPC handlers registered |
-| useMCP.ts | ✅ | React hook for MCP interaction |
-| MCPSettings.tsx | ✅ | Settings UI component |
+| Component          | Status | Notes                                    |
+| ------------------ | ------ | ---------------------------------------- |
+| MCPService.ts      | ✅     | Singleton pattern, proper initialization |
+| MCPServerConfig.ts | ✅     | Security config, path validation         |
+| mcpHandlers.ts     | ✅     | 9 IPC handlers registered                |
+| useMCP.ts          | ✅     | React hook for MCP interaction           |
+| MCPSettings.tsx    | ✅     | Settings UI component                    |
 
 ### Security Tests ✅ PASSED
 
@@ -85,6 +90,7 @@ Tests:       27 passed, 27 total
 ## What to Look For
 
 ### ✅ Good Signs
+
 - Toggle works smoothly
 - Settings persist after closing
 - No console errors
@@ -92,6 +98,7 @@ Tests:       27 passed, 27 total
 - Status indicators update correctly
 
 ### ❌ Warning Signs
+
 - Toggle doesn't respond
 - Settings don't save
 - Console shows errors
@@ -117,6 +124,7 @@ Use this checklist while manually testing:
 ## Screenshot Reference
 
 Take screenshots at these steps:
+
 1. Initial app state
 2. Settings dialog open
 3. MCP tab selected
@@ -130,12 +138,15 @@ Take screenshots at these steps:
 After testing, please note:
 
 **Working Features**:
+
 - (List what works)
 
 **Issues Found**:
+
 - (List any problems)
 
 **Visual Observations**:
+
 - (Describe UI appearance, animations, etc.)
 
 ## Advanced Testing (Optional)
@@ -154,6 +165,7 @@ If you want to test actual MCP functionality:
 ## Technical Details
 
 ### MCP SDK Versions
+
 ```json
 {
   "@modelcontextprotocol/sdk": "^1.21.0",
@@ -162,19 +174,21 @@ If you want to test actual MCP functionality:
 ```
 
 ### IPC Handlers Available
+
 ```typescript
-mcp:get-status          // Check if MCP is running
-mcp:connect             // Connect to MCP server
-mcp:disconnect          // Disconnect from server
-mcp:get-capabilities    // Get available tools
-mcp:call-tool           // Execute an MCP tool
-mcp:list-tools          // List all tools
-mcp:get-config          // Get configuration
-mcp:save-config         // Save configuration
-mcp:validate-path       // Validate file path access
+mcp: get - status; // Check if MCP is running
+mcp: connect; // Connect to MCP server
+mcp: disconnect; // Disconnect from server
+mcp: get - capabilities; // Get available tools
+mcp: call - tool; // Execute an MCP tool
+mcp: list - tools; // List all tools
+mcp: get - config; // Get configuration
+mcp: save - config; // Save configuration
+mcp: validate - path; // Validate file path access
 ```
 
 ### Security Model
+
 - **Whitelist Only**: Only approved servers can be added
 - **Path Restrictions**: Only Documents and Desktop accessible
 - **User Approval**: Explicit permission required for operations
@@ -192,6 +206,7 @@ Please follow the checklist above and report any issues found!
 ---
 
 **Questions?** Check these files:
+
 - `docs/mcp-integration.md` - MCP documentation
 - `electron/services/MCPService.ts` - Main MCP service
 - `src/hooks/useMCP.ts` - Frontend MCP hook

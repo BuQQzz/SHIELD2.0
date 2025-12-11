@@ -13,10 +13,10 @@ SHIELD 2.0 uses [electron-builder](https://www.electron.build/) to create Window
 
 ## Build Output Formats
 
-| Format | Description | Use Case |
-|--------|-------------|----------|
+| Format             | Description                          | Use Case                                        |
+| ------------------ | ------------------------------------ | ----------------------------------------------- |
 | **NSIS Installer** | Traditional Windows installer (.exe) | Standard installation with Start Menu shortcuts |
-| **Portable** | Single .exe file, no installation | Run from USB or without admin rights |
+| **Portable**       | Single .exe file, no installation    | Run from USB or without admin rights            |
 
 ## Prerequisites
 
@@ -73,12 +73,12 @@ nsis:
 
 ### Key Configuration Options
 
-| Option | Value | Description |
-|--------|-------|-------------|
-| `appId` | `com.cavira.shield2` | Unique application identifier |
-| `productName` | `SHIELD 2.0` | Display name in Windows |
-| `oneClick` | `false` | Shows installation wizard |
-| `perMachine` | `true` | Installs for all users |
+| Option        | Value                | Description                   |
+| ------------- | -------------------- | ----------------------------- |
+| `appId`       | `com.cavira.shield2` | Unique application identifier |
+| `productName` | `SHIELD 2.0`         | Display name in Windows       |
+| `oneClick`    | `false`              | Shows installation wizard     |
+| `perMachine`  | `true`               | Installs for all users        |
 
 ## Auto-Updates
 
@@ -113,6 +113,7 @@ Custom icons are stored in the `build/` directory:
 - `build/icon.png` - Fallback PNG icon
 
 To change icons:
+
 1. Replace files in `build/`
 2. Rebuild the application
 
@@ -134,6 +135,7 @@ Users download models through the in-app model manager after installation. This 
 ### Build Fails with "Cannot find module"
 
 Ensure all dependencies are installed:
+
 ```powershell
 npm ci
 ```
@@ -141,8 +143,9 @@ npm ci
 ### App Shows White Screen After Install
 
 Check that production paths are correct in `electron/setup/windowSetup.ts`. The packaged app uses:
+
 ```typescript
-path.join(__dirname, "../dist/index.html")
+path.join(__dirname, "../dist/index.html");
 ```
 
 ### Auto-Update Not Working
@@ -154,6 +157,7 @@ path.join(__dirname, "../dist/index.html")
 ### Large Installer Size
 
 The installer includes:
+
 - Electron runtime (~150 MB)
 - Node.js native modules
 - Web search dependencies (Playwright, jsdom)
@@ -163,12 +167,12 @@ This is normal for Electron apps with full-featured capabilities.
 
 ## Development vs Production
 
-| Feature | Development | Production |
-|---------|-------------|------------|
-| DevTools | Auto-opens | Disabled |
-| Hot Reload | Enabled | Disabled |
-| Source Maps | Included | Excluded |
-| Updates | Manual | Auto-check |
+| Feature     | Development | Production |
+| ----------- | ----------- | ---------- |
+| DevTools    | Auto-opens  | Disabled   |
+| Hot Reload  | Enabled     | Disabled   |
+| Source Maps | Included    | Excluded   |
+| Updates     | Manual      | Auto-check |
 
 ## Security Considerations
 

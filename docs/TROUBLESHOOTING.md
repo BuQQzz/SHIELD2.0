@@ -177,8 +177,9 @@ npm run dev:electron
 4. **Add to SHIELD**: Go to **Settings → System → HuggingFace Token**, paste your token, and click Save
 
 **Gated models in SHIELD:**
+
 - Llama 3.3 70B Instruct
-- Llama 3.2 3B Instruct  
+- Llama 3.2 3B Instruct
 - Llama 3.2 1B Instruct
 
 These models show a 🔒 **Gated** badge in the download dialog.
