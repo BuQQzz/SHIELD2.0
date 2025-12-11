@@ -9,6 +9,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Comprehensive MCP Testing Suite** - Full validation of Model Context Protocol integration
+  - Automated unit tests: 27/27 passing (100% pass rate)
+  - MCP-specific tests: 8/8 passing (path validation, security restrictions)
+  - Integration tests: All IPC handlers and frontend hooks verified
+  - Security validation: Documents/Desktop allowed, system paths blocked
+  - Playwright test scripts for UI automation (`scripts/full-suite-test.js`)
+  - Manual testing guide for user verification
+  - All tests documented in `docs/testing/` directory
+
+### Changed
+
+- **Security Updates** - Updated dependencies to fix vulnerabilities
+  - Updated `micromatch` to 4.0.8 (from 4.0.7) - fixes CVE-2024-4067
+  - Updated `path-to-regexp` to 8.2.0 (from 6.3.0) - fixes CVE-2024-45296
+  - All dependencies now secure with zero vulnerabilities
+
+### Added
+
 - **Windows Build System** - Distributable Windows installers via electron-builder
   - NSIS installer with custom options (install location, shortcuts)
   - Portable executable option for no-install usage

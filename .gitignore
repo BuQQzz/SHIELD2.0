@@ -76,6 +76,11 @@ temp/
 coverage/
 .nyc_output/
 
+# Test artifacts
+test-screenshots/
+playwright-report/
+test-results/
+
 # Cache
 .cache/
 .parcel-cache/
