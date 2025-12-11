@@ -5,6 +5,14 @@ import fs from "fs";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
+function getWindowIconPath(): string {
+  if (process.env.VITE_DEV_SERVER_URL) {
+    return path.join(process.cwd(), "public", "shield-logo.png");
+  }
+
+  return path.join(__dirname, "../dist/shield-logo.png");
+}
+
 /**
  * Create the main application window
  */
@@ -21,6 +29,7 @@ export function createMainWindow(): BrowserWindow {
     height: 800,
     minWidth: 800,
     minHeight: 600,
+    icon: getWindowIconPath(),
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true,

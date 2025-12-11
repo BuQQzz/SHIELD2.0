@@ -4,6 +4,14 @@ import { fileURLToPath } from "url";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
+function getSplashLogoPath(): string {
+  if (process.env.VITE_DEV_SERVER_URL) {
+    return path.join(process.cwd(), "public", "shield-logo.png");
+  }
+
+  return path.join(__dirname, "../dist/shield-logo.png");
+}
+
 /**
  * Create a lightweight splash screen window
  * Shows during app initialization before main window
@@ -16,6 +24,7 @@ export function createSplashWindow(): BrowserWindow {
     frame: false,
     alwaysOnTop: true,
     resizable: false,
+    icon: getSplashLogoPath(),
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true,
@@ -25,6 +34,8 @@ export function createSplashWindow(): BrowserWindow {
 
   // Simple HTML splash screen with SHIELD branding
   // Uses dark gradient matching app's monochromatic theme
+  const logoFileUrl = `file://${getSplashLogoPath().replace(/\\/g, "/")}`;
+
   const splashHTML = `
     <!DOCTYPE html>
     <html>
@@ -112,7 +123,7 @@ export function createSplashWindow(): BrowserWindow {
       </head>
       <body>
         <div class="splash-container">
-          <img src="file://${path.join(__dirname, "../../public/shield-logo.png").replace(/\\/g, "/")}" alt="SHIELD Logo" style="width: 80px; height: 80px; margin-bottom: 16px; object-fit: contain;" />
+          <img src="${logoFileUrl}" alt="SHIELD Logo" style="width: 80px; height: 80px; margin-bottom: 16px; object-fit: contain;" />
           <div class="logo">SHIELD 2.0</div>
           <div class="tagline">Privacy-First AI Assistant</div>
           <div class="status" id="status">Initializing...</div>
@@ -120,15 +131,6 @@ export function createSplashWindow(): BrowserWindow {
             <div class="loader-bar"></div>
           </div>
         </div>
-        
-        <script>
-          const { ipcRenderer } = require('electron');
-          
-          // Listen for status updates from main process
-          ipcRenderer.on('splash:status', (_, message) => {
-            document.getElementById('status').textContent = message;
-          });
-        </script>
       </body>
     </html>
   `;
@@ -152,7 +154,11 @@ export function updateSplashStatus(
   message: string
 ): void {
   if (splash && !splash.isDestroyed()) {
-    splash.webContents.send("splash:status", message);
+    void splash.webContents.executeJavaScript(
+      `(() => { const el = document.getElementById('status'); if (el) el.textContent = ${JSON.stringify(
+        message
+      )}; })();`
+    );
   }
 }
 
