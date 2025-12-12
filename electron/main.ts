@@ -143,7 +143,6 @@ app.whenReady().then(async () => {
 
     // Show main window
     mainWindow.show();
-
   } catch (error) {
     console.error("[main] Error during app initialization:", error);
     app.quit();

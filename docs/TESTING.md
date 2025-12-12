@@ -14,14 +14,17 @@ Comprehensive testing documentation for SHIELD.
 **Location**: `src/**/*.test.ts`, `electron/**/*.test.ts`
 
 #### Chat Components (`src/components/chat/chat.test.ts`)
+
 - ✅ ChatLayout renders correctly
 - ✅ ChatPlaceholder displays when no messages
 
 #### Application Tests (`src/App.test.ts`)
+
 - ✅ App component renders without crashing
 - ✅ Theme system initializes correctly
 
 #### MCP Service Tests (`electron/services/MCPService.test.ts`)
+
 - ✅ Path validation for allowed directories (Documents, Desktop)
 - ✅ Path normalization (handles relative paths, ../, etc.)
 - ✅ Security restrictions (blocks system paths)
@@ -32,6 +35,7 @@ Comprehensive testing documentation for SHIELD.
 - ✅ Configuration management
 
 #### Audit Log Tests (`electron/services/AuditLogTypes.test.ts`)
+
 - ✅ Log entry creation and validation
 - ✅ Permission status tracking (allowed, denied, error)
 - ✅ Timestamp generation
@@ -42,6 +46,7 @@ Comprehensive testing documentation for SHIELD.
 - ✅ Privacy-safe logging (no sensitive data exposure)
 
 **Run Tests**:
+
 ```bash
 npm test              # Run all tests in watch mode
 npm run test:ui       # Run tests with UI
@@ -92,18 +97,20 @@ SHIELD Version: [VERSION]
 
 ### Test Results
 
-| Test Case | Status | Notes |
-|-----------|--------|-------|
-| Read File | ✅/❌ | |
-| Write File | ✅/❌ | |
-| List Directory | ✅/❌ | |
-| Search Files | ✅/❌ | |
-| Security Block | ✅/❌ | |
+| Test Case      | Status | Notes |
+| -------------- | ------ | ----- |
+| Read File      | ✅/❌  |       |
+| Write File     | ✅/❌  |       |
+| List Directory | ✅/❌  |       |
+| Search Files   | ✅/❌  |       |
+| Security Block | ✅/❌  |       |
 
 ### Issues Found
+
 - [List any issues]
 
 ### Additional Notes
+
 - [Any observations]
 ```
 
@@ -160,6 +167,7 @@ SHIELD Version: [VERSION]
    - Target: Stable (no memory leaks)
 
 **Tools**:
+
 - Windows Task Manager for memory/CPU
 - Chrome DevTools for renderer performance
 - Electron DevTools for IPC timing
@@ -171,6 +179,7 @@ SHIELD Version: [VERSION]
 **GitHub Actions**: `.github/workflows/test.yml`
 
 **Automated Checks**:
+
 - ✅ Lint (ESLint) - zero errors/warnings
 - ✅ Type checking (TypeScript)
 - ✅ Test suite execution (Vitest)
@@ -178,12 +187,14 @@ SHIELD Version: [VERSION]
 - ✅ Code formatting (Prettier)
 
 **Merge Requirements**:
+
 - All CI checks must pass ✅
 - No failing tests
 - No lint errors
 - Successful build
 
 **Pre-commit Checklist**:
+
 ```bash
 npm run format    # Format code with Prettier
 npm run lint      # Check for lint errors
@@ -201,9 +212,10 @@ npm run build     # Verify build succeeds
    - `src/components/Foo.tsx` → `src/components/Foo.test.ts`
 
 2. **Naming**: Use descriptive test names
+
    ```typescript
-   describe('FeatureName', () => {
-     it('should do something specific', () => {
+   describe("FeatureName", () => {
+     it("should do something specific", () => {
        // test
      });
    });
@@ -230,21 +242,25 @@ npm run build     # Verify build succeeds
 ## Debugging Tests
 
 **Run Single Test File**:
+
 ```bash
 npm test src/components/chat/chat.test.ts
 ```
 
 **Debug Mode**:
+
 ```bash
 npm test -- --inspect-brk
 ```
 
 **Vitest UI** (interactive test explorer):
+
 ```bash
 npm run test:ui
 ```
 
 **Coverage Report**:
+
 ```bash
 npm run test:coverage
 open coverage/index.html

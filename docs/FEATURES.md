@@ -17,6 +17,7 @@ Comprehensive guide to all features implemented in SHIELD.
 - **Conversation management** - Create, rename, delete conversations
 
 **Key Files**:
+
 - `electron/services/LlamaService.ts` - LLM inference engine
 - `src/hooks/useLlama.ts` - React integration
 - `src/stores/chat-store.ts` - Chat state management
@@ -31,6 +32,7 @@ Comprehensive guide to all features implemented in SHIELD.
 Privacy-first web search powered by DuckDuckGo with content extraction.
 
 **Features**:
+
 - ✅ DuckDuckGo HTML search (no API key required)
 - ✅ Privacy protection (tracker blocking, user agent rotation)
 - ✅ Content extraction with @mozilla/readability
@@ -39,12 +41,14 @@ Privacy-first web search powered by DuckDuckGo with content extraction.
 - ✅ Toggle on/off per message
 
 **Privacy Measures**:
+
 - Blocks 20+ tracking services (Google Analytics, Facebook Pixel, etc.)
 - Removes tracking parameters from URLs
 - No cookies, no referrer, DNT header enabled
 - User agent rotation for anonymity
 
 **Usage**:
+
 ```
 User: "What's the latest news about AI?" (with web search enabled)
 → System searches DuckDuckGo
@@ -53,6 +57,7 @@ User: "What's the latest news about AI?" (with web search enabled)
 ```
 
 **Key Files**:
+
 - `electron/services/WebSearchService.ts` - Search & extraction
 - `electron/services/WebCacheService.ts` - Result caching
 - `src/hooks/useWebSearch.ts` - React integration
@@ -67,6 +72,7 @@ User: "What's the latest news about AI?" (with web search enabled)
 Revolutionary tool-calling system that works with ANY LLM (no API requirements).
 
 **Features**:
+
 - ✅ Natural language file operations (read, write, list, search)
 - ✅ Model-agnostic intent detection (no function calling API needed)
 - ✅ Security-first design (permission dialogs, path restrictions)
@@ -75,6 +81,7 @@ Revolutionary tool-calling system that works with ANY LLM (no API requirements).
 - ✅ Built-in filesystem MCP server
 
 **How It Works**:
+
 1. User asks: "Read my todo.txt file"
 2. Intent detector analyzes message using NLP patterns
 3. Permission dialog shows user what will happen
@@ -82,12 +89,14 @@ Revolutionary tool-calling system that works with ANY LLM (no API requirements).
 5. All operations logged to audit trail
 
 **Security**:
+
 - Restricted to `Documents` and `Desktop` folders only
 - Explicit permission dialogs for every operation
 - Path validation prevents directory traversal
 - Comprehensive audit logging
 
 **Key Files**:
+
 - `electron/services/MCPService.ts` - MCP lifecycle management
 - `src/handlers/intentDetector.ts` - NLP pattern matching
 - `electron/services/AuditLogService.ts` - Operation tracking
@@ -100,18 +109,21 @@ Revolutionary tool-calling system that works with ANY LLM (no API requirements).
 **Status**: ✅ Production Ready
 
 **Export Features**:
+
 - Export single conversations to Markdown or JSON
 - Export all conversations at once
 - Markdown format includes metadata and formatting
 - JSON format preserves full conversation structure
 
 **Import Features**:
+
 - Import conversations from JSON exports
 - Validates conversation structure
 - Generates new unique IDs to prevent conflicts
 - Preserves all metadata and timestamps
 
 **Key Files**:
+
 - `electron/services/ExportService.ts` - Export logic
 - `src/components/dialogs/ExportDialog.tsx` - Export UI
 - `src/components/dialogs/ImportDialog.tsx` - Import UI
@@ -129,6 +141,7 @@ Revolutionary tool-calling system that works with ANY LLM (no API requirements).
 - Smooth transitions between themes
 
 **Key Files**:
+
 - `src/hooks/useTheme.ts` - Theme management
 - `src/components/theme/ThemeToggle.tsx` - Toggle UI
 
@@ -141,6 +154,7 @@ Revolutionary tool-calling system that works with ANY LLM (no API requirements).
 Organize conversations with custom tags for easy filtering and search.
 
 **Features**:
+
 - Create custom tags with colors
 - Add multiple tags per conversation
 - Filter conversations by tag
@@ -148,6 +162,7 @@ Organize conversations with custom tags for easy filtering and search.
 - Persistent storage
 
 **Key Files**:
+
 - `src/stores/conversation-store.ts` - Tag state management
 - `src/components/chat/Sidebar.tsx` - Tag UI
 
@@ -188,6 +203,7 @@ Comprehensive settings for customizing SHIELD behavior.
    - Theme selection
 
 **Key Files**:
+
 - `electron/services/SettingsService.ts` - Settings persistence
 - `src/store/settingsStore.ts` - Settings state
 - `src/components/settings/*` - Settings UI components
