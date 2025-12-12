@@ -124,7 +124,7 @@ export function createSplashWindow(): BrowserWindow {
       <body>
         <div class="splash-container">
           <img src="${logoFileUrl}" alt="SHIELD Logo" style="width: 80px; height: 80px; margin-bottom: 16px; object-fit: contain;" />
-          <div class="logo">SHIELD 2.0</div>
+          <div class="logo">SHIELD</div>
           <div class="tagline">Privacy-First AI Assistant</div>
           <div class="status" id="status">Initializing...</div>
           <div class="loader">

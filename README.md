@@ -1,4 +1,4 @@
-# SHIELD 2.0 🛡️
+# SHIELD 🛡️
 
 Privacy-first local AI chatbot for Windows. All processing happens locally - no external APIs, no data leaving your machine.
 
@@ -59,7 +59,7 @@ npm run build:win:installer  # NSIS installer (~310 MB)
 npm run build:win:portable   # Portable executable
 ```
 
-Output: `release/{version}/SHIELD 2.0-{version}-x64.exe`
+Output: `release/{version}/SHIELD-{version}-x64.exe`
 
 **Note**: Models are not bundled - users download via in-app model manager.
 

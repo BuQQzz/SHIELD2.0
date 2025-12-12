@@ -1,8 +1,8 @@
-# electron-builder configuration for SHIELD 2.0
+# electron-builder configuration for SHIELD
 # https://www.electron.build/configuration/configuration
 
-appId: com.buqqzz.shield2
-productName: SHIELD 2.0
+appId: com.buqqzz.shield
+productName: SHIELD
 copyright: Copyright © 2025 BuQQzz
 
 # Output directories

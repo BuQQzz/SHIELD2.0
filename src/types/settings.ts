@@ -17,8 +17,7 @@ export interface SystemSettings {
 }
 
 export interface PrivacySettings {
-  telemetry: boolean;
-  analytics: boolean;
+  // Privacy is built-in by design - no telemetry or analytics
 }
 
 export interface WebSearchSettings {
@@ -65,8 +64,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
     huggingFaceToken: undefined, // User's HuggingFace token
   },
   privacy: {
-    telemetry: false,
-    analytics: false,
+    // No settings needed - privacy is built-in by design
   },
   webSearch: {
     enabled: false,

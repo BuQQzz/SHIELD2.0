@@ -28,14 +28,13 @@ export function ChatPlaceholder({ onPromptClick }: ChatPlaceholderProps) {
         transition={{ duration: 0.5, delay: 0.2 }}
         className="mb-6 flex flex-col items-center gap-4"
       >
-        <img
-          src="/shield-logo.png"
-          alt="SHIELD Logo"
-          className="h-20 w-20 object-contain"
+        <img 
+          src="/shield-logo.png" 
+          alt="SHIELD Logo" 
+          className="h-32 w-32 object-contain mb-4"
         />
         <div className="text-center">
-          <h1 className="text-3xl font-bold">SHIELD 2.0</h1>
-          <p className="mt-2 text-muted-foreground">
+          <p className="text-muted-foreground">
             Privacy-first AI Assistant for Windows
           </p>
         </div>

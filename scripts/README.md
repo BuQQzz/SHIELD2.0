@@ -1,4 +1,4 @@
-# SHIELD 2.0 - Scripts
+# SHIELD - Scripts
 
 Utility scripts for development and testing.
 

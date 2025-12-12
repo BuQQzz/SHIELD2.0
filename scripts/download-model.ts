@@ -74,7 +74,7 @@ const modelKey = process.argv[2];
 
 if (!modelKey) {
   console.log("=".repeat(60));
-  console.log("SHIELD 2.0 - Model Downloader");
+  console.log("SHIELD - Model Downloader");
   console.log("=".repeat(60));
   console.log("\nUsage: npm run download-model <model-key>\n");
   console.log("Available models:");

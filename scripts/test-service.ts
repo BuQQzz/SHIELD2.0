@@ -7,7 +7,7 @@ import { getLlamaService } from "../src/services/LlamaService.js";
 
 async function testLlamaService() {
   console.log("=".repeat(60));
-  console.log("SHIELD 2.0 - LlamaService Test");
+  console.log("SHIELD - LlamaService Test");
   console.log("=".repeat(60));
   console.log();
 

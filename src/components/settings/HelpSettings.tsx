@@ -22,10 +22,10 @@ export function HelpSettings() {
       <section>
         <div className="flex items-center gap-2 mb-3">
           <Shield className="h-5 w-5 text-primary" />
-          <h3 className="text-lg font-semibold">About SHIELD 2.0</h3>
+          <h3 className="text-lg font-semibold">About SHIELD</h3>
         </div>
         <p className="text-sm text-muted-foreground leading-relaxed mb-4">
-          SHIELD 2.0 is a privacy-first, offline AI chatbot that runs entirely
+          SHIELD is a privacy-first, offline AI chatbot that runs entirely
           on your local machine. All AI inference happens locally using
           llama.cpp - your conversations never leave your PC.
         </p>
@@ -75,7 +75,7 @@ export function HelpSettings() {
       {/* Version */}
       <section className="pt-4 border-t">
         <div className="text-center text-sm text-muted-foreground">
-          <p className="font-medium">SHIELD 2.0</p>
+          <p className="font-medium">SHIELD</p>
           <p>Version 0.1.0 (Experimental)</p>
         </div>
       </section>

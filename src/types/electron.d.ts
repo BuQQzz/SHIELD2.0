@@ -117,8 +117,7 @@ export interface AppSettings {
     theme: "light" | "dark" | "system";
   };
   privacy: {
-    telemetry: boolean;
-    analytics: boolean;
+    // Privacy is built-in by design - no telemetry or analytics
   };
   webSearch: {
     enabled: boolean;

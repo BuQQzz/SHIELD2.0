@@ -1,0 +1,46 @@
+
+> shield2.0@0.1.0 dev
+> cross-env NODE_OPTIONS=--require=./vite.patch.cjs vite
+
+
+  [32m[1mVITE[22m v7.1.12[39m  [2mready in [0m[1m683[22m[2m[0m ms[22m
+
+  [32mΓ₧£[39m  [1mLocal[22m:   [36mhttp://localhost:[1m5173[22m/[39m
+[2m  [32mΓ₧£[39m  [1mNetwork[22m[2m: use [22m[1m--host[22m[2m to expose[22m
+[2m[32m  Γ₧£[39m[22m[2m  press [22m[1mh + enter[22m[2m to show help[22m
+[36mvite v7.1.12 [32mbuilding for development...[36m[39m
+[36m
+watching for file changes...[39m
+[36mvite v7.1.12 [32mbuilding for development...[36m[39m
+[36m
+watching for file changes...[39m
+[36m
+build started...[39m
+[36m
+build started...[39m
+transforming...
+transforming...
+[32mΓ£ô[39m 1 modules transformed.
+rendering chunks...
+computing gzip size...
+[2mdist-electron/[22m[36mpreload.mjs  [39m[1m[2m7.57 kB[22m[1m[22m[2m Γöé gzip: 1.51 kB[22m
+[36mbuilt in 188ms.[39m
+[32mΓ£ô[39m 457 modules transformed.
+rendering chunks...
+computing gzip size...
+[2mdist-electron/[22m[36mmain.js  [39m[1m[33m819.18 kB[39m[22m[2m Γöé gzip: 166.26 kB[22m
+[36mbuilt in 2042ms.[39m
+
+[SettingsStorage] Initialized: C:\Users\imend\AppData\Roaming\SHIELD\settings\settings.json
+[main] Preload path: D:\AI Projects\SHIELD2.0\dist-electron\preload.mjs
+[main] Preload exists: true
+[SettingsStorage] No settings file found, using defaults
+[26644:1212/163401.952:INFO:CONSOLE:2] "%cElectron Security Warning (Insecure Content-Security-Policy) font-weight: bold; This renderer process has either no Content Security
+  Policy set or a policy with "unsafe-eval" enabled. This exposes users of
+  this app to unnecessary security risks.
+
+For more information and help, consult
+https://electronjs.org/docs/tutorial/security.
+This warning will not show up
+once the app is packaged.", source: node:electron/js2c/sandbox_bundle (2)
+[26644:1212/163401.956:INFO:CONSOLE:140] "[preload] window.llama, window.conversations, window.electronAPI (settings, export, webSearch, mcp, autoUpdate) exposed successfully", source:  (140)

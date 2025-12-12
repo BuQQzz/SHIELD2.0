@@ -85,12 +85,11 @@ export function Sidebar({
             {!sidebarCollapsed ? (
               <>
                 <div className="flex items-center gap-2">
-                  <img
-                    src="/shield-logo.png"
-                    alt="SHIELD Logo"
-                    className="h-6 w-6 object-contain"
+                  <img 
+                    src="/shield-logo.png" 
+                    alt="SHIELD" 
+                    className="h-10 w-auto object-contain"
                   />
-                  <span className="font-semibold">SHIELD 2.0</span>
                 </div>
                 <button
                   onClick={toggleSidebarCollapse}

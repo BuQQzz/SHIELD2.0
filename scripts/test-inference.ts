@@ -12,7 +12,7 @@ const modelsDir = path.join(__dirname, "..", "models");
 
 async function testInference() {
   console.log("=".repeat(60));
-  console.log("SHIELD 2.0 - Model Inference Test");
+  console.log("SHIELD - Model Inference Test");
   console.log("=".repeat(60));
   console.log();
 
