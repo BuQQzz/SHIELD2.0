@@ -1,8 +1,8 @@
-# SHIELD 2.0 Development Roadmap
+# SHIELD Development Roadmap
 
 ## Project Overview
 
-SHIELD 2.0 is a privacy-first, local AI chatbot for Windows with tool integration capabilities. All AI processing happens locally using llama.cpp - your data never leaves your device.
+SHIELD is a privacy-first, local AI chatbot for Windows with tool integration capabilities. All AI processing happens locally using llama.cpp - your data never leaves your device.
 
 ---
 

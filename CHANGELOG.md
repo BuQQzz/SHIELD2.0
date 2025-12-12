@@ -1,11 +1,29 @@
 # Changelog
 
-All notable changes to SHIELD 2.0 will be documented in this file.
+All notable changes to SHIELD will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+
+### Changed
+
+- **Rebranding** - Simplified name from "SHIELD 2.0" to "SHIELD"
+  - Updated all UI references (splash screen, window title, help page)
+  - Replaced icon placeholders with actual logo images (SHIELD.png)
+  - Increased logo sizes for better visibility
+  - Updated build configuration (productName, appId)
+  - Removed redundant text labels (logo contains "SHIELD" text)
+
+### Removed
+
+- **Telemetry & Analytics** - Completely removed to reinforce privacy-first philosophy
+  - Removed telemetry and analytics toggle switches from Privacy Settings
+  - Removed associated handler functions and type definitions
+  - Updated privacy messaging to explicitly state: "Zero telemetry, zero tracking, zero data collection"
+  - Privacy is now built-in by design, not by configuration
+  - No user data ever leaves the device
 
 ### Added
 

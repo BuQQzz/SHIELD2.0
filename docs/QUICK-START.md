@@ -1,8 +1,8 @@
 # Quick Start Guide
 
-## Get SHIELD 2.0 Running in 5 Minutes
+## Get SHIELD Running in 5 Minutes
 
-This guide will get you up and running with SHIELD 2.0 as quickly as possible.
+This guide will get you up and running with SHIELD as quickly as possible.
 
 ## Prerequisites Checklist
 

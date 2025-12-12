@@ -1,6 +1,6 @@
-# SHIELD 2.0 Documentation
+# SHIELD Documentation
 
-Welcome to the SHIELD 2.0 documentation! This directory contains comprehensive guides, technical documentation, and project resources.
+Welcome to the SHIELD documentation! This directory contains comprehensive guides, technical documentation, and project resources for SHIELD - a privacy-first, local AI assistant for Windows.
 
 ## 📚 Documentation Structure
 
