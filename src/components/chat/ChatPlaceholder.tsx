@@ -28,9 +28,9 @@ export function ChatPlaceholder({ onPromptClick }: ChatPlaceholderProps) {
         transition={{ duration: 0.5, delay: 0.2 }}
         className="mb-6 flex flex-col items-center gap-4"
       >
-        <img 
-          src="/shield-logo.png" 
-          alt="SHIELD Logo" 
+        <img
+          src="/shield-logo.png"
+          alt="SHIELD Logo"
           className="h-32 w-32 object-contain mb-4"
         />
         <div className="text-center">

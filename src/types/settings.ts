@@ -16,6 +16,7 @@ export interface SystemSettings {
   huggingFaceToken?: string; // HuggingFace API token for gated models (stored securely)
 }
 
+// eslint-disable-next-line @typescript-eslint/no-empty-object-type
 export interface PrivacySettings {
   // Privacy is built-in by design - no telemetry or analytics
 }

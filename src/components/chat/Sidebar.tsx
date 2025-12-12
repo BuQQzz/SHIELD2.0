@@ -85,9 +85,9 @@ export function Sidebar({
             {!sidebarCollapsed ? (
               <>
                 <div className="flex items-center gap-2">
-                  <img 
-                    src="/shield-logo.png" 
-                    alt="SHIELD" 
+                  <img
+                    src="/shield-logo.png"
+                    alt="SHIELD"
                     className="h-10 w-auto object-contain"
                   />
                 </div>

@@ -25,9 +25,9 @@ export function HelpSettings() {
           <h3 className="text-lg font-semibold">About SHIELD</h3>
         </div>
         <p className="text-sm text-muted-foreground leading-relaxed mb-4">
-          SHIELD is a privacy-first, offline AI chatbot that runs entirely
-          on your local machine. All AI inference happens locally using
-          llama.cpp - your conversations never leave your PC.
+          SHIELD is a privacy-first, offline AI chatbot that runs entirely on
+          your local machine. All AI inference happens locally using llama.cpp -
+          your conversations never leave your PC.
         </p>
         <Button variant="outline" size="sm" onClick={openDocs}>
           <ExternalLink className="h-4 w-4 mr-2" />

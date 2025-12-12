@@ -34,7 +34,7 @@ export function createSplashWindow(): BrowserWindow {
 
   // Simple HTML splash screen with SHIELD branding
   // Uses dark gradient matching app's monochromatic theme
-  const logoFileUrl = `file://${getSplashLogoPath().replace(/\\/g, "/")}`;
+  // NOTE: Do NOT use file:// URLs for images - they cause crashes with data: protocol
 
   const splashHTML = `
     <!DOCTYPE html>
@@ -123,8 +123,7 @@ export function createSplashWindow(): BrowserWindow {
       </head>
       <body>
         <div class="splash-container">
-          <img src="${logoFileUrl}" alt="SHIELD Logo" style="width: 80px; height: 80px; margin-bottom: 16px; object-fit: contain;" />
-          <div class="logo">SHIELD</div>
+          <div class="logo">🛡️ SHIELD</div>
           <div class="tagline">Privacy-First AI Assistant</div>
           <div class="status" id="status">Initializing...</div>
           <div class="loader">
@@ -163,24 +162,19 @@ export function updateSplashStatus(
 }
 
 /**
- * Close splash and show main window with smooth transition
+ * Close splash window
+ * The main window will be shown automatically by its ready-to-show event
  */
 export function closeSplash(
   splash: BrowserWindow | null,
-  mainWindow: BrowserWindow
+  _mainWindow: BrowserWindow
 ): void {
   if (splash && !splash.isDestroyed()) {
-    // Show main window
-    mainWindow.show();
-
-    // Small delay then close splash for smooth transition
+    // Just close the splash - main window will show via its own ready-to-show event
     setTimeout(() => {
-      if (!splash.isDestroyed()) {
+      if (splash && !splash.isDestroyed()) {
         splash.close();
       }
     }, 200);
-  } else {
-    // If splash already closed, just show main window
-    mainWindow.show();
   }
 }

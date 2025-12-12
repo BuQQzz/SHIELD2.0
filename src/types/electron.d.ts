@@ -116,6 +116,7 @@ export interface AppSettings {
     confirmDelete: boolean;
     theme: "light" | "dark" | "system";
   };
+  // eslint-disable-next-line @typescript-eslint/no-empty-object-type
   privacy: {
     // Privacy is built-in by design - no telemetry or analytics
   };

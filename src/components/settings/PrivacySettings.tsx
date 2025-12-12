@@ -1,4 +1,3 @@
-import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { useSettingsStore } from "@/store/settingsStore";
 import { PrivacySettings as PrivacySettingsType } from "@/types/settings";
@@ -9,9 +8,13 @@ interface PrivacySettingsProps {
   settings: PrivacySettingsType;
 }
 
-export function PrivacySettings({ settings }: PrivacySettingsProps) {
-  const { updateSettings, exportSettings, importSettings, resetSettings } =
-    useSettingsStore();
+export function PrivacySettings({ settings: _settings }: PrivacySettingsProps) {
+  const {
+    updateSettings: _updateSettings,
+    exportSettings,
+    importSettings,
+    resetSettings,
+  } = useSettingsStore();
   const [isExporting, setIsExporting] = useState(false);
   const [isImporting, setIsImporting] = useState(false);
   const [isResetting, setIsResetting] = useState(false);
@@ -66,7 +69,8 @@ export function PrivacySettings({ settings }: PrivacySettingsProps) {
           <p className="text-sm font-medium">Privacy-First Design</p>
           <p className="text-xs text-muted-foreground">
             All AI processing happens locally on your device. Your conversations
-            never leave your computer. Zero telemetry, zero tracking, zero data collection.
+            never leave your computer. Zero telemetry, zero tracking, zero data
+            collection.
           </p>
         </div>
       </div>
