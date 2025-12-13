@@ -14,11 +14,17 @@ directories:
 files:
   - dist/**/*
   - dist-electron/**/*
-  - public/shield-logo.png
-  - public/favicon.ico
   - "!**/*.map"
   - "!**/node_modules/*/{CHANGELOG.md,README.md,readme.md,README,readme}"
   - "!**/node_modules/.cache/**"
+
+# Extra files to include outside the asar archive
+extraResources:
+  # Logo and icon files (must be outside asar for file:// protocol)
+  - from: public/shield-logo.png
+    to: public/shield-logo.png
+  - from: public/favicon.ico
+    to: public/favicon.ico
 
 # Exclude models folder - users download via in-app tool
 extraFiles:
