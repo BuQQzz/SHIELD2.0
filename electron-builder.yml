@@ -54,7 +54,7 @@ nsis:
   installerHeaderIcon: build/icon.ico
   createDesktopShortcut: true
   createStartMenuShortcut: true
-  shortcutName: SHIELD 2.0
+  shortcutName: SHIELD
   license: LICENSE
   deleteAppDataOnUninstall: false
   runAfterFinish: true
