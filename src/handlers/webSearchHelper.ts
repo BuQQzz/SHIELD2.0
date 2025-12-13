@@ -46,7 +46,8 @@ function buildFullContentContext(
   context += "=== FULL PAGE CONTENT ===\n";
   contents.forEach((pageContent, index) => {
     context += `\nSource ${index + 1}: ${pageContent.title}\n`;
-    context += `Content: ${pageContent.textContent.slice(0, 1500)}...\n`;
+    // Increase content limit from 1500 to 3000 characters for better context
+    context += `Content: ${pageContent.textContent.slice(0, 3000)}${pageContent.textContent.length > 3000 ? '...' : ''}\n`;
   });
 
   // Add snippets from results we didn't fetch

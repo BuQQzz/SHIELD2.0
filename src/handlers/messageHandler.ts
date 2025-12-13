@@ -205,11 +205,16 @@ export function createMessageHandler({
 
       // Parse and extract thinking/reasoning content from various XML formats
       const { settings } = useSettingsStore.getState();
+      console.log("[MessageHandler] showReasoning setting:", settings.webSearch.showReasoning);
+      console.log("[MessageHandler] hasWebSearchContext:", !!webSearchContext);
+      
       const { reasoning, thinking, processedContent } = parseAllThinking(
         finalContent,
         !!webSearchContext,
         settings.webSearch.showReasoning
       );
+      
+      console.log("[MessageHandler] Parsed - reasoning:", !!reasoning, "processedContent length:", processedContent.length);
 
       // Detect truncation
       const wasTruncated = detectTruncation(finalContent, {
