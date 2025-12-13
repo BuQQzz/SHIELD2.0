@@ -54,7 +54,7 @@ export const ChatInput = forwardRef<ChatInputRef, ChatInputProps>(
     const handleSubmit = () => {
       console.log("[ChatInput] handleSubmit called, input:", input.substring(0, 50));
       console.log("[ChatInput] isGenerating:", isGenerating, "disabled:", disabled);
-      
+
       if (input.trim() && !isGenerating && !disabled) {
         console.log("[ChatInput] Calling onSend with message and webSearch:", webSearchEnabled);
         onSend(input.trim(), webSearchEnabled);
@@ -95,11 +95,10 @@ export const ChatInput = forwardRef<ChatInputRef, ChatInputProps>(
                     <motion.button
                       whileTap={{ scale: 0.95 }}
                       onClick={() => setWebSearchEnabled(!webSearchEnabled)}
-                      className={`shrink-0 rounded-md p-2 transition-colors ${
-                        webSearchEnabled
+                      className={`shrink-0 rounded-md p-2 transition-colors ${webSearchEnabled
                           ? "bg-primary text-primary-foreground"
                           : "hover:bg-accent"
-                      }`}
+                        }`}
                       type="button"
                     >
                       <Globe

@@ -63,7 +63,7 @@ export function createMainWindow(): BrowserWindow {
     // In production, __dirname is inside app.asar/dist-electron/
     // dist folder is at app.asar/dist/
     mainWindow.loadFile(path.join(__dirname, "../dist/index.html"));
-    
+
     // TEMPORARY: Open DevTools in production to debug issues
     mainWindow.webContents.openDevTools();
   }

@@ -76,7 +76,7 @@ export function createMessageHandler({
     console.log("[MessageHandler] handleSendMessage called with:", content.substring(0, 50));
     console.log("[MessageHandler] isModelLoaded:", isModelLoaded);
     console.log("[MessageHandler] currentConversation:", currentConversation?.id);
-    
+
     if (!isModelLoaded) {
       console.warn("[MessageHandler] Model not loaded, aborting");
       alert("Please wait for the model to load");
@@ -288,7 +288,7 @@ export function createMessageHandler({
     } catch (err) {
       console.error("[MessageHandler] Error during message handling:", err);
       console.error("[MessageHandler] Error stack:", err instanceof Error ? err.stack : "N/A");
-      
+
       const isAbortError =
         err instanceof Error &&
         (err.name === "AbortError" || err.message.includes("abort"));

@@ -50,7 +50,7 @@ export function registerLlamaHandlers(mainWindow: BrowserWindow | null) {
   ipcMain.handle("llama:chatStreaming", async (_event, message, options) => {
     console.log("[IPC] chatStreaming called with message:", message.substring(0, 50));
     console.log("[IPC] Options:", JSON.stringify(options));
-    
+
     try {
       const response = await llamaService.chatStreaming(
         message,

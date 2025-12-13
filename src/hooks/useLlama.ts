@@ -126,23 +126,36 @@ export function useLlama() {
         repeatPenalty?: number;
       }
     ) => {
+      console.log("[useLlama] sendStreamingMessage called");
+      console.log("[useLlama] Message:", message.substring(0, 50));
+      console.log("[useLlama] Options:", JSON.stringify(options));
+      
       setError(null);
       try {
         // Set up token listener
-        const unsubscribe = window.llama.onToken(onToken);
+        console.log("[useLlama] Setting up token listener...");
+        const unsubscribe = window.llama.onToken((token) => {
+          console.log("[useLlama] Token received:", token.substring(0, 20));
+          onToken(token);
+        });
 
         // Send message
+        console.log("[useLlama] Calling window.llama.chatStreaming...");
         const result = await window.llama.chatStreaming(message, options);
+        console.log("[useLlama] chatStreaming result:", JSON.stringify(result));
 
         // Clean up listener
         unsubscribe();
 
         if (result.success && result.response) {
+          console.log("[useLlama] Success! Response length:", result.response.length);
           return result.response;
         } else {
+          console.error("[useLlama] Failed:", result.error);
           throw new Error(result.error || "Failed to get response");
         }
       } catch (err) {
+        console.error("[useLlama] Exception:", err);
         // Check if this is an abort error (user cancelled)
         const isAbortError =
           err instanceof Error &&
