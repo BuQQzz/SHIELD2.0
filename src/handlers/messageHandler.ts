@@ -133,6 +133,9 @@ export function createMessageHandler({
       // Combine user query with web search context
       let messageWithContext: string;
 
+      console.log("[MessageHandler] Building message context...");
+      console.log("[MessageHandler] Has web search context:", !!webSearchContext);
+
       if (webSearchContext) {
         // Be EXTREMELY aggressive - repeat key info multiple times
         // SANDWICH APPROACH: Put search results before AND after question
@@ -174,11 +177,10 @@ export function createMessageHandler({
 
         messageWithContext += `Now follow these steps for the user's question:\n`;
       } else {
-      console.log("[MessageHandler] Calling sendStreamingMessage...");
-      console.log("[MessageHandler] Message length:", messageWithContext.length);
-
         messageWithContext = content;
       }
+
+      console.log("[MessageHandler] Calling sendStreamingMessage with message length:", messageWithContext.length);
 
       await sendStreamingMessage(
         messageWithContext,
