@@ -48,18 +48,24 @@ export function registerLlamaHandlers(mainWindow: BrowserWindow | null) {
 
   // Send a streaming chat message
   ipcMain.handle("llama:chatStreaming", async (_event, message, options) => {
+    console.log("[IPC] chatStreaming called with message:", message.substring(0, 50));
+    console.log("[IPC] Options:", JSON.stringify(options));
+    
     try {
       const response = await llamaService.chatStreaming(
         message,
         (token) => {
           // Send token to renderer
+          console.log("[IPC] Sending token to renderer:", token.substring(0, 20));
           mainWindow?.webContents.send("llama:token", token);
         },
         options
       );
 
+      console.log("[IPC] chatStreaming complete, response length:", response.length);
       return { success: true, response };
     } catch (error) {
+      console.error("[IPC] chatStreaming error:", error);
       return {
         success: false,
         error: error instanceof Error ? error.message : "Unknown error",

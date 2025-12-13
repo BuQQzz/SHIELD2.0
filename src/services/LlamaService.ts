@@ -236,7 +236,13 @@ export class LlamaService {
    * Send a message and get a response
    */
   async chat(message: string, options: ChatOptions = {}): Promise<string> {
+    console.log("[LlamaService] Chat called with message:", message.substring(0, 50));
+    console.log("[LlamaService] Session exists:", !!this.session);
+    console.log("[LlamaService] Model exists:", !!this.model);
+    console.log("[LlamaService] Context exists:", !!this.context);
+    
     if (!this.session) {
+      console.error("[LlamaService] No session - model not loaded");
       throw new Error("No model loaded. Call loadModel() first");
     }
 
@@ -245,6 +251,7 @@ export class LlamaService {
     const signal = options.signal || this.currentAbortController.signal;
 
     try {
+      console.log("[LlamaService] Starting inference...");
       const response = await this.session.prompt(message, {
         temperature: options.temperature ?? 0.7,
         maxTokens: options.maxTokens ?? 512,
@@ -254,12 +261,19 @@ export class LlamaService {
           ? { penalty: options.repeatPenalty }
           : { penalty: 1.1 },
         onTextChunk: options.onToken
-          ? (chunk: string) => options.onToken!(chunk)
+          ? (chunk: string) => {
+              console.log("[LlamaService] Token received:", chunk.substring(0, 20));
+              options.onToken!(chunk);
+            }
           : undefined,
         signal,
       });
 
+      console.log("[LlamaService] Inference complete, response length:", response.length);
       return response;
+    } catch (error) {
+      console.error("[LlamaService] Chat error:", error);
+      throw error;
     } finally {
       this.currentAbortController = null;
     }

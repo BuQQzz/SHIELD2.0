@@ -38,6 +38,9 @@ asarUnpack:
   - "**/*.node"
   - "**/node-llama-cpp/**"
   - "**/sqlite3/**"
+  # Unpack dist assets so they're accessible via file:// protocol
+  - "dist/shield-logo.png"
+  - "dist/favicon.ico"
 
 # Windows build configuration
 win:
