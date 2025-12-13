@@ -129,7 +129,7 @@ export function useLlama() {
       console.log("[useLlama] sendStreamingMessage called");
       console.log("[useLlama] Message:", message.substring(0, 50));
       console.log("[useLlama] Options:", JSON.stringify(options));
-      
+
       setError(null);
       try {
         // Set up token listener
@@ -148,7 +148,10 @@ export function useLlama() {
         unsubscribe();
 
         if (result.success && result.response) {
-          console.log("[useLlama] Success! Response length:", result.response.length);
+          console.log(
+            "[useLlama] Success! Response length:",
+            result.response.length
+          );
           return result.response;
         } else {
           console.error("[useLlama] Failed:", result.error);

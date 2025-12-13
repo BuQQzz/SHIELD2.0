@@ -29,6 +29,7 @@ interface ModelCardProps {
   onCancel?: (modelId: string) => void;
   onDeleteClick?: (model: ModelMetadata) => void;
   compact?: boolean;
+  hasHfToken?: boolean; // Whether HuggingFace token is configured
 }
 
 export function ModelCard({
@@ -39,13 +40,24 @@ export function ModelCard({
   onCancel,
   onDeleteClick,
   compact = false,
+  hasHfToken = false,
 }: ModelCardProps) {
   const isDownloading = downloadProgress?.status === "downloading";
+  const isCompleted = downloadProgress?.status === "completed";
+  const isGatedWithoutToken = model.requiresAuth && !hasHfToken;
+
+  // Treat completed downloads as installed to prevent re-download button showing
+  const effectivelyInstalled = isInstalled || isCompleted;
 
   const handleAction = () => {
     if (isDownloading && onCancel) {
       onCancel(model.id);
-    } else if (!isInstalled && !isDownloading && onDownload) {
+    } else if (
+      !effectivelyInstalled &&
+      !isDownloading &&
+      onDownload &&
+      !isGatedWithoutToken
+    ) {
       onDownload(model);
     }
   };
@@ -86,7 +98,7 @@ export function ModelCard({
         </div>
 
         {/* Download/Status Button */}
-        {isInstalled ? (
+        {effectivelyInstalled ? (
           <div className="flex items-center gap-2">
             <Button
               size="sm"
@@ -95,9 +107,9 @@ export function ModelCard({
               className="shrink-0 gap-2"
             >
               <Check className="h-4 w-4 text-green-600" />
-              Installed
+              {isCompleted ? "Downloaded" : "Installed"}
             </Button>
-            {onDeleteClick && (
+            {onDeleteClick && isInstalled && (
               <Button
                 size="sm"
                 variant="ghost"
@@ -119,9 +131,19 @@ export function ModelCard({
             Cancel
           </Button>
         ) : (
-          <Button size="sm" onClick={handleAction} className="shrink-0 gap-2">
+          <Button
+            size="sm"
+            onClick={handleAction}
+            className="shrink-0 gap-2"
+            disabled={isGatedWithoutToken}
+            title={
+              isGatedWithoutToken
+                ? "HuggingFace token required. Add in Settings → System"
+                : undefined
+            }
+          >
             <Download className="h-4 w-4" />
-            Download
+            {isGatedWithoutToken ? "Token Required" : "Download"}
           </Button>
         )}
       </div>

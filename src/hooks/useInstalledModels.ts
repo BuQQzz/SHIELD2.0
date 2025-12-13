@@ -15,7 +15,7 @@ export function useInstalledModels() {
       try {
         setIsLoading(true);
 
-        // Get list of installed model files
+        // Get list of installed model IDs (not filenames anymore)
         const result = await window.electronAPI.modelDownload.listInstalled();
 
         if (!result.success || !result.models) {
@@ -24,52 +24,23 @@ export function useInstalledModels() {
           return;
         }
 
-        // Map installed files to MODEL_CATALOG entries
+        // result.models now contains model IDs like 'qwen-3b', 'qwen-7b', etc.
+        const installedModelIds = result.models;
+        console.log(
+          "[useInstalledModels] Installed model IDs:",
+          installedModelIds
+        );
+
+        // Map installed model IDs to MODEL_CATALOG entries
         const installed: ModelOption[] = [];
-        const processedModels = new Set<string>(); // Track models we've already added
 
-        for (const filename of result.models) {
-          // Find matching model in catalog
-          const catalogEntry = MODEL_CATALOG.find((model) => {
-            // Extract expected filename from URI
-            // Format: hf:Owner/Repo-Name-GGUF:Quantization
-            const uriParts = model.uri.split(":");
-            if (uriParts.length < 3) return false;
-
-            const [, repoPath, quantization] = uriParts;
-            if (!repoPath || !quantization) return false;
-
-            // Extract owner and repo from path (e.g., "Qwen/Qwen2.5-7B-Instruct-GGUF")
-            const [owner, repoName] = repoPath.split("/");
-            if (!owner || !repoName) return false;
-
-            // node-llama-cpp creates filenames in this format:
-            // hf_Owner_Repo-Name.Quantization-00001-of-00002.gguf
-            // Example: hf_Qwen_Qwen2.5-7B-Instruct.Q4_K_M-00001-of-00002.gguf
-
-            // Remove -GGUF suffix from repo name if present
-            const repoBaseName = repoName.replace(/-GGUF$/i, "");
-
-            // Build the expected pattern
-            const expectedPrefix = `hf_${owner}_${repoBaseName}.${quantization}`;
-
-            // Check if filename starts with this pattern (ignoring split file suffix)
-            const matched = filename
-              .toLowerCase()
-              .startsWith(expectedPrefix.toLowerCase());
-
-            return matched;
-          });
+        for (const modelId of installedModelIds) {
+          // Find matching entry in MODEL_CATALOG by ID
+          const catalogEntry = MODEL_CATALOG.find(
+            (model) => model.id === modelId
+          );
 
           if (catalogEntry) {
-            // Check if we've already added this model (deduplicate split files)
-            if (processedModels.has(catalogEntry.id)) {
-              continue;
-            }
-
-            // Mark this model as processed
-            processedModels.add(catalogEntry.id);
-
             // Convert to ModelOption format
             installed.push({
               id: catalogEntry.id,
@@ -82,51 +53,16 @@ export function useInstalledModels() {
               capabilities: catalogEntry.capabilities,
             });
           } else {
-            // Unknown model - create a basic entry for it
-            // This allows users to use any .gguf model they've added manually
-
-            // Extract base model name (remove split file suffix if present)
-            const baseFilename = filename.replace(
-              /-\d{5}-of-\d{5}\.gguf$/i,
-              ""
+            console.warn(
+              `[useInstalledModels] Model ID ${modelId} not found in catalog`
             );
-            const modelName = baseFilename.replace(/\.gguf$/i, "");
-
-            // Check if we've already added this custom model (deduplicate splits)
-            const customId = `custom-${modelName}`;
-            if (processedModels.has(customId)) {
-              continue;
-            }
-
-            processedModels.add(customId);
-
-            const displayName = modelName
-              .split(/[-._]/)
-              .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
-              .join(" ");
-
-            installed.push({
-              id: customId,
-              name: modelName,
-              displayName: displayName,
-              uri: `file://${filename}`, // Use file:// to indicate it's a local file
-              size: "Unknown",
-              description: "Custom model (not in catalog)",
-              contextSize: 4096, // Default context size
-              capabilities: {
-                toolCalling: false,
-                complexReasoning: true,
-                webSearch: true,
-                structuredOutput: false,
-                longContext: false,
-                codeGeneration: true,
-                multilingual: "basic" as const,
-                temperatureRange: { min: 0.1, max: 1.5, default: 0.7 },
-              },
-            });
           }
         }
 
+        console.log(
+          "[useInstalledModels] Loaded installed models:",
+          installed.map((m) => m.displayName)
+        );
         setInstalledModels(installed);
       } catch (error) {
         console.error("Error loading installed models:", error);

@@ -55,7 +55,7 @@ export function registerLlamaHandlers(getMainWindow: () => BrowserWindow | null)
     try {
       const mainWindow = getMainWindow();
       console.log("[IPC] mainWindow exists:", !!mainWindow);
-      
+
       const response = await llamaService.chatStreaming(
         message,
         (token) => {

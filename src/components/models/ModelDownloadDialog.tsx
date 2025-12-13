@@ -272,6 +272,7 @@ export function ModelDownloadDialog({
                           onDownload={startDownload}
                           onCancel={cancelDownload}
                           onDeleteClick={handleDeleteClick}
+                          hasHfToken={hasHfToken}
                         />
                       ))}
                     </div>
@@ -304,6 +305,7 @@ export function ModelDownloadDialog({
                           onDownload={startDownload}
                           onCancel={cancelDownload}
                           onDeleteClick={handleDeleteClick}
+                          hasHfToken={hasHfToken}
                         />
                       ))}
                     </div>
@@ -336,6 +338,7 @@ export function ModelDownloadDialog({
                           onDownload={startDownload}
                           onCancel={cancelDownload}
                           onDeleteClick={handleDeleteClick}
+                          hasHfToken={hasHfToken}
                         />
                       ))}
                     </div>

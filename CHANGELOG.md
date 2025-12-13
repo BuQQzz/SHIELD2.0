@@ -5,6 +5,50 @@ All notable changes to SHIELD will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.3] - 2025-12-13
+
+### Added
+
+- **Gated Model Detection**: Properly identified all 7 gated models requiring HuggingFace authentication
+- **Smart Download Buttons**: Disabled state for gated models without authentication token
+- **Download Protection**: Triple-layer protection prevents re-downloading installed models
+- **Enhanced Progress Display**: Improved visibility with better contrast, borders, and spacing
+
+### Fixed
+
+- **401 Unauthorized Errors**: Gated models (Gemma 2 9B, Phi-3 14B, Mistral 7B, Mistral Large 2, DeepSeek Coder) now properly flagged
+- **Download Progress Visibility**: Progress bars now clearly visible with enhanced styling
+- **Re-download Prevention**: Downloaded models show "Downloaded" status and cannot be re-downloaded
+- **Button States**: Download buttons disabled for gated models without HuggingFace token
+- **Download Stuck at 0%**: Fixed IPC communication - mainWindow reference now properly set for progress events
+- **Download Completion State**: UI now correctly updates to "Downloaded" when download finishes
+- **Model Delete Errors**: Fixed "undefined" error when deleting models - proper error messages now shown
+- **Model Detection**: Fixed filename pattern matching to correctly detect installed models (node-llama-cpp format)
+- **Installed Models List**: IPC handler now returns model IDs instead of filenames for proper catalog matching
+- **Model Loading ENOENT**: Fixed useInstalledModels hook to properly map model IDs to catalog entries with correct URIs
+
+### Changed
+
+- Added `requiresAuth: true` flag to 5 additional gated models
+- ModelCard component now accepts `hasHfToken` prop for conditional button states
+- DownloadProgressBar enhanced with background panel, better spacing, and bolder text
+- Download percentage now shows 1 decimal place precision (e.g., 45.7%)
+- useModelDownload hook validates model state before initiating download
+- Simplified progress display to show only downloaded/total GB (removed speed/ETA for reliability)
+
+## [0.1.2] - 2025-12-12
+
+### Fixed
+
+- **Critical**: Model selector now always visible even when no models installed
+- Users can now access "Browse & Download Models" button in fresh installations
+- Model selector shows helpful message when no models are installed
+
+### Changed
+
+- Model selector button text changes to "Download Models" when no models are installed
+- Removed condition preventing model selector from displaying with empty model list
+
 ## [0.1.1] - 2025-12-12
 
 ### Fixed

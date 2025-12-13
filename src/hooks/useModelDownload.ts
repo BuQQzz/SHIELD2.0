@@ -16,6 +16,10 @@ export function useModelDownload(options: UseModelDownloadOptions = {}) {
   );
   const cleanupRef = useRef<(() => void) | null>(null);
 
+  // Use ref to avoid recreating listener when options change
+  const optionsRef = useRef(options);
+  optionsRef.current = options;
+
   // Initialize: Load installed models and setup progress listener
   useEffect(() => {
     const init = async () => {
@@ -48,28 +52,55 @@ export function useModelDownload(options: UseModelDownloadOptions = {}) {
 
     init();
 
-    // Setup progress listener
+    // Setup progress listener (only once on mount)
     cleanupRef.current = window.electronAPI.modelDownload.onProgress(
       (progress) => {
+        console.log(
+          `[useModelDownload] Progress received:`,
+          progress.modelId,
+          progress.status,
+          progress.progress
+        );
+
+        if (progress.status === "completed") {
+          console.log(
+            `[useModelDownload] Download completed for ${progress.modelId}, updating state`
+          );
+          // Mark as installed immediately - do this OUTSIDE of setActiveDownloads to avoid timing issues
+          setInstalledModels((installed) => {
+            const next = new Set(installed);
+            next.add(progress.modelId);
+            console.log(
+              `[useModelDownload] Added ${progress.modelId} to installedModels`
+            );
+            return next;
+          });
+
+          // Update active downloads with completed status
+          setActiveDownloads((prev) => {
+            const next = new Map(prev);
+            next.set(progress.modelId, progress);
+            return next;
+          });
+
+          // Remove from active downloads after a short delay to show "Downloaded" state
+          setTimeout(() => {
+            setActiveDownloads((current) => {
+              const updated = new Map(current);
+              updated.delete(progress.modelId);
+              return updated;
+            });
+          }, 3000);
+
+          optionsRef.current.onComplete?.(progress.modelId);
+          return;
+        }
+
         setActiveDownloads((prev) => {
           const next = new Map(prev);
 
-          if (progress.status === "completed") {
-            // Mark as installed and remove from active downloads after delay
-            setInstalledModels((installed) =>
-              new Set(installed).add(progress.modelId)
-            );
-            setTimeout(() => {
-              setActiveDownloads((current) => {
-                const updated = new Map(current);
-                updated.delete(progress.modelId);
-                return updated;
-              });
-            }, 2000);
-
-            options.onComplete?.(progress.modelId);
-          } else if (progress.status === "error") {
-            options.onError?.(
+          if (progress.status === "error") {
+            optionsRef.current.onError?.(
               progress.modelId,
               progress.error || "Download failed"
             );
@@ -97,12 +128,25 @@ export function useModelDownload(options: UseModelDownloadOptions = {}) {
     return () => {
       cleanupRef.current?.();
     };
-  }, [options]);
+  }, []); // Empty deps - only setup once on mount
 
   // Start download
   const startDownload = useCallback(
     async (model: ModelMetadata) => {
       try {
+        // Check if already installed
+        if (installedModels.has(model.id)) {
+          console.warn(`Model ${model.displayName} is already installed`);
+          return;
+        }
+
+        // Check if already downloading
+        const currentProgress = activeDownloads.get(model.id);
+        if (currentProgress?.status === "downloading") {
+          console.warn(`Model ${model.displayName} is already downloading`);
+          return;
+        }
+
         // Initialize progress
         setActiveDownloads((prev) => {
           const next = new Map(prev);
@@ -126,6 +170,45 @@ export function useModelDownload(options: UseModelDownloadOptions = {}) {
         if (!result.success) {
           throw new Error(result.error || "Download failed");
         }
+
+        // Download completed successfully - update state immediately
+        // This handles the case where progress events aren't received (e.g., fast completion)
+        console.log(
+          `[useModelDownload] Download IPC returned success for ${model.id}`
+        );
+
+        // Mark as installed
+        setInstalledModels((prev) => {
+          const next = new Set(prev);
+          next.add(model.id);
+          return next;
+        });
+
+        // Update to completed status
+        setActiveDownloads((prev) => {
+          const next = new Map(prev);
+          next.set(model.id, {
+            modelId: model.id,
+            status: "completed",
+            progress: 100,
+            downloadedBytes: 0,
+            totalBytes: 0,
+            speed: 0,
+            eta: 0,
+          });
+          return next;
+        });
+
+        // Remove from active downloads after showing "Downloaded" state
+        setTimeout(() => {
+          setActiveDownloads((current) => {
+            const updated = new Map(current);
+            updated.delete(model.id);
+            return updated;
+          });
+        }, 3000);
+
+        optionsRef.current.onComplete?.(model.id);
       } catch (error) {
         const errorMessage =
           error instanceof Error ? error.message : "Unknown error";
@@ -143,10 +226,10 @@ export function useModelDownload(options: UseModelDownloadOptions = {}) {
           });
           return next;
         });
-        options.onError?.(model.id, errorMessage);
+        optionsRef.current.onError?.(model.id, errorMessage);
       }
     },
-    [options]
+    [installedModels, activeDownloads]
   );
 
   // Cancel download

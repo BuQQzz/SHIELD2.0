@@ -218,6 +218,7 @@ export const MODEL_CATALOG: ModelMetadata[] = [
       "🌟 Mistral's most capable model with function calling. Excellent for complex tasks.",
     contextSize: 131072,
     provider: "Mistral",
+    requiresAuth: true,
     releaseDate: "2024-07",
     chatTemplate: "mistral",
     capabilities: {
@@ -277,6 +278,7 @@ export const MODEL_CATALOG: ModelMetadata[] = [
     description: "Strong reasoning capabilities, alternative to Qwen",
     contextSize: 8192,
     provider: "Mistral",
+    requiresAuth: true,
     releaseDate: "2024-05",
     chatTemplate: "mistral",
     capabilities: {
@@ -307,6 +309,7 @@ export const MODEL_CATALOG: ModelMetadata[] = [
       "Microsoft's efficient model with 128K context. Great for long documents.",
     contextSize: 131072,
     provider: "Microsoft",
+    requiresAuth: true,
     releaseDate: "2024-06",
     chatTemplate: "phi",
     capabilities: {
@@ -428,6 +431,7 @@ export const MODEL_CATALOG: ModelMetadata[] = [
     description: "Specialized coding model, excellent for programming tasks",
     contextSize: 16384,
     provider: "Other",
+    requiresAuth: true,
     releaseDate: "2024-01",
     chatTemplate: "deepseek",
     capabilities: {
@@ -456,6 +460,7 @@ export const MODEL_CATALOG: ModelMetadata[] = [
     description: "Google's efficient model with strong safety features",
     contextSize: 8192,
     provider: "Google",
+    requiresAuth: true,
     releaseDate: "2024-06",
     chatTemplate: "gemma",
     capabilities: {

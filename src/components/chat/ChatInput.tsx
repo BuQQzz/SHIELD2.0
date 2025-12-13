@@ -52,11 +52,22 @@ export const ChatInput = forwardRef<ChatInputRef, ChatInputProps>(
     }, [isGenerating, disabled]);
 
     const handleSubmit = () => {
-      console.log("[ChatInput] handleSubmit called, input:", input.substring(0, 50));
-      console.log("[ChatInput] isGenerating:", isGenerating, "disabled:", disabled);
+      console.log(
+        "[ChatInput] handleSubmit called, input:",
+        input.substring(0, 50)
+      );
+      console.log(
+        "[ChatInput] isGenerating:",
+        isGenerating,
+        "disabled:",
+        disabled
+      );
 
       if (input.trim() && !isGenerating && !disabled) {
-        console.log("[ChatInput] Calling onSend with message and webSearch:", webSearchEnabled);
+        console.log(
+          "[ChatInput] Calling onSend with message and webSearch:",
+          webSearchEnabled
+        );
         onSend(input.trim(), webSearchEnabled);
         setInput("");
         if (textareaRef.current) {
@@ -65,7 +76,14 @@ export const ChatInput = forwardRef<ChatInputRef, ChatInputProps>(
           setTimeout(() => textareaRef.current?.focus(), 0);
         }
       } else {
-        console.warn("[ChatInput] Cannot submit - input:", input.length, "isGenerating:", isGenerating, "disabled:", disabled);
+        console.warn(
+          "[ChatInput] Cannot submit - input:",
+          input.length,
+          "isGenerating:",
+          isGenerating,
+          "disabled:",
+          disabled
+        );
       }
     };
 
@@ -95,10 +113,11 @@ export const ChatInput = forwardRef<ChatInputRef, ChatInputProps>(
                     <motion.button
                       whileTap={{ scale: 0.95 }}
                       onClick={() => setWebSearchEnabled(!webSearchEnabled)}
-                      className={`shrink-0 rounded-md p-2 transition-colors ${webSearchEnabled
+                      className={`shrink-0 rounded-md p-2 transition-colors ${
+                        webSearchEnabled
                           ? "bg-primary text-primary-foreground"
                           : "hover:bg-accent"
-                        }`}
+                      }`}
                       type="button"
                     >
                       <Globe

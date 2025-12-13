@@ -272,7 +272,10 @@ export function createMessageHandler({
       await saveCurrentConversation();
     } catch (err) {
       console.error("[MessageHandler] Error during message handling:", err);
-      console.error("[MessageHandler] Error stack:", err instanceof Error ? err.stack : "N/A");
+      console.error(
+        "[MessageHandler] Error stack:",
+        err instanceof Error ? err.stack : "N/A"
+      );
 
       const isAbortError =
         err instanceof Error &&

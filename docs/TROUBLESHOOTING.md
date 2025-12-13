@@ -178,9 +178,14 @@ npm run dev:electron
 
 **Gated models in SHIELD:**
 
-- Llama 3.3 70B Instruct
-- Llama 3.2 3B Instruct
-- Llama 3.2 1B Instruct
+- Llama 3.3 70B Instruct (Meta)
+- Llama 3.2 3B Instruct (Meta)
+- Llama 3.2 1B Instruct (Meta)
+- Mistral Large 2 (Mistral AI)
+- Mistral 7B Instruct (Mistral AI)
+- Phi-3 Medium 14B Instruct (Microsoft)
+- Gemma 2 9B Instruct (Google)
+- DeepSeek Coder 7B Instruct (DeepSeek)
 
 These models show a 🔒 **Gated** badge in the download dialog.
 

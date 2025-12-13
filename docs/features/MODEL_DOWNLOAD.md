@@ -36,9 +36,24 @@ Some models (like Meta's Llama) are "gated" and require HuggingFace authenticati
 
 The following models require authentication:
 
+**Meta (3 models):**
 - Llama 3.3 70B Instruct
 - Llama 3.2 3B Instruct
 - Llama 3.2 1B Instruct
+
+**Mistral AI (2 models):**
+- Mistral Large 2
+- Mistral 7B Instruct
+
+**Other Providers (3 models):**
+- Phi-3 Medium 14B Instruct (Microsoft)
+- Gemma 2 9B Instruct (Google)
+- DeepSeek Coder 7B Instruct (DeepSeek)
+
+**Not Gated (Qwen models - 4 total):**
+- Qwen 2.5 Coder 32B (Apache 2.0)
+- Qwen 2.5 7B Instruct (Apache 2.0)
+- Qwen 2.5 3B Instruct (Qwen Research)
 
 #### Visual Indicators
 

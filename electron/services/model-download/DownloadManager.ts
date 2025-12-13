@@ -32,13 +32,14 @@ export class DownloadManager {
   private mainWindow: BrowserWindow | null = null;
   private huggingFaceToken: string | undefined;
 
-  constructor(private getModelsDir: () => string) {}
+  constructor(private getModelsDir: () => string) { }
 
   /**
    * Set the main window for IPC communication
    */
   setMainWindow(window: BrowserWindow) {
     this.mainWindow = window;
+    console.log("[DownloadManager] Main window set for progress updates");
   }
 
   /**
@@ -54,6 +55,8 @@ export class DownloadManager {
   private sendProgress(progress: DownloadProgress) {
     if (this.mainWindow && !this.mainWindow.isDestroyed()) {
       this.mainWindow.webContents.send("model:download-progress", progress);
+    } else {
+      console.warn("[DownloadManager] Cannot send progress - mainWindow not set or destroyed");
     }
   }
 
@@ -97,9 +100,11 @@ export class DownloadManager {
       const modelPath = await this.downloadWithProgress(model, task, progress);
 
       // Download completed successfully
+      console.log(`[DownloadManager] Download completed for ${model.id}, sending completion event`);
       progress.status = "completed";
       progress.progress = 100;
       this.sendProgress(progress);
+      console.log(`[DownloadManager] Completion event sent for ${model.id}`);
       this.downloadHistory.set(model.id, progress);
       this.activeDownloads.delete(model.id);
 

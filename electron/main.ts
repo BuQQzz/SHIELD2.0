@@ -64,6 +64,11 @@ async function setupIpcHandlers() {
     modelDownloadService.setCustomModelsDir(settings.system.modelDirectory);
   }
 
+  // Apply HuggingFace token if configured
+  if (settings.system.huggingFaceToken) {
+    modelDownloadService.setHuggingFaceToken(settings.system.huggingFaceToken);
+  }
+
   // Register settings handlers with callback for updates
   registerSettingsHandlers((updatedSettings) => {
     if (updatedSettings.system.modelDirectory) {
@@ -72,9 +77,13 @@ async function setupIpcHandlers() {
       );
       llamaService.setCustomModelsDir(updatedSettings.system.modelDirectory);
     }
+    // Update HuggingFace token when settings change
+    modelDownloadService.setHuggingFaceToken(
+      updatedSettings.system.huggingFaceToken
+    );
   });
 
-  return { llamaService, webSearchService, getWebCacheService };
+  return { llamaService, webSearchService, getWebCacheService, modelDownloadService };
 }
 
 // Register app lifecycle events BEFORE whenReady
@@ -123,6 +132,11 @@ app.whenReady().then(async () => {
 
     // Create window (but don't show yet)
     mainWindow = createMainWindow();
+
+    // Set main window for model download service (required for progress updates)
+    if (services.modelDownloadService) {
+      services.modelDownloadService.setMainWindow(mainWindow);
+    }
 
     // Wait for the page to finish loading
     await new Promise<void>((resolve) => {

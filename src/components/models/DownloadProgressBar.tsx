@@ -21,8 +21,6 @@ export function DownloadProgressBar({
     progress: percentage,
     downloadedBytes,
     totalBytes,
-    speed,
-    eta,
   } = progress;
 
   // Format bytes to human-readable
@@ -32,20 +30,6 @@ export function DownloadProgressBar({
     const sizes = ["B", "KB", "MB", "GB"];
     const i = Math.floor(Math.log(bytes) / Math.log(k));
     return `${(bytes / Math.pow(k, i)).toFixed(1)} ${sizes[i]}`;
-  };
-
-  // Format speed to human-readable
-  const formatSpeed = (bytesPerSecond: number) => {
-    if (!bytesPerSecond || bytesPerSecond === 0) return "-- B/s";
-    return `${formatBytes(bytesPerSecond)}/s`;
-  };
-
-  // Format ETA to human-readable
-  const formatETA = (seconds: number) => {
-    if (!seconds || seconds === 0) return "Calculating...";
-    if (seconds < 60) return `${Math.round(seconds)}s`;
-    if (seconds < 3600) return `${Math.round(seconds / 60)}m`;
-    return `${Math.round(seconds / 3600)}h ${Math.round((seconds % 3600) / 60)}m`;
   };
 
   // Get status color
@@ -88,11 +72,13 @@ export function DownloadProgressBar({
   }[size];
 
   return (
-    <div className={cn("space-y-1.5", className)}>
+    <div
+      className={cn("space-y-2 p-3 rounded-md bg-muted/50 border", className)}
+    >
       {/* Progress Bar */}
       <div
         className={cn(
-          "w-full bg-muted rounded-full overflow-hidden",
+          "w-full bg-background rounded-full overflow-hidden border",
           heightClass
         )}
       >
@@ -114,24 +100,22 @@ export function DownloadProgressBar({
       {/* Details */}
       {showDetails && (
         <div className="flex items-center justify-between text-xs">
-          <div className="flex items-center gap-1.5">
+          <div className="flex items-center gap-2">
             {getStatusIcon()}
-            <span className={cn("font-medium", getStatusColor())}>
-              {status === "downloading" && `${percentage.toFixed(0)}%`}
+            <span className={cn("font-semibold", getStatusColor())}>
+              {status === "downloading" && `${percentage.toFixed(1)}%`}
               {status === "completed" && "Complete"}
               {status === "error" && "Failed"}
               {status === "cancelled" && "Cancelled"}
             </span>
           </div>
 
-          {status === "downloading" && (
-            <div className="flex items-center gap-3 text-muted-foreground">
-              <span>
+          {status === "downloading" && totalBytes > 0 && (
+            <div className="flex items-center text-muted-foreground font-medium">
+              <span className="whitespace-nowrap">
                 {formatBytes(downloadedBytes || 0)} /{" "}
                 {formatBytes(totalBytes || 0)}
               </span>
-              <span>{formatSpeed(speed || 0)}</span>
-              <span>ETA: {formatETA(eta || 0)}</span>
             </div>
           )}
 

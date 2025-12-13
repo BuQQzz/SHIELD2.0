@@ -65,11 +65,19 @@ export function registerModelHandlers() {
     }
   });
 
-  // List installed models
+  // List installed models - returns model IDs from catalog that are installed
   ipcMain.handle("model:list-installed", async () => {
     try {
-      const models = await modelDownloadService.listInstalledModels();
-      return { success: true, models };
+      // Check each model in the catalog to see if it's installed
+      const installedModelIds: string[] = [];
+      for (const model of MODEL_CATALOG) {
+        const isInstalled = await modelDownloadService.isModelInstalled(model);
+        if (isInstalled) {
+          installedModelIds.push(model.id);
+        }
+      }
+      console.log(`[modelHandlers] Found ${installedModelIds.length} installed models:`, installedModelIds);
+      return { success: true, models: installedModelIds };
     } catch (error) {
       console.error("Failed to list installed models:", error);
       return {
@@ -102,11 +110,14 @@ export function registerModelHandlers() {
     try {
       const model = MODEL_CATALOG.find((m) => m.id === modelId);
       if (!model) {
-        return { success: false, error: "Model not found" };
+        return { success: false, error: "Model not found in catalog" };
       }
 
       const deleted = await modelDownloadService.deleteModel(model);
-      return { success: deleted };
+      if (!deleted) {
+        return { success: false, error: "Model file not found or could not be deleted" };
+      }
+      return { success: true };
     } catch (error) {
       console.error("Failed to delete model:", error);
       return {

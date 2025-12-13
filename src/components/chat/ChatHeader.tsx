@@ -154,7 +154,7 @@ export function ChatHeader({
           />
         )}
 
-        {availableModels.length > 0 && onModelSelect && (
+        {onModelSelect && (
           <ModelSelector
             models={availableModels}
             currentModel={currentModelId}

@@ -204,10 +204,10 @@ export class LlamaService {
       // If all fallbacks failed, throw a more helpful error
       throw new Error(
         `Unable to load this model even with minimum context size. The model (${path.basename(modelPath)}) requires more VRAM than available. Try:\n` +
-        `1. A smaller quantization (e.g., Q4_K_S, Q3_K_M instead of Q4_K_M)\n` +
-        `2. A smaller model (e.g., 7B instead of 32B)\n` +
-        `3. Freeing up VRAM by closing other applications\n` +
-        `4. Upgrading your GPU`
+          `1. A smaller quantization (e.g., Q4_K_S, Q3_K_M instead of Q4_K_M)\n` +
+          `2. A smaller model (e.g., 7B instead of 32B)\n` +
+          `3. Freeing up VRAM by closing other applications\n` +
+          `4. Upgrading your GPU`
       );
     }
 
@@ -236,7 +236,10 @@ export class LlamaService {
    * Send a message and get a response
    */
   async chat(message: string, options: ChatOptions = {}): Promise<string> {
-    console.log("[LlamaService] Chat called with message:", message.substring(0, 50));
+    console.log(
+      "[LlamaService] Chat called with message:",
+      message.substring(0, 50)
+    );
     console.log("[LlamaService] Session exists:", !!this.session);
     console.log("[LlamaService] Model exists:", !!this.model);
     console.log("[LlamaService] Context exists:", !!this.context);
@@ -262,14 +265,20 @@ export class LlamaService {
           : { penalty: 1.1 },
         onTextChunk: options.onToken
           ? (chunk: string) => {
-            console.log("[LlamaService] Token received:", chunk.substring(0, 20));
-            options.onToken!(chunk);
-          }
+              console.log(
+                "[LlamaService] Token received:",
+                chunk.substring(0, 20)
+              );
+              options.onToken!(chunk);
+            }
           : undefined,
         signal,
       });
 
-      console.log("[LlamaService] Inference complete, response length:", response.length);
+      console.log(
+        "[LlamaService] Inference complete, response length:",
+        response.length
+      );
       return response;
     } catch (error) {
       console.error("[LlamaService] Chat error:", error);

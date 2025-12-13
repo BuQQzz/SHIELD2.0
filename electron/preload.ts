@@ -332,6 +332,7 @@ const modelDownloadAPI: ModelDownloadAPI = {
       _event: Electron.IpcRendererEvent,
       progress: DownloadProgress
     ) => {
+      console.log("[preload] Download progress received:", progress.modelId, progress.status, progress.progress);
       callback(progress);
     };
     ipcRenderer.on("model:download-progress", handler);

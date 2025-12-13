@@ -60,45 +60,66 @@ export function ModelSelector({
               </>
             ) : (
               <>
-                {selectedModel?.displayName || "Select Model"}
+                {selectedModel?.displayName ||
+                  (models.length === 0 ? "Download Models" : "Select Model")}
                 <ChevronDown className="h-4 w-4 opacity-50" />
               </>
             )}
           </motion.button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" className="w-72">
-          {models.map((model, index) => (
-            <motion.div
-              key={model.id}
-              initial={{ opacity: 0, x: -10 }}
-              animate={{ opacity: 1, x: 0 }}
-              transition={{ duration: 0.2, delay: index * 0.05 }}
-            >
-              <DropdownMenuItem
-                onClick={() => onModelSelect(model)}
-                disabled={isLoading}
-                className="flex flex-col items-start gap-1 p-3 cursor-pointer transition-colors"
-              >
-                <div className="flex w-full items-center justify-between">
-                  <span className="font-medium">{model.displayName}</span>
-                  <div className="flex items-center gap-2">
+          {models.length === 0 ? (
+            <>
+              {/* No models installed - show message */}
+              <div className="p-4 text-center">
+                <p className="text-sm text-muted-foreground mb-2">
+                  No models installed
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  Download a model to get started
+                </p>
+              </div>
+              <DropdownMenuSeparator />
+            </>
+          ) : (
+            <>
+              {/* Show list of installed models */}
+              {models.map((model, index) => (
+                <motion.div
+                  key={model.id}
+                  initial={{ opacity: 0, x: -10 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  transition={{ duration: 0.2, delay: index * 0.05 }}
+                >
+                  <DropdownMenuItem
+                    onClick={() => onModelSelect(model)}
+                    disabled={isLoading}
+                    className="flex flex-col items-start gap-1 p-3 cursor-pointer transition-colors"
+                  >
+                    <div className="flex w-full items-center justify-between">
+                      <span className="font-medium">{model.displayName}</span>
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs text-muted-foreground">
+                          {model.size}
+                        </span>
+                        {currentModel === model.id && (
+                          <Check className="h-4 w-4 text-primary" />
+                        )}
+                      </div>
+                    </div>
                     <span className="text-xs text-muted-foreground">
-                      {model.size}
+                      {model.description}
                     </span>
-                    {currentModel === model.id && (
-                      <Check className="h-4 w-4 text-primary" />
-                    )}
-                  </div>
-                </div>
-                <span className="text-xs text-muted-foreground">
-                  {model.description}
-                </span>
-              </DropdownMenuItem>
-            </motion.div>
-          ))}
+                  </DropdownMenuItem>
+                </motion.div>
+              ))}
 
-          {/* Separator and Browse Models button */}
-          <DropdownMenuSeparator />
+              {/* Separator and Browse Models button */}
+              <DropdownMenuSeparator />
+            </>
+          )}
+
+          {/* Always show Browse & Download Models button */}
           <DropdownMenuItem
             onClick={() => setShowDownloadDialog(true)}
             className="flex items-center gap-2 p-3 cursor-pointer font-medium text-primary"
