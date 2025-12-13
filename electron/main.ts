@@ -50,7 +50,8 @@ async function setupIpcHandlers() {
   const settings = await SettingsStorageService.loadSettings();
 
   // Register all IPC handlers
-  const llamaService = registerLlamaHandlers(mainWindow);
+  // Pass a getter function for mainWindow so handlers can access it after it's created
+  const llamaService = registerLlamaHandlers(() => mainWindow);
   registerConversationHandlers();
   await registerMcpHandlers();
   const { webSearchService, getWebCacheService } = registerSearchHandlers();

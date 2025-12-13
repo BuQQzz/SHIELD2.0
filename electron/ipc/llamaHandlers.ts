@@ -3,8 +3,9 @@ import { getLlamaService } from "../../src/services/LlamaService.js";
 
 /**
  * Register all Llama.cpp related IPC handlers
+ * @param getMainWindow - Getter function that returns the current main window
  */
-export function registerLlamaHandlers(mainWindow: BrowserWindow | null) {
+export function registerLlamaHandlers(getMainWindow: () => BrowserWindow | null) {
   const llamaService = getLlamaService();
 
   // Initialize llama
@@ -52,12 +53,16 @@ export function registerLlamaHandlers(mainWindow: BrowserWindow | null) {
     console.log("[IPC] Options:", JSON.stringify(options));
 
     try {
+      const mainWindow = getMainWindow();
+      console.log("[IPC] mainWindow exists:", !!mainWindow);
+      
       const response = await llamaService.chatStreaming(
         message,
         (token) => {
           // Send token to renderer
-          console.log("[IPC] Sending token to renderer:", token.substring(0, 20));
-          mainWindow?.webContents.send("llama:token", token);
+          if (mainWindow && !mainWindow.isDestroyed()) {
+            mainWindow.webContents.send("llama:token", token);
+          }
         },
         options
       );
