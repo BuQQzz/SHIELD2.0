@@ -86,7 +86,7 @@ export function Sidebar({
               <>
                 <div className="flex items-center gap-2">
                   <img
-                    src="/shield-logo.png"
+                    src="./shield-logo.png"
                     alt="SHIELD"
                     className="h-10 w-auto object-contain"
                   />

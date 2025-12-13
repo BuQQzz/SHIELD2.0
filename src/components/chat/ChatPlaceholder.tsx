@@ -29,7 +29,7 @@ export function ChatPlaceholder({ onPromptClick }: ChatPlaceholderProps) {
         className="mb-6 flex flex-col items-center gap-4"
       >
         <img
-          src="/shield-logo.png"
+          src="./shield-logo.png"
           alt="SHIELD Logo"
           className="h-32 w-32 object-contain mb-4"
         />

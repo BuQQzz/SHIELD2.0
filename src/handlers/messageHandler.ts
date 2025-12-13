@@ -73,7 +73,12 @@ export function createMessageHandler({
   handleToolCallRequest,
 }: MessageHandlerProps) {
   return async (content: string, useWebSearch?: boolean) => {
+    console.log("[MessageHandler] handleSendMessage called with:", content.substring(0, 50));
+    console.log("[MessageHandler] isModelLoaded:", isModelLoaded);
+    console.log("[MessageHandler] currentConversation:", currentConversation?.id);
+    
     if (!isModelLoaded) {
+      console.warn("[MessageHandler] Model not loaded, aborting");
       alert("Please wait for the model to load");
       return;
     }

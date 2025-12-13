@@ -52,7 +52,11 @@ export const ChatInput = forwardRef<ChatInputRef, ChatInputProps>(
     }, [isGenerating, disabled]);
 
     const handleSubmit = () => {
+      console.log("[ChatInput] handleSubmit called, input:", input.substring(0, 50));
+      console.log("[ChatInput] isGenerating:", isGenerating, "disabled:", disabled);
+      
       if (input.trim() && !isGenerating && !disabled) {
+        console.log("[ChatInput] Calling onSend with message and webSearch:", webSearchEnabled);
         onSend(input.trim(), webSearchEnabled);
         setInput("");
         if (textareaRef.current) {
@@ -60,6 +64,8 @@ export const ChatInput = forwardRef<ChatInputRef, ChatInputProps>(
           // Re-focus after sending
           setTimeout(() => textareaRef.current?.focus(), 0);
         }
+      } else {
+        console.warn("[ChatInput] Cannot submit - input:", input.length, "isGenerating:", isGenerating, "disabled:", disabled);
       }
     };
 
