@@ -113,10 +113,17 @@ app.whenReady().then(async () => {
 
     SettingsStorageService.initialize();
 
+    // IMPORTANT: Register IPC handlers BEFORE creating the window
+    // This ensures handlers are ready when React tries to call them
+    const services = await setupIpcHandlers();
+    llamaService = services.llamaService;
+    webSearchService = services.webSearchService;
+    getWebCacheService = services.getWebCacheService;
+
     // Create window (but don't show yet)
     mainWindow = createMainWindow();
 
-    // Wait for the page to finish loading before continuing
+    // Wait for the page to finish loading
     await new Promise<void>((resolve) => {
       mainWindow!.webContents.once("did-finish-load", () => {
         resolve();
@@ -125,12 +132,6 @@ app.whenReady().then(async () => {
         resolve(); // Continue anyway
       });
     });
-
-    // Set up IPC handlers with the window reference
-    const services = await setupIpcHandlers();
-    llamaService = services.llamaService;
-    webSearchService = services.webSearchService;
-    getWebCacheService = services.getWebCacheService;
 
     // Wait briefly for React to initialize
     await new Promise((resolve) => setTimeout(resolve, 500));

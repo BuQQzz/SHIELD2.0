@@ -14,6 +14,8 @@ directories:
 files:
   - dist/**/*
   - dist-electron/**/*
+  - public/shield-logo.png
+  - public/favicon.ico
   - "!**/*.map"
   - "!**/node_modules/*/{CHANGELOG.md,README.md,readme.md,README,readme}"
   - "!**/node_modules/.cache/**"

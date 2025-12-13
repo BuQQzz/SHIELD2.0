@@ -9,7 +9,8 @@ function getSplashLogoPath(): string {
     return path.join(process.cwd(), "public", "shield-logo.png");
   }
 
-  return path.join(__dirname, "../dist/shield-logo.png");
+  // In production, the logo is in the resources/public folder
+  return path.join(process.resourcesPath, "public", "shield-logo.png");
 }
 
 /**
