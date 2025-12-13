@@ -94,6 +94,9 @@ export function createMessageHandler({
     setMessages((prev) => [...prev, userMessage]);
     addMessage(userMessage);
 
+    console.log("[MessageHandler] User message added, checking web search...");
+    console.log("[MessageHandler] useWebSearch:", useWebSearch, "performWebSearch:", !!performWebSearch);
+
     // Perform web search if requested (after user message is shown)
     let webSearchContext = "";
     let searchSources: SearchResult[] = [];
@@ -120,6 +123,9 @@ export function createMessageHandler({
     setIsGenerating(true);
     setStreamingContent("");
     streamingContentRef.current = "";
+
+    console.log("[MessageHandler] Starting generation...");
+    console.log("[MessageHandler] Web search context length:", webSearchContext.length);
 
     const assistantMessageId = generateMessageId();
 
@@ -168,6 +174,9 @@ export function createMessageHandler({
 
         messageWithContext += `Now follow these steps for the user's question:\n`;
       } else {
+      console.log("[MessageHandler] Calling sendStreamingMessage...");
+      console.log("[MessageHandler] Message length:", messageWithContext.length);
+
         messageWithContext = content;
       }
 
@@ -275,11 +284,15 @@ export function createMessageHandler({
 
       await saveCurrentConversation();
     } catch (err) {
+      console.error("[MessageHandler] Error during message handling:", err);
+      console.error("[MessageHandler] Error stack:", err instanceof Error ? err.stack : "N/A");
+      
       const isAbortError =
         err instanceof Error &&
         (err.name === "AbortError" || err.message.includes("abort"));
 
       if (isAbortError) {
+        console.log("[MessageHandler] Aborted by user");
         if (streamingContentRef.current) {
           const assistantMessage: Message = {
             id: assistantMessageId,
