@@ -182,7 +182,7 @@ export function createMessageHandler({
 
       console.log("[MessageHandler] Calling sendStreamingMessage with message length:", messageWithContext.length);
 
-      await sendStreamingMessage(
+      const returnedResponse = await sendStreamingMessage(
         messageWithContext,
         (token) => {
           streamingContentRef.current += token;
@@ -198,7 +198,10 @@ export function createMessageHandler({
         }
       );
 
-      const finalContent = streamingContentRef.current;
+      // Use streamed content if available, otherwise fall back to returned response
+      // This handles cases where streaming doesn't work but the response is returned
+      const finalContent = streamingContentRef.current || returnedResponse;
+      console.log("[MessageHandler] Final content length:", finalContent.length, "streamed:", !!streamingContentRef.current);
 
       // Parse and extract thinking/reasoning content from various XML formats
       const { settings } = useSettingsStore.getState();
