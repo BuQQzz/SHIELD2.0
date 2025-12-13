@@ -64,12 +64,6 @@ export function createMainWindow(): BrowserWindow {
     // dist folder is at app.asar/dist/
     mainWindow.loadFile(path.join(__dirname, "../dist/index.html"));
 
-    // TEMPORARY: Open DevTools in production to debug issues
-    mainWindow.webContents.openDevTools();
-  }
-
-  // Show window when ready to prevent flashing
-  mainWindow.once("ready-to-show", () => {
     mainWindow.show();
     // Force repaint after showing
     mainWindow.webContents.invalidate();

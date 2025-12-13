@@ -5,7 +5,23 @@ All notable changes to SHIELD will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [0.1.1] - 2025-12-12
+
+### Fixed
+
+- **Critical**: Fixed IPC handler registration timing - handlers now register before window creation
+- **Critical**: Fixed LLM not responding in production builds - responses now display correctly
+- **Critical**: Fixed streaming tokens not flowing in production - real-time streaming now works
+- **UI**: Fixed logo paths for production builds - logos now display correctly
+- **Web Search**: Increased page content limit from 1500 to 3000 characters for better context
+
+### Changed
+
+- IPC handlers now use getter function for mainWindow reference to enable proper token streaming
+- Logo assets moved to extraResources and unpacked from ASAR for file:// protocol access
+- Response handling uses returned content as fallback when streaming doesn't work
+
+## [0.1.0] - 2025-12-12
 
 ### Changed
 

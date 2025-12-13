@@ -73,13 +73,7 @@ export function createMessageHandler({
   handleToolCallRequest,
 }: MessageHandlerProps) {
   return async (content: string, useWebSearch?: boolean) => {
-    console.log("[MessageHandler] handleSendMessage called with:", content.substring(0, 50));
-    console.log("[MessageHandler] isModelLoaded:", isModelLoaded);
-    console.log("[MessageHandler] currentConversation:", currentConversation?.id);
-
     if (!isModelLoaded) {
-      console.warn("[MessageHandler] Model not loaded, aborting");
-      alert("Please wait for the model to load");
       return;
     }
 
@@ -93,9 +87,6 @@ export function createMessageHandler({
 
     setMessages((prev) => [...prev, userMessage]);
     addMessage(userMessage);
-
-    console.log("[MessageHandler] User message added, checking web search...");
-    console.log("[MessageHandler] useWebSearch:", useWebSearch, "performWebSearch:", !!performWebSearch);
 
     // Perform web search if requested (after user message is shown)
     let webSearchContext = "";
@@ -124,17 +115,11 @@ export function createMessageHandler({
     setStreamingContent("");
     streamingContentRef.current = "";
 
-    console.log("[MessageHandler] Starting generation...");
-    console.log("[MessageHandler] Web search context length:", webSearchContext.length);
-
     const assistantMessageId = generateMessageId();
 
     try {
       // Combine user query with web search context
       let messageWithContext: string;
-
-      console.log("[MessageHandler] Building message context...");
-      console.log("[MessageHandler] Has web search context:", !!webSearchContext);
 
       if (webSearchContext) {
         // Be EXTREMELY aggressive - repeat key info multiple times
@@ -180,8 +165,6 @@ export function createMessageHandler({
         messageWithContext = content;
       }
 
-      console.log("[MessageHandler] Calling sendStreamingMessage with message length:", messageWithContext.length);
-
       const returnedResponse = await sendStreamingMessage(
         messageWithContext,
         (token) => {
@@ -201,20 +184,14 @@ export function createMessageHandler({
       // Use streamed content if available, otherwise fall back to returned response
       // This handles cases where streaming doesn't work but the response is returned
       const finalContent = streamingContentRef.current || returnedResponse;
-      console.log("[MessageHandler] Final content length:", finalContent.length, "streamed:", !!streamingContentRef.current);
 
       // Parse and extract thinking/reasoning content from various XML formats
       const { settings } = useSettingsStore.getState();
-      console.log("[MessageHandler] showReasoning setting:", settings.webSearch.showReasoning);
-      console.log("[MessageHandler] hasWebSearchContext:", !!webSearchContext);
-      
       const { reasoning, thinking, processedContent } = parseAllThinking(
         finalContent,
         !!webSearchContext,
         settings.webSearch.showReasoning
       );
-      
-      console.log("[MessageHandler] Parsed - reasoning:", !!reasoning, "processedContent length:", processedContent.length);
 
       // Detect truncation
       const wasTruncated = detectTruncation(finalContent, {
