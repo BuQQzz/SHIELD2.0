@@ -1,5 +1,9 @@
 # SHIELD 🛡️
 
+![GitHub Downloads](https://img.shields.io/github/downloads/BuQQzz/SHIELD2.0-releases/total?style=flat-square&logo=github&label=Downloads&color=blue)
+![GitHub Release](https://img.shields.io/github/v/release/BuQQzz/SHIELD2.0-releases?style=flat-square&logo=github&label=Latest%20Release&color=green)
+![License](https://img.shields.io/badge/License-MIT-yellow.svg?style=flat-square)
+
 Privacy-first local AI chatbot for Windows. All processing happens locally - no external APIs, no data leaving your machine.
 
 > **🧠 AI Memory System**: This project uses [OpenMemory](https://github.com/CaviraOSS/OpenMemory) to give GitHub Copilot persistent memory during development. See [AI-MEMORY-README.md](./AI-MEMORY-README.md) for details.

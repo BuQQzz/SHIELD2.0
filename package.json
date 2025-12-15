@@ -20,6 +20,7 @@
     "download-model": "tsx scripts/download-model.ts",
     "test:inference": "tsx scripts/test-inference.ts",
     "test:service": "tsx scripts/test-service.ts",
+    "check-downloads": "node scripts/check-downloads.js",
     "postinstall": "electron-builder install-app-deps"
   },
   "keywords": [

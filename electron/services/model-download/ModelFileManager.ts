@@ -6,7 +6,7 @@ import type { ModelMetadata } from "../../../src/config/models";
  * Manages model file operations (checking, listing, deleting)
  */
 export class ModelFileManager {
-  constructor(private getModelsDir: () => string) {}
+  constructor(private getModelsDir: () => string) { }
 
   /**
    * Generate possible filenames for a model based on its URI
@@ -21,7 +21,7 @@ export class ModelFileManager {
 
     const [, repoPath, quantization] = uriParts;
     const [owner, repo] = repoPath.split("/");
-    
+
     // Remove -GGUF suffix from repo name if present (node-llama-cpp does this)
     const cleanRepo = repo.replace(/-GGUF$/i, "");
 
@@ -71,7 +71,7 @@ export class ModelFileManager {
       const modelsDir = this.getModelsDir();
       const files = await fs.readdir(modelsDir);
       const ggufFiles = files.filter((file) => file.endsWith(".gguf"));
-      
+
       // We need to import MODEL_CATALOG to map filenames back to model IDs
       // For now, return the filenames - the caller should use isModelInstalled() for each model
       return ggufFiles;
