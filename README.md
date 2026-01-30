@@ -34,6 +34,21 @@ See [docs/ROADMAP.md](docs/ROADMAP.md) for detailed development progress and pla
 - 16GB+ RAM (32GB optimal)
 - NVIDIA GPU with 12GB+ VRAM recommended (RTX 4070 or better)
 
+### ⚠️ Windows SmartScreen Warning
+
+When running SHIELD for the first time, Windows SmartScreen will show a security warning:
+
+**"Microsoft Defender SmartScreen couldn't verify if this file is safe..."**
+
+This happens because SHIELD is **not yet code-signed** with a digital certificate. The application is completely safe and open-source - you can verify the code yourself in this repository.
+
+**To run SHIELD:**
+1. Click **"More info"** in the SmartScreen dialog
+2. Click **"Run anyway"** at the bottom
+3. SHIELD will launch normally
+
+This warning appears for all unsigned applications. Code signing certificates cost $100-400/year, which we'll implement in a future release as the project grows.
+
 ### Installation
 
 ```powershell

@@ -98,6 +98,40 @@ Download the appropriate installer for your system:
 - 8GB RAM minimum (16GB recommended)
 - 5GB+ free disk space for models
 
+### ⚠️ Important: Windows SmartScreen Warning
+
+When you download and run SHIELD, **Windows will show a security warning** that looks like this:
+
+```
+Make sure you trust SHIELD-0.1.3-portable.exe before you open it
+
+Microsoft Defender SmartScreen couldn't verify if this file is safe
+because it isn't commonly downloaded.
+Publisher: Unknown
+```
+
+**This is expected and safe.** SHIELD is not yet code-signed because digital certificates cost $100-400/year. The application is completely safe and fully open-source - you can review all the code in this repository.
+
+**How to install SHIELD:**
+
+1. **Download** the installer or portable version from the releases page
+2. When Windows shows the SmartScreen warning, click **"More info"**
+3. Click **"Run anyway"** at the bottom of the dialog
+4. SHIELD will launch and install normally
+
+**Why does this happen?**
+- SHIELD doesn't have a paid code signing certificate yet
+- Windows blocks unsigned executables by default to protect users
+- This is normal for open-source projects without corporate funding
+
+**Is it safe?**
+- ✅ Yes - SHIELD is 100% open-source (you can audit the code)
+- ✅ All processing happens locally on your machine
+- ✅ No data is sent to external servers
+- ✅ No telemetry or tracking
+
+We plan to add code signing in a future release as the project grows.
+
 ### Getting Started
 1. Run the installer
 2. Launch SHIELD
