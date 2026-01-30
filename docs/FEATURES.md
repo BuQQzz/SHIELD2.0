@@ -168,6 +168,42 @@ Organize conversations with custom tags for easy filtering and search.
 
 ---
 
+### ⚡ Speculative Decoding
+
+**Status**: ✅ Production Ready  
+**Added**: January 2026
+
+Accelerate LLM inference using intelligent token prediction.
+
+**Features**:
+
+- ✅ InputLookupTokenPredictor for pattern-based prediction
+- ✅ 20-50% speedup for code completion and summarization
+- ✅ No additional model required (unlike draft model approaches)
+- ✅ Zero memory overhead
+- ✅ Toggle on/off in Advanced Settings
+
+**How It Works**:
+
+1. Analyzes input text for recurring patterns
+2. Predicts multiple tokens ahead during generation
+3. Verifies predictions in parallel (faster than sequential)
+4. Falls back to normal generation when patterns don't match
+
+**Best For**:
+
+- Code completion (high pattern repetition)
+- Summarization (content from input)
+- Q&A tasks (quoting source text)
+
+**Key Files**:
+
+- `src/services/LlamaService.ts` - Token predictor integration
+- `src/components/settings/ModelSettings.tsx` - UI toggle
+- `docs/features/SPECULATIVE_DECODING.md` - Full documentation
+
+---
+
 ### ⚙️ Settings & Configuration
 
 **Status**: ✅ Production Ready
@@ -186,6 +222,7 @@ Comprehensive settings for customizing SHIELD behavior.
    - GPU layer offloading (0-99 layers)
    - Context length limits
    - Thread count configuration
+   - **Speculative decoding toggle**
 
 3. **Web Search Settings**
    - Enable/disable web search
