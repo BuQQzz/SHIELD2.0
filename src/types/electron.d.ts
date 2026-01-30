@@ -109,6 +109,7 @@ export interface AppSettings {
     repeatPenalty: number;
     contextLength: number;
     maxTokens: number;
+    speculativeDecoding: boolean;
   };
   system: {
     systemPrompt: string;

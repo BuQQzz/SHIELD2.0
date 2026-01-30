@@ -6,6 +6,7 @@ import {
   LlamaChatSession,
   resolveModelFile,
   resolveChatWrapper,
+  InputLookupTokenPredictor,
 } from "node-llama-cpp";
 import path from "path";
 import { fileURLToPath } from "url";
@@ -33,6 +34,7 @@ export interface ModelConfig {
   name: string;
   uri: string;
   contextSize?: number;
+  speculativeDecoding?: boolean; // Enable input lookup token prediction
 }
 
 /**
@@ -221,8 +223,27 @@ export class LlamaService {
     // correct template format (Llama, Qwen, Mistral, etc.) is used
     const chatWrapper = resolveChatWrapper(this.model);
 
+    // Create context sequence with optional speculative decoding
+    // InputLookupTokenPredictor speeds up generation for input-grounded tasks
+    // (code modification, summarization, etc.) by predicting tokens from input
+    const useSpeculativeDecoding = config.speculativeDecoding ?? true;
+    const contextSequence = this.context.getSequence({
+      tokenPredictor: useSpeculativeDecoding
+        ? new InputLookupTokenPredictor({
+            patternLength: { min: 2 },
+            predictionLength: { max: 3 },
+          })
+        : undefined,
+    });
+
+    if (useSpeculativeDecoding) {
+      console.log(
+        "[LlamaService] Speculative decoding enabled (InputLookupTokenPredictor)"
+      );
+    }
+
     this.session = new LlamaChatSession({
-      contextSequence: this.context.getSequence(),
+      contextSequence,
       chatWrapper,
       systemPrompt: this.systemPrompt,
     });
