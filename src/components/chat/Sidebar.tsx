@@ -3,8 +3,8 @@
 import {
   Plus,
   Search,
-  PanelLeft,
-  PanelRight,
+  PanelLeftClose,
+  PanelLeftOpen,
   Settings,
   Sparkles,
 } from "lucide-react";
@@ -96,7 +96,7 @@ export function Sidebar({
                   title="Collapse sidebar"
                   className="rounded-md p-1.5 transition-colors hover:bg-accent"
                 >
-                  <PanelLeft className="h-5 w-5 text-muted-foreground" />
+                  <PanelLeftClose className="h-5 w-5 text-muted-foreground" />
                 </button>
               </>
             ) : (
@@ -105,7 +105,7 @@ export function Sidebar({
                 title="Expand sidebar"
                 className="mx-auto rounded-md p-1.5 transition-colors hover:bg-accent"
               >
-                <PanelRight className="h-5 w-5 text-muted-foreground" />
+                <PanelLeftOpen className="h-5 w-5 text-muted-foreground" />
               </button>
             )}
           </div>

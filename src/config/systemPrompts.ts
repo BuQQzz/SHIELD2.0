@@ -6,11 +6,11 @@
  */
 
 import type {
-    SystemPromptConfig,
-    ModelFamily,
-    PromptCapability,
-    BuiltPrompt,
-    ToolDefinition,
+  SystemPromptConfig,
+  ModelFamily,
+  PromptCapability,
+  BuiltPrompt,
+  ToolDefinition,
 } from "../types/prompts";
 
 // =============================================================================
@@ -46,37 +46,37 @@ export const MINIMAL_PROMPT = `You are SHIELD, a helpful local AI assistant. Be 
  * These are appended to the base prompt for better model-specific behavior
  */
 export const MODEL_FAMILY_PROMPTS: Record<ModelFamily, string> = {
-    llama: `
+  llama: `
 Response Style:
 - Think step-by-step for complex questions
 - Use clear, structured responses
 - Be direct and avoid unnecessary filler`,
 
-    qwen: `
+  qwen: `
 Response Style:
 - Follow instructions precisely
 - Structure responses clearly with headers when helpful
 - Support multilingual queries naturally`,
 
-    mistral: `
+  mistral: `
 Response Style:
 - Provide well-reasoned, structured responses
 - Use logical flow in explanations
 - Be precise with technical details`,
 
-    phi: `
+  phi: `
 Response Style:
 - Keep responses focused and efficient
 - Prioritize clarity over verbosity
 - Use compact explanations`,
 
-    gemma: `
+  gemma: `
 Response Style:
 - Provide balanced, informative responses
 - Use natural conversational tone
 - Structure complex answers clearly`,
 
-    deepseek: `
+  deepseek: `
 Response Style:
 - CRITICAL: Follow ALL user instructions exactly, including format constraints
 - Your name is SHIELD - always identify as SHIELD when asked
@@ -85,7 +85,7 @@ Response Style:
 - Use code examples when helpful
 - If user says "one word only" or similar, respond with exactly one word`,
 
-    generic: `
+  generic: `
 Response Style:
 - CRITICAL: Follow ALL user instructions exactly
 - Your name is SHIELD - always identify as SHIELD when asked
@@ -168,21 +168,21 @@ When asked for structured data (JSON, lists, tables):
  * Generate MCP tool prompt with ReAct examples
  */
 export function generateMCPToolPrompt(tools: ToolDefinition[]): string {
-    if (tools.length === 0) return "";
+  if (tools.length === 0) return "";
 
-    const toolDescriptions = tools
-        .map((tool) => {
-            const params = tool.parameters
-                ?.map(
-                    (p) =>
-                        `  - ${p.name} (${p.type}${p.required ? ", required" : ""}): ${p.description}`
-                )
-                .join("\n");
-            return `**${tool.name}**: ${tool.description}${params ? `\nParameters:\n${params}` : ""}`;
-        })
-        .join("\n\n");
+  const toolDescriptions = tools
+    .map((tool) => {
+      const params = tool.parameters
+        ?.map(
+          (p) =>
+            `  - ${p.name} (${p.type}${p.required ? ", required" : ""}): ${p.description}`
+        )
+        .join("\n");
+      return `**${tool.name}**: ${tool.description}${params ? `\nParameters:\n${params}` : ""}`;
+    })
+    .join("\n\n");
 
-    return `
+  return `
 ## 🔧 Available Tools
 
 ${toolDescriptions}
@@ -222,53 +222,53 @@ I've created the file hello.txt on your desktop with the content "Hello World".
  * Default filesystem tools definition
  */
 export const DEFAULT_MCP_TOOLS: ToolDefinition[] = [
-    {
-        name: "read_file",
-        description: "Read the contents of a file",
-        serverName: "filesystem",
-        parameters: [
-            {
-                name: "path",
-                type: "string",
-                description:
-                    "Full Windows path to the file (e.g., C:\\Users\\...\\file.txt)",
-                required: true,
-                example: "C:\\Users\\Username\\Documents\\example.txt",
-            },
-        ],
-    },
-    {
-        name: "write_file",
-        description: "Write content to a file (creates new or overwrites existing)",
-        serverName: "filesystem",
-        parameters: [
-            {
-                name: "path",
-                type: "string",
-                description: "Full Windows path to the file",
-                required: true,
-            },
-            {
-                name: "content",
-                type: "string",
-                description: "Content to write to the file",
-                required: true,
-            },
-        ],
-    },
-    {
-        name: "list_directory",
-        description: "List all files and folders in a directory",
-        serverName: "filesystem",
-        parameters: [
-            {
-                name: "path",
-                type: "string",
-                description: "Full Windows path to the directory",
-                required: true,
-            },
-        ],
-    },
+  {
+    name: "read_file",
+    description: "Read the contents of a file",
+    serverName: "filesystem",
+    parameters: [
+      {
+        name: "path",
+        type: "string",
+        description:
+          "Full Windows path to the file (e.g., C:\\Users\\...\\file.txt)",
+        required: true,
+        example: "C:\\Users\\Username\\Documents\\example.txt",
+      },
+    ],
+  },
+  {
+    name: "write_file",
+    description: "Write content to a file (creates new or overwrites existing)",
+    serverName: "filesystem",
+    parameters: [
+      {
+        name: "path",
+        type: "string",
+        description: "Full Windows path to the file",
+        required: true,
+      },
+      {
+        name: "content",
+        type: "string",
+        description: "Content to write to the file",
+        required: true,
+      },
+    ],
+  },
+  {
+    name: "list_directory",
+    description: "List all files and folders in a directory",
+    serverName: "filesystem",
+    parameters: [
+      {
+        name: "path",
+        type: "string",
+        description: "Full Windows path to the directory",
+        required: true,
+      },
+    ],
+  },
 ];
 
 // =============================================================================
@@ -279,116 +279,116 @@ export const DEFAULT_MCP_TOOLS: ToolDefinition[] = [
  * Build a complete system prompt based on configuration
  */
 export function buildSystemPrompt(config: SystemPromptConfig): BuiltPrompt {
-    const includedModules: string[] = [];
-    const parts: string[] = [];
+  const includedModules: string[] = [];
+  const parts: string[] = [];
 
-    // If user has a custom prompt, use it as the base (but still add capability prompts)
-    if (config.customPrompt && config.customPrompt.trim()) {
-        parts.push(config.customPrompt);
-        includedModules.push("custom");
+  // If user has a custom prompt, use it as the base (but still add capability prompts)
+  if (config.customPrompt && config.customPrompt.trim()) {
+    parts.push(config.customPrompt);
+    includedModules.push("custom");
+  } else {
+    // Use minimal prompt for phi (small context) or full base prompt
+    if (config.modelFamily === "phi") {
+      parts.push(MINIMAL_PROMPT);
+      includedModules.push("minimal-base");
     } else {
-        // Use minimal prompt for phi (small context) or full base prompt
-        if (config.modelFamily === "phi") {
-            parts.push(MINIMAL_PROMPT);
-            includedModules.push("minimal-base");
-        } else {
-            parts.push(BASE_PROMPT);
-            includedModules.push("base");
+      parts.push(BASE_PROMPT);
+      includedModules.push("base");
 
-            // Add model-family specific prompt
-            const familyPrompt = MODEL_FAMILY_PROMPTS[config.modelFamily];
-            if (familyPrompt) {
-                parts.push(familyPrompt);
-                includedModules.push(`family-${config.modelFamily}`);
-            }
-        }
+      // Add model-family specific prompt
+      const familyPrompt = MODEL_FAMILY_PROMPTS[config.modelFamily];
+      if (familyPrompt) {
+        parts.push(familyPrompt);
+        includedModules.push(`family-${config.modelFamily}`);
+      }
     }
+  }
 
-    // Add capability-based prompts
-    if (config.capabilities.includes("complexReasoning")) {
-        parts.push(REASONING_PROMPT);
-        includedModules.push("reasoning");
-    }
+  // Add capability-based prompts
+  if (config.capabilities.includes("complexReasoning")) {
+    parts.push(REASONING_PROMPT);
+    includedModules.push("reasoning");
+  }
 
-    if (config.capabilities.includes("codeGeneration")) {
-        parts.push(CODE_GENERATION_PROMPT);
-        includedModules.push("code-generation");
-    }
+  if (config.capabilities.includes("codeGeneration")) {
+    parts.push(CODE_GENERATION_PROMPT);
+    includedModules.push("code-generation");
+  }
 
-    if (config.capabilities.includes("structuredOutput")) {
-        parts.push(STRUCTURED_OUTPUT_PROMPT);
-        includedModules.push("structured-output");
-    }
+  if (config.capabilities.includes("structuredOutput")) {
+    parts.push(STRUCTURED_OUTPUT_PROMPT);
+    includedModules.push("structured-output");
+  }
 
-    // Add web search prompt if enabled
-    if (config.webSearchEnabled) {
-        parts.push(WEB_SEARCH_PROMPT);
-        includedModules.push("web-search");
-    }
+  // Add web search prompt if enabled
+  if (config.webSearchEnabled) {
+    parts.push(WEB_SEARCH_PROMPT);
+    includedModules.push("web-search");
+  }
 
-    // Add MCP tool prompt if enabled
-    if (config.mcpEnabled) {
-        const tools = config.availableTools || DEFAULT_MCP_TOOLS;
-        parts.push(TOOL_CALLING_PROMPT);
-        parts.push(generateMCPToolPrompt(tools));
-        includedModules.push("tool-calling");
-        includedModules.push("mcp-tools");
-    }
+  // Add MCP tool prompt if enabled
+  if (config.mcpEnabled) {
+    const tools = config.availableTools || DEFAULT_MCP_TOOLS;
+    parts.push(TOOL_CALLING_PROMPT);
+    parts.push(generateMCPToolPrompt(tools));
+    includedModules.push("tool-calling");
+    includedModules.push("mcp-tools");
+  }
 
-    const prompt = parts.join("\n");
+  const prompt = parts.join("\n");
 
-    // Rough token estimate (1 token ≈ 4 chars for English)
-    const estimatedTokens = Math.ceil(prompt.length / 4);
+  // Rough token estimate (1 token ≈ 4 chars for English)
+  const estimatedTokens = Math.ceil(prompt.length / 4);
 
-    return {
-        prompt,
-        includedModules,
-        estimatedTokens,
-    };
+  return {
+    prompt,
+    includedModules,
+    estimatedTokens,
+  };
 }
 
 /**
  * Detect model family from model name/ID
  */
 export function detectModelFamily(modelName: string): ModelFamily {
-    const name = modelName.toLowerCase();
+  const name = modelName.toLowerCase();
 
-    if (name.includes("llama")) return "llama";
-    if (name.includes("qwen")) return "qwen";
-    if (name.includes("mistral") || name.includes("mixtral")) return "mistral";
-    if (name.includes("phi")) return "phi";
-    if (name.includes("gemma")) return "gemma";
-    if (name.includes("deepseek")) return "deepseek";
+  if (name.includes("llama")) return "llama";
+  if (name.includes("qwen")) return "qwen";
+  if (name.includes("mistral") || name.includes("mixtral")) return "mistral";
+  if (name.includes("phi")) return "phi";
+  if (name.includes("gemma")) return "gemma";
+  if (name.includes("deepseek")) return "deepseek";
 
-    return "generic";
+  return "generic";
 }
 
 /**
  * Get capabilities from model config
  */
 export function getCapabilitiesFromModel(modelCapabilities: {
-    toolCalling?: boolean;
-    complexReasoning?: boolean;
-    webSearch?: boolean;
-    structuredOutput?: boolean;
-    codeGeneration?: boolean;
-    longContext?: boolean;
+  toolCalling?: boolean;
+  complexReasoning?: boolean;
+  webSearch?: boolean;
+  structuredOutput?: boolean;
+  codeGeneration?: boolean;
+  longContext?: boolean;
 }): PromptCapability[] {
-    const caps: PromptCapability[] = [];
+  const caps: PromptCapability[] = [];
 
-    if (modelCapabilities.toolCalling) caps.push("toolCalling");
-    if (modelCapabilities.complexReasoning) caps.push("complexReasoning");
-    if (modelCapabilities.webSearch) caps.push("webSearch");
-    if (modelCapabilities.structuredOutput) caps.push("structuredOutput");
-    if (modelCapabilities.codeGeneration) caps.push("codeGeneration");
-    if (modelCapabilities.longContext) caps.push("longContext");
+  if (modelCapabilities.toolCalling) caps.push("toolCalling");
+  if (modelCapabilities.complexReasoning) caps.push("complexReasoning");
+  if (modelCapabilities.webSearch) caps.push("webSearch");
+  if (modelCapabilities.structuredOutput) caps.push("structuredOutput");
+  if (modelCapabilities.codeGeneration) caps.push("codeGeneration");
+  if (modelCapabilities.longContext) caps.push("longContext");
 
-    return caps;
+  return caps;
 }
 
 /**
  * Get a simple default prompt (for settings default)
  */
 export function getDefaultSystemPrompt(): string {
-    return BASE_PROMPT;
+  return BASE_PROMPT;
 }

@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useRef } from "react";
 import {
   Menu,
   MoreVertical,
@@ -12,6 +13,7 @@ import {
   Plus,
 } from "lucide-react";
 import { motion } from "framer-motion";
+import { toast } from "sonner";
 import { useChatStore } from "@/stores/chat-store";
 import { useConversationStore } from "@/stores/conversation-store";
 import { useSettingsStore } from "@/store/settingsStore";
@@ -61,6 +63,20 @@ export function ChatHeader({
   const { settings } = useSettingsStore();
   const [newTagInput, setNewTagInput] = useState("");
   const [showTagInput, setShowTagInput] = useState(false);
+  const lastWarningRef = useRef<string | null>(null);
+
+  // Show warning as toast notification (only once per unique warning)
+  useEffect(() => {
+    if (warning && warning !== lastWarningRef.current) {
+      lastWarningRef.current = warning;
+      toast.warning(warning, {
+        duration: 8000,
+        id: "model-warning", // Prevents duplicate toasts
+      });
+    } else if (!warning) {
+      lastWarningRef.current = null;
+    }
+  }, [warning]);
 
   const handleAddTag = async (tag: string) => {
     if (!currentConversation || !tag.trim()) return;
@@ -91,7 +107,7 @@ export function ChatHeader({
     const success =
       await window.electronAPI.export.exportJSON(currentConversation);
     if (success) {
-      console.log("Conversation exported as JSON");
+      toast.success("Conversation exported as JSON");
     }
   };
 
@@ -100,13 +116,14 @@ export function ChatHeader({
     const success =
       await window.electronAPI.export.exportMarkdown(currentConversation);
     if (success) {
-      console.log("Conversation exported as Markdown");
+      toast.success("Conversation exported as Markdown");
     }
   };
 
   const handleImport = async () => {
     const conversation = await window.electronAPI.export.import();
     if (conversation) {
+      toast.success("Conversation imported successfully");
       // Load the imported conversation
       loadConversation(conversation.id);
     }
@@ -136,10 +153,6 @@ export function ChatHeader({
             </span>
           ) : error ? (
             <span className="text-sm text-destructive">{error}</span>
-          ) : warning ? (
-            <span className="text-sm text-yellow-600 dark:text-yellow-500">
-              {warning}
-            </span>
           ) : modelName ? (
             <span className="text-sm text-muted-foreground">{modelName}</span>
           ) : null}

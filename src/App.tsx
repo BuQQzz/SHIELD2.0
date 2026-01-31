@@ -10,6 +10,7 @@ import { ChatInput, type ChatInputRef } from "./components/chat/ChatInput";
 import { LazySettingsDialog, LazyTemplateSelector } from "./components/lazy";
 import { MCPDialogs } from "./components/dialogs/MCPDialogs";
 import { ThemeProvider } from "./components/theme/ThemeProvider";
+import { Toaster } from "./components/ui/sonner";
 import { useLlama, type Message } from "./hooks/useLlama";
 import { useConversationStore } from "./stores/conversation-store";
 import { useConversationSync } from "./hooks/useConversationSync";
@@ -269,6 +270,7 @@ function AppWithTheme() {
   return (
     <ThemeProvider defaultTheme="system" storageKey="shield-ui-theme">
       <App />
+      <Toaster />
     </ThemeProvider>
   );
 }
