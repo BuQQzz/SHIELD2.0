@@ -151,9 +151,9 @@ export class DownloadManager {
     console.log(`[DownloadManager] Downloading ${model.displayName}...`);
     console.log(`[DownloadManager] URI: ${model.uri}`);
     console.log(`[DownloadManager] Target: ${modelsDir}`);
-    
+
     // Debug token info (masked for security)
-    const tokenInfo = this.huggingFaceToken 
+    const tokenInfo = this.huggingFaceToken
       ? `Configured (${this.huggingFaceToken.substring(0, 4)}...${this.huggingFaceToken.substring(this.huggingFaceToken.length - 4)}, length: ${this.huggingFaceToken.length})`
       : "Not set";
     console.log(`[DownloadManager] HF Token: ${tokenInfo}`);

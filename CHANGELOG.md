@@ -5,7 +5,7 @@ All notable changes to SHIELD will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased] - Tech Stack Update
+## [0.1.4] - 2026-01-31
 
 ### Added
 
@@ -14,6 +14,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Uses pattern matching on input text (no additional model required)
   - Toggle in Settings → Model Settings → Advanced
   - Zero memory overhead compared to draft model approaches
+
+- **Model-Specific System Prompts**: Intelligent prompt composition based on model capabilities
+  - Automatic model family detection (Llama, Qwen, Mistral, Phi, Gemma, DeepSeek)
+  - Capability-based prompt modules (tool calling, web search, reasoning, code generation)
+  - ReAct-style prompts for better tool calling and reasoning
+  - Chain-of-thought prompts for complex reasoning tasks
+  - Optimized prompts for each model family's strengths
 
 ### Changed
 

@@ -96,13 +96,19 @@ function App() {
     syncHfToken();
   }, [settings.system.huggingFaceToken]);
 
-  // MCP system prompt management
+  // MCP system prompt management - builds model-specific prompts
+  const currentModelConfig = installedModels.find(
+    (m) => m.id === currentModelId
+  );
   useMCPSystemPrompt({
     isModelLoaded,
     isMCPReady,
     mcpEnabled: settings.mcp?.enabled ?? false,
     baseSystemPrompt: settings.system.systemPrompt,
     setSystemPrompt,
+    modelName: currentModelConfig?.name,
+    modelCapabilities: currentModelConfig?.capabilities,
+    webSearchEnabled: settings.webSearch?.enabled,
   });
 
   // Initialize a new conversation if none exists
