@@ -76,7 +76,10 @@ export function registerModelHandlers() {
           installedModelIds.push(model.id);
         }
       }
-      console.log(`[modelHandlers] Found ${installedModelIds.length} installed models:`, installedModelIds);
+      console.log(
+        `[modelHandlers] Found ${installedModelIds.length} installed models:`,
+        installedModelIds
+      );
       return { success: true, models: installedModelIds };
     } catch (error) {
       console.error("Failed to list installed models:", error);
@@ -115,7 +118,10 @@ export function registerModelHandlers() {
 
       const deleted = await modelDownloadService.deleteModel(model);
       if (!deleted) {
-        return { success: false, error: "Model file not found or could not be deleted" };
+        return {
+          success: false,
+          error: "Model file not found or could not be deleted",
+        };
       }
       return { success: true };
     } catch (error) {

@@ -232,14 +232,14 @@ Intelligent system prompt composition that adapts to each model's strengths.
 
 **Model Family Optimizations**:
 
-| Family | Optimizations |
-|--------|---------------|
-| Llama | Step-by-step reasoning, concise format |
-| Qwen | Precise instructions, multilingual |
-| Mistral | Structured outputs, function calling |
-| Phi | Compact prompts (small context) |
-| Gemma | Balanced, conversational |
-| DeepSeek | Code-focused additions |
+| Family   | Optimizations                          |
+| -------- | -------------------------------------- |
+| Llama    | Step-by-step reasoning, concise format |
+| Qwen     | Precise instructions, multilingual     |
+| Mistral  | Structured outputs, function calling   |
+| Phi      | Compact prompts (small context)        |
+| Gemma    | Balanced, conversational               |
+| DeepSeek | Code-focused additions                 |
 
 **Key Files**:
 

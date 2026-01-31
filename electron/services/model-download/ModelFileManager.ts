@@ -6,7 +6,7 @@ import type { ModelMetadata } from "../../../src/config/models";
  * Manages model file operations (checking, listing, deleting)
  */
 export class ModelFileManager {
-  constructor(private getModelsDir: () => string) { }
+  constructor(private getModelsDir: () => string) {}
 
   /**
    * Generate possible filenames for a model based on its URI
@@ -109,7 +109,9 @@ export class ModelFileManager {
       }
 
       // If we get here, no file was found
-      console.warn(`[ModelFileManager] No matching file found for model ${model.id}`);
+      console.warn(
+        `[ModelFileManager] No matching file found for model ${model.id}`
+      );
       return false;
     } catch (error) {
       console.error(`Error deleting model ${model.id}:`, error);

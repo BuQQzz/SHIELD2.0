@@ -20,12 +20,12 @@ SHIELD uses **InputLookupTokenPredictor** from node-llama-cpp, which predicts to
 
 We chose `InputLookupTokenPredictor` over `DraftSequenceTokenPredictor` because:
 
-| Feature | InputLookupTokenPredictor | DraftSequenceTokenPredictor |
-|---------|---------------------------|----------------------------|
-| **Additional Model** | ❌ Not required | ✅ Requires draft model |
-| **Memory Usage** | Lower | Higher (2 models in RAM) |
-| **Best For** | Code, summarization, Q&A | General text generation |
-| **Setup** | Zero configuration | Requires compatible draft model |
+| Feature              | InputLookupTokenPredictor | DraftSequenceTokenPredictor     |
+| -------------------- | ------------------------- | ------------------------------- |
+| **Additional Model** | ❌ Not required           | ✅ Requires draft model         |
+| **Memory Usage**     | Lower                     | Higher (2 models in RAM)        |
+| **Best For**         | Code, summarization, Q&A  | General text generation         |
+| **Setup**            | Zero configuration        | Requires compatible draft model |
 
 ## Configuration
 
@@ -34,6 +34,7 @@ We chose `InputLookupTokenPredictor` over `DraftSequenceTokenPredictor` because:
 Enable/disable in **Settings → Model Settings → Advanced → Speculative Decoding**
 
 The toggle shows:
+
 - ⚡ Icon indicating performance feature
 - Description: "Speeds up generation for code & text tasks"
 
@@ -41,9 +42,9 @@ The toggle shows:
 
 ```typescript
 tokenPredictor: new InputLookupTokenPredictor({
-  patternLength: { min: 2 },      // Minimum pattern length to match
-  predictionLength: { max: 3 }    // Maximum tokens to predict ahead
-})
+  patternLength: { min: 2 }, // Minimum pattern length to match
+  predictionLength: { max: 3 }, // Maximum tokens to predict ahead
+});
 ```
 
 ## Performance Impact
@@ -74,13 +75,13 @@ Minimal - only stores pattern lookup tables from input text.
 ### Code Example
 
 ```typescript
-import { InputLookupTokenPredictor } from 'node-llama-cpp';
+import { InputLookupTokenPredictor } from "node-llama-cpp";
 
 // Create context sequence with speculative decoding
 const contextSequence = model.createContextSequence({
   contextShift: {
     size: contextShiftSize,
-    strategy: 'eraseBeginning',
+    strategy: "eraseBeginning",
   },
   tokenPredictor: useSpeculativeDecoding
     ? new InputLookupTokenPredictor({

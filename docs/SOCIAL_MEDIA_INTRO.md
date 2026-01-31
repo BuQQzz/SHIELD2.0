@@ -55,11 +55,12 @@ I'm excited to share **SHIELD**, a powerful desktop application designed to brin
 Unlike cloud-based assistants, SHIELD runs entirely on your hardware using **llama.cpp**. This means your data never leaves your computer—perfect for sensitive workflows, coding, and personal data processing.
 
 **Key Features:**
-*   **🔒 100% Local Privacy**: No external API calls for inference.
-*   **🧠 Transparent Reasoning**: Visual "Thinking" animation for Chain-of-Thought models, letting you see the AI's logic.
-*   **⚡ Smart Hardware Usage**: GPU Layer Offloading allows you to run large models (like Qwen 2.5 32B) even on consumer GPUs with limited VRAM.
-*   **📂 File System Integration**: Built on the Model Context Protocol (MCP), SHIELD can safely read and write files on your PC with granular permission controls.
-*   **🔍 Private Web Search**: Integrated DuckDuckGo search for real-time information without tracking.
+
+- **🔒 100% Local Privacy**: No external API calls for inference.
+- **🧠 Transparent Reasoning**: Visual "Thinking" animation for Chain-of-Thought models, letting you see the AI's logic.
+- **⚡ Smart Hardware Usage**: GPU Layer Offloading allows you to run large models (like Qwen 2.5 32B) even on consumer GPUs with limited VRAM.
+- **📂 File System Integration**: Built on the Model Context Protocol (MCP), SHIELD can safely read and write files on your PC with granular permission controls.
+- **🔍 Private Web Search**: Integrated DuckDuckGo search for real-time information without tracking.
 
 Built with a modern tech stack: **Electron, React, TypeScript, and shadcn/ui**.
 
@@ -83,14 +84,16 @@ I wanted to share **SHIELD**, an open-source project I've been working on. It's 
 To create a polished, user-friendly interface for local LLMs that feels as good as commercial cloud apps but keeps all data on your machine.
 
 **Under the Hood:**
-*   **Backend**: Electron + Node.js + **llama.cpp** (via node-llama-cpp)
-*   **Frontend**: React 19 + TypeScript + shadcn/ui
-*   **Models**: Supports GGUF format (Qwen, Llama 3, Mistral, etc.)
+
+- **Backend**: Electron + Node.js + **llama.cpp** (via node-llama-cpp)
+- **Frontend**: React 19 + TypeScript + shadcn/ui
+- **Models**: Supports GGUF format (Qwen, Llama 3, Mistral, etc.)
 
 **Cool Features:**
+
 1.  **Thinking UI**: For models that support Chain-of-Thought (like DeepSeek R1 or Qwen), we parse the `<think>` tags and show a collapsible "AI Reasoning" section. You can see exactly how the model got to the answer.
 2.  **GPU Layer Offloading**: If you have a 12GB card but want to run a 32B model, SHIELD automatically splits layers between VRAM and System RAM so it actually runs (instead of OOMing).
-3.  **MCP Integration**: We implemented the **Model Context Protocol** to give the AI tools. It can read/write files on your desktop/documents, but *only* with your explicit permission via a native dialog.
+3.  **MCP Integration**: We implemented the **Model Context Protocol** to give the AI tools. It can read/write files on your desktop/documents, but _only_ with your explicit permission via a native dialog.
 4.  **Private Web Search**: Toggles on/off. Uses DuckDuckGo (no API key needed) + Playwright to fetch and parse content locally.
 
 **Why another UI?**
@@ -112,11 +115,12 @@ We are thrilled to unveil **SHIELD** – your new privacy-first AI companion. �
 SHIELD brings the power of local LLMs to your Windows desktop with a beautiful, modern interface.
 
 **✨ Highlights:**
-*   **Run Locally**: Powered by `llama.cpp`. Your data stays yours.
-*   **Smart Offloading**: Run bigger models on smaller GPUs.
-*   **Thinking Mode**: Watch the AI "think" through complex problems.
-*   **Tools (MCP)**: Give the AI access to your files safely.
-*   **Web Search**: Get up-to-date info privately.
+
+- **Run Locally**: Powered by `llama.cpp`. Your data stays yours.
+- **Smart Offloading**: Run bigger models on smaller GPUs.
+- **Thinking Mode**: Watch the AI "think" through complex problems.
+- **Tools (MCP)**: Give the AI access to your files safely.
+- **Web Search**: Get up-to-date info privately.
 
 **📥 Download:** [Link]
 **⭐ Star on GitHub:** [Link]

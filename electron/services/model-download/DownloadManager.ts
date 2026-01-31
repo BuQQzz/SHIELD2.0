@@ -33,7 +33,7 @@ export class DownloadManager {
   private mainWindow: BrowserWindow | null = null;
   private huggingFaceToken: string | undefined;
 
-  constructor(private getModelsDir: () => string) { }
+  constructor(private getModelsDir: () => string) {}
 
   /**
    * Set the main window for IPC communication
@@ -66,7 +66,9 @@ export class DownloadManager {
     if (this.mainWindow && !this.mainWindow.isDestroyed()) {
       this.mainWindow.webContents.send("model:download-progress", progress);
     } else {
-      console.warn("[DownloadManager] Cannot send progress - mainWindow not set or destroyed");
+      console.warn(
+        "[DownloadManager] Cannot send progress - mainWindow not set or destroyed"
+      );
     }
   }
 
@@ -111,7 +113,9 @@ export class DownloadManager {
       const modelPath = await this.downloadWithProgress(model, task, progress);
 
       // Download completed successfully
-      console.log(`[DownloadManager] Download completed for ${model.id}, sending completion event`);
+      console.log(
+        `[DownloadManager] Download completed for ${model.id}, sending completion event`
+      );
       progress.status = "completed";
       progress.progress = 100;
       this.sendProgress(progress);
@@ -235,7 +239,10 @@ export class DownloadManager {
         await task.downloader.cancel({ deleteTempFile: true });
         console.log(`[DownloadManager] Downloader cancelled for ${modelId}`);
       } catch (error) {
-        console.warn(`[DownloadManager] Error during downloader cancel:`, error);
+        console.warn(
+          `[DownloadManager] Error during downloader cancel:`,
+          error
+        );
       }
     }
 

@@ -43,6 +43,7 @@ When running SHIELD for the first time, Windows SmartScreen will show a security
 This happens because SHIELD is **not yet code-signed** with a digital certificate. The application is completely safe and open-source - you can verify the code yourself in this repository.
 
 **To run SHIELD:**
+
 1. Click **"More info"** in the SmartScreen dialog
 2. Click **"Run anyway"** at the bottom
 3. SHIELD will launch normally

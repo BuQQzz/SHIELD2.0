@@ -12,6 +12,7 @@ This hotfix resolves a critical issue where new users could not access model dow
 ## What's New
 
 ### Model Selector Now Always Visible
+
 - Model picker dropdown now displays even when no models are installed
 - New "Download Models" button appears on first launch
 - Clear "No models installed" message guides users to download
@@ -26,11 +27,13 @@ This hotfix resolves a critical issue where new users could not access model dow
 ## Changes
 
 **User Interface**
+
 - Model selector always visible in chat header
 - Dynamic button text: "Download Models" when empty, "Select Model" when models exist
 - Empty state message provides clear guidance to new users
 
 **Code Changes**
+
 - Removed conditional rendering that blocked model selector when no models installed
 - Added empty state UI to model selector component
 - Improved window initialization in electron setup
@@ -43,11 +46,13 @@ Download the appropriate installer for your system:
 - **SHIELD-0.1.2-portable.exe** - Portable version (no installation)
 
 ### Requirements
+
 - Windows 10 or later (64-bit)
 - 8GB RAM minimum (16GB recommended)
 - 5GB+ free disk space for models
 
 ### Getting Started
+
 1. Run the installer
 2. Launch SHIELD
 3. Click "Download Models" button in the header
@@ -58,6 +63,7 @@ Download the appropriate installer for your system:
 ## Upgrading from v0.1.1
 
 Simply run the new installer - it will automatically upgrade your installation while preserving:
+
 - All settings and preferences
 - Conversation history
 - Downloaded models
@@ -67,6 +73,7 @@ No manual uninstall required.
 ## What Was Fixed
 
 **The Problem**: In v0.1.1, the model selector only appeared when models were already installed. This created an impossible situation for new users:
+
 1. Install SHIELD
 2. No models installed yet
 3. Model selector hidden

@@ -83,7 +83,12 @@ async function setupIpcHandlers() {
     );
   });
 
-  return { llamaService, webSearchService, getWebCacheService, modelDownloadService };
+  return {
+    llamaService,
+    webSearchService,
+    getWebCacheService,
+    modelDownloadService,
+  };
 }
 
 // Register app lifecycle events BEFORE whenReady

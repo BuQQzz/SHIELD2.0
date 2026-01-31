@@ -5,7 +5,9 @@ import { getLlamaService } from "../../src/services/LlamaService.js";
  * Register all Llama.cpp related IPC handlers
  * @param getMainWindow - Getter function that returns the current main window
  */
-export function registerLlamaHandlers(getMainWindow: () => BrowserWindow | null) {
+export function registerLlamaHandlers(
+  getMainWindow: () => BrowserWindow | null
+) {
   const llamaService = getLlamaService();
 
   // Initialize llama
@@ -49,7 +51,10 @@ export function registerLlamaHandlers(getMainWindow: () => BrowserWindow | null)
 
   // Send a streaming chat message
   ipcMain.handle("llama:chatStreaming", async (_event, message, options) => {
-    console.log("[IPC] chatStreaming called with message:", message.substring(0, 50));
+    console.log(
+      "[IPC] chatStreaming called with message:",
+      message.substring(0, 50)
+    );
     console.log("[IPC] Options:", JSON.stringify(options));
 
     try {
@@ -67,7 +72,10 @@ export function registerLlamaHandlers(getMainWindow: () => BrowserWindow | null)
         options
       );
 
-      console.log("[IPC] chatStreaming complete, response length:", response.length);
+      console.log(
+        "[IPC] chatStreaming complete, response length:",
+        response.length
+      );
       return { success: true, response };
     } catch (error) {
       console.error("[IPC] chatStreaming error:", error);

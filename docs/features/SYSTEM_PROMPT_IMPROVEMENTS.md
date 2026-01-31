@@ -12,6 +12,7 @@ Improve system prompts to make models more responsive, especially for tool calli
 ## Phase 1: Create Prompt Infrastructure
 
 ### 1.1 Create System Prompt Configuration
+
 - [x] Create `src/config/systemPrompts.ts` with:
   - [x] Base system prompt (identity, core behavior)
   - [x] Model-family specific prompts (Qwen, Llama, Mistral, etc.)
@@ -19,6 +20,7 @@ Improve system prompts to make models more responsive, especially for tool calli
   - [x] Prompt builder function that assembles final prompt
 
 ### 1.2 Define Prompt Types
+
 - [x] Create `src/types/prompts.ts` with:
   - [x] `SystemPromptConfig` interface
   - [x] `PromptCapability` enum (toolCalling, webSearch, reasoning, etc.)
@@ -29,12 +31,14 @@ Improve system prompts to make models more responsive, especially for tool calli
 ## Phase 2: Implement Model-Specific Prompts
 
 ### 2.1 Base Prompt (All Models)
+
 - [x] Define SHIELD identity and personality
 - [x] Add general helpfulness guidelines
 - [x] Include privacy-first principles
 - [x] Add truthfulness and uncertainty acknowledgment
 
 ### 2.2 Model Family Prompts
+
 - [x] **Qwen**: ChatML-optimized, good at following instructions
 - [x] **Llama**: Explicit reasoning encouragement, concise format
 - [x] **Mistral**: Function calling optimized, structured outputs
@@ -43,6 +47,7 @@ Improve system prompts to make models more responsive, especially for tool calli
 - [x] **DeepSeek**: Code-focused additions
 
 ### 2.3 Capability Prompts
+
 - [x] **Tool Calling Prompt**: ReAct format with examples
 - [x] **Web Search Prompt**: Result handling, source citation
 - [x] **Code Generation Prompt**: Language awareness, best practices
@@ -53,16 +58,19 @@ Improve system prompts to make models more responsive, especially for tool calli
 ## Phase 3: Update MCP Tool Prompt
 
 ### 3.1 Improve Tool Definitions
+
 - [x] Add clearer tool descriptions
 - [x] Include parameter constraints
 - [x] Add usage context ("when to use")
 
 ### 3.2 Implement ReAct Format
+
 - [x] Add Thought/Action/Observation structure
 - [x] Include 2-3 few-shot examples
 - [ ] Add stop words configuration
 
 ### 3.3 Model-Specific Tool Formats
+
 - [ ] JSON format for Mistral/Qwen (native support)
 - [x] XML format fallback for other models
 - [ ] Add format detection based on model capabilities
@@ -72,16 +80,19 @@ Improve system prompts to make models more responsive, especially for tool calli
 ## Phase 4: Integration
 
 ### 4.1 Update LlamaService
+
 - [ ] Modify `setSystemPrompt` to use new prompt builder (not needed - hook handles it)
 - [x] Pass model info for model-specific prompts
 - [x] Add capability flags from loaded model
 
 ### 4.2 Update useMCPSystemPrompt Hook
+
 - [x] Use new prompt composition system
 - [x] Add model-aware MCP prompts
 - [x] Maintain backward compatibility
 
 ### 4.3 Update Settings
+
 - [x] Update default system prompt in settings
 - [ ] Add "prompt mode" option (simple/advanced)? (deferred - future enhancement)
 - [ ] Consider per-model prompt overrides in UI (deferred - future enhancement)
@@ -91,12 +102,14 @@ Improve system prompts to make models more responsive, especially for tool calli
 ## Phase 5: Testing & Documentation
 
 ### 5.1 Testing
+
 - [ ] Test each model family with new prompts
 - [ ] Verify tool calling works correctly
 - [ ] Test web search result handling
 - [ ] Validate reasoning quality improvements
 
 ### 5.2 Documentation
+
 - [x] Update FEATURES.md
 - [x] Add usage examples
 - [x] Document prompt customization options
@@ -106,15 +119,15 @@ Improve system prompts to make models more responsive, especially for tool calli
 
 ## File Changes Summary
 
-| File | Action | Description |
-|------|--------|-------------|
-| `src/config/systemPrompts.ts` | **CREATE** | New prompt configuration module |
-| `src/types/prompts.ts` | **CREATE** | Prompt-related types |
-| `src/handlers/mcpToolHandler.ts` | **MODIFY** | Improve MCP prompts |
-| `src/hooks/useMCPSystemPrompt.ts` | **MODIFY** | Use new prompt system |
-| `src/services/LlamaService.ts` | **MODIFY** | Model-aware prompts |
-| `src/types/settings.ts` | **MODIFY** | Update default prompt |
-| `docs/features/SYSTEM_PROMPTS.md` | **CREATE** | Feature documentation |
+| File                              | Action     | Description                     |
+| --------------------------------- | ---------- | ------------------------------- |
+| `src/config/systemPrompts.ts`     | **CREATE** | New prompt configuration module |
+| `src/types/prompts.ts`            | **CREATE** | Prompt-related types            |
+| `src/handlers/mcpToolHandler.ts`  | **MODIFY** | Improve MCP prompts             |
+| `src/hooks/useMCPSystemPrompt.ts` | **MODIFY** | Use new prompt system           |
+| `src/services/LlamaService.ts`    | **MODIFY** | Model-aware prompts             |
+| `src/types/settings.ts`           | **MODIFY** | Update default prompt           |
+| `docs/features/SYSTEM_PROMPTS.md` | **CREATE** | Feature documentation           |
 
 ---
 
