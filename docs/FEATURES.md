@@ -204,6 +204,52 @@ Accelerate LLM inference using intelligent token prediction.
 
 ---
 
+### 🧠 Model-Specific System Prompts
+
+**Status**: ✅ Production Ready  
+**Added**: January 2026
+
+Intelligent system prompt composition that adapts to each model's strengths.
+
+**Features**:
+
+- ✅ Automatic model family detection (Llama, Qwen, Mistral, Phi, Gemma, DeepSeek)
+- ✅ Capability-based prompt modules (tool calling, web search, reasoning)
+- ✅ ReAct-style prompts for better tool calling
+- ✅ Chain-of-thought prompts for complex reasoning
+- ✅ Optimized prompts for each model family
+- ✅ Backward compatible with custom user prompts
+
+**How It Works**:
+
+1. Detects model family from model name (e.g., "Qwen2.5-7B" → qwen)
+2. Reads model capabilities (toolCalling, reasoning, webSearch, etc.)
+3. Assembles prompt from modules:
+   - Base SHIELD identity
+   - Model-family specific instructions
+   - Capability prompts (if enabled)
+   - MCP tool instructions (if MCP enabled)
+
+**Model Family Optimizations**:
+
+| Family | Optimizations |
+|--------|---------------|
+| Llama | Step-by-step reasoning, concise format |
+| Qwen | Precise instructions, multilingual |
+| Mistral | Structured outputs, function calling |
+| Phi | Compact prompts (small context) |
+| Gemma | Balanced, conversational |
+| DeepSeek | Code-focused additions |
+
+**Key Files**:
+
+- `src/config/systemPrompts.ts` - Prompt modules and builder
+- `src/types/prompts.ts` - Type definitions
+- `src/hooks/useMCPSystemPrompt.ts` - Prompt composition hook
+- `docs/features/SYSTEM_PROMPT_IMPROVEMENTS.md` - Implementation plan
+
+---
+
 ### ⚙️ Settings & Configuration
 
 **Status**: ✅ Production Ready

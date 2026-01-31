@@ -15,6 +15,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Toggle in Settings → Model Settings → Advanced
   - Zero memory overhead compared to draft model approaches
 
+- **Model-Specific System Prompts**: Intelligent prompt composition based on model capabilities
+  - Automatic model family detection (Llama, Qwen, Mistral, Phi, Gemma, DeepSeek)
+  - Capability-based prompt modules (tool calling, web search, reasoning, code generation)
+  - ReAct-style prompts for better tool calling and reasoning
+  - Chain-of-thought prompts for complex reasoning tasks
+  - Optimized prompts for each model family's strengths
+
 ### Changed
 
 - **node-llama-cpp**: Updated from 3.14.2 to 3.15.1
