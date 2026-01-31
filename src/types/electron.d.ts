@@ -109,6 +109,7 @@ export interface AppSettings {
     repeatPenalty: number;
     contextLength: number;
     maxTokens: number;
+    speculativeDecoding: boolean;
   };
   system: {
     systemPrompt: string;
@@ -418,4 +419,4 @@ declare global {
   }
 }
 
-export {};
+export { };

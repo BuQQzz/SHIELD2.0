@@ -5,6 +5,7 @@ export interface ModelSettings {
   repeatPenalty: number;
   contextLength: number;
   maxTokens: number;
+  speculativeDecoding: boolean; // Use input lookup token prediction for faster inference
 }
 
 export interface SystemSettings {
@@ -54,6 +55,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
     repeatPenalty: 1.1,
     contextLength: 4096,
     maxTokens: 2048,
+    speculativeDecoding: true, // Enabled by default for faster inference
   },
   system: {
     systemPrompt:

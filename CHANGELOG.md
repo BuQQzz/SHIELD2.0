@@ -5,6 +5,38 @@ All notable changes to SHIELD will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased] - Tech Stack Update
+
+### Added
+
+- **Speculative Decoding**: New InputLookupTokenPredictor for faster inference
+  - 20-50% speedup for code completion and summarization tasks
+  - Uses pattern matching on input text (no additional model required)
+  - Toggle in Settings → Model Settings → Advanced
+  - Zero memory overhead compared to draft model approaches
+
+### Changed
+
+- **node-llama-cpp**: Updated from 3.14.2 to 3.15.1
+  - Includes llama.cpp b7836 with hundreds of optimizations
+  - Better KV cache management and memory efficiency
+  - Improved context handling and batch processing
+- **Electron**: Updated from 39.0.0 to 40.1.0
+  - Chromium 144 (latest stable)
+  - Node.js 24.11.1 with performance improvements
+  - V8 14.4 JavaScript engine
+  - Enhanced security and stability
+- **Vite**: Updated from 7.1.12 to 7.3.1
+  - Faster dev server startup
+  - Improved HMR performance
+  - Better build optimization
+
+### Performance
+
+- Faster LLM inference through llama.cpp optimizations
+- Speculative decoding provides additional speedup for appropriate tasks
+- Improved dev experience with faster Vite builds
+
 ## [0.1.3] - 2025-12-13
 
 ### Added

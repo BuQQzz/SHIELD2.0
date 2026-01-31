@@ -1,4 +1,4 @@
-import { resolveModelFile } from "node-llama-cpp";
+import { createModelDownloader, type ModelDownloader } from "node-llama-cpp";
 import { BrowserWindow } from "electron";
 import type { ModelMetadata } from "../../../src/config/models";
 
@@ -15,6 +15,7 @@ export interface DownloadProgress {
 
 export interface DownloadTask {
   model: ModelMetadata;
+  downloader: ModelDownloader | null;
   abortController: AbortController;
   startTime: number;
 }
@@ -44,9 +45,18 @@ export class DownloadManager {
 
   /**
    * Set the HuggingFace token for authenticated downloads
+   * Also sets HF_TOKEN environment variable as fallback for node-llama-cpp internals
    */
   setHuggingFaceToken(token: string | undefined) {
     this.huggingFaceToken = token;
+    // Set environment variable as fallback - node-llama-cpp's manifest fetch may use this
+    if (token) {
+      process.env.HF_TOKEN = token;
+      console.log("[DownloadManager] HF_TOKEN environment variable set");
+    } else {
+      delete process.env.HF_TOKEN;
+      console.log("[DownloadManager] HF_TOKEN environment variable cleared");
+    }
   }
 
   /**
@@ -78,6 +88,7 @@ export class DownloadManager {
     const abortController = new AbortController();
     const task: DownloadTask = {
       model,
+      downloader: null,
       abortController,
       startTime: Date.now(),
     };
@@ -129,7 +140,7 @@ export class DownloadManager {
   }
 
   /**
-   * Download with progress tracking using node-llama-cpp
+   * Download with progress tracking using node-llama-cpp's createModelDownloader
    */
   private async downloadWithProgress(
     model: ModelMetadata,
@@ -137,26 +148,26 @@ export class DownloadManager {
     progress: DownloadProgress
   ): Promise<string> {
     const modelsDir = this.getModelsDir();
-    console.log(`Downloading ${model.displayName}...`);
-    console.log(`URI: ${model.uri}`);
-    console.log(`Target: ${modelsDir}`);
-    console.log(
-      `HF Token: ${this.huggingFaceToken ? "Configured" : "Not set"}`
-    );
+    console.log(`[DownloadManager] Downloading ${model.displayName}...`);
+    console.log(`[DownloadManager] URI: ${model.uri}`);
+    console.log(`[DownloadManager] Target: ${modelsDir}`);
+    
+    // Debug token info (masked for security)
+    const tokenInfo = this.huggingFaceToken 
+      ? `Configured (${this.huggingFaceToken.substring(0, 4)}...${this.huggingFaceToken.substring(this.huggingFaceToken.length - 4)}, length: ${this.huggingFaceToken.length})`
+      : "Not set";
+    console.log(`[DownloadManager] HF Token: ${tokenInfo}`);
 
     let lastUpdateTime = Date.now();
     let lastDownloadedBytes = 0;
 
-    // Build download options with token if available
-    const downloadOptions: {
-      directory: string;
-      onProgress: (status: {
-        downloadedSize: number;
-        totalSize: number;
-      }) => void;
-      tokens?: { huggingFace?: string };
-    } = {
-      directory: modelsDir,
+    // Create model downloader with proper options
+    const downloader = await createModelDownloader({
+      modelUri: model.uri,
+      dirPath: modelsDir,
+      showCliProgress: false, // We handle our own progress
+      deleteTempFileOnCancel: true, // Clean up .ipull files on cancel
+      parallelDownloads: 4, // Use parallel downloads for speed
       onProgress: (status) => {
         const currentTime = Date.now();
         const timeDelta = (currentTime - lastUpdateTime) / 1000;
@@ -186,17 +197,24 @@ export class DownloadManager {
         lastUpdateTime = currentTime;
         lastDownloadedBytes = totalDownloaded;
       },
-    };
+      // Always include tokens object if we have an HF token
+      tokens: this.huggingFaceToken
+        ? { huggingFace: this.huggingFaceToken }
+        : undefined,
+    });
 
-    // Add HuggingFace token if available
-    if (this.huggingFaceToken) {
-      downloadOptions.tokens = {
-        huggingFace: this.huggingFaceToken,
-      };
-    }
+    // Store the downloader reference for cancellation
+    task.downloader = downloader;
 
-    const modelPath = await resolveModelFile(model.uri, downloadOptions);
+    console.log(`[DownloadManager] Total size: ${downloader.totalSize} bytes`);
+    console.log(`[DownloadManager] Total files: ${downloader.totalFiles}`);
 
+    // Start the download with abort signal support
+    const modelPath = await downloader.download({
+      signal: task.abortController.signal,
+    });
+
+    console.log(`[DownloadManager] Download complete: ${modelPath}`);
     return modelPath;
   }
 
@@ -209,6 +227,19 @@ export class DownloadManager {
       return false;
     }
 
+    console.log(`[DownloadManager] Cancelling download for ${modelId}`);
+
+    // Use the downloader's cancel method if available (cleans up .ipull files)
+    if (task.downloader) {
+      try {
+        await task.downloader.cancel({ deleteTempFile: true });
+        console.log(`[DownloadManager] Downloader cancelled for ${modelId}`);
+      } catch (error) {
+        console.warn(`[DownloadManager] Error during downloader cancel:`, error);
+      }
+    }
+
+    // Also abort the controller as a fallback
     task.abortController.abort();
     this.activeDownloads.delete(modelId);
 

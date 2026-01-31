@@ -2,9 +2,10 @@ import { useState } from "react";
 import { Label } from "@/components/ui/label";
 import { Slider } from "@/components/ui/slider";
 import { Button } from "@/components/ui/button";
+import { Switch } from "@/components/ui/switch";
 import { useSettingsStore } from "@/store/settingsStore";
 import { ModelSettings as ModelSettingsType } from "@/types/settings";
-import { ChevronDown, ChevronUp } from "lucide-react";
+import { ChevronDown, ChevronUp, Zap } from "lucide-react";
 
 interface ModelSettingsProps {
   settings: ModelSettingsType;
@@ -48,6 +49,10 @@ export function ModelSettings({ settings }: ModelSettingsProps) {
     if (value[0] !== undefined) {
       updateSettings({ model: { ...settings, maxTokens: value[0] } });
     }
+  };
+
+  const handleSpeculativeDecodingChange = (checked: boolean) => {
+    updateSettings({ model: { ...settings, speculativeDecoding: checked } });
   };
 
   return (
@@ -196,6 +201,25 @@ export function ModelSettings({ settings }: ModelSettingsProps) {
                 ⚠️ High values require more RAM
               </p>
             )}
+          </div>
+
+          <div className="flex items-center justify-between">
+            <div className="space-y-0.5">
+              <div className="flex items-center gap-2">
+                <Zap className="h-4 w-4 text-amber-500" />
+                <Label htmlFor="speculative-decoding">
+                  Speculative Decoding
+                </Label>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Speeds up generation for code & text tasks
+              </p>
+            </div>
+            <Switch
+              id="speculative-decoding"
+              checked={settings.speculativeDecoding ?? true}
+              onCheckedChange={handleSpeculativeDecodingChange}
+            />
           </div>
         </div>
       )}
