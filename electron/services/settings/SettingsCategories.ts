@@ -20,6 +20,7 @@ export interface Settings {
     confirmDelete: boolean;
     theme: "light" | "dark" | "system";
     modelDirectory?: string;
+    huggingFaceToken?: string; // HuggingFace API token for gated models
   };
   privacy: {
     telemetry: boolean;
@@ -57,6 +58,7 @@ export const DEFAULT_SETTINGS: Settings = {
     confirmDelete: true,
     theme: "system",
     modelDirectory: undefined, // Use default (userData/models)
+    huggingFaceToken: undefined, // HuggingFace API token
   },
   privacy: {
     telemetry: false,

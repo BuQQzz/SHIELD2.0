@@ -206,10 +206,10 @@ export class LlamaService {
       // If all fallbacks failed, throw a more helpful error
       throw new Error(
         `Unable to load this model even with minimum context size. The model (${path.basename(modelPath)}) requires more VRAM than available. Try:\n` +
-          `1. A smaller quantization (e.g., Q4_K_S, Q3_K_M instead of Q4_K_M)\n` +
-          `2. A smaller model (e.g., 7B instead of 32B)\n` +
-          `3. Freeing up VRAM by closing other applications\n` +
-          `4. Upgrading your GPU`
+        `1. A smaller quantization (e.g., Q4_K_S, Q3_K_M instead of Q4_K_M)\n` +
+        `2. A smaller model (e.g., 7B instead of 32B)\n` +
+        `3. Freeing up VRAM by closing other applications\n` +
+        `4. Upgrading your GPU`
       );
     }
 
@@ -230,9 +230,9 @@ export class LlamaService {
     const contextSequence = this.context.getSequence({
       tokenPredictor: useSpeculativeDecoding
         ? new InputLookupTokenPredictor({
-            patternLength: { min: 2 },
-            predictionLength: { max: 3 },
-          })
+          patternLength: { min: 2 },
+          predictionLength: { max: 3 },
+        })
         : undefined,
     });
 
@@ -286,12 +286,12 @@ export class LlamaService {
           : { penalty: 1.1 },
         onTextChunk: options.onToken
           ? (chunk: string) => {
-              console.log(
-                "[LlamaService] Token received:",
-                chunk.substring(0, 20)
-              );
-              options.onToken!(chunk);
-            }
+            console.log(
+              "[LlamaService] Token received:",
+              chunk.substring(0, 20)
+            );
+            options.onToken!(chunk);
+          }
           : undefined,
         signal,
       });

@@ -142,9 +142,12 @@ export class DownloadManager {
     console.log(`[DownloadManager] Downloading ${model.displayName}...`);
     console.log(`[DownloadManager] URI: ${model.uri}`);
     console.log(`[DownloadManager] Target: ${modelsDir}`);
-    console.log(
-      `[DownloadManager] HF Token: ${this.huggingFaceToken ? "Configured" : "Not set"}`
-    );
+    
+    // Debug token info (masked for security)
+    const tokenInfo = this.huggingFaceToken 
+      ? `Configured (${this.huggingFaceToken.substring(0, 4)}...${this.huggingFaceToken.substring(this.huggingFaceToken.length - 4)}, length: ${this.huggingFaceToken.length})`
+      : "Not set";
+    console.log(`[DownloadManager] HF Token: ${tokenInfo}`);
 
     let lastUpdateTime = Date.now();
     let lastDownloadedBytes = 0;
@@ -185,11 +188,10 @@ export class DownloadManager {
         lastUpdateTime = currentTime;
         lastDownloadedBytes = totalDownloaded;
       },
-      ...(this.huggingFaceToken && {
-        tokens: {
-          huggingFace: this.huggingFaceToken,
-        },
-      }),
+      // Always include tokens object if we have an HF token
+      tokens: this.huggingFaceToken
+        ? { huggingFace: this.huggingFaceToken }
+        : undefined,
     });
 
     // Store the downloader reference for cancellation
