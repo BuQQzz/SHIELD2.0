@@ -45,9 +45,18 @@ export class DownloadManager {
 
   /**
    * Set the HuggingFace token for authenticated downloads
+   * Also sets HF_TOKEN environment variable as fallback for node-llama-cpp internals
    */
   setHuggingFaceToken(token: string | undefined) {
     this.huggingFaceToken = token;
+    // Set environment variable as fallback - node-llama-cpp's manifest fetch may use this
+    if (token) {
+      process.env.HF_TOKEN = token;
+      console.log("[DownloadManager] HF_TOKEN environment variable set");
+    } else {
+      delete process.env.HF_TOKEN;
+      console.log("[DownloadManager] HF_TOKEN environment variable cleared");
+    }
   }
 
   /**
