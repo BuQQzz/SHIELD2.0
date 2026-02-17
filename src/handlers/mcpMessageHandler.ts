@@ -90,14 +90,16 @@ export async function processMCPToolCalls(
     addMessage(toolResultMessage);
   }
 
-  await continueConversation(`
+  await continueConversation(
+    `
 You executed ${formattedResults.length} tool call(s). Here are the results:
 
 ${formattedResults.join("\n\n")}
 
 Please provide a clear response to the user based on these results.
 If any tool failed, explain the failure briefly and suggest a safe next step.
-`.trim());
+`.trim()
+  );
 
   return true; // Tool calls were processed
 }

@@ -203,7 +203,7 @@ export function ChatHeader({
                   <DropdownMenuSubContent className="w-48">
                     {/* Show existing tags */}
                     {currentConversation.tags &&
-                      currentConversation.tags.length > 0 ? (
+                    currentConversation.tags.length > 0 ? (
                       <div className="p-2 space-y-1">
                         <div className="text-xs font-medium text-muted-foreground px-2 py-1">
                           Current Tags

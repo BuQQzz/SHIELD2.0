@@ -194,7 +194,9 @@ async function runFullSuiteTest() {
         .getByRole("button", { name: /settings/i })
         .first();
 
-      if (await settingsButton.isVisible({ timeout: 5000 }).catch(() => false)) {
+      if (
+        await settingsButton.isVisible({ timeout: 5000 }).catch(() => false)
+      ) {
         await settingsButton.click();
         await wait(1000);
         logTest("Settings button clickable", "PASS", "Settings opened");
@@ -209,7 +211,9 @@ async function runFullSuiteTest() {
         );
 
         const configureTab = page.getByRole("tab", { name: /configure/i });
-        if (await configureTab.isVisible({ timeout: 2000 }).catch(() => false)) {
+        if (
+          await configureTab.isVisible({ timeout: 2000 }).catch(() => false)
+        ) {
           await configureTab.click();
           await wait(500);
         }
@@ -300,11 +304,7 @@ async function runFullSuiteTest() {
           // Clear input
           await input.fill("");
           await wait(300);
-          logTest(
-            "Input can be cleared",
-            "PASS",
-            "Input cleared successfully"
-          );
+          logTest("Input can be cleared", "PASS", "Input cleared successfully");
         }
       } else {
         logTest("Chat input interaction", "FAIL", "No input field found");

@@ -37,7 +37,7 @@ export class DownloadManager {
   private static readonly PROGRESS_EMIT_INTERVAL_MS = 250;
   private static readonly PROGRESS_EMIT_MIN_DELTA = 0.5;
 
-  constructor(private getModelsDir: () => string) { }
+  constructor(private getModelsDir: () => string) {}
 
   /**
    * Set the main window for IPC communication

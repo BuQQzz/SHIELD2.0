@@ -152,8 +152,9 @@ export function MCPSettings({ settings, currentModel }: MCPSettingsProps) {
                 <div className="space-y-0.5">
                   <p className="text-sm font-medium">{toolName}</p>
                   <p className="text-xs text-muted-foreground">
-                    {toolDescriptions[toolName as keyof typeof toolDescriptions] ??
-                      "Filesystem operation"}
+                    {toolDescriptions[
+                      toolName as keyof typeof toolDescriptions
+                    ] ?? "Filesystem operation"}
                   </p>
                 </div>
                 <Switch

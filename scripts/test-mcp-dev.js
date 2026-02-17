@@ -57,7 +57,9 @@ async function testMCP() {
     console.log("\n📋 Test 1: Opening Settings...");
 
     // Look for settings button (gear icon)
-    const settingsButton = page.getByRole("button", { name: /settings/i }).first();
+    const settingsButton = page
+      .getByRole("button", { name: /settings/i })
+      .first();
     await settingsButton.waitFor({ state: "visible", timeout: 5000 });
     await settingsButton.click();
     await page.waitForTimeout(1000);
