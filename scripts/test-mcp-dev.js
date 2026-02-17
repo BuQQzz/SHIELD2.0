@@ -5,12 +5,14 @@
  * Start the app with `npm run dev` first, then run this script.
  */
 
-import { chromium } from "playwright";
+import { _electron as electron } from "playwright";
+import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+const SCREENSHOTS_DIR = "test-screenshots";
 
 async function testMCP() {
   console.log("🧪 Starting MCP Manual Integration Test (Dev Mode)...\n");
@@ -23,18 +25,23 @@ async function testMCP() {
 
   console.log("🌐 Connecting to dev server...\n");
 
-  const browser = await chromium.launch({
-    headless: false,
-    slowMo: 500, // Slow down actions for visibility
+  const app = await electron.launch({
+    args: [path.join(__dirname, "../dist-electron/main.js")],
+    env: {
+      ...process.env,
+      NODE_ENV: "development",
+    },
   });
 
-  const context = await browser.newContext();
-  const page = await context.newPage();
+  const page = await app.firstWindow();
+
+  if (!fs.existsSync(SCREENSHOTS_DIR)) {
+    fs.mkdirSync(SCREENSHOTS_DIR, { recursive: true });
+  }
 
   try {
-    // Navigate to the Electron app (dev server)
-    await page.goto("http://localhost:5173", { waitUntil: "networkidle" });
-    console.log("✅ Connected to app\n");
+    await page.waitForLoadState("domcontentloaded", { timeout: 30000 });
+    console.log("✅ Connected to Electron app\n");
 
     // Wait for React to render
     await page.waitForTimeout(2000);
@@ -50,11 +57,7 @@ async function testMCP() {
     console.log("\n📋 Test 1: Opening Settings...");
 
     // Look for settings button (gear icon)
-    const settingsButton = page
-      .locator(
-        'button[aria-label*="Settings"], button[title*="Settings"], button:has(svg)'
-      )
-      .first();
+    const settingsButton = page.getByRole("button", { name: /settings/i }).first();
     await settingsButton.waitFor({ state: "visible", timeout: 5000 });
     await settingsButton.click();
     await page.waitForTimeout(1000);
@@ -66,50 +69,32 @@ async function testMCP() {
     console.log("✅ Settings opened");
     console.log("📸 Screenshot: 02-settings-opened.png");
 
-    // Test 2: Navigate to MCP Tab
+    // Test 2: Navigate to Configure and locate MCP section
     console.log("\n📋 Test 2: Navigating to MCP Settings...");
 
-    // Look for MCP tab
-    const mcpTab = page.locator(
-      'button:has-text("MCP"), [role="tab"]:has-text("MCP")'
-    );
-    if (await mcpTab.isVisible({ timeout: 2000 }).catch(() => false)) {
-      await mcpTab.click();
-      await page.waitForTimeout(1000);
-
-      await page.screenshot({
-        path: "test-screenshots/03-mcp-tab.png",
-        fullPage: true,
-      });
-      console.log("✅ MCP tab opened");
-      console.log("📸 Screenshot: 03-mcp-tab.png");
-    } else {
-      console.log("⚠️  MCP tab not found - might be in a different location");
-
-      // Try to find it by scrolling through tabs
-      const allTabs = await page.locator('button[role="tab"]').all();
-      console.log(`📊 Found ${allTabs.length} tabs`);
-
-      for (let i = 0; i < allTabs.length; i++) {
-        const tabText = await allTabs[i].textContent();
-        console.log(`   Tab ${i + 1}: ${tabText}`);
-
-        if (tabText.toLowerCase().includes("mcp")) {
-          await allTabs[i].click();
-          await page.waitForTimeout(1000);
-          console.log("✅ Found and clicked MCP tab");
-          break;
-        }
-      }
+    const configureTab = page.getByRole("tab", { name: /configure/i });
+    if (await configureTab.isVisible({ timeout: 3000 }).catch(() => false)) {
+      await configureTab.click();
+      await page.waitForTimeout(500);
     }
+
+    const mcpHeading = page.getByRole("heading", { name: /mcp integration/i });
+    await mcpHeading.waitFor({ state: "visible", timeout: 5000 });
+
+    await page.screenshot({
+      path: "test-screenshots/03-mcp-section.png",
+      fullPage: true,
+    });
+    console.log("✅ MCP section found");
+    console.log("📸 Screenshot: 03-mcp-section.png");
 
     // Test 3: Check MCP Toggle
     console.log("\n📋 Test 3: Checking MCP Toggle...");
 
-    const mcpToggle = page
-      .locator('button[role="switch"], input[type="checkbox"]')
-      .filter({ hasText: "MCP" })
-      .or(page.locator('button[role="switch"]').first());
+    const mcpSection = page
+      .locator('div:has(h3:has-text("MCP Integration"))')
+      .first();
+    const mcpToggle = mcpSection.locator('button[role="switch"]').first();
 
     if (await mcpToggle.isVisible({ timeout: 2000 }).catch(() => false)) {
       const isChecked = await mcpToggle.getAttribute("aria-checked");
@@ -206,7 +191,7 @@ async function testMCP() {
     console.log("\n📊 Test Summary:");
     console.log("   ✓ Connected to dev server");
     console.log("   ✓ Opened Settings dialog");
-    console.log("   ✓ Located MCP settings tab");
+    console.log("   ✓ Located MCP settings section");
     console.log("   ✓ Found MCP toggle control");
     console.log("   ✓ Captured 7 screenshots");
     console.log("\n📁 Screenshots saved to: test-screenshots/");
@@ -221,7 +206,7 @@ async function testMCP() {
   } finally {
     console.log("\n🏁 Test completed. Closing browser in 3 seconds...");
     await page.waitForTimeout(3000);
-    await browser.close();
+    await app.close();
   }
 }
 

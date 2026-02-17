@@ -17,7 +17,10 @@ Current models (Qwen 7B, Llama 3B, Mistral 7B) will show "MCP Limited" status as
 
 ## Overview
 
-SHIELD 2.0 includes Model Context Protocol (MCP) integration, enabling the AI assistant to interact with external tools and services in a secure, privacy-first manner. This implementation focuses on filesystem operations using the official MCP filesystem server with XML-based tool calling.
+SHIELD 2.0 includes Model Context Protocol (MCP) integration, enabling the AI assistant to interact with external tools and services in a secure, privacy-first manner. This implementation focuses on filesystem operations using the official MCP filesystem server with hybrid tool parsing:
+
+- OpenAI-style JSON tool calls (`tool_calls`)
+- XML tool calls (`<tool_call>...</tool_call>`) as compatibility fallback
 
 ## Architecture
 
@@ -127,6 +130,13 @@ All operations require explicit user approval via PermissionDialog:
 3. Warn about restricted directories
 4. Block dangerous operations
 5. Log approval/denial
+
+## Hybrid Parser Controls
+
+Runtime MCP settings include:
+
+- `hybridParserEnabled`: Enables OpenAI-style tool-call parsing before XML fallback.
+- `maxToolCallsPerTurn`: Safety cap for sequential tool calls handled in one assistant turn.
 
 ## Audit System
 

@@ -76,7 +76,7 @@ export function ModelSelector({
                   No models installed
                 </p>
                 <p className="text-xs text-muted-foreground">
-                  Download a model to get started
+                  New Qwen3 models are in Browse & Download Models
                 </p>
               </div>
               <DropdownMenuSeparator />

@@ -5,6 +5,41 @@ All notable changes to SHIELD will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.5] - 2026-02-16
+
+### Added
+
+- **Hybrid MCP Tool Parsing**: Added dual parser support for OpenAI-style `tool_calls` and XML `tool_call` formats
+  - New normalized parser module at `src/handlers/toolCallParsing.ts`
+  - Added shorthand XML support for calls like `<write_file path="...">...</write_file>`
+  - Added parser regression tests for XML, OpenAI, shorthand XML, and path normalization
+- **MCP Refusal Retry Policy**: Added strict one-shot retry flow for tool-intent prompts
+  - Detects common refusal language and retries with MCP-only output constraints
+  - Added first-attempt MCP forcing for clear file-operation intents
+- **MCP Tool Access Controls**: Added per-tool allowlist settings and runtime enforcement
+  - New `allowedTools` settings field and validation
+  - Settings UI now supports per-tool enable/disable and max tool calls per turn
+- **Qwen3 Catalog Expansion**: Added Qwen3 and Qwen3.5 entries to model catalog for download flow
+
+### Changed
+
+- **MCP Behavior**: MCP now auto-initializes and is treated as always-on in runtime prompt composition
+- **MCP Header Status**: Converted to read-only readiness indicator instead of toggle UX
+- **MCP Execution Loop**: Improved batching and safety with configurable per-turn cap
+- **Download Responsiveness**: Reduced download UI sluggishness with progress emit throttling and lower parallel download concurrency
+
+### Fixed
+
+- **Tool Calls Not Executing**: Fixed non-canonical XML tool calls being displayed but not executed
+- **Desktop Path Failures**: Normalized `C:\Users\Public\Desktop` and `C:\Users\Public\Documents` paths to home-scoped allowed paths
+- **Refusal-on-File-Intent**: Improved detection of "cannot access your computer" style responses so MCP retry path triggers correctly
+- **Runtime Crash**: Fixed `ReferenceError: Cannot access 'settings' before initialization` in message handler
+
+### Testing
+
+- Added/updated targeted MCP parser and message-handler tests
+- Hybrid user-flow smoke tests pass (model picker, download start/cancel, MCP init/list/call)
+
 ## [0.1.4] - 2026-01-31
 
 ### Added

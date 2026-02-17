@@ -37,9 +37,12 @@ export interface Settings {
   mcp: {
     enabled: boolean;
     allowedServers: string[];
+    allowedTools: string[];
     showPermissionDialog: boolean;
     rememberChoices: boolean;
     auditLogRetentionDays: number;
+    hybridParserEnabled: boolean;
+    maxToolCallsPerTurn: number;
   };
 }
 
@@ -73,10 +76,13 @@ export const DEFAULT_SETTINGS: Settings = {
     showReasoning: false,
   },
   mcp: {
-    enabled: false,
+    enabled: true,
     allowedServers: ["filesystem"],
+    allowedTools: ["read_file", "write_file", "list_directory"],
     showPermissionDialog: true,
     rememberChoices: false,
     auditLogRetentionDays: 30,
+    hybridParserEnabled: true,
+    maxToolCallsPerTurn: 5,
   },
 };

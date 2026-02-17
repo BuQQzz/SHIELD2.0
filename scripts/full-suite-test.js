@@ -5,7 +5,7 @@
  * to ensure the chatbot is production-ready.
  */
 
-import { chromium } from "playwright";
+import { _electron as electron } from "playwright";
 import fs from "fs";
 import path from "path";
 
@@ -47,22 +47,21 @@ async function runFullSuiteTest() {
   console.log("═".repeat(60));
   console.log("Starting comprehensive testing...\n");
 
-  let browser;
+  let app;
   let page;
 
   try {
-    // Launch browser
-    console.log("📦 Launching browser...");
-    browser = await chromium.launch({
-      headless: false,
-      slowMo: 300,
+    // Launch Electron app
+    console.log("📦 Launching Electron app...");
+    app = await electron.launch({
+      args: [path.join(process.cwd(), "dist-electron/main.js")],
+      env: {
+        ...process.env,
+        NODE_ENV: "development",
+      },
     });
 
-    const context = await browser.newContext({
-      viewport: { width: 1280, height: 800 },
-    });
-
-    page = await context.newPage();
+    page = await app.firstWindow();
 
     // Listen to console logs
     const consoleLogs = [];
@@ -76,7 +75,7 @@ async function runFullSuiteTest() {
       pageErrors.push(error.message);
     });
 
-    console.log("✅ Browser launched\n");
+    console.log("✅ Electron app launched\n");
 
     // ==========================================
     // TEST 1: App Initialization
@@ -86,12 +85,13 @@ async function runFullSuiteTest() {
     console.log("═".repeat(60) + "\n");
 
     try {
-      await page.goto("http://localhost:5173", {
-        waitUntil: "domcontentloaded",
-        timeout: 30000,
-      });
+      await page.waitForLoadState("domcontentloaded", { timeout: 30000 });
       await wait(2000);
-      logTest("App loads successfully", "PASS", "Page loaded without errors");
+      logTest(
+        "App loads successfully",
+        "PASS",
+        "Electron window loaded without errors"
+      );
     } catch (error) {
       logTest("App loads successfully", "FAIL", error.message);
       throw error;
@@ -190,64 +190,45 @@ async function runFullSuiteTest() {
 
     // Try to find and click settings button
     try {
-      const settingsSelectors = [
-        'button[aria-label*="Settings"]',
-        'button[title*="Settings"]',
-        'button:has-text("Settings")',
-        '[data-testid="settings-button"]',
-        'button svg[class*="settings"]',
-        'button svg[class*="gear"]',
-      ];
+      const settingsButton = page
+        .getByRole("button", { name: /settings/i })
+        .first();
 
-      let settingsButton = null;
-      for (const selector of settingsSelectors) {
-        try {
-          settingsButton = await page.$(selector);
-          if (settingsButton && (await settingsButton.isVisible())) {
-            break;
-          }
-        } catch (e) {
-          continue;
-        }
-      }
-
-      if (settingsButton) {
+      if (await settingsButton.isVisible({ timeout: 5000 }).catch(() => false)) {
         await settingsButton.click();
         await wait(1000);
         logTest("Settings button clickable", "PASS", "Settings opened");
         await screenshot(page, "03-settings-opened.png", "Settings dialog");
 
-        // Check for settings tabs/sections
-        const tabs = await page.$$('[role="tab"], button[class*="tab"]');
+        // Check tabs and switch to Configure tab if needed
+        const tabs = await page.locator('[role="tab"]').all();
         logTest(
           "Settings tabs present",
           tabs.length > 0 ? "PASS" : "WARN",
-          `Found ${tabs.length} tabs/sections`
+          `Found ${tabs.length} tabs`
         );
 
-        // Look for MCP tab
-        let mcpFound = false;
-        for (const tab of tabs) {
-          const text = await tab.textContent();
-          if (text && text.toLowerCase().includes("mcp")) {
-            mcpFound = true;
-            await tab.click();
-            await wait(1000);
-            logTest(
-              "MCP tab accessible",
-              "PASS",
-              "MCP settings found and opened"
-            );
-            await screenshot(page, "04-mcp-settings.png", "MCP settings tab");
-            break;
-          }
+        const configureTab = page.getByRole("tab", { name: /configure/i });
+        if (await configureTab.isVisible({ timeout: 2000 }).catch(() => false)) {
+          await configureTab.click();
+          await wait(500);
         }
 
-        if (!mcpFound) {
+        const mcpHeading = page.getByRole("heading", {
+          name: /mcp integration/i,
+        });
+        if (await mcpHeading.isVisible({ timeout: 3000 }).catch(() => false)) {
           logTest(
-            "MCP tab accessible",
+            "MCP settings accessible",
+            "PASS",
+            "MCP Integration section found"
+          );
+          await screenshot(page, "04-mcp-settings.png", "MCP settings section");
+        } else {
+          logTest(
+            "MCP settings accessible",
             "WARN",
-            "MCP tab not found in settings"
+            "MCP Integration section not found"
           );
         }
 
@@ -293,25 +274,38 @@ async function runFullSuiteTest() {
       }
 
       if (input) {
-        // Test typing
-        await input.click();
-        await input.fill("Hello, this is a test message");
-        await wait(500);
-        logTest(
-          "Input accepts text",
-          "PASS",
-          "Successfully typed test message"
-        );
-        await screenshot(
-          page,
-          "06-text-input.png",
-          "Text entered in chat input"
-        );
+        const isEnabled = await input.isEnabled();
+        if (!isEnabled) {
+          logTest(
+            "Chat input interaction",
+            "WARN",
+            "Input present but disabled (likely waiting for model/session readiness)"
+          );
+        } else {
+          // Test typing
+          await input.click();
+          await input.fill("Hello, this is a test message");
+          await wait(500);
+          logTest(
+            "Input accepts text",
+            "PASS",
+            "Successfully typed test message"
+          );
+          await screenshot(
+            page,
+            "06-text-input.png",
+            "Text entered in chat input"
+          );
 
-        // Clear input
-        await input.fill("");
-        await wait(300);
-        logTest("Input can be cleared", "PASS", "Input cleared successfully");
+          // Clear input
+          await input.fill("");
+          await wait(300);
+          logTest(
+            "Input can be cleared",
+            "PASS",
+            "Input cleared successfully"
+          );
+        }
       } else {
         logTest("Chat input interaction", "FAIL", "No input field found");
       }
@@ -492,10 +486,10 @@ async function runFullSuiteTest() {
       await screenshot(page, "fatal-error.png", "Fatal error state");
     }
   } finally {
-    if (browser) {
+    if (app) {
       console.log("\n🏁 Closing browser in 3 seconds...");
       await wait(3000);
-      await browser.close();
+      await app.close();
     }
   }
 }

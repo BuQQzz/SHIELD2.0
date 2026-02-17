@@ -32,8 +32,12 @@ export class DownloadManager {
   private downloadHistory: Map<string, DownloadProgress> = new Map();
   private mainWindow: BrowserWindow | null = null;
   private huggingFaceToken: string | undefined;
+  private lastProgressEmitTime: Map<string, number> = new Map();
+  private lastProgressEmitPercent: Map<string, number> = new Map();
+  private static readonly PROGRESS_EMIT_INTERVAL_MS = 250;
+  private static readonly PROGRESS_EMIT_MIN_DELTA = 0.5;
 
-  constructor(private getModelsDir: () => string) {}
+  constructor(private getModelsDir: () => string) { }
 
   /**
    * Set the main window for IPC communication
@@ -72,6 +76,33 @@ export class DownloadManager {
     }
   }
 
+  private shouldEmitProgress(progress: DownloadProgress): boolean {
+    if (progress.status !== "downloading") {
+      return true;
+    }
+
+    const now = Date.now();
+    const lastTime = this.lastProgressEmitTime.get(progress.modelId) ?? 0;
+    const lastPercent = this.lastProgressEmitPercent.get(progress.modelId) ?? 0;
+    const percentDelta = Math.abs(progress.progress - lastPercent);
+
+    return (
+      now - lastTime >= DownloadManager.PROGRESS_EMIT_INTERVAL_MS ||
+      percentDelta >= DownloadManager.PROGRESS_EMIT_MIN_DELTA
+    );
+  }
+
+  private emitProgress(progress: DownloadProgress) {
+    if (!this.shouldEmitProgress(progress)) {
+      return;
+    }
+
+    this.lastProgressEmitTime.set(progress.modelId, Date.now());
+    this.lastProgressEmitPercent.set(progress.modelId, progress.progress);
+    this.sendProgress(progress);
+    this.downloadHistory.set(progress.modelId, { ...progress });
+  }
+
   /**
    * Check if a model is currently downloading
    */
@@ -108,7 +139,7 @@ export class DownloadManager {
     };
 
     try {
-      this.sendProgress(progress);
+      this.emitProgress(progress);
 
       const modelPath = await this.downloadWithProgress(model, task, progress);
 
@@ -118,10 +149,11 @@ export class DownloadManager {
       );
       progress.status = "completed";
       progress.progress = 100;
-      this.sendProgress(progress);
+      this.emitProgress(progress);
       console.log(`[DownloadManager] Completion event sent for ${model.id}`);
-      this.downloadHistory.set(model.id, progress);
       this.activeDownloads.delete(model.id);
+      this.lastProgressEmitTime.delete(model.id);
+      this.lastProgressEmitPercent.delete(model.id);
 
       return modelPath;
     } catch (error: unknown) {
@@ -135,9 +167,10 @@ export class DownloadManager {
         progress.error = err.message || "Unknown error occurred";
       }
 
-      this.sendProgress(progress);
-      this.downloadHistory.set(model.id, progress);
+      this.emitProgress(progress);
       this.activeDownloads.delete(model.id);
+      this.lastProgressEmitTime.delete(model.id);
+      this.lastProgressEmitPercent.delete(model.id);
 
       throw error;
     }
@@ -171,7 +204,7 @@ export class DownloadManager {
       dirPath: modelsDir,
       showCliProgress: false, // We handle our own progress
       deleteTempFileOnCancel: true, // Clean up .ipull files on cancel
-      parallelDownloads: 4, // Use parallel downloads for speed
+      parallelDownloads: 2,
       onProgress: (status) => {
         const currentTime = Date.now();
         const timeDelta = (currentTime - lastUpdateTime) / 1000;
@@ -195,8 +228,7 @@ export class DownloadManager {
         progress.speed = Math.round(speed);
         progress.eta = Math.round(eta);
 
-        this.sendProgress(progress);
-        this.downloadHistory.set(model.id, progress);
+        this.emitProgress(progress);
 
         lastUpdateTime = currentTime;
         lastDownloadedBytes = totalDownloaded;
@@ -261,8 +293,7 @@ export class DownloadManager {
       error: "Cancelled by user",
     };
 
-    this.sendProgress(progress);
-    this.downloadHistory.set(modelId, progress);
+    this.emitProgress(progress);
 
     return true;
   }

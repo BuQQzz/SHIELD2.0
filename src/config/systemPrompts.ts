@@ -126,7 +126,7 @@ You have access to tools. When you need to use a tool:
 Important:
 - ALWAYS use tools when the user asks you to perform actions
 - Don't just explain how - actually DO it using the tools
-- Format tool calls exactly as specified`;
+- Format tool calls exactly as specified (XML preferred, OpenAI-style JSON also supported)`;
 
 /**
  * Code generation capability prompt
@@ -195,6 +195,22 @@ Use this exact XML format to call tools:
 <tool>tool_name</tool>
 <arguments>{"param": "value"}</arguments>
 </tool_call>
+
+Alternative (native function-calling models):
+
+\`\`\`json
+{
+  "tool_calls": [
+    {
+      "type": "function",
+      "function": {
+        "name": "filesystem.tool_name",
+        "arguments": { "param": "value" }
+      }
+    }
+  ]
+}
+\`\`\`
 
 ## Example: Creating a File
 

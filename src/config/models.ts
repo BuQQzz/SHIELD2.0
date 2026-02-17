@@ -23,10 +23,10 @@ export interface ModelCapabilities {
   temperatureRange: { min: number; max: number; default: number };
   /** Allow additional capability keys */
   [key: string]:
-    | boolean
-    | string
-    | { min: number; max: number; default: number }
-    | undefined;
+  | boolean
+  | string
+  | { min: number; max: number; default: number }
+  | undefined;
 }
 
 /**
@@ -205,6 +205,122 @@ export const MODEL_CATALOG: ModelMetadata[] = [
       recommendedVRAM: 20,
       minRAM: 24,
       recommendedRAM: 32,
+    },
+  },
+  {
+    id: "qwen-3-coder-next-80b",
+    name: "Qwen3-Coder-Next-80B-A3B-Instruct",
+    displayName: "Qwen3 Coder Next 80B",
+    uri: "hf:unsloth/Qwen3-Coder-Next-80B-A3B-Instruct-GGUF:Q4_K_M",
+    size: "50.1GB",
+    description:
+      "🌟 New Qwen3 coder model with strong tool use and structured outputs.",
+    contextSize: 262144,
+    provider: "Alibaba",
+    releaseDate: "2025-08",
+    chatTemplate: "qwen",
+    capabilities: {
+      toolCalling: true,
+      complexReasoning: true,
+      webSearch: true,
+      structuredOutput: true,
+      longContext: true,
+      codeGeneration: true,
+      multilingual: "excellent",
+      temperatureRange: { min: 0.0, max: 1.0, default: 0.4 },
+    },
+    hardware: {
+      minVRAM: 32,
+      recommendedVRAM: 48,
+      minRAM: 48,
+      recommendedRAM: 64,
+    },
+  },
+  {
+    id: "qwen-3-8b",
+    name: "Qwen3-8B",
+    displayName: "Qwen3 8B",
+    uri: "hf:Qwen/Qwen3-8B-GGUF:Q4_K_M",
+    size: "5.1GB",
+    description:
+      "🌟 Practical Qwen3 model for RTX 5070-class GPUs with strong tool use and coding.",
+    contextSize: 131072,
+    provider: "Alibaba",
+    releaseDate: "2025-08",
+    chatTemplate: "qwen",
+    capabilities: {
+      toolCalling: true,
+      complexReasoning: true,
+      webSearch: true,
+      structuredOutput: true,
+      longContext: true,
+      codeGeneration: true,
+      multilingual: "excellent",
+      temperatureRange: { min: 0.0, max: 1.0, default: 0.4 },
+    },
+    hardware: {
+      minVRAM: 8,
+      recommendedVRAM: 10,
+      minRAM: 12,
+      recommendedRAM: 16,
+    },
+  },
+  {
+    id: "qwen-3-4b",
+    name: "Qwen3-4B",
+    displayName: "Qwen3 4B",
+    uri: "hf:Qwen/Qwen3-4B-GGUF:Q4_K_M",
+    size: "2.7GB",
+    description:
+      "🌟 Lightweight Qwen3 model for mid-range and lower GPUs with solid general performance.",
+    contextSize: 131072,
+    provider: "Alibaba",
+    releaseDate: "2025-08",
+    chatTemplate: "qwen",
+    capabilities: {
+      toolCalling: true,
+      complexReasoning: true,
+      webSearch: true,
+      structuredOutput: true,
+      longContext: true,
+      codeGeneration: true,
+      multilingual: "excellent",
+      temperatureRange: { min: 0.0, max: 1.1, default: 0.5 },
+    },
+    hardware: {
+      minVRAM: 4,
+      recommendedVRAM: 6,
+      minRAM: 8,
+      recommendedRAM: 12,
+    },
+  },
+  {
+    id: "qwen-3.5-397b-a17b",
+    name: "Qwen3.5-397B-A17B-Instruct",
+    displayName: "Qwen3.5 397B A17B",
+    uri: "hf:unsloth/Qwen3.5-397B-A17B-GGUF:Q4_K_M",
+    size: "232GB",
+    description:
+      "🌟 New Qwen3.5 flagship MoE model for advanced reasoning and tool usage.",
+    contextSize: 262144,
+    provider: "Alibaba",
+    releaseDate: "2025-10",
+    chatTemplate: "qwen",
+    capabilities: {
+      toolCalling: true,
+      complexReasoning: true,
+      webSearch: true,
+      structuredOutput: true,
+      longContext: true,
+      codeGeneration: true,
+      multilingual: "excellent",
+      temperatureRange: { min: 0.0, max: 0.9, default: 0.3 },
+    },
+    hardware: {
+      minVRAM: 80,
+      recommendedVRAM: 120,
+      minRAM: 128,
+      recommendedRAM: 256,
     },
   },
   {

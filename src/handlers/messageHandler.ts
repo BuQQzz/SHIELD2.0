@@ -8,6 +8,12 @@ import {
 } from "./webSearchHelper";
 import { enhanceQueryWithContext } from "../utils/queryEnhancer";
 import { processMCPToolCalls } from "./mcpMessageHandler";
+import { extractToolCalls } from "./mcpToolHandler";
+import {
+  buildMCPRetryPrompt,
+  isLikelyMCPToolIntent,
+  shouldRetryWithMCP,
+} from "./mcpRetryPolicy";
 import type { ToolCallRequest } from "./mcpToolHandler";
 import type { MCPToolResult } from "@/types";
 import { parseAllThinking } from "../utils/thinkingParser";
@@ -53,6 +59,7 @@ interface MessageHandlerProps {
   } | null>;
   setIsSearching?: (value: boolean) => void;
   handleToolCallRequest?: (request: ToolCallRequest) => Promise<MCPToolResult>;
+  isMCPReady?: boolean;
 }
 
 export function createMessageHandler({
@@ -71,6 +78,7 @@ export function createMessageHandler({
   performWebSearch,
   setIsSearching,
   handleToolCallRequest,
+  isMCPReady = false,
 }: MessageHandlerProps) {
   return async (content: string, useWebSearch?: boolean) => {
     if (!isModelLoaded) {
@@ -118,51 +126,38 @@ export function createMessageHandler({
     const assistantMessageId = generateMessageId();
 
     try {
+      const { settings } = useSettingsStore.getState();
+
       // Combine user query with web search context
       let messageWithContext: string;
 
       if (webSearchContext) {
-        // Be EXTREMELY aggressive - repeat key info multiple times
-        // SANDWICH APPROACH: Put search results before AND after question
         messageWithContext = `${webSearchContext}`;
-        messageWithContext += `\n⚠️⚠️⚠️ REMINDER: Today is ${new Date().toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" })} ⚠️⚠️⚠️\n\n`;
-        messageWithContext += `===== USER'S QUESTION =====\n${content}\n`;
-        messageWithContext += `===== END USER'S QUESTION =====\n\n`;
-
-        // Chain-of-Thought + Attribution approach for grounding
-        messageWithContext += `⚠️ CRITICAL: You MUST follow this 3-step reasoning process ⚠️\n\n`;
-
-        messageWithContext += `IMPORTANT: Wrap your reasoning in <reasoning> tags, and your final answer outside.\n`;
-        messageWithContext += `Format:\n<reasoning>\nSTEP 1: [your analysis]\nSTEP 2: [your analysis]\nSTEP 3: [your conclusion]\n</reasoning>\n[Your final answer to the user]\n\n`;
-
-        messageWithContext += `STEP 1 - EXTRACT KEY FACTS:\n`;
-        messageWithContext += `List the specific facts from the search results that relate to the question.\n`;
-        messageWithContext += `Quote the exact text: [Quote: "exact words from search result"]\n\n`;
-
-        messageWithContext += `STEP 2 - ANALYZE:\n`;
-        messageWithContext += `Explain what those facts mean. Pay attention to:\n`;
-        messageWithContext += `- Today's date: ${new Date().toLocaleDateString("en-US", { weekday: "long", year: "numeric", month: "long", day: "numeric" })}\n`;
-        messageWithContext += `- CRITICAL DATE LOGIC:\n`;
-        messageWithContext += `  * If scheduled date is in the FUTURE (after today) = NOT released yet\n`;
-        messageWithContext += `  * If scheduled date is in the PAST (before today) = ALREADY released\n`;
-        messageWithContext += `  * If results explicitly say "not yet released" = NOT released (even if date passed)\n`;
-        messageWithContext += `- Example: If something was scheduled for October 29, 2025 and today is November 4, 2025, it ALREADY HAPPENED\n\n`;
-
-        messageWithContext += `STEP 3 - ANSWER:\n`;
-        messageWithContext += `Based ONLY on the facts you extracted, answer the user's question.\n`;
-        messageWithContext += `If the search results don't contain the answer, say "The search results don't provide this information."\n\n`;
-
-        messageWithContext += `Example Format:\n`;
-        messageWithContext += `<reasoning>\n`;
-        messageWithContext += `STEP 1: [Quote: "The Outer Worlds 2 will launch... this coming October 2025"] [Quote: "scheduled for release in late October 2025"]\n`;
-        messageWithContext += `STEP 2: The game was scheduled for October 2025. Today is November 4, 2025, which is AFTER October 2025. This means the scheduled date has passed, so the game ALREADY released.\n`;
-        messageWithContext += `STEP 3: Yes, The Outer Worlds 2 has been released (it came out in October 2025).\n`;
-        messageWithContext += `</reasoning>\n`;
-        messageWithContext += `Yes, The Outer Worlds 2 has already been released! It came out on October 29, 2025 for PS5, Xbox Series X|S, and PC.\n\n`;
-
-        messageWithContext += `Now follow these steps for the user's question:\n`;
+        messageWithContext += `\nUSER REQUEST:\n${content}\n\n`;
+        messageWithContext += `RESPONSE INSTRUCTIONS:\n`;
+        messageWithContext += `- Use only the web results above for factual claims.\n`;
+        messageWithContext += `- Respond naturally and helpfully, not in robotic or template-heavy style.\n`;
+        messageWithContext += `- Start with a direct answer in 1-2 sentences.\n`;
+        messageWithContext += `- If the user asks for places/events/venues/activities near a location, include a concise list with:\n`;
+        messageWithContext += `  1) Place name\n`;
+        messageWithContext += `  2) Area/neighborhood\n`;
+        messageWithContext += `  3) Why it matches the request (concerts/outdoor, etc.)\n`;
+        messageWithContext += `  4) Any timing/detail available in results\n`;
+        messageWithContext += `- If details are missing, say what is missing and suggest a specific follow-up search.\n`;
+        messageWithContext += `- Keep answer concise but useful.\n`;
       } else {
         messageWithContext = content;
+      }
+
+      const allowedTools = settings.mcp.allowedTools ?? [];
+      const shouldForceMCPFirstAttempt =
+        !webSearchContext &&
+        isMCPReady &&
+        allowedTools.length > 0 &&
+        isLikelyMCPToolIntent(content);
+
+      if (shouldForceMCPFirstAttempt) {
+        messageWithContext = buildMCPRetryPrompt(content, allowedTools);
       }
 
       const returnedResponse = await sendStreamingMessage(
@@ -172,12 +167,11 @@ export function createMessageHandler({
           setStreamingContent(streamingContentRef.current);
         },
         {
-          // Use much lower temperature for web search to force following instructions
-          temperature: webSearchContext ? 0.1 : modelSettings.temperature,
+          temperature: webSearchContext ? 0.3 : modelSettings.temperature,
           maxTokens: modelSettings.maxTokens,
-          topP: webSearchContext ? 0.5 : modelSettings.topP, // Lower top_p too
-          topK: webSearchContext ? 20 : modelSettings.topK, // Lower top_k
-          repeatPenalty: webSearchContext ? 1.2 : modelSettings.repeatPenalty, // Higher repeat penalty
+          topP: webSearchContext ? 0.85 : modelSettings.topP,
+          topK: webSearchContext ? 40 : modelSettings.topK,
+          repeatPenalty: webSearchContext ? 1.1 : modelSettings.repeatPenalty,
         }
       );
 
@@ -186,12 +180,58 @@ export function createMessageHandler({
       const finalContent = streamingContentRef.current || returnedResponse;
 
       // Parse and extract thinking/reasoning content from various XML formats
-      const { settings } = useSettingsStore.getState();
       const { reasoning, thinking, processedContent } = parseAllThinking(
         finalContent,
         !!webSearchContext,
         settings.webSearch.showReasoning
       );
+
+      let assistantProcessedContent = processedContent;
+      let assistantReasoning = reasoning;
+      let assistantThinking = thinking;
+
+      const hasToolCalls =
+        extractToolCalls(processedContent, {
+          enableOpenAIToolCalls: true,
+          enableXmlToolCalls: true,
+        }).length > 0;
+
+      const shouldRunMCPRetry =
+        !hasToolCalls &&
+        isMCPReady &&
+        (settings.mcp.allowedTools?.length ?? 0) > 0 &&
+        shouldRetryWithMCP(content, processedContent);
+
+      if (shouldRunMCPRetry) {
+        setStreamingContent("");
+        streamingContentRef.current = "";
+
+        const retryResponse = await sendStreamingMessage(
+          buildMCPRetryPrompt(content, settings.mcp.allowedTools),
+          (token) => {
+            streamingContentRef.current += token;
+            setStreamingContent(streamingContentRef.current);
+          },
+          {
+            temperature: 0.2,
+            maxTokens: modelSettings.maxTokens,
+            topP: 0.9,
+            topK: 40,
+            repeatPenalty: 1.1,
+          }
+        );
+
+        const retryFinalContent = streamingContentRef.current || retryResponse;
+        const retryParsed = parseAllThinking(
+          retryFinalContent,
+          !!webSearchContext,
+          settings.webSearch.showReasoning
+        );
+
+        assistantProcessedContent = retryParsed.processedContent;
+        assistantReasoning = retryParsed.reasoning;
+        assistantThinking = retryParsed.thinking;
+      }
 
       // Detect truncation
       const wasTruncated = detectTruncation(finalContent, {
@@ -201,12 +241,12 @@ export function createMessageHandler({
       const assistantMessage: Message = {
         id: assistantMessageId,
         role: "assistant",
-        content: processedContent,
+        content: assistantProcessedContent,
         timestamp: new Date(),
         truncated: wasTruncated,
         sources: searchSources.length > 0 ? searchSources : undefined,
-        reasoning: reasoning, // Store reasoning separately for web search responses
-        thinking: thinking, // Store thinking/analysis for chain-of-thought models
+        reasoning: assistantReasoning,
+        thinking: assistantThinking,
       };
 
       setMessages((prev) => [...prev, assistantMessage]);
@@ -219,6 +259,8 @@ export function createMessageHandler({
         await processMCPToolCalls(assistantMessage, {
           onToolCallDetected: handleToolCallRequest,
           addMessage,
+          enableHybridParser: true,
+          maxToolCallsPerTurn: settings.mcp.maxToolCallsPerTurn,
           continueConversation: async (toolPrompt: string) => {
             // Continue the conversation with tool results
             setIsGenerating(true);

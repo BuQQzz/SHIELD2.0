@@ -105,9 +105,12 @@ export function isValidSettings(data: unknown): boolean {
     if (
       typeof mcp.enabled !== "boolean" ||
       !Array.isArray(mcp.allowedServers) ||
+      !Array.isArray(mcp.allowedTools) ||
       typeof mcp.showPermissionDialog !== "boolean" ||
       typeof mcp.rememberChoices !== "boolean" ||
-      typeof mcp.auditLogRetentionDays !== "number"
+      typeof mcp.auditLogRetentionDays !== "number" ||
+      typeof mcp.hybridParserEnabled !== "boolean" ||
+      typeof mcp.maxToolCallsPerTurn !== "number"
     ) {
       return false;
     }

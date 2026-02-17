@@ -66,7 +66,12 @@ function App() {
 
   const { settings, loadSettings } = useSettingsStore();
   const { performSearch, clearResults } = useWebSearch();
-  const { isReady: isMCPReady, callTool } = useMCP();
+  const {
+    isReady: isMCPReady,
+    isInitializing: isMCPInitializing,
+    initialize: initializeMCP,
+    callTool,
+  } = useMCP();
 
   // MCP dialog management
   const {
@@ -97,6 +102,23 @@ function App() {
     syncHfToken();
   }, [settings.system.huggingFaceToken]);
 
+  // Auto-initialize MCP at startup
+  useEffect(() => {
+    const autoInitializeMCP = async () => {
+      if (isMCPReady || isMCPInitializing) {
+        return;
+      }
+
+      try {
+        await initializeMCP();
+      } catch (error) {
+        console.error("Failed to auto-initialize MCP:", error);
+      }
+    };
+
+    autoInitializeMCP();
+  }, [isMCPReady, isMCPInitializing, initializeMCP]);
+
   // MCP system prompt management - builds model-specific prompts
   const currentModelConfig = installedModels.find(
     (m) => m.id === currentModelId
@@ -104,7 +126,7 @@ function App() {
   useMCPSystemPrompt({
     isModelLoaded,
     isMCPReady,
-    mcpEnabled: settings.mcp?.enabled ?? false,
+    mcpEnabled: true,
     baseSystemPrompt: settings.system.systemPrompt,
     setSystemPrompt,
     modelName: currentModelConfig?.name,
@@ -175,6 +197,7 @@ function App() {
     setIsSearching: setIsWebSearching,
     clearResults,
     handleToolCallRequest, // Pass MCP handler
+    isMCPReady,
   });
 
   // Keyboard shortcuts

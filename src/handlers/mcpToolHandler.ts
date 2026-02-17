@@ -3,75 +3,12 @@
  *
  * Detects and processes MCP tool calls in AI responses
  */
-
-export interface ToolCallRequest {
-  serverName: string;
-  tool: string; // Changed from toolName to match MCPToolCall
-  arguments: Record<string, unknown>;
-}
-
-/**
- * Extract tool calls from AI response
- * Looks for XML-style tool call tags in the response
- */
-export function extractToolCalls(content: string): ToolCallRequest[] {
-  console.log(
-    "[MCPToolHandler] Extracting tool calls from content:",
-    content.substring(0, 200)
-  );
-  const toolCalls: ToolCallRequest[] = [];
-
-  // Match <tool_call> blocks
-  const toolCallRegex = /<tool_call>([\s\S]*?)<\/tool_call>/g;
-  let match;
-
-  while ((match = toolCallRegex.exec(content)) !== null) {
-    console.log("[MCPToolHandler] Found tool call block:", match[0]);
-    try {
-      const toolCallContent = match[1]?.trim();
-      if (!toolCallContent) continue;
-
-      // Parse server, tool, and arguments
-      const serverMatch = toolCallContent.match(/<server>(.*?)<\/server>/);
-      const toolMatch = toolCallContent.match(/<tool>(.*?)<\/tool>/);
-      const argsMatch = toolCallContent.match(
-        /<arguments>([\s\S]*?)<\/arguments>/
-      );
-
-      if (serverMatch?.[1] && toolMatch?.[1]) {
-        const serverName = serverMatch[1].trim();
-        const tool = toolMatch[1].trim();
-        let args: Record<string, unknown> = {};
-
-        if (argsMatch?.[1]) {
-          try {
-            args = JSON.parse(argsMatch[1].trim());
-          } catch {
-            console.warn(
-              "[MCPToolHandler] Failed to parse arguments, using empty object"
-            );
-          }
-        }
-
-        console.log("[MCPToolHandler] ✅ Extracted tool call:", {
-          serverName,
-          tool,
-          args,
-        });
-        toolCalls.push({
-          serverName,
-          tool,
-          arguments: args,
-        });
-      }
-    } catch (error) {
-      console.error("[MCPToolHandler] Error parsing tool call:", error);
-    }
-  }
-
-  console.log("[MCPToolHandler] Total tool calls extracted:", toolCalls.length);
-  return toolCalls;
-}
+export {
+  extractToolCalls,
+  type ExtractToolCallOptions,
+  type ToolCallRequest,
+} from "./toolCallParsing";
+import type { ToolCallRequest } from "./toolCallParsing";
 
 /**
  * Get system prompt for MCP tool awareness
@@ -102,6 +39,21 @@ You have tools to work with files. When the user asks you to create, read, or li
 <tool>TOOL_NAME</tool>
 <arguments>{"param": "value"}</arguments>
 </tool_call>
+\`\`\`
+
+### Alternative Tool Call Format (for native function-calling models):
+\`\`\`json
+{
+  "tool_calls": [
+    {
+      "type": "function",
+      "function": {
+        "name": "filesystem.TOOL_NAME",
+        "arguments": { "param": "value" }
+      }
+    }
+  ]
+}
 \`\`\`
 
 ### Example: Creating a File

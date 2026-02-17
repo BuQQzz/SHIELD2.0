@@ -9,6 +9,7 @@ import type { PermissionRequest } from "@/components/dialogs/PermissionDialog";
 import type { WriteFileRequest } from "@/components/dialogs/WriteFileDialog";
 import type { ToolCallRequest } from "@/handlers/mcpToolHandler";
 import type { MCPToolResult } from "@/types/electron";
+import { useSettingsStore } from "@/store/settingsStore";
 
 interface UseMCPDialogsProps {
   callTool: (request: {
@@ -23,12 +24,21 @@ export function useMCPDialogs({ callTool }: UseMCPDialogsProps) {
     useState<PermissionRequest | null>(null);
   const [writeFileRequest, setWriteFileRequest] =
     useState<WriteFileRequest | null>(null);
+  const { settings } = useSettingsStore();
 
   /**
    * Handle tool call requests - routes to appropriate dialog
    */
   const handleToolCallRequest = useCallback(
     async (toolCall: ToolCallRequest): Promise<MCPToolResult> => {
+      const allowedTools = settings.mcp?.allowedTools ?? [];
+      if (!allowedTools.includes(toolCall.tool)) {
+        return {
+          success: false,
+          error: `Tool '${toolCall.tool}' is disabled in MCP tool settings`,
+        };
+      }
+
       return new Promise((resolve) => {
         // Check if this is a write_file operation
         if (toolCall.tool === "write_file") {
@@ -57,7 +67,7 @@ export function useMCPDialogs({ callTool }: UseMCPDialogsProps) {
         }
       });
     },
-    []
+    [settings.mcp?.allowedTools]
   );
 
   /**

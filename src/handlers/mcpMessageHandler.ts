@@ -15,7 +15,9 @@ import type { MCPToolResult } from "@/types/electron";
 export interface MCPMessageHandlerProps {
   onToolCallDetected: (toolCall: ToolCallRequest) => Promise<MCPToolResult>;
   addMessage: (message: Message) => void;
-  continueConversation: (content: string) => void;
+  continueConversation: (content: string) => Promise<void> | void;
+  enableHybridParser?: boolean;
+  maxToolCallsPerTurn?: number;
 }
 
 /**
@@ -26,61 +28,76 @@ export async function processMCPToolCalls(
   assistantMessage: Message,
   props: MCPMessageHandlerProps
 ): Promise<boolean> {
-  const { onToolCallDetected, addMessage, continueConversation } = props;
+  const {
+    onToolCallDetected,
+    addMessage,
+    continueConversation,
+    enableHybridParser = true,
+    maxToolCallsPerTurn = 5,
+  } = props;
 
   // Extract any tool calls from the response
-  const toolCalls = extractToolCalls(assistantMessage.content);
+  const toolCalls = extractToolCalls(assistantMessage.content, {
+    enableOpenAIToolCalls: enableHybridParser,
+    enableXmlToolCalls: true,
+  });
 
   if (toolCalls.length === 0) {
     return false; // No tool calls found
   }
 
+  const cappedToolCalls = toolCalls.slice(0, Math.max(1, maxToolCallsPerTurn));
   console.log("[MCP] Detected tool calls:", toolCalls);
+  if (toolCalls.length > cappedToolCalls.length) {
+    console.warn(
+      `[MCP] Tool calls capped to ${cappedToolCalls.length} for this turn`
+    );
+  }
+
+  const formattedResults: string[] = [];
 
   // Process each tool call sequentially
-  for (const toolCall of toolCalls) {
+  for (const toolCall of cappedToolCalls) {
+    let result: MCPToolResult;
+
     try {
       console.log(
         `[MCP] Requesting permission for ${toolCall.serverName}.${toolCall.tool}`
       );
 
       // Request permission and execute tool
-      const result = await onToolCallDetected(toolCall);
+      result = await onToolCallDetected(toolCall);
 
       console.log(`[MCP] Tool result:`, result);
-
-      // Format the tool result as a message
-      const toolResultFormatted = formatToolResult(toolCall, result);
-
-      // Add tool result to conversation
-      const toolResultMessage: Message = {
-        id: `${Date.now()}-tool-result`,
-        role: "user", // Tool results come back as "user" messages
-        content: toolResultFormatted,
-        timestamp: new Date(),
-      };
-
-      addMessage(toolResultMessage);
-
-      // Continue the conversation with the tool result
-      // The AI will see the result and can respond accordingly
-      if (result.success) {
-        continueConversation(
-          `The tool call was successful. Here is the result:\n${toolResultFormatted}\n\nPlease provide a response to the user based on this information.`
-        );
-      } else {
-        continueConversation(
-          `The tool call failed with error: ${result.error}\n\nPlease inform the user about this error.`
-        );
-      }
-
-      // For now, handle one tool call at a time
-      break;
     } catch (error) {
       console.error("[MCP] Error processing tool call:", error);
-      return false;
+      result = {
+        success: false,
+        error: error instanceof Error ? error.message : "Unknown MCP error",
+      };
     }
+
+    const toolResultFormatted = formatToolResult(toolCall, result);
+    formattedResults.push(toolResultFormatted);
+
+    const toolResultMessage: Message = {
+      id: `${Date.now()}-tool-result-${toolCall.tool}`,
+      role: "user", // Tool results come back as "user" messages
+      content: toolResultFormatted,
+      timestamp: new Date(),
+    };
+
+    addMessage(toolResultMessage);
   }
+
+  await continueConversation(`
+You executed ${formattedResults.length} tool call(s). Here are the results:
+
+${formattedResults.join("\n\n")}
+
+Please provide a clear response to the user based on these results.
+If any tool failed, explain the failure briefly and suggest a safe next step.
+`.trim());
 
   return true; // Tool calls were processed
 }

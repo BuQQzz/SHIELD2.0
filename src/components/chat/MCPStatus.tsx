@@ -1,16 +1,13 @@
 /**
- * MCP Status Indicator & Toggle
+ * MCP Status Indicator
  *
- * Clickable button to enable/disable MCP from main UI
- * Syncs with settings store and respects model capabilities
+ * Read-only status indicator for always-on MCP
  */
 
 import { useMCP } from "@/hooks/useMCP";
-import { useSettingsStore } from "@/store/settingsStore";
 import { useModelCapabilities } from "@/hooks/useModelCapabilities";
 import { Button } from "@/components/ui/button";
 import {
-  Shield,
   AlertCircle,
   CheckCircle2,
   Loader2,
@@ -23,22 +20,8 @@ interface MCPStatusProps {
 }
 
 export function MCPStatus({ currentModel }: MCPStatusProps) {
-  const { isReady, isInitializing, error, initialize } = useMCP();
-  const { settings, updateSettings } = useSettingsStore();
+  const { isReady, isInitializing, error } = useMCP();
   const { getWarning } = useModelCapabilities(currentModel || null);
-  const mcpEnabled = settings.mcp?.enabled ?? false;
-
-  const handleToggle = async () => {
-    const newState = !mcpEnabled;
-
-    // Update settings
-    await updateSettings({ mcp: { ...settings.mcp, enabled: newState } });
-
-    // Auto-initialize when enabling
-    if (newState && !isReady && !isInitializing) {
-      await initialize();
-    }
-  };
 
   // Check if model supports MCP well
   const warning = getWarning("mcp");
@@ -50,9 +33,9 @@ export function MCPStatus({ currentModel }: MCPStatusProps) {
       <Button
         variant="ghost"
         size="sm"
-        onClick={handleToggle}
+        disabled
         className="px-2 text-destructive hover:text-destructive"
-        title={`MCP Error: ${error} - Click to ${mcpEnabled ? "disable" : "retry"}`}
+        title={`MCP Error: ${error}`}
       >
         <AlertCircle className="h-4 w-4" />
       </Button>
@@ -74,16 +57,15 @@ export function MCPStatus({ currentModel }: MCPStatusProps) {
     );
   }
 
-  // Show ready state - with warning if model doesn't support it well
-  if (mcpEnabled && isReady) {
+  if (isReady) {
     if (hasWarning) {
       return (
         <Button
           variant="ghost"
           size="sm"
-          onClick={handleToggle}
+          disabled
           className="px-2 text-yellow-600 hover:text-yellow-700 dark:text-yellow-400 dark:hover:text-yellow-300"
-          title={`MCP Ready (Limited) - ${warning} - Click to disable`}
+          title={`MCP Ready (Limited): ${warning}`}
         >
           <AlertTriangle className="h-4 w-4" />
         </Button>
@@ -94,29 +76,24 @@ export function MCPStatus({ currentModel }: MCPStatusProps) {
       <Button
         variant="ghost"
         size="sm"
-        onClick={handleToggle}
+        disabled
         className="px-2 text-green-600 hover:text-green-700 dark:text-green-400 dark:hover:text-green-300"
-        title="MCP Ready - Click to disable"
+        title="MCP Ready"
       >
         <CheckCircle2 className="h-4 w-4" />
       </Button>
     );
   }
 
-  // Show inactive state (default)
   return (
     <Button
       variant="ghost"
       size="sm"
-      onClick={handleToggle}
-      className="px-2 text-muted-foreground hover:text-foreground"
-      title={
-        hasWarning
-          ? `MCP Off - ${warning} - Click to enable anyway`
-          : "MCP Off - Click to enable"
-      }
+      disabled
+      className="px-2 text-muted-foreground"
+      title="MCP Initializing"
     >
-      <Shield className="h-4 w-4" />
+      <Loader2 className="h-4 w-4 animate-spin" />
     </Button>
   );
 }

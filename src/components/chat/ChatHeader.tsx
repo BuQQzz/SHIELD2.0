@@ -16,7 +16,6 @@ import { motion } from "framer-motion";
 import { toast } from "sonner";
 import { useChatStore } from "@/stores/chat-store";
 import { useConversationStore } from "@/stores/conversation-store";
-import { useSettingsStore } from "@/store/settingsStore";
 import { ModelSelector, type ModelOption } from "./ModelSelector";
 import { useState } from "react";
 import {
@@ -60,7 +59,6 @@ export function ChatHeader({
     updateConversation,
     saveCurrentConversation,
   } = useConversationStore();
-  const { settings } = useSettingsStore();
   const [newTagInput, setNewTagInput] = useState("");
   const [showTagInput, setShowTagInput] = useState(false);
   const lastWarningRef = useRef<string | null>(null);
@@ -161,11 +159,9 @@ export function ChatHeader({
 
       {/* Right Section */}
       <div className="flex items-center gap-2">
-        {settings.mcp?.enabled && (
-          <MCPStatus
-            currentModel={availableModels.find((m) => m.id === currentModelId)}
-          />
-        )}
+        <MCPStatus
+          currentModel={availableModels.find((m) => m.id === currentModelId)}
+        />
 
         {onModelSelect && (
           <ModelSelector
@@ -207,7 +203,7 @@ export function ChatHeader({
                   <DropdownMenuSubContent className="w-48">
                     {/* Show existing tags */}
                     {currentConversation.tags &&
-                    currentConversation.tags.length > 0 ? (
+                      currentConversation.tags.length > 0 ? (
                       <div className="p-2 space-y-1">
                         <div className="text-xs font-medium text-muted-foreground px-2 py-1">
                           Current Tags

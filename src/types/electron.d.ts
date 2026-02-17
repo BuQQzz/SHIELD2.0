@@ -132,9 +132,12 @@ export interface AppSettings {
   mcp: {
     enabled: boolean;
     allowedServers: string[];
+    allowedTools: string[];
     showPermissionDialog: boolean;
     rememberChoices: boolean;
     auditLogRetentionDays: number;
+    hybridParserEnabled: boolean;
+    maxToolCallsPerTurn: number;
   };
 }
 
@@ -419,4 +422,4 @@ declare global {
   }
 }
 
-export {};
+export { };

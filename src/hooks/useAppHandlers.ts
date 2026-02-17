@@ -60,6 +60,7 @@ interface UseAppHandlersProps {
   setIsSearching?: React.Dispatch<React.SetStateAction<boolean>>;
   clearResults?: () => void;
   handleToolCallRequest?: (request: ToolCallRequest) => Promise<MCPToolResult>;
+  isMCPReady?: boolean;
 }
 
 export function useAppHandlers({
@@ -87,6 +88,7 @@ export function useAppHandlers({
   setIsSearching,
   clearResults,
   handleToolCallRequest,
+  isMCPReady,
 }: UseAppHandlersProps) {
   const handleSendMessage = createMessageHandler({
     isModelLoaded,
@@ -104,6 +106,7 @@ export function useAppHandlers({
     performWebSearch,
     setIsSearching,
     handleToolCallRequest,
+    isMCPReady,
   });
 
   const handleStopGenerating = useCallback(async () => {

@@ -34,9 +34,12 @@ export interface WebSearchSettings {
 export interface MCPSettings {
   enabled: boolean;
   allowedServers: string[];
+  allowedTools: string[];
   showPermissionDialog: boolean;
   rememberChoices: boolean;
   auditLogRetentionDays: number;
+  hybridParserEnabled: boolean;
+  maxToolCallsPerTurn: number;
 }
 
 export interface AppSettings {
@@ -80,10 +83,13 @@ export const DEFAULT_SETTINGS: AppSettings = {
     showReasoning: false, // Hidden by default for cleaner responses
   },
   mcp: {
-    enabled: false,
+    enabled: true,
     allowedServers: ["filesystem"],
+    allowedTools: ["read_file", "write_file", "list_directory"],
     showPermissionDialog: true,
     rememberChoices: false,
     auditLogRetentionDays: 30,
+    hybridParserEnabled: true,
+    maxToolCallsPerTurn: 5,
   },
 };
