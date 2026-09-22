@@ -920,3 +920,252 @@ Cross-cutting:
 The architecture should keep returning to one question:
 
 > **Can SHIELD make a local model feel more capable by wasting less of its compute and context?**
+
+---
+
+# 21. Context Engine — Context Packet, budgeting, and observability
+
+The earlier sections describe the sources. The Context Engine should own the decision about what the model actually sees on each turn.
+
+## Context Packet, not string concatenation
+
+Do not let every feature append another string to one giant prompt. Build a structured packet first.
+
+A packet can contain:
+
+    stablePrefix
+    runtimeState
+    taskCapsule
+
+    toolAtlas
+    loadedToolSchemas
+
+    memoryAtlas
+    loadedMemoryPages
+
+    repoAtlas
+    loadedRepoContext
+
+    recentConversation
+    currentRequest
+
+Every candidate context item should carry metadata such as:
+
+    priority
+    tokenCost
+    relevance
+    source
+    scope
+    freshness
+    trust
+    cacheable
+    compressible
+    pinned
+    version
+
+A possible internal item has identity, kind, content, token estimate, priority, relevance, scope, trust, cacheability, compressibility, pin state, source, and version.
+
+The engine then builds both a Context Packet and a Context Report.
+
+## Context tiers
+
+Prefer a layout similar to:
+
+    STABLE PREFIX
+      SHIELD contract
+      project instructions
+      compact atlases
+
+    CURRENT STATE
+      mode
+      task capsule
+      current plan
+      loaded schemas
+
+    RETRIEVED DETAIL
+      selected wiki pages
+      selected repo symbols/files
+      selected tool results
+
+    RECENT RAW TURNS
+
+    CURRENT USER REQUEST
+
+Recent instructions remain close to generation while stable content stays cache-friendly.
+
+## Budget Manager
+
+Model maximum context is an upper bound, not the target.
+
+Example:
+
+    Model maximum        262K
+    Hardware target       32K
+    Response reserve       4K
+    Tool/schema reserve    3K
+    Working context       25K
+
+Budget inputs can include:
+
+- model profile
+- runtime backend
+- KV-cache estimate
+- free VRAM/RAM
+- measured prefill speed
+- task complexity
+- response reserve
+- tool/schema needs
+
+## Context value
+
+When something has to leave the active window, not every token is equal.
+
+Never-drop examples:
+
+- current user instruction
+- active permission/runtime policy
+- explicit user constraints
+- current task identity
+
+High-value examples:
+
+- Task Capsule
+- current plan and decisions
+- relevant code/file content
+- verified relevant memory
+
+Lower-value examples:
+
+- old raw terminal logs
+- stale tool output
+- redundant assistant prose
+- unrelated old conversation
+
+The exact scoring should be benchmarked, but the engine should optimize value per active token rather than FIFO history alone.
+
+## Progressive Context Sources
+
+Tool, Memory, Repo, and future Skill retrieval should share one conceptual interface:
+
+    index()
+    search(query)
+    load(ids)
+    estimateCost(ids)
+    invalidate(version)
+
+Implementations:
+
+    ToolContextSource
+    MemoryContextSource
+    RepoContextSource
+    SkillContextSource
+
+This makes progressive disclosure a SHIELD primitive instead of four unrelated features.
+
+## Invalidation
+
+Context caches need source versions:
+
+    repoVersion
+    toolRegistryVersion
+    memoryPageVersion
+    skillCatalogVersion
+    runtimeVersion
+
+A git change should invalidate affected Repo Atlas entries, not every context source.
+
+## Context Report
+
+Every assembled turn should be inspectable.
+
+Example:
+
+    Context for turn
+
+    System              812 tokens
+    Runtime state        94
+    Tool Atlas          318
+    Loaded schemas      634
+    Memory Atlas        201
+    Wiki pages          744
+    Task Capsule        522
+    Repo context       2840
+    Recent messages    1905
+    User message         86
+    -----------------------------
+    Total              8156
+    Budget            12288
+
+    Omitted
+      old terminal output
+      reason: stale, low relevance
+
+    Truncated
+      test log
+      54K chars -> 4K chars
+
+    Compacted
+      turns 1-37 -> Task Capsule v8
+
+Development builds should expose why-included metadata so a poor response can be diagnosed as bad model vs bad retrieval vs missing context vs stale memory vs overloaded context.
+
+## Task vs conversation
+
+Long term:
+
+    Conversation
+      messages and user-visible interaction
+
+    Task
+      objective
+      plan
+      files/resources
+      operations
+      checkpoints
+      tests
+      decisions
+      Task Capsule
+
+A resumed task should not require replaying 90 old chat messages. It should load the Task Capsule, relevant atlas entries/pages, relevant repo state, and recent raw interaction.
+
+---
+
+# 22. Unreal Agent validation and new ideas
+
+Fresh research on unreallabsai/unreal-agent (2026-09-22) independently validates several directions above.
+
+Detailed notes: UNREAL_AGENT_RESEARCH.md
+
+Particularly relevant:
+
+- its Context Builder is I/O-pure and already models omitted, truncated, and compacted report categories
+- its Skills feature gives the model a compact catalog and lazily loads one full skill with a native SkillUse tool, closely matching our Atlas pattern
+- provider adapters normalize messages, reasoning, tool calls, and tool results
+- sessions are append-only and forkable
+- tool calls translate into durable, versioned Operations that execute asynchronously
+- prompt-cache/session affinity is explicitly optimized
+- benchmark trajectories and token accounting are built into the project
+
+The most novel concept for SHIELD is a new proposal:
+
+> Separate model-visible Tool Calls from durable machine Operations.
+
+Possible SHIELD path:
+
+    Native Tool Call
+       |
+    Tool Adapter / Translator
+       |
+    ToolPolicy
+       |
+    Operation Spec
+       |
+    Operation Manager
+       |
+    MCP / filesystem / process / plugin execution
+       |
+    Operation Result
+       |
+    Native Tool Result
+
+This layer could eventually own concurrency, cancellation, recovery, retries, audit state, and remote/sandbox execution while keeping model-facing tools simple.
