@@ -113,3 +113,6 @@ $RECYCLE.BIN/
 
 # local dev server output
 dev.log
+
+# agent benchmark traces
+bench-results/
