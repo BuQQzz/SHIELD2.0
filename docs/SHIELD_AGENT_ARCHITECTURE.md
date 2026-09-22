@@ -148,7 +148,10 @@ The existing text parser remains valuable as a compatibility adapter, not the id
 - node-llama-cpp (≤3.21.1) doesn't recognise Qwen3-Coder's `<function=…><parameter=…>` tool format and falls back to a generic syntax. "Native tools" is therefore **per runtime and per model**, not one switch.
 - Checked after upgrading to 3.21.1: its new Jinja fallback gives **Qwen3.8-27B** native `<function=…>` tool calls, and Gemma 4 and Qwen2.5 are native too. Qwen3-Coder is still unsupported. Upstream llama.cpp's `llama-server` has a dedicated Qwen3-Coder parser. So the runtime choice is per model: node-llama-cpp for most models, llama-server where node-llama-cpp lags. That's exactly what the provider layer (§10) is for.
 
-## Proposal: one fallback syntax
+## Shipped (2026-09-22): one fallback syntax
+
+The XML tool prompt now teaches only the XML format; the parser still accepts OpenAI-style JSON, but only when it is call-shaped.
+
 
 When a model/backend cannot use native tool calling, SHIELD should advertise **one** fallback syntax.
 
@@ -161,7 +164,10 @@ Current compatibility candidates:
 
 Parser support may remain broad even when prompt instructions are narrow. We can accept multiple formats without teaching the model multiple formats.
 
-## Direction: no repeated calls
+## Shipped for XML (2026-09-22): no repeated calls
+
+`processMCPToolCalls` answers identical calls within a turn from memory, cleared by any mutation. The native path will need the same once it ships.
+
 
 Local models commonly repeat a successful call.
 
@@ -528,12 +534,12 @@ Ship model/harness profiles based on evidence rather than intuition.
 ## Direction, revised 2026-09-22 with benchmark evidence
 
 0. ~~SHIELD Agent Benchmark~~: **shipped** (first version). Every item below is now measured with it before and after.
-1. **Harden the XML path**: it's what users run today. Parser fixes shipped (arguments silently became `{}`); next is removing the fabricated-`Observation:` ReAct example from the tool prompt.
-2. **Untrusted tool-result envelope + post-untrusted-read policy**: moved up because injection succeeded 3/3 on the shipped path.
+1. **Harden the XML path**: it's what users run today. *Shipped 2026-09-22:* arguments no longer silently become `{}`; quoted JSON data is no longer run as a tool call; the tool prompt teaches one format with no `Thought/Observation` template. Needs a benchmark re-run to measure.
+2. **Untrusted tool-result envelope + post-untrusted-read policy**: moved up because injection succeeded 3/3 on the shipped path. *Envelope shipped 2026-09-22* (`trusted="false"`, note, tag neutralisation, reminder in the continuation). The **policy half is still open**: e.g. ask before any mutation that follows a read of untrusted content, even in Auto mode.
 3. **Native tool calling on node-llama-cpp** for models whose template it recognises (Qwen2.5 family, Llama 3.x, …), behind a setting, using the nullable-optional schema adapter.
 4. **Provider/runtime abstraction**: moved up from 8. The primary target model (Qwen3-Coder-30B-A3B) needs `llama-server --jinja` for true native tools, and Bonsai/Prism needs a separate runtime too. This condition was anticipated below and has now been met.
 5. Synthetic per-turn runtime/mode context
-6. Duplicate-call blocking in the harness (seen in every strategy)
+6. ~~Duplicate-call blocking in the harness~~: *shipped 2026-09-22* for the XML path (per-turn memory, cleared by any mutation). Native path still to do.
 7. Behavioral model profiles, assigned from benchmark results
 8. Repo/context engine
 9. Persistent task/checkpoint model
@@ -611,6 +617,10 @@ Use this section to record decisions once we stop brainstorming and commit to th
 | 2026-09-22 | Direction | Native tool calling is per runtime + model, not global | Grammar forces all properties; node-llama-cpp can't do Qwen3-Coder's native format |
 | 2026-09-22 | Direction | Provider/runtime layer moves ahead of context-engine work | Primary target model needs a different serving runtime for native tools |
 | 2026-09-22 | Direction | Untrusted-result handling becomes near-term, not later | Injection obeyed 3/3 on the shipped XML path |
+| 2026-09-22 | Shipped | Tool results are wrapped as untrusted data | Mitigation for the injection result; policy rule still to design |
+| 2026-09-22 | Shipped | Only call-shaped JSON counts as a tool call | Quoted config data was being run as a phantom tool |
+| 2026-09-22 | Shipped | One advertised call format; no Thought/Observation template | Model fabricated tool results from the template (§4 "one fallback syntax" proposal → shipped) |
+| 2026-09-22 | Shipped | Load models reserving VRAM for the requested context | Large models silently lost context size under `gpuLayers: "auto"` |
 
 ---
 

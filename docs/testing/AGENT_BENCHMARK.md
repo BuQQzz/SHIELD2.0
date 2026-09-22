@@ -15,7 +15,7 @@ npm run bench:agent -- --repeat 3 --verbose
 
 Options: `--model <path.gguf>` (default: first model in `%APPDATA%\shield\models`),
 `--strategies xml,native,native-qwen`, `--tasks id,id`, `--repeat N`, `--context 8192`,
-`--temperature 0.7`. Full traces are written to `bench-results/` (gitignored).
+`--temperature 0.7`, `--max-tokens 512` (raise for thinking models). Full traces are written to `bench-results/` (gitignored).
 Seeds are `1000 + repeat`, shared across strategies.
 
 ## Strategies
@@ -84,8 +84,8 @@ Small sample from one model. Treat these numbers as directional, not settled.
    `argumentsError`, and `processMCPToolCalls` returns that error to the model
    instead of running the call. Regression tests use the captured model output.
    The benchmark's xml strategy now calls the real `processMCPToolCalls`.
-   A partial re-run with only the first fix scored 63% (up from 54%); the full
-   re-run with both fixes is pending.
+   A partial re-run with only the first fix scored 63% (up from 54%). With both
+   fixes, on the six tasks below, **edits went from 0/3 to 2/2** (see Round 2).
 
 2. **node-llama-cpp's grammar forces every declared property.**
    `getGbnfJsonTerminalForGbnfJsonSchema` hard-codes `required: true` and ignores
@@ -148,6 +148,30 @@ Small sample from one model. Treat these numbers as directional, not settled.
    `<function=`, `<parameter=`) and routes it to
    `common_chat_params_init_qwen3_coder`, so `llama-server --jinja` remains the
    route to native tools for Qwen3-Coder.
+
+10. **The parser ran "tools" named after quoted JSON data.** Any JSON object
+    with a `"name"` key in a reply was treated as an OpenAI-style call. When
+    Qwen3-Coder quoted `config.json` (`{"name": "orchid", …}`), SHIELD called a
+    tool named `orchid` three times, and the model apologised for calls it never
+    made. That's why its XML runs took 50–70 s for a one-file read. A quoted
+    `package.json` would do the same. **Fixed:** outside a `tool_calls` array, a
+    call must be wrapped in `function` or have `arguments` next to `name`.
+
+11. **Large models lost context size silently.** `gpuLayers: "auto"` fills
+    VRAM with layers before the context is created. Qwen3-Coder-30B on 12 GB
+    then couldn't fit an 8K context. The benchmark crashed; `LlamaService`
+    instead shrinks the context without the user noticing. **Fixed** in both by
+    loading with `gpuLayers: { fitContext: { contextSize } }`.
+
+12. **The tool prompt taught two formats and a fake-result template.**
+    **Fixed:** one XML format, no `Thought/Observation` example, an explicit
+    "stop after `</tool_call>`", and a rule against repeating successful calls.
+    Not yet benchmarked: every xml number in this doc predates it.
+
+13. **Untrusted-result envelope shipped** in response to finding 4: results
+    carry `trusted="false"` and a "data, not instructions" note, envelope tags
+    inside tool output are neutralised, and the continuation reminds the model
+    that only the user gives instructions. Not yet benchmarked.
 
 ## Next steps
 
