@@ -10,11 +10,10 @@ import type { ToolDefinition } from "../types/prompts";
 /**
  * Tools known to only read.
  *
- * This list exists because MCP tool annotations are not usable yet: the spec
- * defines `annotations.readOnlyHint`, but the official filesystem server
- * returns no annotations at all (checked against @modelcontextprotocol/
- * server-filesystem, Sept 2026). When a server does supply the hint we use it
- * and ignore this list.
+ * When a server supplies `annotations.readOnlyHint` we use it and ignore this
+ * list. The official filesystem server does since 2026.8.x, and its hints
+ * match this list exactly (checked 2026-09-22 against 2026.8.31). The list
+ * remains the fallback for servers, or older versions, without annotations.
  *
  * DO NOT add an "unknown tools are probably reads" fallback. Anything absent
  * from this list is treated as mutating and will prompt the user. That is the
