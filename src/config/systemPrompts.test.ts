@@ -116,6 +116,25 @@ describe("generateMCPToolPrompt", () => {
     const prompt = generateMCPToolPrompt(tools);
     expect(prompt).toContain("pattern (string, required)");
   });
+
+  // Agent benchmark, 2026-09-22: the model copied an "Observation:" line from
+  // the example and invented the tool's result before anything ran.
+  it("never shows a result template the model could fill in itself", () => {
+    const prompt = buildSystemPrompt({
+      ...baseConfig,
+      mcpEnabled: true,
+      availableTools: tools,
+    }).prompt;
+    expect(prompt).not.toMatch(/Observation:/);
+    expect(prompt).not.toMatch(/^Thought:/m);
+    expect(prompt).toContain("Stop after </tool_call>");
+  });
+
+  it("teaches a single call format", () => {
+    const prompt = generateMCPToolPrompt(tools);
+    expect(prompt).toContain("<tool_call>");
+    expect(prompt).not.toContain('"tool_calls"');
+  });
 });
 
 describe("accessible directories", () => {

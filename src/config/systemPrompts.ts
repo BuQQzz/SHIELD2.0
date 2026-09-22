@@ -115,19 +115,18 @@ When web search results are provided:
 /**
  * Tool calling capability prompt (ReAct format)
  */
+// No Thought/Observation template: models copied it and wrote their own
+// "Observation: the file has been updated" before any tool had run
+// (agent benchmark, 2026-09-22). The call ends the message; the harness
+// sends the real result back.
 export const TOOL_CALLING_PROMPT = `
-## Tool Usage (ReAct Format)
-You have access to tools. When you need to use a tool:
+## Tool Usage
+You have access to tools. When the user asks you to do something or needs information from their computer, use them.
 
-1. **Thought**: Explain what you need to do and why
-2. **Action**: Call the tool with proper formatting
-3. **Observation**: Process the result
-4. **Repeat** if needed, then provide final answer
-
-Important:
-- ALWAYS use tools when the user asks you to perform actions
-- Don't just explain how - actually DO it using the tools
-- Format tool calls exactly as specified (XML preferred, OpenAI-style JSON also supported)`;
+- Write the tool call, then stop. Never write a tool's result yourself - the tool runs after your message and its real result is sent back to you.
+- After a result arrives, either call the next tool or answer the user.
+- Don't just explain how - actually do it using the tools.
+- Don't repeat a call that already succeeded; use its result.`;
 
 /**
  * Code generation capability prompt
@@ -237,7 +236,7 @@ ${toolDescriptions}
 ${accessSection}
 
 ## Tool Call Format
-Use this exact XML format to call tools:
+Use this exact format. The arguments are a JSON object, and line breaks inside string values must be written as \\n.
 
 <tool_call>
 <server>${exampleServer}</server>
@@ -245,25 +244,7 @@ Use this exact XML format to call tools:
 <arguments>{"param": "value"}</arguments>
 </tool_call>
 
-Alternative (native function-calling models):
-
-\`\`\`json
-{
-  "tool_calls": [
-    {
-      "type": "function",
-      "function": {
-        "name": "${exampleServer}.tool_name",
-        "arguments": { "param": "value" }
-      }
-    }
-  ]
-}
-\`\`\`
-
 ## Example
-
-Thought: I need to use ${exampleTool.name} to complete this request.
 
 <tool_call>
 <server>${exampleServer}</server>
@@ -271,9 +252,7 @@ Thought: I need to use ${exampleTool.name} to complete this request.
 <arguments>${exampleArgs}</arguments>
 </tool_call>
 
-Observation: <the tool result appears here>
-
-Then summarise the result for the user in plain language.
+Stop after </tool_call>. The result arrives in the next message; then summarise it for the user in plain language.
 
 ## CRITICAL RULES
 1. **ALWAYS USE TOOLS** - When asked to perform an action, USE the tools
