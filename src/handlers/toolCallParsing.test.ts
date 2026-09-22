@@ -134,6 +134,31 @@ theme=dark"}]}</arguments>
   });
 });
 
+describe("call bodies with no tool_call tags", () => {
+  it("accepts a bare body inside a markdown fence (Qwen2.5, 2026-09-22)", () => {
+    const raw =
+      String.raw`Let's proceed by reading the content of the markdown file.
+` +
+      "```markdown\n" +
+      String.raw`<server>filesystem</server>
+<tool>read_text_file</tool>
+<arguments>{"path":"C:\\notes\\meeting.md"}</arguments>
+` +
+      "```";
+
+    const calls = extractToolCalls(raw);
+    expect(calls).toHaveLength(1);
+    expect(calls[0]?.tool).toBe("read_text_file");
+    expect(calls[0]?.arguments.path).toContain("meeting.md");
+  });
+
+  it("leaves prose that only mentions a tag alone", () => {
+    const raw =
+      "Use the <tool> element to name the tool; no call is being made here.";
+    expect(extractToolCalls(raw)).toEqual([]);
+  });
+});
+
 /**
  * Captured by the agent benchmark (Qwen3-Coder-30B, read-file task,
  * 2026-09-22). The model quoted the file it had read; the parser ran a tool

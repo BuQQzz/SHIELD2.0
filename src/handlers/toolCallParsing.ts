@@ -321,6 +321,22 @@ function extractOpenAIToolCalls(content: string): ToolCallRequest[] {
  * in the chat with no effect. Repairing the markup here keeps that variance
  * out of the rest of the pipeline.
  */
+/**
+ * Wrap call bodies that have no <tool_call> tags at all.
+ *
+ * Qwen2.5 sometimes writes the body alone inside a ```markdown fence
+ * (agent benchmark, 2026-09-22). Only the full body shape is matched - a
+ * <tool> element followed by a closed <arguments> element, optionally
+ * preceded by <server> - so prose that mentions a tag is left alone.
+ */
+function wrapBareCallBodies(text: string): string {
+  if (text.includes("<tool_call>")) return text;
+  return text.replace(
+    /(?:<server>[^<]*<\/server>\s*)?<tool>[^<]+<\/tool>\s*<arguments>[\s\S]*?<\/arguments>/g,
+    (body) => `<tool_call>\n${body}\n</tool_call>`
+  );
+}
+
 export function repairToolCallMarkup(content: string): string {
   const CLOSE = "</tool_call>";
   const OPEN = "<tool_call>";
@@ -331,7 +347,7 @@ export function repairToolCallMarkup(content: string): string {
   for (;;) {
     const closeIndex = rest.indexOf(CLOSE);
     if (closeIndex === -1) {
-      output += rest;
+      output += wrapBareCallBodies(rest);
       break;
     }
 
