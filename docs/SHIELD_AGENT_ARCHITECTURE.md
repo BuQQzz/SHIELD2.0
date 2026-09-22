@@ -536,7 +536,7 @@ Ship model/harness profiles based on evidence rather than intuition.
 0. ~~SHIELD Agent Benchmark~~: **shipped** (first version). Every item below is now measured with it before and after.
 1. **Harden the XML path**: it's what users run today. *Shipped 2026-09-22:* arguments no longer silently become `{}`; quoted JSON data is no longer run as a tool call; the tool prompt teaches one format with no `Thought/Observation` template. Needs a benchmark re-run to measure.
 2. **Untrusted tool-result envelope + post-untrusted-read policy**: moved up because injection succeeded 3/3 on the shipped path. *Envelope shipped 2026-09-22* (`trusted="false"`, note, tag neutralisation, reminder in the continuation). The **policy half is still open**: e.g. ask before any mutation that follows a read of untrusted content, even in Auto mode.
-3. **Native tool calling on node-llama-cpp** for models whose template it recognises (Qwen2.5 family, Llama 3.x, …), behind a setting, using the nullable-optional schema adapter.
+3. **Native tool calling on node-llama-cpp** for models whose template it recognises (Qwen2.5, Qwen3.8, Gemma 4, Llama 3.x, …), behind a setting, using the nullable-optional schema adapter. **Enable it per model, never as a global default:** on Qwen3-Coder the generic fallback silently corrupted a written file and the forced Qwen wrapper made no calls, while XML scored 100% (benchmark Round 2). A model whose resolved wrapper is the generic ChatML fallback stays on XML.
 4. **Provider/runtime abstraction**: moved up from 8. The primary target model (Qwen3-Coder-30B-A3B) needs `llama-server --jinja` for true native tools, and Bonsai/Prism needs a separate runtime too. This condition was anticipated below and has now been met.
 5. Synthetic per-turn runtime/mode context
 6. ~~Duplicate-call blocking in the harness~~: *shipped 2026-09-22* for the XML path (per-turn memory, cleared by any mutation). Native path still to do.
@@ -621,6 +621,7 @@ Use this section to record decisions once we stop brainstorming and commit to th
 | 2026-09-22 | Shipped | Only call-shaped JSON counts as a tool call | Quoted config data was being run as a phantom tool |
 | 2026-09-22 | Shipped | One advertised call format; no Thought/Observation template | Model fabricated tool results from the template (§4 "one fallback syntax" proposal → shipped) |
 | 2026-09-22 | Shipped | Load models reserving VRAM for the requested context | Large models silently lost context size under `gpuLayers: "auto"` |
+| 2026-09-22 | Direction | Native tools only where the wrapper matches the model's trained format; generic fallback → XML | Qwen3-Coder: XML 100%, generic native 83% with silent file corruption, forced Qwen wrapper 42% |
 
 ---
 
