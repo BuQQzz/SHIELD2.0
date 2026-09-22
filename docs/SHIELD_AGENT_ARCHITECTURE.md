@@ -146,6 +146,7 @@ The existing text parser remains valuable as a compatibility adapter, not the id
 
 - node-llama-cpp's grammar forces **every** declared schema property, ignoring `required`. MCP schemas need an adapter that makes optional properties nullable and strips the nulls before the call (prototype: `toGbnfSchema` / `stripNulls` in `scripts/bench/strategies.ts`).
 - node-llama-cpp (≤3.21.1) doesn't recognise Qwen3-Coder's `<function=…><parameter=…>` tool format and falls back to a generic syntax. "Native tools" is therefore **per runtime and per model**, not one switch.
+- Checked after upgrading to 3.21.1: its new Jinja fallback gives **Qwen3.8-27B** native `<function=…>` tool calls, and Gemma 4 and Qwen2.5 are native too. Qwen3-Coder is still unsupported. Upstream llama.cpp's `llama-server` has a dedicated Qwen3-Coder parser. So the runtime choice is per model: node-llama-cpp for most models, llama-server where node-llama-cpp lags. That's exactly what the provider layer (§10) is for.
 
 ## Proposal: one fallback syntax
 

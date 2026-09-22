@@ -134,6 +134,21 @@ Small sample from one model. Treat these numbers as directional, not settled.
    `llama-server --jinja`, whose upstream Qwen3-Coder parser handles it. That
    is the first concrete evidence for the provider/runtime layer.
 
+   **Re-checked on node-llama-cpp 3.21.1 (2026-09-22)**, reading GGUF headers
+   only (no model load):
+
+   | Model | Resolved wrapper | Native tools on node-llama-cpp |
+   | --- | --- | --- |
+   | Qwen2.5-7B | Qwen | yes (Hermes JSON) |
+   | Qwen3.8-27B | JinjaTemplate | **yes: its own `<tool_call><function=…>` format, new in 3.21** |
+   | Gemma-4-12B | Gemma 4 | yes |
+   | Qwen3-Coder-30B-A3B | ChatML | **no.** Generic `\|\|call:` fallback, even when the Jinja wrapper is built from its own template |
+
+   Upstream llama.cpp detects the Qwen3-Coder template (`<tool_call>`,
+   `<function=`, `<parameter=`) and routes it to
+   `common_chat_params_init_qwen3_coder`, so `llama-server --jinja` remains the
+   route to native tools for Qwen3-Coder.
+
 ## Next steps
 
 - Re-run xml on Qwen2.5-7B with both parser fixes.
