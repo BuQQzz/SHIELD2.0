@@ -4,7 +4,7 @@
  *
  *   npm run bench:agent -- [--model <path.gguf>] [--strategies xml,native,native-qwen]
  *                          [--tasks id,id] [--repeat 3] [--context 8192]
- *                          [--temperature 0.7] [--verbose]
+ *                          [--temperature 0.7] [--max-tokens 512] [--verbose]
  *
  * Runs every task x strategy x repeat against a real filesystem MCP server in
  * a fresh temp directory, scores it deterministically, prints a summary and
@@ -63,6 +63,8 @@ async function main() {
   const repeats = Number(arg("repeat") ?? 3);
   const contextSize = Number(arg("context") ?? 8192);
   const temperature = Number(arg("temperature") ?? 0.7);
+  // The app's default. Thinking models spend part of it on reasoning.
+  const maxTokens = Number(arg("max-tokens") ?? 512);
   const verbose = process.argv.includes("--verbose");
 
   for (const s of strategies) {
@@ -76,7 +78,12 @@ async function main() {
   console.log(`Tasks:      ${tasks.length} x ${repeats} repeat(s)\n`);
 
   const llama = await getLlama();
-  const model = await llama.loadModel({ modelPath });
+  // Leave VRAM for the context; otherwise a large model fills the GPU with
+  // layers and the context creation fails.
+  const model = await llama.loadModel({
+    modelPath,
+    gpuLayers: { fitContext: { contextSize } },
+  });
   const context = await model.createContext({ contextSize });
 
   const results: RunResult[] = [];
@@ -101,7 +108,7 @@ async function main() {
             prompt: task.prompt(dir),
             sampling: {
               temperature,
-              maxTokens: 512,
+              maxTokens,
               topP: 0.9,
               topK: 40,
               repeatPenalty: 1.1,
@@ -182,7 +189,15 @@ async function main() {
   fs.writeFileSync(
     outFile,
     JSON.stringify(
-      { modelPath, contextSize, temperature, repeats, strategies, results },
+      {
+        modelPath,
+        contextSize,
+        temperature,
+        maxTokens,
+        repeats,
+        strategies,
+        results,
+      },
       null,
       2
     )

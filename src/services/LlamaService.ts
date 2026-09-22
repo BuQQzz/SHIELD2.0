@@ -151,16 +151,18 @@ export class LlamaService {
       modelPath = await resolveModelFile(config.uri, modelsDir);
     }
 
-    // Load model with automatic GPU layer offloading
-    // "auto" tells llama.cpp to fit as many layers as possible in VRAM,
-    // and automatically offload remaining layers to system RAM
-    // This enables running large models (e.g., 32B) on GPUs with limited VRAM
+    let contextSize = config.contextSize || 2048;
+
+    // Split layers between VRAM and system RAM, leaving VRAM for the
+    // requested context. Plain "auto" fills the GPU with layers first, so on
+    // large models (Qwen3-Coder 30B on 12 GB) the context no longer fit and
+    // was shrunk below - silently cutting the window that tool schemas and
+    // tool results need. A few more layers in RAM is the better trade.
     this.model = await this.llama.loadModel({
       modelPath,
-      gpuLayers: "auto", // Automatically split between VRAM and RAM
+      gpuLayers: { fitContext: { contextSize } },
     });
 
-    let contextSize = config.contextSize || 2048;
     let warning: string | undefined;
 
     // Try to create context with requested size, fallback if insufficient VRAM
