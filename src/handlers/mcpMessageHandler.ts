@@ -11,6 +11,7 @@ import {
   type ToolCallRequest,
 } from "./mcpToolHandler";
 import type { MCPToolResult } from "@/types/electron";
+import { isMutatingTool } from "../config/toolClassification";
 
 export interface MCPMessageHandlerProps {
   onToolCallDetected: (toolCall: ToolCallRequest) => Promise<MCPToolResult>;
@@ -75,6 +76,13 @@ export async function processMCPToolCalls(
   let content = assistantMessage.content;
   let handledAnyToolCalls = false;
 
+  // Local models often repeat a call they already made (three identical
+  // directory listings in one benchmark run). Within a turn, identical calls
+  // are answered from here instead of running - and prompting - again.
+  // Any change to the machine clears it, so reading a file again after
+  // editing it still re-reads.
+  const completedCalls = new Map<string, MCPToolResult>();
+
   for (let round = 1; round <= maxToolRounds; round++) {
     const toolCalls = extractToolCalls(content, {
       enableOpenAIToolCalls: enableHybridParser,
@@ -100,17 +108,36 @@ export async function processMCPToolCalls(
 
     // Process each tool call sequentially
     for (const toolCall of cappedToolCalls) {
-      const result: MCPToolResult = toolCall.argumentsError
-        ? // Never run a call whose arguments we could not read: the tool
-          // would only report a missing parameter and the model would retry
-          // the same malformed call.
-          {
-            success: false,
-            error: `${toolCall.argumentsError} The call was not run. Send it again with the arguments as a valid JSON object, escaping line breaks inside strings as \\n.`,
-          }
-        : await runToolCall(toolCall, onToolCallDetected);
+      const signature = `${toolCall.serverName}:${toolCall.tool}:${JSON.stringify(toolCall.arguments)}`;
+      const previous = completedCalls.get(signature);
+      let result: MCPToolResult;
 
-      const toolResultFormatted = formatToolResult(toolCall, result);
+      if (toolCall.argumentsError) {
+        // Never run a call whose arguments we could not read: the tool
+        // would only report a missing parameter and the model would retry
+        // the same malformed call.
+        result = {
+          success: false,
+          error: `${toolCall.argumentsError} The call was not run. Send it again with the arguments as a valid JSON object, escaping line breaks inside strings as \\n.`,
+        };
+      } else if (previous) {
+        console.log(
+          `[MCP] Repeated call answered from this turn: ${signature}`
+        );
+        result = previous;
+      } else {
+        result = await runToolCall(toolCall, onToolCallDetected);
+        completedCalls.set(signature, result);
+        // Unknown tools count as mutating here too - clearing is the safe side
+        if (result.success && isMutatingTool({ name: toolCall.tool })) {
+          completedCalls.clear();
+        }
+      }
+
+      const toolResultFormatted =
+        (previous && !toolCall.argumentsError
+          ? "You already made this exact call in this turn, so it was not run again. Its result is repeated below; use it instead of calling again.\n"
+          : "") + formatToolResult(toolCall, result);
       formattedResults.push(toolResultFormatted);
 
       const toolResultMessage: Message = {

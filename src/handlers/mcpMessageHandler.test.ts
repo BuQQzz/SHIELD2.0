@@ -155,8 +155,10 @@ describe("multi-round tool chaining", () => {
       maxToolRounds: 3,
     });
 
-    expect(onToolCallDetected).toHaveBeenCalledTimes(3);
+    // The loop still ends at the cap. The identical call itself runs only
+    // once; the repeats are answered from earlier in the turn.
     expect(continueConversation).toHaveBeenCalledTimes(3);
+    expect(onToolCallDetected).toHaveBeenCalledTimes(1);
   });
 
   it("tells the model to stop calling tools on the final round", async () => {
@@ -232,5 +234,74 @@ describe("calls with unreadable arguments", () => {
     const continuation = continueConversation.mock.calls[0]?.[0] as string;
     expect(continuation).toContain("not valid JSON");
     expect(continuation).toContain("The call was not run");
+  });
+});
+
+describe("repeated calls within a turn", () => {
+  const call = (tool: string, args: string) =>
+    `<tool_call>
+<server>filesystem</server>
+<tool>${tool}</tool>
+<arguments>${args}</arguments>
+</tool_call>`;
+  const listing = call("list_directory", '{"path":"C:/notes"}');
+
+  it("answers an identical repeat without running it again", async () => {
+    const onToolCallDetected = vi
+      .fn()
+      .mockResolvedValue({ success: true, data: "a.md" });
+    const continueConversation = vi
+      .fn()
+      .mockResolvedValueOnce(listing)
+      .mockResolvedValueOnce("There is one file, a.md.");
+
+    await processMCPToolCalls(
+      { id: "a", role: "assistant", content: listing, timestamp: new Date() },
+      { onToolCallDetected, addMessage: vi.fn(), continueConversation }
+    );
+
+    expect(onToolCallDetected).toHaveBeenCalledTimes(1);
+    const second = continueConversation.mock.calls[1]?.[0] as string;
+    expect(second).toContain("already made this exact call");
+    expect(second).toContain("a.md");
+  });
+
+  it("runs a read again after something changed", async () => {
+    const read = call("read_file", '{"path":"C:/a.txt"}');
+    const write = call("write_file", '{"path":"C:/a.txt","content":"new"}');
+    const onToolCallDetected = vi
+      .fn()
+      .mockResolvedValue({ success: true, data: "ok" });
+    const continueConversation = vi
+      .fn()
+      .mockResolvedValueOnce(write)
+      .mockResolvedValueOnce(read)
+      .mockResolvedValueOnce("Updated and verified.");
+
+    await processMCPToolCalls(
+      { id: "b", role: "assistant", content: read, timestamp: new Date() },
+      { onToolCallDetected, addMessage: vi.fn(), continueConversation }
+    );
+
+    const tools = onToolCallDetected.mock.calls.map((c) => c[0]?.tool);
+    expect(tools).toEqual(["read_file", "write_file", "read_file"]);
+  });
+
+  it("does not ask again for a call the user already denied", async () => {
+    const write = call("write_file", '{"path":"C:/r.txt","content":"x"}');
+    const onToolCallDetected = vi
+      .fn()
+      .mockResolvedValue({ success: false, blocked: true, error: "denied" });
+    const continueConversation = vi
+      .fn()
+      .mockResolvedValueOnce(write)
+      .mockResolvedValueOnce("I couldn't create it; permission was denied.");
+
+    await processMCPToolCalls(
+      { id: "c", role: "assistant", content: write, timestamp: new Date() },
+      { onToolCallDetected, addMessage: vi.fn(), continueConversation }
+    );
+
+    expect(onToolCallDetected).toHaveBeenCalledTimes(1);
   });
 });
