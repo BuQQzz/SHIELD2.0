@@ -46,41 +46,24 @@ const warning = getWarning('mcp'); // Returns warning string or null
 
 ## Current Model Capabilities
 
-### Qwen 2.5 7B Instruct (Q4_K_M)
+The catalog has grown to 15 models across four tiers (Premium,
+High Performance, Efficient, Specialized) - see
+[MODEL_DOWNLOAD.md](MODEL_DOWNLOAD.md#model-catalog) for the full,
+current list, or `src/config/models.ts` (`MODEL_CATALOG`) as the
+canonical source. Rather than duplicate a per-model table here (which
+went stale the first time the catalog grew), this doc tracks the
+*system* that reads those capabilities.
 
-- ✅ Complex reasoning
-- ✅ Structured output
-- ✅ Code generation
-- ✅ Long context (128K)
-- ❌ Native tool calling (not trained on format)
-- ⚠️ Web search (limited)
-- 🌍 Excellent multilingual
+**Pre-installed defaults** (`isInstalled: true`) remain Qwen 2.5 7B,
+Llama 3.2 3B, and Mistral 7B - none of which support native tool
+calling (see below). Everything added since (Qwen3 family, Llama 3.3
+70B, Qwen 2.5 Coder 32B, Mistral Large 2) is downloadable through the
+Model Browser and several of those *do* support tool calling.
 
-**Recommended for**: General chat, code assistance, multilingual tasks
-
-### Llama 3.2 3B Instruct (Q4_K_M)
-
-- ⚠️ Basic reasoning (smaller model)
-- ❌ Structured output (too small)
-- ⚠️ Code generation (basic)
-- ⚠️ Long context (limited)
-- ❌ Native tool calling
-- ❌ Web search (not reliable)
-- 🌍 Good multilingual
-
-**Recommended for**: Simple conversations, quick responses, low resource usage
-
-### Mistral 7B Instruct (Q4_K_M)
-
-- ✅ Complex reasoning
-- ✅ Structured output
-- ✅ Code generation
-- ✅ Long context (32K)
-- ❌ Native tool calling (not trained on format)
-- ⚠️ Web search (limited)
-- 🌍 Good multilingual
-
-**Recommended for**: Code generation, structured tasks, reasoning
+**Recommended for general chat**: Qwen 7B (default) or Mistral 7B.
+**Recommended for tool calling**: see the Premium tier in
+[MODEL_DOWNLOAD.md](MODEL_DOWNLOAD.md#model-catalog) - all seven
+Premium-tier models have `toolCalling: true`.
 
 ## UI Integration
 
@@ -104,9 +87,9 @@ When a model doesn't support a feature well, users see:
 
 ## Implementation Notes
 
-### Why Current Models Don't Support Tool Calling
+### Why the Pre-Installed Defaults Don't Support Tool Calling
 
-None of the current models (Qwen 7B, Llama 3B, Mistral 7B) have `toolCalling: true` because:
+None of the three pre-installed models (Qwen 7B, Llama 3B, Mistral 7B) have `toolCalling: true` because:
 
 1. **Not trained on XML format**: The models weren't specifically trained to generate XML-based tool calls
 2. **No function calling in base training**: They don't have native function calling capabilities
@@ -114,14 +97,18 @@ None of the current models (Qwen 7B, Llama 3B, Mistral 7B) have `toolCalling: tr
 
 ### Current Limitation
 
-With the current models, MCP tool calling will **not work**. The models will receive the tool calling instructions but won't generate the required XML format. The MCP status will show "Limited" to indicate this.
+With only the pre-installed defaults loaded, MCP tool calling will **not work** out of the box. The MCP status shows "Limited" until the user switches to a tool-calling-capable model.
 
-**Recommended Solution**: Download and use models with native tool calling support:
+**Resolved**: the models below are now built into the in-app catalog (Model Browser → Tool Calling filter), not just a suggestion to go find externally:
 
 - **Llama 3.3 70B** - Excellent function calling
 - **Qwen 2.5 Coder 32B** - Trained on tool use
-- **Mistral Large** - Native function calling
-- **Command R+** - Strong tool calling capabilities
+- **Qwen3 Coder Next 80B**, **Qwen3 8B**, **Qwen3 4B** - Native tool use (added 2025-08)
+- **Qwen3.5 397B A17B** - Flagship MoE (added 2025-10)
+- **Mistral Large 2** - Native function calling
+
+Command R+ is not in the catalog - it would need to be added to
+`src/config/models.ts` like any other model before it'd show up here.
 
 ### Removed Features
 

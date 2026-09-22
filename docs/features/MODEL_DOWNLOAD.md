@@ -2,7 +2,7 @@
 
 ## Overview
 
-The Model Download Feature allows users to browse, download, and manage AI models directly from within the SHIELD 2.0 application. Users can access a curated catalog of 12 models from trusted sources (Hugging Face), with real-time download progress tracking and model management capabilities.
+The Model Download Feature allows users to browse, download, and manage AI models directly from within the SHIELD 2.0 application. Users can access a curated catalog of 15 models from trusted sources (Hugging Face), with real-time download progress tracking and model management capabilities.
 
 ## Features
 
@@ -21,7 +21,13 @@ The Model Download Feature allows users to browse, download, and manage AI model
 
 ### 2. HuggingFace Authentication
 
-Some models (like Meta's Llama) are "gated" and require HuggingFace authentication to download.
+The catalog supports gated models (ones requiring HuggingFace license
+acceptance, like Meta's official Llama repos) via a `requiresAuth`
+flag per model - but as of the current catalog, every model actually
+listed is sourced from ungated mirrors (mostly `bartowski`'s GGUF
+requants), so `requiresAuth` is `false`/unset for all 15 entries. No
+token is required today. The setup steps below are for when a
+genuinely gated model gets added.
 
 #### Setting Up Authentication
 
@@ -34,30 +40,10 @@ Some models (like Meta's Llama) are "gated" and require HuggingFace authenticati
 
 #### Gated Models
 
-The following models require authentication:
-
-**Meta (3 models):**
-
-- Llama 3.3 70B Instruct
-- Llama 3.2 3B Instruct
-- Llama 3.2 1B Instruct
-
-**Mistral AI (2 models):**
-
-- Mistral Large 2
-- Mistral 7B Instruct
-
-**Other Providers (3 models):**
-
-- Phi-3 Medium 14B Instruct (Microsoft)
-- Gemma 2 9B Instruct (Google)
-- DeepSeek Coder 7B Instruct (DeepSeek)
-
-**Not Gated (Qwen models - 4 total):**
-
-- Qwen 2.5 Coder 32B (Apache 2.0)
-- Qwen 2.5 7B Instruct (Apache 2.0)
-- Qwen 2.5 3B Instruct (Qwen Research)
+None currently. When adding a model sourced from an actually-gated
+repo, set `requiresAuth: true` on its `ModelMetadata` entry in
+`src/config/models.ts` and it will pick up the 🔒 badge and warning
+banner automatically.
 
 #### Visual Indicators
 
@@ -180,27 +166,36 @@ Model Download Flow:
 
 ## Model Catalog
 
-### Premium (Tool Calling)
+### Premium (Tool Calling) - 7 models
 
-1. **Llama 3.3 70B Instruct** - 40GB, 48GB VRAM, 131K context
-2. **Qwen 2.5 Coder 32B Instruct** - 20GB, 24GB VRAM, 131K context
-3. **Mistral Large 2** - 25GB, 28GB VRAM, 128K context
+1. **Llama 3.3 70B Instruct** - 42.5GB, 24GB min / 32GB rec. VRAM, 131K context
+2. **Qwen 2.5 Coder 32B Instruct** - 18GB, 16GB min / 20GB rec. VRAM, 32K context
+3. **Qwen3 Coder Next 80B A3B Instruct** - 50.1GB, 32GB min / 48GB rec. VRAM, 262K context (added 2025-08)
+4. **Qwen3 8B** - 5.1GB, 8GB min / 10GB rec. VRAM, 131K context (added 2025-08)
+5. **Qwen3 4B** - 2.7GB, 4GB min / 6GB rec. VRAM, 131K context (added 2025-08)
+6. **Qwen3.5 397B A17B Instruct** - 232GB, 80GB min / 120GB rec. VRAM, 262K context (added 2025-10)
+7. **Mistral Large 2** - 73.2GB, 40GB min / 48GB rec. VRAM, 131K context
 
-### High Performance (7B-14B)
+### High Performance (7B-14B) - 3 models
 
-4. **Qwen 2.5 7B Instruct** - 4.9GB, 8GB VRAM, 131K context
-5. **Mistral 7B Instruct v0.3** - 4.4GB, 8GB VRAM, 32K context
-6. **Phi-3 Medium 14B Instruct** - 8.5GB, 12GB VRAM, 128K context
+8. **Qwen 2.5 7B Instruct** - 4.2GB, 6GB min / 8GB rec. VRAM, 8K context _(pre-installed)_
+9. **Mistral 7B Instruct v0.3** - 4.4GB, 6GB min / 8GB rec. VRAM, 8K context _(pre-installed)_
+10. **Phi-3 Medium 14B Instruct** - 8.6GB, 10GB min / 12GB rec. VRAM, 131K context
 
-### Efficient (<5GB)
+### Efficient (<5GB) - 3 models
 
-7. **Llama 3.2 3B Instruct** - 1.9GB, 4GB VRAM, 131K context
-8. **Llama 3.2 1B Instruct** - 750MB, 2GB VRAM, 131K context
-9. **Qwen 2.5 3B Instruct** - 1.9GB, 4GB VRAM, 32K context
-10. **DeepSeek Coder 7B Instruct v1.5** - 4.3GB, 8GB VRAM, 16K context
-11. **Gemma 2 9B Instruct** - 5.7GB, 10GB VRAM, 8K context
+11. **Llama 3.2 3B Instruct** - 2.0GB, 4GB min / 6GB rec. VRAM, 4K context _(pre-installed)_
+12. **Llama 3.2 1B Instruct** - 810MB, 2GB min / 4GB rec. VRAM, 4K context
+13. **Qwen 2.5 3B Instruct** - 1.9GB, 4GB min / 6GB rec. VRAM, 8K context
 
-All models sourced from Hugging Face with quantization (Q4_K_M format for efficiency).
+### Specialized - 2 models
+
+14. **DeepSeek Coder 6.7B Instruct** - 4.1GB, 6GB min / 8GB rec. VRAM, 16K context
+15. **Gemma 2 9B Instruct** - 5.8GB, 8GB min / 10GB rec. VRAM, 8K context
+
+All models sourced from Hugging Face with Q4_K_M quantization. This
+list is hand-transcribed from `src/config/models.ts` - if it looks out
+of date, the code (`MODEL_CATALOG`) is right and this doc is wrong.
 
 ## Configuration
 

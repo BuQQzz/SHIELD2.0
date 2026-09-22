@@ -74,9 +74,9 @@ Welcome screen showing:
 
 Navigation panel with:
 
-- New Chat button (future: chat sessions)
+- New Chat button with persistent, searchable conversation history (`ConversationList`, `useConversationStore`)
 - Clear History button
-- Settings button (future: model selection)
+- Settings button with full model browsing, download, and selection
 
 ## Usage Flow
 
@@ -155,11 +155,17 @@ Default model auto-loads on app start:
 - **URI**: `hf:Qwen/Qwen2.5-7B-Instruct-GGUF:Q4_K_M`
 - **Size**: ~4.2GB (Q4_K_M quantization)
 
-Available models (configured in LlamaService):
+Pre-installed models (`isInstalled: true` in `src/config/models.ts`):
 
 - Qwen2.5-7B-Instruct (Q4_K_M) - Default
 - Llama-3.2-3B-Instruct (Q4_K_M) - Smaller, faster
 - Mistral-7B-Instruct (Q4_K_M) - Alternative 7B model
+
+The full downloadable catalog has grown well beyond these three - see
+[MODEL_DOWNLOAD.md](features/MODEL_DOWNLOAD.md) for the current list
+(15 models as of 2026-02, including the Qwen3 family and several
+tool-calling-capable models). Treat `src/config/models.ts` as the
+source of truth rather than hardcoding model lists in docs.
 
 ### Error Handling
 
@@ -213,17 +219,17 @@ Expected behavior:
 
 ## Future Enhancements
 
-- [ ] Model selector UI (switch between Qwen/Llama/Mistral)
-- [ ] Persistent chat sessions
-- [ ] Conversation history search
-- [ ] System prompt customization
-- [ ] Temperature/max tokens UI controls
-- [ ] GPU acceleration toggle
-- [ ] Model download progress indicator
-- [ ] Export chat history
-- [ ] Dark/light theme toggle
-- [ ] Markdown rendering in messages
-- [ ] Code syntax highlighting
+- [x] Model selector UI (full browse/download catalog, not just Qwen/Llama/Mistral)
+- [x] Persistent chat sessions
+- [x] Conversation history search
+- [x] System prompt customization (see [SYSTEM_PROMPT_IMPROVEMENTS.md](features/SYSTEM_PROMPT_IMPROVEMENTS.md))
+- [x] Temperature/max tokens UI controls
+- [x] Model download progress indicator (see [MODEL_DOWNLOAD.md](features/MODEL_DOWNLOAD.md))
+- [x] Export chat history (see [EXPORT_IMPORT.md](features/EXPORT_IMPORT.md))
+- [x] Dark/light theme toggle
+- [x] Markdown rendering in messages
+- [x] Code syntax highlighting
+- [ ] GPU acceleration toggle (currently `gpuLayers: "auto"` only; no manual override UI)
 
 ## Troubleshooting
 
@@ -254,36 +260,31 @@ npm run dev:electron
 
 ## File Line Counts
 
-All files maintain < 300 line limit:
-
-- `useLlama.ts`: 124 lines ✅
-- `electron.d.ts`: 47 lines ✅
-- `ChatMessage.tsx`: 44 lines ✅
-- `App.tsx`: 149 lines ✅
-- `LlamaService.ts`: 247 lines ✅
-- `ChatHeader.tsx`: ~60 lines ✅
-- `MessageList.tsx`: ~85 lines ✅
-- `ChatInput.tsx`: ~95 lines ✅
-- `Sidebar.tsx`: ~75 lines ✅
-- `ChatPlaceholder.tsx`: ~75 lines ✅
+The project enforces a 300-line limit per file (see
+`.github/copilot-instructions.md`). A hardcoded snapshot here will
+always drift as files change - check actual line counts directly
+(e.g. `git ls-files -- '*.ts' '*.tsx' | xargs wc -l`) instead of
+trusting a list in this doc.
 
 ## Dependencies
 
 ### Core LLM
 
-- `node-llama-cpp@3.14.2` - C++ bindings with GPU support
+- `node-llama-cpp@^3.15.1` - C++ bindings with GPU support
 
 ### Electron
 
-- `electron@39.0.0` - Desktop application framework
-- `electron-builder@26.0.12` - App packaging
-- `vite-plugin-electron@0.29.0` - Vite integration
+- `electron@^40.1.0` - Desktop application framework
+- `electron-builder@^26.0.12` - App packaging
+- `vite-plugin-electron@^0.29.0` - Vite integration
 
 ### React/UI
 
-- `react@19.2.0` - Frontend framework
+- `react@^19.2.0` - Frontend framework
 - `shadcn/ui` - Component library
-- `tailwindcss@4.1.16` - Styling
+- `tailwindcss@^4.1.16` - Styling
 - `lucide-react` - Icons
 
-All dependencies are on latest stable versions as of 2024-11-03.
+Versions above reflect `package.json` as of 2026-02 (v0.1.5). Check
+`package.json` directly rather than trusting a pinned snapshot here -
+this list will drift again.
