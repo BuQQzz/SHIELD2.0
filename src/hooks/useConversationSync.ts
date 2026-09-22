@@ -1,5 +1,6 @@
 import { useEffect } from "react";
 import type { Message } from "../hooks/useLlama";
+import { stripToolCallMarkup } from "@/handlers/mcpToolHandler";
 
 interface UseConversationSyncProps {
   currentConversation: {
@@ -10,6 +11,12 @@ interface UseConversationSyncProps {
   setChatHistory: (messages: Message[]) => Promise<void>;
   clearHistory: () => Promise<void>;
   setMessages: (messages: Message[]) => void;
+  /**
+   * Plan mode. The model's own earlier tool calls are still sitting in the
+   * history, and in-context examples beat a system prompt: it copies them and
+   * calls tools anyway. Strip them before the history goes to the model.
+   */
+  planOnly?: boolean;
 }
 
 /**
@@ -21,6 +28,7 @@ export function useConversationSync({
   setChatHistory,
   clearHistory,
   setMessages,
+  planOnly = false,
 }: UseConversationSyncProps) {
   // Sync messages with current conversation
   useEffect(() => {
@@ -40,7 +48,17 @@ export function useConversationSync({
         "[App] Restoring chat history for conversation:",
         currentConversation.id
       );
-      setChatHistory(currentConversation.messages).catch((err) => {
+      // Only the model's view is edited - the stored conversation and what
+      // the user sees on screen are untouched.
+      const historyForModel = planOnly
+        ? currentConversation.messages.map((message) =>
+            message.role === "assistant"
+              ? { ...message, content: stripToolCallMarkup(message.content) }
+              : message
+          )
+        : currentConversation.messages;
+
+      setChatHistory(historyForModel).catch((err) => {
         console.error("[App] Failed to restore chat history:", err);
       });
     } else if (
@@ -54,5 +72,11 @@ export function useConversationSync({
         console.error("[App] Failed to clear history:", err);
       });
     }
-  }, [currentConversation, isModelLoaded, setChatHistory, clearHistory]);
+  }, [
+    currentConversation,
+    isModelLoaded,
+    setChatHistory,
+    clearHistory,
+    planOnly,
+  ]);
 }

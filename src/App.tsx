@@ -8,7 +8,7 @@ import { ChatPlaceholder } from "./components/chat/ChatPlaceholder";
 import { MessageList } from "./components/chat/MessageList";
 import { ChatInput, type ChatInputRef } from "./components/chat/ChatInput";
 import { LazySettingsDialog, LazyTemplateSelector } from "./components/lazy";
-import { MCPDialogs } from "./components/dialogs/MCPDialogs";
+import { ToolPermissionBar } from "./components/chat/ToolPermissionBar";
 import { ThemeProvider } from "./components/theme/ThemeProvider";
 import { Toaster } from "./components/ui/sonner";
 import { useLlama, type Message } from "./hooks/useLlama";
@@ -22,6 +22,8 @@ import { useModelLoader } from "./hooks/useModelLoader";
 import { useMCP } from "./hooks/useMCP";
 import { useMCPDialogs } from "./hooks/useMCPDialogs";
 import { useMCPSystemPrompt } from "./hooks/useMCPSystemPrompt";
+import { useMCPTools } from "./hooks/useMCPTools";
+import { useToolPolicy } from "./hooks/useToolPolicy";
 import { useInstalledModels } from "./hooks/useInstalledModels";
 import { createAppShortcuts } from "./config/shortcuts";
 import "./App.css";
@@ -73,16 +75,29 @@ function App() {
     callTool,
   } = useMCP();
 
+  // What the connected MCP servers actually expose
+  const {
+    tools: mcpServerTools,
+    allowedPaths: mcpAllowedPaths,
+    settled: mcpToolsSettled,
+  } = useMCPTools(isMCPReady);
+
+  // The single place the permission mode turns into behaviour: what the model
+  // is told exists, what stops for a prompt, and whether anything runs.
+  const toolPolicy = useToolPolicy({
+    mode: settings.mcp?.mode ?? "ask",
+    allowedTools: settings.mcp?.allowedTools ?? [],
+    serverTools: mcpServerTools,
+  });
+
   // MCP dialog management
   const {
-    permissionRequest,
-    writeFileRequest,
+    pendingRequest,
+    runningTool,
     handleToolCallRequest,
-    handlePermissionApprove,
-    handlePermissionDeny,
-    handleWriteFileApprove,
-    handleWriteFileDeny,
-  } = useMCPDialogs({ callTool });
+    handleApprove,
+    handleDeny,
+  } = useMCPDialogs({ callTool, policy: toolPolicy });
 
   // Load settings on mount
   useEffect(() => {
@@ -123,6 +138,7 @@ function App() {
   const currentModelConfig = installedModels.find(
     (m) => m.id === currentModelId
   );
+  // Real tool list from the connected MCP servers
   useMCPSystemPrompt({
     isModelLoaded,
     isMCPReady,
@@ -132,6 +148,10 @@ function App() {
     modelName: currentModelConfig?.name,
     modelCapabilities: currentModelConfig?.capabilities,
     webSearchEnabled: settings.webSearch?.enabled,
+    availableTools: toolPolicy.advertisedTools,
+    allowedPaths: mcpAllowedPaths,
+    planOnly: toolPolicy.isPlanning,
+    toolsLoading: !mcpToolsSettled,
   });
 
   // Initialize a new conversation if none exists
@@ -148,6 +168,7 @@ function App() {
     setChatHistory,
     clearHistory,
     setMessages,
+    planOnly: toolPolicy.isPlanning,
   });
 
   // Model loading hook
@@ -248,8 +269,14 @@ function App() {
             onContinue={handleContinue}
             onEditMessage={handleEditMessage}
             onRegenerateMessage={handleRegenerateMessage}
+            runningTool={runningTool}
           />
         )}
+        <ToolPermissionBar
+          request={pendingRequest}
+          onApprove={handleApprove}
+          onDeny={handleDeny}
+        />
         <ChatInput
           ref={inputRef}
           onSend={handleSendMessage}
@@ -276,15 +303,6 @@ function App() {
           />
         </Suspense>
       )}
-
-      <MCPDialogs
-        permissionRequest={permissionRequest}
-        writeFileRequest={writeFileRequest}
-        onPermissionApprove={handlePermissionApprove}
-        onPermissionDeny={handlePermissionDeny}
-        onWriteFileApprove={handleWriteFileApprove}
-        onWriteFileDeny={handleWriteFileDeny}
-      />
     </ChatLayout>
   );
 }

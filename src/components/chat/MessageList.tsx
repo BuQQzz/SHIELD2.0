@@ -2,6 +2,8 @@
 
 import { useRef, useEffect, useCallback } from "react";
 import { ChatMessage } from "./ChatMessage";
+import { ToolResultMessage } from "./ToolResultMessage";
+import { ToolRunningRow } from "./ToolRunningRow";
 import { SearchingIndicator } from "./SearchingIndicator";
 import { AnimatePresence } from "framer-motion";
 import type { Message } from "@/types/conversation";
@@ -14,6 +16,8 @@ interface MessageListProps {
   onContinue?: (messageId: string) => void;
   onEditMessage?: (messageId: string, newContent: string) => void;
   onRegenerateMessage?: (messageId: string) => void;
+  /** A tool call currently executing, shown at the end of the thread */
+  runningTool?: { tool: string; serverName: string } | null;
 }
 
 export function MessageList({
@@ -24,6 +28,7 @@ export function MessageList({
   onContinue,
   onEditMessage,
   onRegenerateMessage,
+  runningTool,
 }: MessageListProps) {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
@@ -123,30 +128,50 @@ export function MessageList({
   return (
     <div ref={scrollContainerRef} className="flex-1 overflow-y-auto p-4">
       <div className="mx-auto max-w-4xl space-y-4">
-        {messages.map((message) => (
-          <ChatMessage
-            key={message.id}
-            role={message.role}
-            content={message.content}
-            truncated={message.truncated}
-            sources={message.sources}
-            thinking={message.thinking}
-            isThinking={message.isThinking}
-            onContinue={
-              message.truncated ? () => onContinue?.(message.id) : undefined
-            }
-            onEdit={
-              message.role === "user" && onEditMessage
-                ? (newContent) => onEditMessage(message.id, newContent)
-                : undefined
-            }
-            onRegenerate={
-              message.role === "assistant" && onRegenerateMessage
-                ? () => onRegenerateMessage(message.id)
-                : undefined
-            }
-          />
-        ))}
+        {messages.map((message) =>
+          message.toolResult ? (
+            <ToolResultMessage
+              key={message.id}
+              tool={message.toolResult.tool}
+              serverName={message.toolResult.serverName}
+              success={message.toolResult.success}
+              blocked={message.toolResult.blocked}
+              content={message.content}
+            />
+          ) : (
+            <ChatMessage
+              key={message.id}
+              role={message.role}
+              content={message.content}
+              truncated={message.truncated}
+              sources={message.sources}
+              thinking={message.thinking}
+              isThinking={message.isThinking}
+              onContinue={
+                message.truncated ? () => onContinue?.(message.id) : undefined
+              }
+              onEdit={
+                message.role === "user" && onEditMessage
+                  ? (newContent) => onEditMessage(message.id, newContent)
+                  : undefined
+              }
+              onRegenerate={
+                message.role === "assistant" && onRegenerateMessage
+                  ? () => onRegenerateMessage(message.id)
+                  : undefined
+              }
+            />
+          )
+        )}
+        <AnimatePresence mode="wait">
+          {runningTool && (
+            <ToolRunningRow
+              key={`${runningTool.serverName}.${runningTool.tool}`}
+              tool={runningTool.tool}
+              serverName={runningTool.serverName}
+            />
+          )}
+        </AnimatePresence>
         {isSearching && (
           <AnimatePresence>
             <SearchingIndicator />

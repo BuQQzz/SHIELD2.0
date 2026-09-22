@@ -31,15 +31,26 @@ export interface WebSearchSettings {
   showReasoning: boolean; // Show LLM's step-by-step reasoning for web search answers
 }
 
+/**
+ * How much autonomy MCP tool calls are granted.
+ *
+ * - ask      every tool call prompts (default)
+ * - auto     reads run immediately, mutating tools still prompt
+ * - plan     the model states what it intends to do, nothing executes
+ * - readonly mutating tools are not even offered to the model
+ */
+export type PermissionMode = "ask" | "auto" | "plan" | "readonly";
+
 export interface MCPSettings {
   enabled: boolean;
-  allowedServers: string[];
+  /** How much autonomy tool calls get this turn */
+  mode: PermissionMode;
   allowedTools: string[];
-  showPermissionDialog: boolean;
-  rememberChoices: boolean;
   auditLogRetentionDays: number;
-  hybridParserEnabled: boolean;
+  /** Max tool calls executed in a single round */
   maxToolCallsPerTurn: number;
+  /** Max tool -> result -> tool cycles in a single turn */
+  maxToolRounds: number;
 }
 
 export interface AppSettings {
@@ -84,12 +95,10 @@ export const DEFAULT_SETTINGS: AppSettings = {
   },
   mcp: {
     enabled: true,
-    allowedServers: ["filesystem"],
+    mode: "ask",
     allowedTools: ["read_file", "write_file", "list_directory"],
-    showPermissionDialog: true,
-    rememberChoices: false,
     auditLogRetentionDays: 30,
-    hybridParserEnabled: true,
     maxToolCallsPerTurn: 5,
+    maxToolRounds: 5,
   },
 };

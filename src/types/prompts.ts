@@ -41,6 +41,13 @@ export interface SystemPromptConfig {
   webSearchEnabled?: boolean;
   /** Available MCP tools (for tool descriptions) */
   availableTools?: ToolDefinition[];
+  /** Directories the MCP servers are permitted to touch */
+  allowedPaths?: string[];
+  /**
+   * Plan mode: the model describes what it would do instead of doing it.
+   * Nothing executes, so the prompt must not ask for tool call syntax.
+   */
+  planOnly?: boolean;
 }
 
 /**
@@ -55,6 +62,11 @@ export interface ToolDefinition {
   serverName?: string;
   /** Parameter definitions */
   parameters?: ToolParameter[];
+  /** MCP tool annotations, when the server supplies them */
+  annotations?: {
+    /** Server's own claim that the tool does not change anything */
+    readOnlyHint?: boolean;
+  };
 }
 
 /**

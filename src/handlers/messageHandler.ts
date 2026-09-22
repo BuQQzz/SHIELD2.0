@@ -261,6 +261,7 @@ export function createMessageHandler({
           addMessage,
           enableHybridParser: true,
           maxToolCallsPerTurn: settings.mcp.maxToolCallsPerTurn,
+          maxToolRounds: settings.mcp.maxToolRounds,
           continueConversation: async (toolPrompt: string) => {
             // Continue the conversation with tool results
             setIsGenerating(true);
@@ -270,7 +271,7 @@ export function createMessageHandler({
             const toolMessageId = generateMessageId();
 
             try {
-              await sendStreamingMessage(
+              const returned = await sendStreamingMessage(
                 toolPrompt,
                 (token) => {
                   streamingContentRef.current += token;
@@ -285,10 +286,12 @@ export function createMessageHandler({
                 }
               );
 
+              const toolReply = streamingContentRef.current || returned;
+
               const toolResponseMessage: Message = {
                 id: toolMessageId,
                 role: "assistant",
-                content: streamingContentRef.current,
+                content: toolReply,
                 timestamp: new Date(),
               };
 
@@ -296,6 +299,9 @@ export function createMessageHandler({
               addMessage(toolResponseMessage);
               setStreamingContent("");
               streamingContentRef.current = "";
+
+              // Hand the reply back so follow-up tool calls get executed too
+              return toolReply;
             } finally {
               setIsGenerating(false);
             }

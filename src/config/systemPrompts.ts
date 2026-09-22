@@ -12,6 +12,7 @@ import type {
   BuiltPrompt,
   ToolDefinition,
 } from "../types/prompts";
+import { isMutatingTool } from "./toolClassification";
 
 // =============================================================================
 // BASE PROMPTS - Core identity and behavior
@@ -167,31 +168,79 @@ When asked for structured data (JSON, lists, tables):
 /**
  * Generate MCP tool prompt with ReAct examples
  */
-export function generateMCPToolPrompt(tools: ToolDefinition[]): string {
+export function generateMCPToolPrompt(
+  tools: ToolDefinition[],
+  allowedPaths: string[] = []
+): string {
   if (tools.length === 0) return "";
 
-  const toolDescriptions = tools
-    .map((tool) => {
-      const params = tool.parameters
-        ?.map(
-          (p) =>
-            `  - ${p.name} (${p.type}${p.required ? ", required" : ""}): ${p.description}`
-        )
-        .join("\n");
-      return `**${tool.name}**: ${tool.description}${params ? `\nParameters:\n${params}` : ""}`;
+  // Group by the server that actually exposes each tool, so the model sees
+  // the real server names it has to put in <server>...</server>.
+  const byServer = new Map<string, ToolDefinition[]>();
+  for (const tool of tools) {
+    const server = tool.serverName ?? "filesystem";
+    const existing = byServer.get(server);
+    if (existing) {
+      existing.push(tool);
+    } else {
+      byServer.set(server, [tool]);
+    }
+  }
+
+  const describeTool = (tool: ToolDefinition): string => {
+    const params = tool.parameters
+      ?.map(
+        (p) =>
+          `  - ${p.name} (${p.type}${p.required ? ", required" : ""}): ${p.description}`
+      )
+      .join("\n");
+    return `**${tool.name}**: ${tool.description}${params ? `\nParameters:\n${params}` : ""}`;
+  };
+
+  const toolDescriptions = Array.from(byServer.entries())
+    .map(([server, serverTools]) => {
+      const heading = `### Server: \`${server}\``;
+      return `${heading}\n\n${serverTools.map(describeTool).join("\n\n")}`;
     })
     .join("\n\n");
+
+  // Build the worked example from a tool that actually exists, rather than
+  // hardcoding one that may not be exposed by the connected servers.
+  const exampleTool =
+    tools.find((t) => t.name === "write_file") ??
+    tools.find((t) => (t.parameters?.length ?? 0) > 0) ??
+    tools[0]!;
+  const exampleServer = exampleTool.serverName ?? "filesystem";
+  const exampleArgs = JSON.stringify(
+    Object.fromEntries(
+      (exampleTool.parameters ?? [])
+        .filter((p) => p.required)
+        .map((p) => [p.name, p.example ?? `<${p.type}>`])
+    )
+  );
+
+  const accessSection =
+    allowedPaths.length > 0
+      ? `
+## Accessible Directories
+You can ONLY access these directories and their subfolders:
+${allowedPaths.map((p) => `- ${p}`).join("\n")}
+
+Always use a full path beginning with one of these. Never guess a path such as "/" or "C:\\".
+`
+      : "";
 
   return `
 ## 🔧 Available Tools
 
 ${toolDescriptions}
+${accessSection}
 
 ## Tool Call Format
 Use this exact XML format to call tools:
 
 <tool_call>
-<server>filesystem</server>
+<server>${exampleServer}</server>
 <tool>tool_name</tool>
 <arguments>{"param": "value"}</arguments>
 </tool_call>
@@ -204,7 +253,7 @@ Alternative (native function-calling models):
     {
       "type": "function",
       "function": {
-        "name": "filesystem.tool_name",
+        "name": "${exampleServer}.tool_name",
         "arguments": { "param": "value" }
       }
     }
@@ -212,80 +261,110 @@ Alternative (native function-calling models):
 }
 \`\`\`
 
-## Example: Creating a File
+## Example
 
-User: "Create a file called hello.txt on my desktop with 'Hello World'"
-
-Thought: I need to create a text file on the user's desktop. I'll use the write_file tool.
+Thought: I need to use ${exampleTool.name} to complete this request.
 
 <tool_call>
-<server>filesystem</server>
-<tool>write_file</tool>
-<arguments>{"path": "C:\\\\Users\\\\Username\\\\Desktop\\\\hello.txt", "content": "Hello World"}</arguments>
+<server>${exampleServer}</server>
+<tool>${exampleTool.name}</tool>
+<arguments>${exampleArgs}</arguments>
 </tool_call>
 
-Observation: File created successfully.
+Observation: <the tool result appears here>
 
-I've created the file hello.txt on your desktop with the content "Hello World".
+Then summarise the result for the user in plain language.
 
 ## CRITICAL RULES
-1. **ALWAYS USE TOOLS** - When asked to create/read/list files, USE the tools
+1. **ALWAYS USE TOOLS** - When asked to perform an action, USE the tools
 2. **NEVER JUST EXPLAIN** - Don't tell users how to do it manually
-3. **USE FULL PATHS** - Windows paths like C:\\Users\\...`;
+3. **ONLY USE LISTED TOOLS** - Never invent a tool that is not listed above
+4. **USE FULL PATHS** - Windows paths like C:\\Users\\...`;
 }
 
 /**
- * Default filesystem tools definition
+ * Plan mode prompt.
+ *
+ * Replaces the tool-calling instructions entirely rather than appending to
+ * them. If the model is still shown tool call syntax it will use it, and the
+ * permission layer then has to refuse every call - which reads to the user as
+ * the app being broken rather than as a deliberate mode.
  */
-export const DEFAULT_MCP_TOOLS: ToolDefinition[] = [
-  {
-    name: "read_file",
-    description: "Read the contents of a file",
-    serverName: "filesystem",
-    parameters: [
-      {
-        name: "path",
-        type: "string",
-        description:
-          "Full Windows path to the file (e.g., C:\\Users\\...\\file.txt)",
-        required: true,
-        example: "C:\\Users\\Username\\Documents\\example.txt",
-      },
-    ],
-  },
-  {
-    name: "write_file",
-    description: "Write content to a file (creates new or overwrites existing)",
-    serverName: "filesystem",
-    parameters: [
-      {
-        name: "path",
-        type: "string",
-        description: "Full Windows path to the file",
-        required: true,
-      },
-      {
-        name: "content",
-        type: "string",
-        description: "Content to write to the file",
-        required: true,
-      },
-    ],
-  },
-  {
-    name: "list_directory",
-    description: "List all files and folders in a directory",
-    serverName: "filesystem",
-    parameters: [
-      {
-        name: "path",
-        type: "string",
-        description: "Full Windows path to the directory",
-        required: true,
-      },
-    ],
-  },
-];
+export function generatePlanModePrompt(
+  tools: ToolDefinition[],
+  allowedPaths: string[] = []
+): string {
+  if (tools.length === 0) return "";
+
+  const readTools = tools.filter((tool) => !isMutatingTool(tool));
+  const writeTools = tools.filter((tool) => isMutatingTool(tool));
+
+  const list = (items: ToolDefinition[]) =>
+    items
+      .map(
+        (tool) =>
+          `- **${tool.name}** (${tool.serverName ?? "filesystem"}): ${tool.description}`
+      )
+      .join("\n");
+
+  const accessSection =
+    allowedPaths.length > 0
+      ? `\nYou can only reach these directories:\n${allowedPaths.map((p) => `- ${p}`).join("\n")}\n`
+      : "";
+
+  const writeSection =
+    writeTools.length > 0
+      ? `
+### Tools that will NOT run
+Calling one of these records it as a step in the plan instead of doing it:
+${list(writeTools)}
+`
+      : "";
+
+  return `
+## Plan Mode
+
+You are planning a change, not making one. Investigate first, then lay out what
+you intend to do and let the user decide whether to go ahead.
+
+### Tools you CAN use right now
+These run normally. Use them to ground the plan in what is actually there -
+do not ask the user to paste file contents you could read yourself.
+${list(readTools)}
+${writeSection}${accessSection}
+### How to call a read tool
+Reads use the same format as normal. Emit it exactly like this - a function
+call written in prose or a code block will NOT run:
+
+<tool_call>
+<server>${readTools[0]?.serverName ?? "filesystem"}</server>
+<tool>${readTools[0]?.name ?? "read_file"}</tool>
+<arguments>{"path": "C:\\\\Users\\\\Name\\\\Desktop\\\\file.txt"}</arguments>
+</tool_call>
+
+Make one call, wait for the result, then continue. Do not repeat a call you
+have already made - if you already have the contents, use them.
+
+### How to work
+1. Read whatever you need first: list the directory, open the relevant files.
+   A plan written without looking at the files is guesswork.
+2. State what the user is asking for, in one sentence.
+3. List the steps you would take, in order. For each one name the tool and the
+   exact arguments, and quote the specific content you would write.
+4. Flag anything risky, ambiguous or that you are unsure about.
+5. Finish by offering the user their options, in these words or close to them:
+   "Tell me to adjust anything. When you are happy, I can save this plan to a
+   file, or you can switch to Auto mode and I will carry it out."
+
+### Rules
+- Do NOT say a file has been created or changed. Nothing you plan has happened.
+- Earlier messages may show tools being called and completing. Reads still
+  work; changes do not.
+- Be concrete. "Write the corrected sentence to fixed.txt" is a plan;
+  "modify the file" is not.
+- Never write a tool call as prose or inside a code block. Either emit the
+  XML form above so it actually runs, or describe the step in plain English.`;
+}
 
 // =============================================================================
 // PROMPT BUILDER - Assembles the final system prompt
@@ -342,13 +421,21 @@ export function buildSystemPrompt(config: SystemPromptConfig): BuiltPrompt {
     includedModules.push("web-search");
   }
 
-  // Add MCP tool prompt if enabled
-  if (config.mcpEnabled) {
-    const tools = config.availableTools || DEFAULT_MCP_TOOLS;
-    parts.push(TOOL_CALLING_PROMPT);
-    parts.push(generateMCPToolPrompt(tools));
-    includedModules.push("tool-calling");
-    includedModules.push("mcp-tools");
+  // Add MCP tool prompt if enabled.
+  // Only describe tools the connected servers actually expose - never a
+  // hardcoded guess, or the model is told about tools that do not exist.
+  const tools = config.availableTools ?? [];
+  if (config.mcpEnabled && tools.length > 0) {
+    if (config.planOnly) {
+      // Plan mode replaces the tool instructions rather than adding to them
+      parts.push(generatePlanModePrompt(tools, config.allowedPaths));
+      includedModules.push("plan-mode");
+    } else {
+      parts.push(TOOL_CALLING_PROMPT);
+      parts.push(generateMCPToolPrompt(tools, config.allowedPaths));
+      includedModules.push("tool-calling");
+      includedModules.push("mcp-tools");
+    }
   }
 
   const prompt = parts.join("\n");

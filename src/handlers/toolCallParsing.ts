@@ -209,8 +209,89 @@ function extractOpenAIToolCalls(content: string): ToolCallRequest[] {
   return toolCalls;
 }
 
-function extractXmlToolCalls(content: string): ToolCallRequest[] {
+/**
+ * Put back a missing <tool_call> opener.
+ *
+ * Models routinely emit the call body and the closing tag without the opener,
+ * especially after a few turns of conversation. The strict regex then matches
+ * nothing, so the call silently never runs and the user sees raw XML sitting
+ * in the chat with no effect. Repairing the markup here keeps that variance
+ * out of the rest of the pipeline.
+ */
+export function repairToolCallMarkup(content: string): string {
+  const CLOSE = "</tool_call>";
+  const OPEN = "<tool_call>";
+
+  let output = "";
+  let rest = content;
+
+  for (;;) {
+    const closeIndex = rest.indexOf(CLOSE);
+    if (closeIndex === -1) {
+      output += rest;
+      break;
+    }
+
+    const segment = rest.slice(0, closeIndex);
+    rest = rest.slice(closeIndex + CLOSE.length);
+
+    if (segment.includes(OPEN)) {
+      // Already well formed
+      output += segment + CLOSE;
+      continue;
+    }
+
+    // The body sits immediately before the closing tag, and starts at
+    // <server> when there is one - <tool> comes after it, so picking the
+    // later index would cut the server name off the front of the call.
+    const serverIndex = segment.lastIndexOf("<server>");
+    const toolIndex = segment.lastIndexOf("<tool>");
+    const bodyStart = serverIndex !== -1 ? serverIndex : toolIndex;
+
+    if (bodyStart === -1) {
+      // A stray closing tag with no body - drop the tag, keep the text
+      output += segment;
+      continue;
+    }
+
+    output +=
+      segment.slice(0, bodyStart) + OPEN + segment.slice(bodyStart) + CLOSE;
+  }
+
+  return output;
+}
+
+/**
+ * Parse an <arguments> body that holds nested elements instead of JSON:
+ *
+ *   <arguments>
+ *     <path>C:\Users\me\Desktop</path>
+ *   </arguments>
+ *
+ * Returns null when the body has no child elements, so the caller can fall
+ * back to JSON parsing.
+ */
+function parseXmlArgumentElements(
+  body: string
+): Record<string, unknown> | null {
+  const elementRegex = /<([a-zA-Z_][\w-]*)>([\s\S]*?)<\/\1>/g;
+  const args: Record<string, unknown> = {};
+  let found = false;
+  let match: RegExpExecArray | null = null;
+
+  while ((match = elementRegex.exec(body)) !== null) {
+    const key = match[1];
+    if (!key) continue;
+    args[key] = (match[2] ?? "").trim();
+    found = true;
+  }
+
+  return found ? args : null;
+}
+
+function extractXmlToolCalls(rawContent: string): ToolCallRequest[] {
   const toolCalls: ToolCallRequest[] = [];
+  const content = repairToolCallMarkup(rawContent);
 
   const toolCallRegex = /<tool_call>([\s\S]*?)<\/tool_call>/g;
   let match: RegExpExecArray | null = null;
@@ -221,29 +302,39 @@ function extractXmlToolCalls(content: string): ToolCallRequest[] {
       if (!toolCallContent) continue;
 
       const serverMatch = toolCallContent.match(/<server>(.*?)<\/server>/);
-      const toolMatch = toolCallContent.match(/<tool>(.*?)<\/tool>/);
+      // Models use <tool> or <name> interchangeably, and <name> may carry a
+      // dotted "server.tool" rather than a separate <server> element.
+      const toolMatch =
+        toolCallContent.match(/<tool>(.*?)<\/tool>/) ??
+        toolCallContent.match(/<name>(.*?)<\/name>/);
       const argsMatch = toolCallContent.match(
         /<arguments>([\s\S]*?)<\/arguments>/
       );
 
-      if (serverMatch?.[1] && toolMatch?.[1]) {
-        const serverName = serverMatch[1].trim();
-        const tool = toolMatch[1].trim();
-        let args: Record<string, unknown> = {};
+      if (toolMatch?.[1]) {
+        const rawName = toolMatch[1].trim();
+        const named = normalizeToolNameAndServer(rawName);
+        const serverName = serverMatch?.[1]?.trim() || named.serverName;
+        const tool = named.tool;
 
+        let args: Record<string, unknown> = {};
         if (argsMatch?.[1]) {
-          args = parseArguments(argsMatch[1].trim());
+          const body = argsMatch[1].trim();
+          // Nested elements first, then JSON
+          args = parseXmlArgumentElements(body) ?? parseArguments(body);
         }
 
-        args = normalizeFilesystemArguments(serverName, args);
+        if (tool) {
+          args = normalizeFilesystemArguments(serverName, args);
 
-        toolCalls.push({
-          serverName,
-          tool,
-          arguments: args,
-          format: "xml",
-        });
-        continue;
+          toolCalls.push({
+            serverName,
+            tool,
+            arguments: args,
+            format: "xml",
+          });
+          continue;
+        }
       }
 
       const shorthandMatch = toolCallContent.match(
@@ -318,4 +409,31 @@ export function extractToolCalls(
   console.log("[MCPToolHandler] Total tool calls extracted:", toolCalls.length);
 
   return toolCalls;
+}
+
+/**
+ * Remove tool call markup from text destined for the UI.
+ *
+ * The raw content still has to reach `extractToolCalls`, so this is applied
+ * only when rendering. Without it the user sees the XML the model emitted,
+ * which is machine plumbing, not conversation.
+ *
+ * Tolerates a missing opening tag: models sometimes emit the body and the
+ * closing tag without the opener, and leaving that half-call on screen looks
+ * like a bug even though the call itself never ran.
+ */
+export function stripToolCallMarkup(content: string): string {
+  return (
+    content
+      // Well-formed calls
+      .replace(/<tool_call>[\s\S]*?<\/tool_call>/g, "")
+      // Opener with no closer (truncated generation)
+      .replace(/<tool_call>[\s\S]*$/g, "")
+      // Body and closer with no opener
+      .replace(/<server>[\s\S]*?<\/tool_call>/g, "")
+      // OpenAI-style call emitted in a fenced block
+      .replace(/```(?:json)?\s*\{\s*"tool_calls"[\s\S]*?```/g, "")
+      .replace(/\n{3,}/g, "\n\n")
+      .trim()
+  );
 }

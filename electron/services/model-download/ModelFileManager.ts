@@ -14,6 +14,12 @@ export class ModelFileManager {
    * Example: hf:Qwen/Qwen2.5-3B-Instruct-GGUF:Q4_K_M -> hf_Qwen_Qwen2.5-3B-Instruct.Q4_K_M.gguf
    */
   private getPossibleFilenames(model: ModelMetadata): string[] {
+    // Local models are referenced by a path relative to the models directory,
+    // which may point into a nested folder (e.g. the HuggingFace cache layout).
+    if (model.uri.startsWith("file://")) {
+      return [model.uri.slice("file://".length)];
+    }
+
     const uriParts = model.uri.split(":");
     if (uriParts[0] !== "hf" || uriParts.length < 3) {
       return [];

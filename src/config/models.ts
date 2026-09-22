@@ -148,6 +148,68 @@ export const AVAILABLE_MODELS: ModelOption[] = [
  * Curated list of high-quality models from trusted sources
  */
 export const MODEL_CATALOG: ModelMetadata[] = [
+  // ---------------------------------------------------------------------------
+  // Local models - referenced by a path relative to the configured models
+  // directory, so they are used from disk instead of downloaded.
+  // ---------------------------------------------------------------------------
+  {
+    id: "qwen-3-coder-30b-local",
+    name: "Qwen3-Coder-30B-A3B-Instruct",
+    displayName: "Qwen3 Coder 30B (local)",
+    uri: "file://unsloth/Qwen3-Coder-30B-A3B-Instruct-Q4_K_M-GGUF/Qwen3-Coder-30B-A3B-Instruct-Q4_K_M.gguf",
+    size: "17.3GB",
+    description:
+      "MoE coder with 3B active params - strong tool calling, partially offloaded to RAM",
+    contextSize: 8192,
+    provider: "Alibaba",
+    releaseDate: "2025-07",
+    chatTemplate: "qwen",
+    capabilities: {
+      toolCalling: true,
+      complexReasoning: true,
+      webSearch: true,
+      structuredOutput: true,
+      longContext: true,
+      codeGeneration: true,
+      multilingual: "good",
+      temperatureRange: { min: 0.1, max: 1.0, default: 0.7 },
+    },
+    hardware: {
+      minVRAM: 8,
+      recommendedVRAM: 24,
+      minRAM: 24,
+      recommendedRAM: 32,
+    },
+  },
+  {
+    id: "qwen-2.5-3b-local",
+    name: "Qwen2.5-3B-Instruct",
+    displayName: "Qwen 3B (local)",
+    uri: "file://google/gemma-4/hf_Qwen_Qwen2.5-3B-Instruct.Q4_K_M.gguf",
+    size: "2.0GB",
+    description:
+      "Small and fast - useful as a quick baseline for prompt changes",
+    contextSize: 4096,
+    provider: "Alibaba",
+    releaseDate: "2024-09",
+    chatTemplate: "qwen",
+    capabilities: {
+      toolCalling: false,
+      complexReasoning: false,
+      webSearch: true,
+      structuredOutput: true,
+      longContext: false,
+      codeGeneration: true,
+      multilingual: "good",
+      temperatureRange: { min: 0.1, max: 1.2, default: 0.7 },
+    },
+    hardware: {
+      minVRAM: 4,
+      recommendedVRAM: 6,
+      minRAM: 8,
+      recommendedRAM: 16,
+    },
+  },
   // === PREMIUM TIER: Tool Calling & Advanced Features ===
   {
     id: "llama-3.3-70b",

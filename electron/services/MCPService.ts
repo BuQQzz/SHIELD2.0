@@ -250,6 +250,13 @@ class MCPService {
   }
 
   /**
+   * Get the names of servers we currently hold a live connection to
+   */
+  public getConnectedServers(): string[] {
+    return Array.from(this.clients.keys());
+  }
+
+  /**
    * Check if service is initialized
    */
   public isReady(): boolean {

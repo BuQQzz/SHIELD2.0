@@ -62,6 +62,18 @@ export async function registerMcpHandlers() {
   });
 
   // Get server configuration
+  ipcMain.handle("mcp:list-servers", async () => {
+    try {
+      return { success: true, servers: mcpService.getConnectedServers() };
+    } catch (error) {
+      console.error("Failed to list MCP servers:", error);
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : "Unknown error",
+      };
+    }
+  });
+
   ipcMain.handle("mcp:get-server-config", async (_event, serverName) => {
     try {
       const config = mcpService.getServerConfig(serverName);

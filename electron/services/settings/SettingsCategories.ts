@@ -5,6 +5,23 @@
  * settings categories in SHIELD 2.0.
  */
 
+/**
+ * How much autonomy MCP tool calls are granted.
+ *
+ * - ask      every tool call prompts (default)
+ * - auto     reads run immediately, mutating tools still prompt
+ * - plan     the model states what it intends to do, nothing executes
+ * - readonly mutating tools are not even offered to the model
+ */
+export type PermissionMode = "ask" | "auto" | "plan" | "readonly";
+
+export const PERMISSION_MODES: readonly PermissionMode[] = [
+  "ask",
+  "auto",
+  "plan",
+  "readonly",
+] as const;
+
 export interface Settings {
   model: {
     temperature: number;
@@ -36,13 +53,14 @@ export interface Settings {
   };
   mcp: {
     enabled: boolean;
-    allowedServers: string[];
+    /** How much autonomy tool calls get this turn */
+    mode: PermissionMode;
     allowedTools: string[];
-    showPermissionDialog: boolean;
-    rememberChoices: boolean;
     auditLogRetentionDays: number;
-    hybridParserEnabled: boolean;
+    /** Max tool calls executed in a single round */
     maxToolCallsPerTurn: number;
+    /** Max tool -> result -> tool cycles in a single turn */
+    maxToolRounds: number;
   };
 }
 
@@ -77,12 +95,10 @@ export const DEFAULT_SETTINGS: Settings = {
   },
   mcp: {
     enabled: true,
-    allowedServers: ["filesystem"],
+    mode: "ask",
     allowedTools: ["read_file", "write_file", "list_directory"],
-    showPermissionDialog: true,
-    rememberChoices: false,
     auditLogRetentionDays: 30,
-    hybridParserEnabled: true,
     maxToolCallsPerTurn: 5,
+    maxToolRounds: 5,
   },
 };

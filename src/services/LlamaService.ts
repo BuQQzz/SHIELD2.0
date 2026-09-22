@@ -7,6 +7,7 @@ import {
   resolveModelFile,
   resolveChatWrapper,
   InputLookupTokenPredictor,
+  type ChatHistoryItem,
 } from "node-llama-cpp";
 import path from "path";
 import { fileURLToPath } from "url";
@@ -82,8 +83,11 @@ export class LlamaService {
 
     // Apply immediately if we have an active session
     if (this.context && this.session && this.model) {
-      // Save current chat history
-      const currentHistory = this.session.getChatHistory();
+      // Save current chat history, minus the old system message - restoring it
+      // verbatim would immediately overwrite the prompt we are setting here.
+      const currentHistory = this.session
+        .getChatHistory()
+        .filter((item) => item.type !== "system");
 
       // Resolve chat wrapper from model to maintain correct template format
       const chatWrapper = resolveChatWrapper(this.model);
@@ -95,9 +99,12 @@ export class LlamaService {
         systemPrompt: this.systemPrompt,
       });
 
-      // Restore chat history
-      if (currentHistory && currentHistory.length > 0) {
-        this.session.setChatHistory(currentHistory);
+      // Restore chat history re-anchored on the new system prompt
+      if (currentHistory.length > 0) {
+        this.session.setChatHistory([
+          { type: "system", text: this.systemPrompt },
+          ...currentHistory,
+        ]);
       }
     }
   }
@@ -338,17 +345,36 @@ export class LlamaService {
    */
   setChatHistory(messages: ChatMessage[]): void {
     if (this.session) {
-      // Convert our ChatMessage format to LlamaChatSession format
-      const chatHistory = messages.map((msg) => {
-        if (msg.role === "user") {
-          return { type: "user" as const, text: msg.content };
-        } else {
-          // assistant messages are "model" responses in llama.cpp
-          return { type: "model" as const, response: [msg.content] };
-        }
-      });
-      this.session.setChatHistory(chatHistory);
+      this.session.setChatHistory(this.buildSessionHistory(messages));
     }
+  }
+
+  /**
+   * Convert our ChatMessage list into the session's history format.
+   *
+   * LlamaChatSession.setChatHistory REPLACES the whole history, so the system
+   * message has to be re-supplied every time. Leaving it out silently strips
+   * the system prompt - including the MCP tool instructions - from the model's
+   * context, which makes the model answer that it has no tools.
+   */
+  private buildSessionHistory(messages: ChatMessage[]): ChatHistoryItem[] {
+    const history: ChatHistoryItem[] = [
+      { type: "system", text: this.systemPrompt },
+    ];
+
+    for (const msg of messages) {
+      // The system prompt is already anchored above
+      if (msg.role === "system") continue;
+
+      if (msg.role === "user") {
+        history.push({ type: "user", text: msg.content });
+      } else {
+        // assistant messages are "model" responses in llama.cpp
+        history.push({ type: "model", response: [msg.content] });
+      }
+    }
+
+    return history;
   }
 
   /**
@@ -356,7 +382,8 @@ export class LlamaService {
    */
   clearHistory(): void {
     if (this.session) {
-      this.session.setChatHistory([]);
+      // Clear the conversation but keep the system prompt in place
+      this.session.setChatHistory(this.buildSessionHistory([]));
     }
   }
 

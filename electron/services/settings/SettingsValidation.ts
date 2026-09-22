@@ -5,7 +5,63 @@
  * user settings with defaults for backward compatibility.
  */
 
-import { Settings, DEFAULT_SETTINGS } from "./SettingsCategories";
+import {
+  Settings,
+  DEFAULT_SETTINGS,
+  PERMISSION_MODES,
+  type PermissionMode,
+} from "./SettingsCategories";
+
+/**
+ * Settings that predate permission modes and are now folded into `mcp.mode`
+ * or dropped entirely. Left in a stored settings.json they are harmless, but
+ * they show up in exports and invite someone to "wire them up" later.
+ */
+interface LegacyMcpSettings {
+  showPermissionDialog?: boolean;
+  rememberChoices?: boolean;
+  allowedServers?: string[];
+  hybridParserEnabled?: boolean;
+  /** Never declared in Settings and never read - found in stored files */
+  autoInitialize?: boolean;
+}
+
+/**
+ * Bring a stored mcp block up to the current shape.
+ *
+ * A user who had turned the permission dialog off was, in effect, already
+ * running in auto mode, so that is where they land. Everyone else gets "ask",
+ * which is the behaviour they had before modes existed.
+ */
+export function migrateMcpSettings(
+  stored: (Partial<Settings["mcp"]> & LegacyMcpSettings) | undefined
+): Partial<Settings["mcp"]> {
+  if (!stored) return {};
+
+  const {
+    showPermissionDialog,
+    rememberChoices: _rememberChoices,
+    allowedServers: _allowedServers,
+    hybridParserEnabled: _hybridParserEnabled,
+    autoInitialize: _autoInitialize,
+    ...current
+  } = stored;
+
+  const migrated: Partial<Settings["mcp"]> = { ...current };
+
+  if (!isPermissionMode(migrated.mode)) {
+    migrated.mode = showPermissionDialog === false ? "auto" : "ask";
+  }
+
+  return migrated;
+}
+
+function isPermissionMode(value: unknown): value is PermissionMode {
+  return (
+    typeof value === "string" &&
+    (PERMISSION_MODES as readonly string[]).includes(value)
+  );
+}
 
 /**
  * Merge user settings with defaults (handles new settings)
@@ -30,7 +86,7 @@ export function mergeWithDefaults(settings: Partial<Settings>): Settings {
     },
     mcp: {
       ...DEFAULT_SETTINGS.mcp,
-      ...settings.mcp,
+      ...migrateMcpSettings(settings.mcp),
     },
   };
 }
@@ -102,15 +158,23 @@ export function isValidSettings(data: unknown): boolean {
   if (obj.mcp) {
     if (typeof obj.mcp !== "object") return false;
     const mcp = obj.mcp as Record<string, unknown>;
+    // Legacy keys are tolerated here - migrateMcpSettings strips them on load.
     if (
       typeof mcp.enabled !== "boolean" ||
-      !Array.isArray(mcp.allowedServers) ||
       !Array.isArray(mcp.allowedTools) ||
-      typeof mcp.showPermissionDialog !== "boolean" ||
-      typeof mcp.rememberChoices !== "boolean" ||
       typeof mcp.auditLogRetentionDays !== "number" ||
-      typeof mcp.hybridParserEnabled !== "boolean" ||
       typeof mcp.maxToolCallsPerTurn !== "number"
+    ) {
+      return false;
+    }
+
+    if (mcp.mode !== undefined && !isPermissionMode(mcp.mode)) {
+      return false;
+    }
+
+    if (
+      mcp.maxToolRounds !== undefined &&
+      typeof mcp.maxToolRounds !== "number"
     ) {
       return false;
     }

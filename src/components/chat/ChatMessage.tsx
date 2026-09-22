@@ -20,6 +20,10 @@ import { useState, memo, Suspense } from "react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import type { SearchResult } from "@/types/electron";
+import {
+  stripToolCallMarkup,
+  extractToolCalls,
+} from "@/handlers/mcpToolHandler";
 
 interface MessageProps {
   role: "user" | "assistant";
@@ -36,7 +40,7 @@ interface MessageProps {
 
 export const ChatMessage = memo(function ChatMessage({
   role,
-  content,
+  content: rawContent,
   isStreaming,
   truncated,
   sources,
@@ -46,11 +50,52 @@ export const ChatMessage = memo(function ChatMessage({
   onEdit,
   onRegenerate,
 }: MessageProps) {
+  // Tool call markup is plumbing between the model and the MCP layer, not
+  // something the user should read. The raw text is still what gets parsed
+  // and what is stored - this only affects what is shown.
+  const content =
+    role === "assistant" ? stripToolCallMarkup(rawContent) : rawContent;
+
+  // A reply that was nothing but a tool call has nothing left to show once
+  // the markup is stripped. Hiding it is right ONLY when the call actually
+  // parsed, because then the tool row below reports what happened. If it did
+  // not parse, hiding the message leaves a blank screen and the user has no
+  // idea the model replied at all - so show the raw text instead.
+  const strippedToNothing =
+    role === "assistant" &&
+    !isStreaming &&
+    content.trim() === "" &&
+    !thinking &&
+    rawContent.trim() !== "";
+
+  const producedAToolCall =
+    strippedToNothing && extractToolCalls(rawContent).length > 0;
+
+  const unparseableOutput = strippedToNothing && !producedAToolCall;
+
   const isUser = role === "user";
   const [copied, setCopied] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [editedContent, setEditedContent] = useState(content);
   const [showSources, setShowSources] = useState(false);
+
+  if (producedAToolCall) return null;
+
+  if (unparseableOutput) {
+    return (
+      <div className="flex justify-start">
+        <div className="max-w-[85%] rounded-md border border-dashed border-border/70 bg-muted/20 px-3 py-2">
+          <p className="mb-1 text-xs text-muted-foreground">
+            The model replied with a tool call SHIELD could not read, so nothing
+            ran. Raw output:
+          </p>
+          <pre className="max-h-48 overflow-auto text-xs whitespace-pre-wrap text-muted-foreground/80">
+            {rawContent.trim()}
+          </pre>
+        </div>
+      </div>
+    );
+  }
 
   const handleCopy = async () => {
     try {

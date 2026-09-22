@@ -6,13 +6,12 @@
  */
 
 import { useEffect, useMemo } from "react";
-import { getMCPSystemPrompt } from "@/handlers/mcpToolHandler";
 import {
   buildSystemPrompt,
   detectModelFamily,
   getCapabilitiesFromModel,
 } from "@/config/systemPrompts";
-import type { SystemPromptConfig } from "@/types/prompts";
+import type { SystemPromptConfig, ToolDefinition } from "@/types/prompts";
 
 interface UseMCPSystemPromptProps {
   isModelLoaded: boolean;
@@ -33,6 +32,14 @@ interface UseMCPSystemPromptProps {
   };
   /** Optional: Whether web search is enabled */
   webSearchEnabled?: boolean;
+  /** Tools exposed by the connected MCP servers */
+  availableTools?: ToolDefinition[];
+  /** True while the MCP tool list is still being fetched */
+  toolsLoading?: boolean;
+  /** Directories the MCP servers are permitted to touch */
+  allowedPaths?: string[];
+  /** Plan mode - describe intended tool calls instead of making them */
+  planOnly?: boolean;
 }
 
 export function useMCPSystemPrompt({
@@ -44,6 +51,10 @@ export function useMCPSystemPrompt({
   modelName,
   modelCapabilities,
   webSearchEnabled,
+  availableTools,
+  toolsLoading = false,
+  allowedPaths,
+  planOnly = false,
 }: UseMCPSystemPromptProps) {
   // Detect model family from name
   const modelFamily = useMemo(
@@ -79,6 +90,16 @@ export function useMCPSystemPrompt({
     const isCustomPrompt =
       baseSystemPrompt && !baseSystemPrompt.startsWith("You are SHIELD");
 
+    // MCP is up but we have not heard back from the servers yet. Publishing
+    // now would hand the model a prompt with no tools, and it would correctly
+    // answer "I can't do that" until the real list arrives.
+    if (isMCPReady && mcpEnabled && toolsLoading) {
+      console.log(
+        "[MCP] ⏳ Waiting for the MCP tool list before setting prompt"
+      );
+      return;
+    }
+
     if (isMCPReady && mcpEnabled) {
       // Build prompt with MCP tools enabled
       const config: SystemPromptConfig = {
@@ -87,6 +108,9 @@ export function useMCPSystemPrompt({
         customPrompt: isCustomPrompt ? baseSystemPrompt : undefined,
         mcpEnabled: true,
         webSearchEnabled,
+        availableTools,
+        allowedPaths,
+        planOnly,
       };
 
       const {
@@ -95,17 +119,14 @@ export function useMCPSystemPrompt({
         estimatedTokens,
       } = buildSystemPrompt(config);
 
-      // Still append the detailed MCP prompt for now (it has the examples)
-      const mcpPrompt = getMCPSystemPrompt();
-      const fullPrompt = `${builtPrompt}\n\n${mcpPrompt}`;
-
       console.log("[MCP] ✅ Built system prompt with MCP");
       console.log("[MCP] - Model family:", modelFamily);
       console.log("[MCP] - Included modules:", includedModules);
       console.log("[MCP] - Estimated tokens:", estimatedTokens);
-      console.log("[MCP] - Full prompt length:", fullPrompt.length);
+      console.log("[MCP] - Tool count:", availableTools?.length ?? 0);
+      console.log("[MCP] - Full prompt length:", builtPrompt.length);
 
-      setSystemPrompt(fullPrompt);
+      setSystemPrompt(builtPrompt);
     } else {
       // Build prompt without MCP tools
       const config: SystemPromptConfig = {
@@ -138,5 +159,9 @@ export function useMCPSystemPrompt({
     modelFamily,
     capabilities,
     webSearchEnabled,
+    availableTools,
+    toolsLoading,
+    allowedPaths,
+    planOnly,
   ]);
 }

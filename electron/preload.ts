@@ -307,6 +307,7 @@ const mcpAPI: MCPAPI = {
   initialize: () => ipcRenderer.invoke("mcp:initialize"),
   callTool: (request) => ipcRenderer.invoke("mcp:call-tool", request),
   listTools: (serverName) => ipcRenderer.invoke("mcp:list-tools", serverName),
+  listServers: () => ipcRenderer.invoke("mcp:list-servers"),
   getServerConfig: (serverName) =>
     ipcRenderer.invoke("mcp:get-server-config", serverName),
   isReady: () => ipcRenderer.invoke("mcp:is-ready"),

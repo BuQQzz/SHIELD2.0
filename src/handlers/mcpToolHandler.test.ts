@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { extractToolCalls } from "./mcpToolHandler";
+import { extractToolCalls, stripToolCallMarkup } from "./mcpToolHandler";
+import { repairToolCallMarkup } from "./toolCallParsing";
 
 describe("extractToolCalls", () => {
   it("extracts XML tool calls", () => {
@@ -107,5 +108,219 @@ describe("extractToolCalls", () => {
       },
       format: "xml",
     });
+  });
+});
+
+describe("stripToolCallMarkup", () => {
+  it("removes a well-formed call but keeps the prose", () => {
+    const content = `I'll read that file for you.
+
+<tool_call>
+<server>filesystem</server>
+<tool>read_file</tool>
+<arguments>{"path":"C:/a.txt"}</arguments>
+</tool_call>`;
+
+    expect(stripToolCallMarkup(content)).toBe("I'll read that file for you.");
+  });
+
+  it("removes a call that is missing its opening tag", () => {
+    // Observed in the wild - the model emits the body and closer only
+    const content = `I'll read the file.
+
+<server>filesystem</server>
+<tool>read_file</tool>
+<arguments>{"path":"C:/a.txt"}</arguments>
+</tool_call>`;
+
+    expect(stripToolCallMarkup(content)).toBe("I'll read the file.");
+  });
+
+  it("removes a truncated call with no closing tag", () => {
+    const content = `Let me check.
+
+<tool_call>
+<server>filesystem</server>
+<tool>read_file</tool>`;
+
+    expect(stripToolCallMarkup(content)).toBe("Let me check.");
+  });
+
+  it("removes an OpenAI-style call in a fenced block", () => {
+    const content = `Working on it.
+
+\`\`\`json
+{ "tool_calls": [ { "function": { "name": "filesystem.read_file" } } ] }
+\`\`\``;
+
+    expect(stripToolCallMarkup(content)).toBe("Working on it.");
+  });
+
+  it("removes several calls in one message", () => {
+    const content = `First.
+<tool_call><server>filesystem</server><tool>a</tool></tool_call>
+Then this.
+<tool_call><server>filesystem</server><tool>b</tool></tool_call>`;
+
+    const stripped = stripToolCallMarkup(content);
+    expect(stripped).toContain("First.");
+    expect(stripped).toContain("Then this.");
+    expect(stripped).not.toContain("tool_call");
+  });
+
+  it("leaves ordinary prose untouched", () => {
+    const content = "The file says hello. Nothing looks wrong with it.";
+    expect(stripToolCallMarkup(content)).toBe(content);
+  });
+
+  it("does not eat a fenced code block the user asked for", () => {
+    const content = 'Here is the snippet:\n\n```json\n{ "name": "test" }\n```';
+    expect(stripToolCallMarkup(content)).toBe(content);
+  });
+
+  it("collapses the blank space a removed call leaves behind", () => {
+    const content = `Before.
+
+<tool_call><server>fs</server><tool>x</tool></tool_call>
+
+After.`;
+
+    expect(stripToolCallMarkup(content)).toBe("Before.\n\nAfter.");
+  });
+});
+
+describe("tool calls with a missing opening tag", () => {
+  const body = `<server>filesystem</server>
+<tool>read_file</tool>
+<arguments>{"path":"C:/a.txt"}</arguments>`;
+
+  it("still extracts the call", () => {
+    // Observed with Qwen3 Coder after a few turns: body and closer, no opener
+    const calls = extractToolCalls(
+      `I'll read the file.\n\n${body}\n</tool_call>`
+    );
+
+    expect(calls).toHaveLength(1);
+    expect(calls[0]?.tool).toBe("read_file");
+    expect(calls[0]?.serverName).toBe("filesystem");
+    expect(calls[0]?.arguments).toEqual({ path: "C:/a.txt" });
+  });
+
+  it("does not double count a well-formed call", () => {
+    const calls = extractToolCalls(`<tool_call>\n${body}\n</tool_call>`);
+    expect(calls).toHaveLength(1);
+  });
+
+  it("handles one repaired and one well-formed call together", () => {
+    const content = `First:
+${body}
+</tool_call>
+Second:
+<tool_call>
+<server>filesystem</server>
+<tool>list_directory</tool>
+<arguments>{"path":"C:/"}</arguments>
+</tool_call>`;
+
+    const calls = extractToolCalls(content);
+    expect(calls.map((c) => c.tool)).toEqual(["read_file", "list_directory"]);
+  });
+
+  it("keeps the prose that precedes the call", () => {
+    expect(
+      repairToolCallMarkup(`Let me check.\n${body}\n</tool_call>`)
+    ).toContain("Let me check.");
+  });
+
+  it("drops a stray closing tag with no body", () => {
+    const repaired = repairToolCallMarkup("Nothing to do here.</tool_call>");
+    expect(repaired).toBe("Nothing to do here.");
+  });
+
+  it("leaves content with no tool markup alone", () => {
+    const content = "The file says hello.";
+    expect(repairToolCallMarkup(content)).toBe(content);
+  });
+});
+
+describe("tool calls using <name> and nested XML arguments", () => {
+  it("extracts the format Qwen3 Coder emits", () => {
+    // Observed in the wild - no <server>, <name> instead of <tool>, and
+    // arguments as nested elements rather than JSON
+    const content = `<tool_call>
+<name>list_directory</name>
+<arguments>
+<path>C:\\Users\\me\\Desktop</path>
+</arguments>
+</tool_call>`;
+
+    const calls = extractToolCalls(content);
+
+    expect(calls).toHaveLength(1);
+    expect(calls[0]?.tool).toBe("list_directory");
+    expect(calls[0]?.serverName).toBe("filesystem");
+    expect(calls[0]?.arguments).toEqual({ path: "C:\\Users\\me\\Desktop" });
+  });
+
+  it("splits a dotted name into server and tool", () => {
+    const content = `<tool_call>
+<name>filesystem.read_file</name>
+<arguments><path>C:/a.txt</path></arguments>
+</tool_call>`;
+
+    const calls = extractToolCalls(content);
+    expect(calls[0]?.serverName).toBe("filesystem");
+    expect(calls[0]?.tool).toBe("read_file");
+  });
+
+  it("still accepts JSON arguments alongside <name>", () => {
+    const content = `<tool_call>
+<name>read_file</name>
+<arguments>{"path":"C:/a.txt"}</arguments>
+</tool_call>`;
+
+    expect(extractToolCalls(content)[0]?.arguments).toEqual({
+      path: "C:/a.txt",
+    });
+  });
+
+  it("handles several nested argument elements", () => {
+    const content = `<tool_call>
+<name>write_file</name>
+<arguments>
+<path>C:/a.txt</path>
+<content>hello there</content>
+</arguments>
+</tool_call>`;
+
+    expect(extractToolCalls(content)[0]?.arguments).toEqual({
+      path: "C:/a.txt",
+      content: "hello there",
+    });
+  });
+
+  it("does not regress the server/tool format", () => {
+    const content = `<tool_call>
+<server>filesystem</server>
+<tool>read_file</tool>
+<arguments>{"path":"C:/a.txt"}</arguments>
+</tool_call>`;
+
+    const calls = extractToolCalls(content);
+    expect(calls).toHaveLength(1);
+    expect(calls[0]?.serverName).toBe("filesystem");
+    expect(calls[0]?.tool).toBe("read_file");
+  });
+
+  it("prefers an explicit <server> over the name's default", () => {
+    const content = `<tool_call>
+<server>web</server>
+<name>fetch</name>
+<arguments><url>https://example.com</url></arguments>
+</tool_call>`;
+
+    const calls = extractToolCalls(content);
+    expect(calls[0]?.serverName).toBe("web");
+    expect(calls[0]?.tool).toBe("fetch");
   });
 });

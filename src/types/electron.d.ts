@@ -131,13 +131,11 @@ export interface AppSettings {
   };
   mcp: {
     enabled: boolean;
-    allowedServers: string[];
+    mode: "ask" | "auto" | "plan" | "readonly";
     allowedTools: string[];
-    showPermissionDialog: boolean;
-    rememberChoices: boolean;
     auditLogRetentionDays: number;
-    hybridParserEnabled: boolean;
     maxToolCallsPerTurn: number;
+    maxToolRounds: number;
   };
 }
 
@@ -260,6 +258,8 @@ export interface MCPToolCall {
 
 export interface MCPToolResult {
   success: boolean;
+  /** Plan mode declined to run the call - not a failure */
+  blocked?: boolean;
   data?: unknown; // Changed from result to match backend
   error?: string;
 }
@@ -299,6 +299,11 @@ export interface MCPAPI {
   listTools: (
     serverName: string
   ) => Promise<{ success: boolean; tools?: unknown[]; error?: string }>;
+  listServers: () => Promise<{
+    success: boolean;
+    servers?: string[];
+    error?: string;
+  }>;
   getServerConfig: (
     serverName: string
   ) => Promise<{ success: boolean; config?: MCPServerConfig; error?: string }>;

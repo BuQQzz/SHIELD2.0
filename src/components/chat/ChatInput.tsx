@@ -17,6 +17,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import { PermissionModeSelector } from "./PermissionModeSelector";
 
 interface ChatInputProps {
   onSend: (message: string, useWebSearch?: boolean) => void;
@@ -104,7 +105,7 @@ export const ChatInput = forwardRef<ChatInputRef, ChatInputProps>(
     return (
       <div className="bg-background p-4">
         <div className="mx-auto max-w-3xl">
-          <div className="relative flex items-end gap-2 rounded-lg border bg-background p-2 focus-within:ring-2 focus-within:ring-ring">
+          <div className="relative flex items-end gap-2 rounded-xl bg-muted/50 p-2 shadow-sm ring-1 ring-black/5 transition-shadow focus-within:shadow-md dark:bg-muted/30 dark:ring-white/5">
             {/* Web Search Toggle - only show if enabled in settings */}
             {settings.webSearch.enabled && (
               <TooltipProvider>
@@ -149,23 +150,35 @@ export const ChatInput = forwardRef<ChatInputRef, ChatInputProps>(
 
             {isGenerating ? (
               <motion.button
-                whileTap={{ scale: 0.95 }}
+                whileTap={{ scale: 0.92 }}
                 onClick={onStop}
-                className="shrink-0 rounded-md p-2 transition-colors hover:bg-accent"
+                className="shrink-0 rounded-md p-2 transition-colors"
               >
-                <Square className="h-5 w-5" />
+                <Square className="h-5 w-5 text-destructive transition-colors" />
               </motion.button>
             ) : (
               <motion.button
-                whileTap={{ scale: 0.95 }}
-                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.92 }}
+                whileHover={{ scale: 1.08 }}
                 onClick={handleSubmit}
                 disabled={!input.trim() || disabled}
-                className="shrink-0 rounded-md bg-primary p-2 text-primary-foreground transition-colors hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed"
+                className="shrink-0 rounded-md p-2 transition-colors disabled:cursor-not-allowed"
               >
-                <Send className="h-5 w-5" />
+                <Send
+                  className={`h-5 w-5 transition-colors ${
+                    !input.trim() || disabled
+                      ? "text-muted-foreground/40"
+                      : "text-primary"
+                  }`}
+                />
               </motion.button>
             )}
+          </div>
+
+          {/* Permission mode sits under the composer: visible while typing,
+              out of the way of the send action. */}
+          <div className="mt-1 flex items-center px-1">
+            <PermissionModeSelector />
           </div>
         </div>
       </div>
