@@ -234,12 +234,31 @@ function parseOpenAIToolCall(item: ToolCallJsonObject): ToolCallRequest | null {
   };
 }
 
+/**
+ * Whether a JSON object is shaped like a tool call rather than ordinary data.
+ *
+ * Models routinely quote JSON in their answers (a config file, package.json).
+ * Treating every object with a "name" key as a call ran a phantom tool named
+ * after the data, e.g. `orchid` from `{"name": "orchid", "port": 48213}`.
+ * Outside an explicit tool_calls array, a call must be wrapped in `function`
+ * or carry `arguments` next to `name`.
+ */
+function isCallShaped(item: ToolCallJsonObject, inToolCalls: boolean): boolean {
+  if (isRecord(item.function)) return true;
+  return inToolCalls || "arguments" in item;
+}
+
 function extractOpenAIToolCallsFromPayload(
-  payload: unknown
+  payload: unknown,
+  inToolCalls = false
 ): ToolCallRequest[] {
   if (Array.isArray(payload)) {
     return payload
-      .map((item) => (isRecord(item) ? parseOpenAIToolCall(item) : null))
+      .map((item) =>
+        isRecord(item) && isCallShaped(item, inToolCalls)
+          ? parseOpenAIToolCall(item)
+          : null
+      )
       .filter((toolCall): toolCall is ToolCallRequest => toolCall !== null);
   }
 
@@ -249,9 +268,12 @@ function extractOpenAIToolCallsFromPayload(
 
   const toolCalls = payload.tool_calls;
   if (Array.isArray(toolCalls)) {
-    return extractOpenAIToolCallsFromPayload(toolCalls);
+    return extractOpenAIToolCallsFromPayload(toolCalls, true);
   }
 
+  if (!isCallShaped(payload, false)) {
+    return [];
+  }
   const parsed = parseOpenAIToolCall(payload);
   return parsed ? [parsed] : [];
 }

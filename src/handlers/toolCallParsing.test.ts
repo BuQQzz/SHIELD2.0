@@ -134,6 +134,42 @@ theme=dark"}]}</arguments>
   });
 });
 
+/**
+ * Captured by the agent benchmark (Qwen3-Coder-30B, read-file task,
+ * 2026-09-22). The model quoted the file it had read; the parser ran a tool
+ * called "orchid" three times and the model apologised for calling it.
+ */
+describe("JSON that is data, not a tool call", () => {
+  it("ignores quoted JSON that merely has a name field", () => {
+    const reply =
+      'The file contains:\n\n```json\n{\n  "name": "orchid",\n  "port": 48213,\n  "debug": false\n}\n```\n\nThe configured port is **48213**.';
+    expect(extractToolCalls(reply)).toEqual([]);
+  });
+
+  it("ignores a quoted package.json", () => {
+    const reply =
+      '```json\n{"name": "shield2.0", "version": "0.1.5", "scripts": {"dev": "vite"}}\n```';
+    expect(extractToolCalls(reply)).toEqual([]);
+  });
+
+  it("ignores arrays of records with names", () => {
+    const reply = '```json\n[{"name": "Ana"}, {"name": "Raj"}]\n```';
+    expect(extractToolCalls(reply)).toEqual([]);
+  });
+
+  it("still accepts bare name + arguments calls", () => {
+    const reply =
+      '```json\n{"name": "filesystem.read_file", "arguments": {"path": "C:/a.txt"}}\n```';
+    expect(extractToolCalls(reply)[0]?.tool).toBe("read_file");
+  });
+
+  it("still accepts argument-less calls inside tool_calls", () => {
+    const reply =
+      '```json\n{"tool_calls": [{"name": "filesystem.list_allowed_directories"}]}\n```';
+    expect(extractToolCalls(reply)[0]?.tool).toBe("list_allowed_directories");
+  });
+});
+
 describe("repairJsonStrings", () => {
   it("leaves valid JSON unchanged", () => {
     const valid = String.raw`{"a":"x\ny","b":[1,2],"c":"C:\\dir","d":"\u00e9"}`;
