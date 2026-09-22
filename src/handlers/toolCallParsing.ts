@@ -10,6 +10,12 @@ export interface ToolCallRequest {
   arguments: Record<string, unknown>;
   callId?: string;
   format?: "xml" | "openai";
+  /**
+   * Set when the model supplied arguments that could not be parsed. The call
+   * must not run: executing it with `{}` makes the tool report a missing
+   * parameter and hides the real problem from the model.
+   */
+  argumentsError?: string;
 }
 
 export interface ExtractToolCallOptions {
@@ -31,27 +37,99 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
 }
 
+const VALID_JSON_ESCAPES = `"\\/bfnrtu`;
+
+/**
+ * Make string literals in almost-JSON legal.
+ *
+ * Models writing multi-line values (file content, edit_file oldText/newText)
+ * routinely put raw line breaks inside JSON strings, and sometimes single
+ * backslashes in Windows paths. Both make JSON.parse throw. Only characters
+ * inside string literals are touched, so structure is never rewritten.
+ */
+export function repairJsonStrings(input: string): string {
+  let out = "";
+  let inString = false;
+
+  for (let i = 0; i < input.length; i++) {
+    const ch = input[i]!;
+
+    if (!inString) {
+      if (ch === '"') inString = true;
+      out += ch;
+      continue;
+    }
+
+    if (ch === "\\") {
+      const next = input[i + 1];
+      if (next !== undefined && VALID_JSON_ESCAPES.includes(next)) {
+        out += ch + next;
+        i++;
+      } else {
+        out += "\\\\"; // stray backslash, e.g. C:\Users
+      }
+      continue;
+    }
+
+    if (ch === '"') {
+      inString = false;
+      out += ch;
+    } else if (ch === "\n") {
+      out += "\\n";
+    } else if (ch === "\r") {
+      out += "\\r";
+    } else if (ch === "\t") {
+      out += "\\t";
+    } else {
+      out += ch;
+    }
+  }
+
+  return out;
+}
+
 function parseJson(input: string): unknown | null {
   try {
     return JSON.parse(input);
   } catch {
-    return null;
+    try {
+      return JSON.parse(repairJsonStrings(input));
+    } catch {
+      return null;
+    }
   }
 }
 
-function parseArguments(value: unknown): Record<string, unknown> {
-  if (isRecord(value)) {
-    return value;
+function parseArguments(value: unknown): {
+  args: Record<string, unknown>;
+  error?: string;
+} {
+  if (value === undefined || value === null) {
+    return { args: {} };
+  }
+
+  if (isRecord(value) && !Array.isArray(value)) {
+    return { args: value };
   }
 
   if (typeof value === "string") {
-    const parsed = parseJson(value);
-    if (isRecord(parsed)) {
-      return parsed;
+    if (value.trim() === "") {
+      return { args: {} };
     }
+    const parsed = parseJson(value);
+    if (isRecord(parsed) && !Array.isArray(parsed)) {
+      return { args: parsed };
+    }
+    return {
+      args: {},
+      error: "The tool call arguments were not valid JSON.",
+    };
   }
 
-  return {};
+  return {
+    args: {},
+    error: "The tool call arguments must be a JSON object.",
+  };
 }
 
 function normalizeToolNameAndServer(name: string): {
@@ -136,7 +214,9 @@ function parseOpenAIToolCall(item: ToolCallJsonObject): ToolCallRequest | null {
     return null;
   }
 
-  const args = parseArguments(item.function?.arguments ?? item.arguments);
+  const { args, error } = parseArguments(
+    item.function?.arguments ?? item.arguments
+  );
   const { serverName, tool } = normalizeToolNameAndServer(name);
   if (!tool) {
     return null;
@@ -150,6 +230,7 @@ function parseOpenAIToolCall(item: ToolCallJsonObject): ToolCallRequest | null {
     arguments: normalizedArgs,
     callId: item.id,
     format: "openai",
+    ...(error ? { argumentsError: error } : {}),
   };
 }
 
@@ -307,8 +388,10 @@ function extractXmlToolCalls(rawContent: string): ToolCallRequest[] {
       const toolMatch =
         toolCallContent.match(/<tool>(.*?)<\/tool>/) ??
         toolCallContent.match(/<name>(.*?)<\/name>/);
+      // The closing </arguments> is often left out, with the JSON running
+      // straight into </tool_call>. Requiring it silently produced `{}`.
       const argsMatch = toolCallContent.match(
-        /<arguments>([\s\S]*?)<\/arguments>/
+        /<arguments>([\s\S]*?)(?:<\/arguments>|$)/
       );
 
       if (toolMatch?.[1]) {
@@ -318,10 +401,16 @@ function extractXmlToolCalls(rawContent: string): ToolCallRequest[] {
         const tool = named.tool;
 
         let args: Record<string, unknown> = {};
+        let argumentsError: string | undefined;
         if (argsMatch?.[1]) {
           const body = argsMatch[1].trim();
           // Nested elements first, then JSON
-          args = parseXmlArgumentElements(body) ?? parseArguments(body);
+          const elements = parseXmlArgumentElements(body);
+          if (elements) {
+            args = elements;
+          } else {
+            ({ args, error: argumentsError } = parseArguments(body));
+          }
         }
 
         if (tool) {
@@ -332,6 +421,7 @@ function extractXmlToolCalls(rawContent: string): ToolCallRequest[] {
             tool,
             arguments: args,
             format: "xml",
+            ...(argumentsError ? { argumentsError } : {}),
           });
           continue;
         }

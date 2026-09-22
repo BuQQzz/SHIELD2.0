@@ -204,3 +204,33 @@ describe("multi-round tool chaining", () => {
     expect(continueConversation).toHaveBeenCalledTimes(1);
   });
 });
+
+describe("calls with unreadable arguments", () => {
+  it("returns an error to the model without running the tool", async () => {
+    const assistantMessage: Message = {
+      id: "assistant-bad-args",
+      role: "assistant",
+      content: `<tool_call>
+<server>filesystem</server>
+<tool>read_file</tool>
+<arguments>{"path": "C:/a.txt",</arguments>
+</tool_call>`,
+      timestamp: new Date(),
+    };
+
+    const onToolCallDetected = vi.fn();
+    const continueConversation = vi.fn();
+
+    const handled = await processMCPToolCalls(assistantMessage, {
+      onToolCallDetected,
+      addMessage: vi.fn(),
+      continueConversation,
+    });
+
+    expect(handled).toBe(true);
+    expect(onToolCallDetected).not.toHaveBeenCalled();
+    const continuation = continueConversation.mock.calls[0]?.[0] as string;
+    expect(continuation).toContain("not valid JSON");
+    expect(continuation).toContain("The call was not run");
+  });
+});

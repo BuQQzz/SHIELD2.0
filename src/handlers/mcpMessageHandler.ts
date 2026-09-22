@@ -28,6 +28,29 @@ export interface MCPMessageHandlerProps {
   maxToolRounds?: number;
 }
 
+async function runToolCall(
+  toolCall: ToolCallRequest,
+  onToolCallDetected: MCPMessageHandlerProps["onToolCallDetected"]
+): Promise<MCPToolResult> {
+  try {
+    console.log(
+      `[MCP] Requesting permission for ${toolCall.serverName}.${toolCall.tool}`
+    );
+
+    // Request permission and execute tool
+    const result = await onToolCallDetected(toolCall);
+
+    console.log(`[MCP] Tool result:`, result);
+    return result;
+  } catch (error) {
+    console.error("[MCP] Error processing tool call:", error);
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : "Unknown MCP error",
+    };
+  }
+}
+
 /**
  * Process AI response for tool calls
  * If tool calls are found, executes them and continues the conversation
@@ -77,24 +100,15 @@ export async function processMCPToolCalls(
 
     // Process each tool call sequentially
     for (const toolCall of cappedToolCalls) {
-      let result: MCPToolResult;
-
-      try {
-        console.log(
-          `[MCP] Requesting permission for ${toolCall.serverName}.${toolCall.tool}`
-        );
-
-        // Request permission and execute tool
-        result = await onToolCallDetected(toolCall);
-
-        console.log(`[MCP] Tool result:`, result);
-      } catch (error) {
-        console.error("[MCP] Error processing tool call:", error);
-        result = {
-          success: false,
-          error: error instanceof Error ? error.message : "Unknown MCP error",
-        };
-      }
+      const result: MCPToolResult = toolCall.argumentsError
+        ? // Never run a call whose arguments we could not read: the tool
+          // would only report a missing parameter and the model would retry
+          // the same malformed call.
+          {
+            success: false,
+            error: `${toolCall.argumentsError} The call was not run. Send it again with the arguments as a valid JSON object, escaping line breaks inside strings as \\n.`,
+          }
+        : await runToolCall(toolCall, onToolCallDetected);
 
       const toolResultFormatted = formatToolResult(toolCall, result);
       formattedResults.push(toolResultFormatted);
