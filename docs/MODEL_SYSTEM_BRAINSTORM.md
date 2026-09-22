@@ -3,6 +3,13 @@
 **Status:** Ideas only. Nothing here is decided or scheduled. Written to capture research before we agree on a direction.
 **Date:** 2026-09-21
 
+> **Update 2026-09-22: parts of this are out of date.** Plan mode (idea #4) has shipped.
+> The claim that the hybrid parser had "partly addressed" format problems turned out
+> to be wrong. The benchmark showed it was turning malformed arguments into `{}` and still running the call
+> (now fixed). Open question #3's validation pass has been done. For the current
+> direction and priorities see `SHIELD_AGENT_ARCHITECTURE.md` §13 and §20, and
+> `testing/AGENT_BENCHMARK.md`.
+
 ---
 
 ## Why we're looking at this
