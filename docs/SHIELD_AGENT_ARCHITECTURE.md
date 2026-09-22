@@ -688,3 +688,73 @@ This progressive-disclosure pattern should become a general SHIELD optimization 
 - No compaction vs token-threshold vs hardware-aware compaction
 - Summary vs giant memory note vs wiki + Memory Atlas
 - Mainline runtime vs Prism/Bonsai runtime behind the same provider contract
+
+---
+
+# 19. September 22 Addendum — Context Engine & Durable Operations
+
+Detailed research:
+
+- SHIELD_OPTIMIZATION_TOOLING_CONTEXT_DESIGN.md
+- UNREAL_AGENT_RESEARCH.md
+
+## Direction: Context Engine should produce a Context Packet and Context Report
+
+The Context Engine should not be a prompt-concatenation helper.
+
+It should select, budget, rank, compact, cache, and version context from progressive sources such as:
+
+    Tool Atlas -> selected schemas
+    Memory Atlas -> selected wiki pages
+    Repo Atlas -> selected symbols/files
+    Skill Atlas -> selected skill instructions
+
+Each turn should produce an inspectable report describing what was included, omitted, truncated, or compacted and why.
+
+## Proposal: Tool Call and machine Operation are different objects
+
+Fresh Unreal Agent research suggests a useful missing boundary in SHIELD:
+
+    Model Tool Call
+       |
+    Tool Adapter
+       |
+    ToolPolicy
+       |
+    durable Operation
+       |
+    Operation Manager
+       |
+    executor / MCP / OS / plugin
+       |
+    Operation Result
+       |
+    Native Tool Result
+
+The model-visible tool remains simple. The Operation layer can own the complicated machine lifecycle:
+
+- concurrency
+- cancellation
+- retries
+- crash recovery
+- output artifacts
+- audit state
+- idempotency
+- long-running/background work
+- future remote or sandbox execution
+
+## Proposal: async-first independent work
+
+Independent tool calls should eventually be able to run concurrently rather than consuming one model turn per call.
+
+SHIELD should benchmark this carefully with local models, because parallel execution is valuable only if the model reliably understands multiple in-flight and asynchronously arriving results.
+
+## Direction: task state should become more durable than chat state
+
+Append-only task/session events are worth prototyping beside the existing conversation database.
+
+That could make recovery, forks, audit history, benchmark replay, and debugging more reliable without forcing the UI to become event-log-shaped.
+
+## Independent validation of progressive disclosure
+
+Unreal Agent's current Skills architecture independently validates the same pattern behind our Tool Atlas and Memory Atlas: expose a compact catalog first, then lazily load the full selected resource with one native tool.
