@@ -45,6 +45,10 @@ export function useModelLoader({
         console.log(
           `[App] Loading ${defaultModel.displayName} (${defaultModel.id})`
         );
+        // The fallback may not be the model currentModelId names. Without
+        // this the header showed "Select Model", the prompt used the generic
+        // family and capabilities were missing, all for a loaded model.
+        setCurrentModelId(defaultModel.id);
         loadModel({
           name: defaultModel.name,
           uri: defaultModel.uri,
@@ -63,6 +67,7 @@ export function useModelLoader({
     currentModel,
     loadModel,
     currentModelId,
+    setCurrentModelId,
     installedModels,
   ]);
 
