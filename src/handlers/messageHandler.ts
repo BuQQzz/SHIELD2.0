@@ -276,6 +276,7 @@ export function createMessageHandler({
           enableHybridParser: true,
           maxToolCallsPerTurn: settings.mcp.maxToolCallsPerTurn,
           maxToolRounds: settings.mcp.maxToolRounds,
+          workspaceFolder: settings.mcp.workspaceFolder,
           continueConversation: async (toolPrompt: string) => {
             // Continue the conversation with tool results
             setIsGenerating(true);

@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { processMCPToolCalls } from "./mcpMessageHandler";
+import { callSignature, processMCPToolCalls } from "./mcpMessageHandler";
 import type { Message } from "../hooks/useLlama";
 
 describe("processMCPToolCalls", () => {
@@ -300,6 +300,79 @@ describe("repeated calls within a turn", () => {
     await processMCPToolCalls(
       { id: "c", role: "assistant", content: write, timestamp: new Date() },
       { onToolCallDetected, addMessage: vi.fn(), continueConversation }
+    );
+
+    expect(onToolCallDetected).toHaveBeenCalledTimes(1);
+  });
+});
+
+// Seen in the app, 2026-09-22: "read the index and find bugs" read
+// {"path":"index.html"} and then {"path":"C:\...\EXPERIMENT\index.html"},
+// and the repeat check treated them as different calls.
+describe("callSignature", () => {
+  const ws = String.raw`C:\Users\me\Projects\EXPERIMENT`;
+  const call = (path: string) => ({
+    serverName: "filesystem",
+    tool: "read_text_file",
+    arguments: { path },
+  });
+
+  it("treats relative and absolute paths to the same file as one call", () => {
+    const relative = callSignature(call("index.html"), ws);
+    expect(callSignature(call(String.raw`${ws}\index.html`), ws)).toBe(
+      relative
+    );
+    expect(callSignature(call("./index.html"), ws)).toBe(relative);
+    const forwardSlashes = ws.split("\\").join("/");
+    expect(callSignature(call(`${forwardSlashes}/INDEX.html`), ws)).toBe(
+      relative
+    );
+  });
+
+  it("treats '.' as the workspace itself", () => {
+    const listing = (path: string) => ({
+      serverName: "filesystem",
+      tool: "list_directory",
+      arguments: { path },
+    });
+    expect(callSignature(listing("."), ws)).toBe(
+      callSignature(listing(ws), ws)
+    );
+  });
+
+  it("keeps different files and different tools apart", () => {
+    expect(callSignature(call("a.md"), ws)).not.toBe(
+      callSignature(call("b.md"), ws)
+    );
+    expect(callSignature(call("a.md"), ws)).not.toBe(
+      callSignature({ ...call("a.md"), tool: "get_file_info" }, ws)
+    );
+  });
+
+  it("answers the relative-then-absolute reread from memory", async () => {
+    const read = (path: string) =>
+      `<tool_call>\n<server>filesystem</server>\n<tool>read_text_file</tool>\n<arguments>${JSON.stringify({ path })}</arguments>\n</tool_call>`;
+    const onToolCallDetected = vi
+      .fn()
+      .mockResolvedValue({ success: true, data: "<html>" });
+    const continueConversation = vi
+      .fn()
+      .mockResolvedValueOnce(read(String.raw`${ws}\index.html`))
+      .mockResolvedValueOnce("Found two bugs.");
+
+    await processMCPToolCalls(
+      {
+        id: "r",
+        role: "assistant",
+        content: read("index.html"),
+        timestamp: new Date(),
+      },
+      {
+        onToolCallDetected,
+        addMessage: vi.fn(),
+        continueConversation,
+        workspaceFolder: ws,
+      }
     );
 
     expect(onToolCallDetected).toHaveBeenCalledTimes(1);

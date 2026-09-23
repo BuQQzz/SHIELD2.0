@@ -27,6 +27,48 @@ export interface MCPMessageHandlerProps {
   maxToolCallsPerTurn?: number;
   /** How many tool -> result -> tool cycles to allow in one turn */
   maxToolRounds?: number;
+  /**
+   * The user's workspace folder. Relative paths are resolved against it when
+   * deciding whether two calls are the same, as the main process does
+   * before running them.
+   */
+  workspaceFolder?: string;
+}
+
+const PATH_KEYS = ["path", "source", "destination"];
+
+/** Absolute, lower-cased, backslashed - how Windows compares paths */
+function canonicalPath(value: string, base?: string): string {
+  let p = value.trim().replace(/\//g, "\\");
+  const isAbsolute = /^[a-z]:\\/i.test(p) || p.startsWith("\\\\");
+  if (!isAbsolute && base) {
+    const rel = p.replace(/^\.(\\|$)/, "");
+    p = rel ? `${base.replace(/\\+$/, "")}\\${rel}` : base;
+  }
+  return p.replace(/\\+$/, "").toLowerCase();
+}
+
+/**
+ * Identity of a call for the repeat check. "index.html" and
+ * "C:\...\EXPERIMENT\index.html" are the same read; comparing raw
+ * arguments let Qwen3-Coder read the same file twice in one turn.
+ */
+export function callSignature(
+  toolCall: ToolCallRequest,
+  workspaceFolder?: string
+): string {
+  const args: Record<string, unknown> = { ...toolCall.arguments };
+  for (const key of PATH_KEYS) {
+    if (typeof args[key] === "string") {
+      args[key] = canonicalPath(args[key] as string, workspaceFolder);
+    }
+  }
+  if (Array.isArray(args.paths)) {
+    args.paths = args.paths.map((p) =>
+      typeof p === "string" ? canonicalPath(p, workspaceFolder) : p
+    );
+  }
+  return `${toolCall.serverName}:${toolCall.tool}:${JSON.stringify(args)}`;
 }
 
 async function runToolCall(
@@ -67,6 +109,7 @@ export async function processMCPToolCalls(
     enableHybridParser = true,
     maxToolCallsPerTurn = 5,
     maxToolRounds = 5,
+    workspaceFolder,
   } = props;
 
   // A single request usually needs several tool calls in sequence: list a
@@ -108,7 +151,7 @@ export async function processMCPToolCalls(
 
     // Process each tool call sequentially
     for (const toolCall of cappedToolCalls) {
-      const signature = `${toolCall.serverName}:${toolCall.tool}:${JSON.stringify(toolCall.arguments)}`;
+      const signature = callSignature(toolCall, workspaceFolder);
       const previous = completedCalls.get(signature);
       let result: MCPToolResult;
 
