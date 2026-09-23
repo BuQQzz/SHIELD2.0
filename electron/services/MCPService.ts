@@ -13,6 +13,7 @@ import os from "os";
 import { app } from "electron";
 import {
   OFFICIAL_MCP_SERVERS,
+  resolveToolPaths,
   validateFilesystemPath,
   type MCPServerConfig,
   type MCPToolCall,
@@ -105,6 +106,10 @@ class MCPService {
       const transport = new StdioClientTransport({
         command: "node",
         args: serverArgs,
+        // Anything the server resolves itself starts in the user's folder
+        ...(serverName === "filesystem"
+          ? { cwd: this.baseFolder(config) }
+          : {}),
       });
 
       const client = new Client(
@@ -172,10 +177,16 @@ class MCPService {
     }
 
     try {
-      // Expand tilde paths in arguments
-      const expandedArgs = { ...args };
-      if (expandedArgs.path && typeof expandedArgs.path === "string") {
-        expandedArgs.path = expandTildePath(expandedArgs.path);
+      // Expand ~ and make relative paths ("." = the user's folder) absolute
+      // against the workspace, not the process's own directory
+      let expandedArgs: Record<string, unknown> = { ...args };
+      if (serverName === "filesystem") {
+        for (const key of ["path", "source", "destination"]) {
+          if (typeof expandedArgs[key] === "string") {
+            expandedArgs[key] = expandTildePath(expandedArgs[key] as string);
+          }
+        }
+        expandedArgs = resolveToolPaths(expandedArgs, this.baseFolder(config));
       }
 
       // Validate path restrictions for filesystem operations
@@ -266,6 +277,11 @@ class MCPService {
 
   public getWorkspaceFolder(): string | null {
     return this.workspaceFolder;
+  }
+
+  /** Where relative paths point: the workspace, else the first default */
+  private baseFolder(config: MCPServerConfig): string {
+    return this.workspaceFolder ?? config.allowedPaths[0] ?? os.homedir();
   }
 
   /**
