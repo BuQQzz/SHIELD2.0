@@ -169,6 +169,7 @@ function App() {
     clearHistory,
     setMessages,
     planOnly: toolPolicy.isPlanning,
+    modelKey: currentModel?.uri,
   });
 
   // Model loading hook

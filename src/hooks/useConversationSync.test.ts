@@ -1,4 +1,6 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
+import { renderHook } from "@testing-library/react";
+import { useConversationSync } from "./useConversationSync";
 import { stripToolCallMarkup } from "@/handlers/mcpToolHandler";
 import type { Message } from "@/hooks/useLlama";
 
@@ -73,5 +75,67 @@ describe("plan mode history", () => {
     const history = historyForPlanMode(onlyCall);
     expect(history).toHaveLength(1);
     expect(history[0]?.content).toBe("");
+  });
+});
+
+// Seen in the app, 2026-09-23: history was restored on every added message,
+// replacing the model's session mid-turn (before and after each tool round).
+describe("when the model's history is restored", () => {
+  const conv = (id: string, count: number) => ({
+    id,
+    messages: messages.slice(0, count),
+  });
+
+  const setup = (initial: { id: string; messages: Message[] }) => {
+    const setChatHistory = vi.fn().mockResolvedValue(undefined);
+    const clearHistory = vi.fn().mockResolvedValue(undefined);
+    const hook = renderHook(
+      (props: {
+        currentConversation: { id: string; messages: Message[] };
+        modelKey?: string;
+      }) =>
+        useConversationSync({
+          isModelLoaded: true,
+          setChatHistory,
+          clearHistory,
+          setMessages: vi.fn(),
+          ...props,
+        }),
+      { initialProps: { currentConversation: initial, modelKey: "m1" } }
+    );
+    return { ...hook, setChatHistory, clearHistory };
+  };
+
+  it("restores once when a chat is opened, not as the turn adds messages", () => {
+    const { rerender, setChatHistory } = setup(conv("a", 1));
+    expect(setChatHistory).toHaveBeenCalledTimes(1);
+
+    rerender({ currentConversation: conv("a", 2), modelKey: "m1" });
+    rerender({ currentConversation: conv("a", 3), modelKey: "m1" });
+    rerender({ currentConversation: conv("a", 4), modelKey: "m1" });
+    expect(setChatHistory).toHaveBeenCalledTimes(1);
+  });
+
+  it("restores when switching to another chat", () => {
+    const { rerender, setChatHistory } = setup(conv("a", 2));
+    rerender({ currentConversation: conv("b", 4), modelKey: "m1" });
+    expect(setChatHistory).toHaveBeenCalledTimes(2);
+    expect(setChatHistory.mock.calls[1]?.[0]).toHaveLength(4);
+  });
+
+  it("restores again after a different model is loaded", () => {
+    const { rerender, setChatHistory } = setup(conv("a", 2));
+    rerender({ currentConversation: conv("a", 2), modelKey: "m2" });
+    expect(setChatHistory).toHaveBeenCalledTimes(2);
+  });
+
+  it("clears the model's history for a new, empty chat", () => {
+    const { rerender, clearHistory, setChatHistory } = setup(conv("a", 2));
+    rerender({ currentConversation: conv("new", 0), modelKey: "m1" });
+    expect(clearHistory).toHaveBeenCalledTimes(1);
+
+    // The first message in the new chat does not trigger a restore
+    rerender({ currentConversation: conv("new", 1), modelKey: "m1" });
+    expect(setChatHistory).toHaveBeenCalledTimes(1);
   });
 });
