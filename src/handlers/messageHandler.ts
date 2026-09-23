@@ -160,6 +160,20 @@ export function createMessageHandler({
         messageWithContext = buildMCPRetryPrompt(content, allowedTools);
       }
 
+      // The system prompt names the folder, yet Qwen3-Coder still guessed
+      // Documents and then its own project path for "what's in this folder?".
+      // Restated next to the request, where recency makes it hard to miss.
+      // Only the model sees this; the stored message is the user's text.
+      const workspace = settings.mcp.workspaceFolder;
+      if (
+        workspace &&
+        settings.mcp.enabled &&
+        isMCPReady &&
+        !webSearchContext
+      ) {
+        messageWithContext += `\n\n[Current folder: ${workspace}]`;
+      }
+
       const returnedResponse = await sendStreamingMessage(
         messageWithContext,
         (token) => {
