@@ -8,6 +8,8 @@
 import {
   Settings,
   DEFAULT_SETTINGS,
+  FILESYSTEM_TOOLS,
+  LEGACY_DEFAULT_ALLOWED_TOOLS,
   PERMISSION_MODES,
   type PermissionMode,
 } from "./SettingsCategories";
@@ -53,7 +55,23 @@ export function migrateMcpSettings(
     migrated.mode = showPermissionDialog === false ? "auto" : "ask";
   }
 
+  // Still on the old three-tool default means the list was never chosen:
+  // those users could not edit, search or use read_text_file without
+  // hunting for switches. Move them to the full set. A list anyone actually
+  // edited is left exactly as it is.
+  if (isLegacyDefaultAllowlist(migrated.allowedTools)) {
+    migrated.allowedTools = [...FILESYSTEM_TOOLS];
+  }
+
   return migrated;
+}
+
+function isLegacyDefaultAllowlist(tools: unknown): boolean {
+  return (
+    Array.isArray(tools) &&
+    tools.length === LEGACY_DEFAULT_ALLOWED_TOOLS.length &&
+    LEGACY_DEFAULT_ALLOWED_TOOLS.every((tool) => tools.includes(tool))
+  );
 }
 
 function isPermissionMode(value: unknown): value is PermissionMode {

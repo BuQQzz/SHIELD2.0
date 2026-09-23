@@ -4,7 +4,7 @@ import {
   mergeWithDefaults,
   isValidSettings,
 } from "./SettingsValidation";
-import { DEFAULT_SETTINGS } from "./SettingsCategories";
+import { DEFAULT_SETTINGS, FILESYSTEM_TOOLS } from "./SettingsCategories";
 
 describe("migrateMcpSettings", () => {
   it("defaults to ask when there is nothing stored", () => {
@@ -154,5 +154,42 @@ describe("isValidSettings", () => {
     };
 
     expect(isValidSettings(bad)).toBe(false);
+  });
+});
+
+describe("tool allowlist migration", () => {
+  it("moves the untouched old three-tool default to every filesystem tool", () => {
+    const migrated = migrateMcpSettings({
+      ...DEFAULT_SETTINGS.mcp,
+      allowedTools: ["read_file", "write_file", "list_directory"],
+    });
+    expect(migrated.allowedTools).toEqual(FILESYSTEM_TOOLS);
+  });
+
+  it("recognises the old default in any order", () => {
+    const migrated = migrateMcpSettings({
+      ...DEFAULT_SETTINGS.mcp,
+      allowedTools: ["list_directory", "read_file", "write_file"],
+    });
+    expect(migrated.allowedTools).toEqual(FILESYSTEM_TOOLS);
+  });
+
+  it("leaves a list the user chose alone", () => {
+    const chosen = ["read_file", "list_directory"];
+    expect(
+      migrateMcpSettings({ ...DEFAULT_SETTINGS.mcp, allowedTools: chosen })
+        .allowedTools
+    ).toEqual(chosen);
+
+    const extended = ["read_file", "write_file", "list_directory", "edit_file"];
+    expect(
+      migrateMcpSettings({ ...DEFAULT_SETTINGS.mcp, allowedTools: extended })
+        .allowedTools
+    ).toEqual(extended);
+  });
+
+  it("allows every filesystem tool on a fresh install", () => {
+    expect(DEFAULT_SETTINGS.mcp.allowedTools).toEqual(FILESYSTEM_TOOLS);
+    expect(FILESYSTEM_TOOLS).toHaveLength(14);
   });
 });

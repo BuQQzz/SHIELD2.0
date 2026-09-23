@@ -69,6 +69,30 @@ export interface AppSettings {
 // Import the default prompt from systemPrompts config
 import { getDefaultSystemPrompt } from "../config/systemPrompts";
 
+/** Mirrors electron/services/settings/SettingsCategories.ts.
+ *
+ * Every tool @modelcontextprotocol/server-filesystem exposes (2026.8.x).
+ * All allowed by default: the permission mode (Ask / Auto / Plan /
+ * Read-only) decides what needs approval, so the allowlist only exists for
+ * users who want to switch individual tools off.
+ */
+export const FILESYSTEM_TOOLS = [
+  "read_text_file",
+  "read_media_file",
+  "read_multiple_files",
+  "read_file",
+  "list_directory",
+  "list_directory_with_sizes",
+  "directory_tree",
+  "search_files",
+  "get_file_info",
+  "list_allowed_directories",
+  "write_file",
+  "edit_file",
+  "create_directory",
+  "move_file",
+];
+
 export const DEFAULT_SETTINGS: AppSettings = {
   model: {
     temperature: 0.7,
@@ -101,7 +125,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   mcp: {
     enabled: true,
     mode: "ask",
-    allowedTools: ["read_file", "write_file", "list_directory"],
+    allowedTools: [...FILESYSTEM_TOOLS],
     auditLogRetentionDays: 30,
     maxToolCallsPerTurn: 5,
     maxToolRounds: 5,

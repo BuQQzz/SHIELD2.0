@@ -6,7 +6,10 @@ import { useSettingsStore } from "@/store/settingsStore";
 import { useMCP } from "@/hooks/useMCP";
 import { useModelCapabilities } from "@/hooks/useModelCapabilities";
 import { AlertTriangle } from "lucide-react";
-import type { MCPSettings as MCPSettingsType } from "@/types/settings";
+import {
+  DEFAULT_SETTINGS,
+  type MCPSettings as MCPSettingsType,
+} from "@/types/settings";
 import type { ModelOption } from "@/components/chat/ModelSelector";
 
 interface MCPSettingsProps {
@@ -27,11 +30,8 @@ export function MCPSettings({ settings, currentModel }: MCPSettingsProps) {
   const warning = getWarning("mcp");
   const hasWarning = warning !== null;
 
-  const allowedTools = settings.allowedTools ?? [
-    "read_file",
-    "write_file",
-    "list_directory",
-  ];
+  const allowedTools =
+    settings.allowedTools ?? DEFAULT_SETTINGS.mcp.allowedTools;
 
   const toolDescriptions = useMemo(
     () => ({
