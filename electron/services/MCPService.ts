@@ -38,6 +38,8 @@ class MCPService {
   private static instance: MCPService | null = null;
   private clients: Map<string, Client> = new Map();
   private isInitialized = false;
+  /** In-flight initialize(), shared by concurrent callers */
+  private initializing: Promise<void> | null = null;
   /** Folder the user chose for file tools; null means the default folders */
   private workspaceFolder: string | null = null;
 
@@ -65,18 +67,23 @@ class MCPService {
       return;
     }
 
-    console.log("[MCPService] Initializing MCP service...");
+    // The renderer asks from more than one place at startup. Without this,
+    // concurrent calls each started a filesystem server and the first one
+    // was left running, orphaned.
+    this.initializing ??= this.connectToServer("filesystem")
+      .then(() => {
+        this.isInitialized = true;
+        console.log("[MCPService] MCP service initialized successfully");
+      })
+      .catch((error: unknown) => {
+        console.error("[MCPService] Failed to initialize:", error);
+        throw error;
+      })
+      .finally(() => {
+        this.initializing = null;
+      });
 
-    try {
-      // Connect to filesystem server
-      await this.connectToServer("filesystem");
-
-      this.isInitialized = true;
-      console.log("[MCPService] MCP service initialized successfully");
-    } catch (error) {
-      console.error("[MCPService] Failed to initialize:", error);
-      throw error;
-    }
+    return this.initializing;
   }
 
   /**
