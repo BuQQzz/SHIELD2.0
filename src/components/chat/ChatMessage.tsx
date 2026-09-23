@@ -17,7 +17,7 @@ import {
 import { motion, AnimatePresence } from "framer-motion";
 import { LazyMessageContent } from "../lazy";
 import { ThinkingIndicator } from "./ThinkingIndicator";
-import { useState, memo, Suspense } from "react";
+import { useState, useMemo, memo, Suspense } from "react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import type { SearchResult } from "@/types/electron";
@@ -57,15 +57,16 @@ export const ChatMessage = memo(function ChatMessage({
   // and what is stored - this only affects what is shown.
   // While streaming, a call that is still being written is held back too,
   // and a "preparing" line stands in for it until the tool row appears.
-  const preview =
-    role === "assistant" && isStreaming
-      ? streamingToolCallPreview(rawContent)
-      : null;
-  const content =
-    role === "assistant"
-      ? (preview?.text ?? stripToolCallMarkup(rawContent))
-      : rawContent;
-  const pendingTool = preview?.pendingTool ?? null;
+  // Memoised: the list re-renders on every streamed token, and finished
+  // messages should not be re-parsed each time.
+  const { content, pendingTool } = useMemo(() => {
+    if (role !== "assistant") return { content: rawContent, pendingTool: null };
+    if (isStreaming) {
+      const preview = streamingToolCallPreview(rawContent);
+      return { content: preview.text, pendingTool: preview.pendingTool };
+    }
+    return { content: stripToolCallMarkup(rawContent), pendingTool: null };
+  }, [role, rawContent, isStreaming]);
 
   // A reply that was nothing but a tool call has nothing left to show once
   // the markup is stripped. Hiding it is right ONLY when the call actually
@@ -79,8 +80,10 @@ export const ChatMessage = memo(function ChatMessage({
     !thinking &&
     rawContent.trim() !== "";
 
-  const producedAToolCall =
-    strippedToNothing && extractToolCalls(rawContent).length > 0;
+  const producedAToolCall = useMemo(
+    () => strippedToNothing && extractToolCalls(rawContent).length > 0,
+    [strippedToNothing, rawContent]
+  );
 
   const unparseableOutput = strippedToNothing && !producedAToolCall;
 

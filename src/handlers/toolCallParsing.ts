@@ -521,11 +521,8 @@ export function extractToolCalls(
   content: string,
   options: ExtractToolCallOptions = {}
 ): ToolCallRequest[] {
-  console.log(
-    "[MCPToolHandler] Extracting tool calls from content:",
-    content.substring(0, 200)
-  );
-
+  // No logging here: the UI calls this while rendering, i.e. on every
+  // streamed token. processMCPToolCalls logs the calls it actually runs.
   const enableOpenAIToolCalls = options.enableOpenAIToolCalls ?? true;
   const enableXmlToolCalls = options.enableXmlToolCalls ?? true;
 
@@ -533,13 +530,7 @@ export function extractToolCalls(
     ? extractOpenAIToolCalls(content)
     : [];
   const xmlToolCalls = enableXmlToolCalls ? extractXmlToolCalls(content) : [];
-  const toolCalls = deduplicateToolCalls([...openAIToolCalls, ...xmlToolCalls]);
-
-  console.log("[MCPToolHandler] OpenAI tool calls:", openAIToolCalls.length);
-  console.log("[MCPToolHandler] XML tool calls:", xmlToolCalls.length);
-  console.log("[MCPToolHandler] Total tool calls extracted:", toolCalls.length);
-
-  return toolCalls;
+  return deduplicateToolCalls([...openAIToolCalls, ...xmlToolCalls]);
 }
 
 /**
