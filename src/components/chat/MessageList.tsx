@@ -147,6 +147,7 @@ export function MessageList({
               sources={message.sources}
               thinking={message.thinking}
               isThinking={message.isThinking}
+              stats={message.stats}
               onContinue={
                 message.truncated ? () => onContinue?.(message.id) : undefined
               }

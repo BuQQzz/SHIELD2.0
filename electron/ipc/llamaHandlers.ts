@@ -40,7 +40,12 @@ export function registerLlamaHandlers(
   ipcMain.handle("llama:chat", async (_event, message, options) => {
     try {
       const response = await llamaService.chat(message, options);
-      return { success: true, response };
+      return {
+        success: true,
+        response,
+        stats: llamaService.getLastStats(),
+        context: llamaService.getContextUsage(),
+      };
     } catch (error) {
       return {
         success: false,
@@ -72,11 +77,12 @@ export function registerLlamaHandlers(
         options
       );
 
-      console.log(
-        "[IPC] chatStreaming complete, response length:",
-        response.length
-      );
-      return { success: true, response };
+      return {
+        success: true,
+        response,
+        stats: llamaService.getLastStats(),
+        context: llamaService.getContextUsage(),
+      };
     } catch (error) {
       console.error("[IPC] chatStreaming error:", error);
       return {
@@ -84,6 +90,11 @@ export function registerLlamaHandlers(
         error: error instanceof Error ? error.message : "Unknown error",
       };
     }
+  });
+
+  // How full the context window is, for the composer's context ring
+  ipcMain.handle("llama:getContextUsage", async () => {
+    return { success: true, context: llamaService.getContextUsage() };
   });
 
   // Get model info

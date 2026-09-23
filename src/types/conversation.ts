@@ -7,6 +7,12 @@ export interface Message {
   reasoning?: string; // AI's step-by-step reasoning (for web search responses)
   thinking?: string; // AI's chain-of-thought analysis (extracted from XML tags)
   isThinking?: boolean; // True while streaming thinking content
+  /** Tokens and speed of the reply, shown under assistant messages */
+  stats?: {
+    outputTokens: number;
+    tokensPerSecond: number;
+    durationMs: number;
+  };
   sources?: Array<{
     title: string;
     url: string;

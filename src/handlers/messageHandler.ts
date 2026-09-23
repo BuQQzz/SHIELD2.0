@@ -2,6 +2,7 @@ import type { Message } from "../hooks/useLlama";
 import type { ModelSettings } from "../types/settings";
 import type { SearchResult, PageContent } from "../types/electron";
 import { useSettingsStore } from "../store/settingsStore";
+import { useGenerationStore } from "../store/generationStore";
 import {
   isVagueFollowUpQuery,
   performWebSearchAndBuildContext,
@@ -261,6 +262,7 @@ export function createMessageHandler({
         sources: searchSources.length > 0 ? searchSources : undefined,
         reasoning: assistantReasoning,
         thinking: assistantThinking,
+        stats: useGenerationStore.getState().lastStats ?? undefined,
       };
 
       setMessages((prev) => [...prev, assistantMessage]);
@@ -308,6 +310,7 @@ export function createMessageHandler({
                 role: "assistant",
                 content: toolReply,
                 timestamp: new Date(),
+                stats: useGenerationStore.getState().lastStats ?? undefined,
               };
 
               setMessages((prev) => [...prev, toolResponseMessage]);

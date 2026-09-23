@@ -19,6 +19,7 @@ import {
 } from "@/components/ui/tooltip";
 import { PermissionModeSelector } from "./PermissionModeSelector";
 import { WorkspaceSelector } from "./WorkspaceSelector";
+import { ContextRing } from "./ContextRing";
 
 interface ChatInputProps {
   onSend: (message: string, useWebSearch?: boolean) => void;
@@ -181,6 +182,7 @@ export const ChatInput = forwardRef<ChatInputRef, ChatInputProps>(
           <div className="mt-1 flex min-w-0 items-center gap-1 px-1">
             <PermissionModeSelector />
             <WorkspaceSelector />
+            <ContextRing />
           </div>
         </div>
       </div>

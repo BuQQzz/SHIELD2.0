@@ -21,6 +21,21 @@ export interface ChatMessage {
   content: string;
 }
 
+/** How one reply was generated - shown under the message */
+export interface GenerationStats {
+  outputTokens: number;
+  /** Decode speed: output tokens over the time from first to last token */
+  tokensPerSecond: number;
+  /** Whole reply, including prompt processing before the first token */
+  durationMs: number;
+}
+
+/** How full the model's context window is */
+export interface ContextUsage {
+  used: number;
+  size: number;
+}
+
 export interface ChatOptions {
   temperature?: number;
   maxTokens?: number;
@@ -49,6 +64,7 @@ export class LlamaService {
   private session: LlamaChatSession | null = null;
   private currentModelConfig: ModelConfig | null = null;
   private currentAbortController: AbortController | null = null;
+  private lastStats: GenerationStats | null = null;
   private systemPrompt: string = "You are a helpful AI assistant.";
   private customModelsDir: string | undefined;
 
@@ -283,6 +299,11 @@ export class LlamaService {
     this.currentAbortController = new AbortController();
     const signal = options.signal || this.currentAbortController.signal;
 
+    const sequence = this.session.sequence;
+    const outputTokensBefore = sequence.tokenMeter.usedOutputTokens;
+    const startedAt = performance.now();
+    let firstTokenAt: number | null = null;
+
     try {
       console.log("[LlamaService] Starting inference...");
       const response = await this.session.prompt(message, {
@@ -293,21 +314,28 @@ export class LlamaService {
         repeatPenalty: options.repeatPenalty
           ? { penalty: options.repeatPenalty }
           : { penalty: 1.1 },
-        onTextChunk: options.onToken
-          ? (chunk: string) => {
-              console.log(
-                "[LlamaService] Token received:",
-                chunk.substring(0, 20)
-              );
-              options.onToken!(chunk);
-            }
-          : undefined,
+        // No per-token logging: at 10-50 tokens/s it drowned the log
+        onTextChunk: (chunk: string) => {
+          firstTokenAt ??= performance.now();
+          options.onToken?.(chunk);
+        },
         signal,
       });
 
+      const endedAt = performance.now();
+      const outputTokens =
+        sequence.tokenMeter.usedOutputTokens - outputTokensBefore;
+      const decodeSeconds = (endedAt - (firstTokenAt ?? startedAt)) / 1000;
+      this.lastStats = {
+        outputTokens,
+        tokensPerSecond: decodeSeconds > 0 ? outputTokens / decodeSeconds : 0,
+        durationMs: endedAt - startedAt,
+      };
+
       console.log(
-        "[LlamaService] Inference complete, response length:",
-        response.length
+        `[LlamaService] Inference complete: ${outputTokens} tokens, ` +
+          `${this.lastStats.tokensPerSecond.toFixed(1)} tok/s, ` +
+          `context ${sequence.nextTokenIndex}/${sequence.contextSize}`
       );
       return response;
     } catch (error) {
@@ -422,6 +450,18 @@ export class LlamaService {
   /**
    * Get current model info
    */
+  /** Stats for the most recent reply, or null before the first */
+  getLastStats(): GenerationStats | null {
+    return this.lastStats;
+  }
+
+  /** Tokens currently in the context window, or null with no model */
+  getContextUsage(): ContextUsage | null {
+    if (!this.session || !this.context) return null;
+    const sequence = this.session.sequence;
+    return { used: sequence.nextTokenIndex, size: sequence.contextSize };
+  }
+
   getModelInfo(): ModelConfig | null {
     return this.currentModelConfig;
   }

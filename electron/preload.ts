@@ -23,6 +23,8 @@ import type {
   ModelDownloadAPI,
   DownloadProgress,
   SystemAPI,
+  ChatResult,
+  ContextUsage,
 } from "../src/types/electron";
 
 export interface ModelConfig {
@@ -41,14 +43,15 @@ export interface LlamaAPI {
   loadModel: (
     config: ModelConfig
   ) => Promise<{ success: boolean; error?: string }>;
-  chat: (
-    message: string,
-    options?: ChatOptions
-  ) => Promise<{ success: boolean; response?: string; error?: string }>;
+  chat: (message: string, options?: ChatOptions) => Promise<ChatResult>;
   chatStreaming: (
     message: string,
     options?: ChatOptions
-  ) => Promise<{ success: boolean; response?: string; error?: string }>;
+  ) => Promise<ChatResult>;
+  getContextUsage: () => Promise<{
+    success: boolean;
+    context?: ContextUsage | null;
+  }>;
   onToken: (callback: (token: string) => void) => () => void;
   getModelInfo: () => Promise<{
     success: boolean;
@@ -111,6 +114,7 @@ const llamaAPI: LlamaAPI = {
     ipcRenderer.on("llama:token", subscription);
     return () => ipcRenderer.removeListener("llama:token", subscription);
   },
+  getContextUsage: () => ipcRenderer.invoke("llama:getContextUsage"),
   getModelInfo: () => ipcRenderer.invoke("llama:getModelInfo"),
   isModelLoaded: () => ipcRenderer.invoke("llama:isModelLoaded"),
   clearHistory: () => ipcRenderer.invoke("llama:clearHistory"),

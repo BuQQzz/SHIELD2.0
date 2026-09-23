@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
-import type { SearchResult } from "../types/electron";
+import type { GenerationStats, SearchResult } from "../types/electron";
+import { useGenerationStore } from "../store/generationStore";
 
 export interface Message {
   id: string;
@@ -11,6 +12,8 @@ export interface Message {
   reasoning?: string; // AI's step-by-step reasoning (for web search responses)
   thinking?: string; // AI's chain-of-thought analysis (extracted from XML tags)
   isThinking?: boolean; // True while streaming thinking content
+  /** Tokens and speed of the reply, shown under assistant messages */
+  stats?: GenerationStats;
   /**
    * Set when this message is an MCP tool result rather than something the
    * user typed. It is stored with role "user" because that is how the model's
@@ -85,6 +88,7 @@ export function useLlama() {
       if (result.success) {
         setIsModelLoaded(true);
         setCurrentModel(model);
+        void useGenerationStore.getState().refreshContext();
         if (result.warning) {
           setWarning(result.warning);
         }
@@ -109,6 +113,7 @@ export function useLlama() {
       try {
         const result = await window.llama.chat(message, options);
         if (result.success && result.response) {
+          useGenerationStore.getState().record(result.stats, result.context);
           return result.response;
         } else {
           throw new Error(result.error || "Failed to get response");
@@ -148,26 +153,13 @@ export function useLlama() {
 
       setError(null);
       try {
-        // Set up token listener
-        console.log("[useLlama] Setting up token listener...");
-        const unsubscribe = window.llama.onToken((token) => {
-          console.log("[useLlama] Token received:", token.substring(0, 20));
-          onToken(token);
-        });
-
-        // Send message
-        console.log("[useLlama] Calling window.llama.chatStreaming...");
+        // No per-token or full-response logging: both flooded the console
+        const unsubscribe = window.llama.onToken(onToken);
         const result = await window.llama.chatStreaming(message, options);
-        console.log("[useLlama] chatStreaming result:", JSON.stringify(result));
-
-        // Clean up listener
         unsubscribe();
 
         if (result.success && result.response) {
-          console.log(
-            "[useLlama] Success! Response length:",
-            result.response.length
-          );
+          useGenerationStore.getState().record(result.stats, result.context);
           return result.response;
         } else {
           console.error("[useLlama] Failed:", result.error);
@@ -201,6 +193,7 @@ export function useLlama() {
     setError(null);
     try {
       await window.llama.clearHistory();
+      void useGenerationStore.getState().refreshContext();
     } catch (err) {
       console.error("[useLlama] clearHistory failed:", err);
       setError(err instanceof Error ? err.message : "Unknown error");
@@ -230,6 +223,7 @@ export function useLlama() {
     }
     try {
       await window.llama.setChatHistory(messages);
+      void useGenerationStore.getState().refreshContext();
     } catch (err) {
       console.error("[useLlama] setChatHistory failed:", err);
       setError(err instanceof Error ? err.message : "Unknown error");

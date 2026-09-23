@@ -1,4 +1,5 @@
 import { cn } from "@/lib/utils";
+import { formatTokens } from "@/lib/format";
 import {
   Bot,
   User,
@@ -13,6 +14,7 @@ import {
   ChevronDown,
   ChevronUp,
   Loader2,
+  Zap,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { LazyMessageContent } from "../lazy";
@@ -20,7 +22,7 @@ import { ThinkingIndicator } from "./ThinkingIndicator";
 import { useState, useMemo, memo, Suspense } from "react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import type { SearchResult } from "@/types/electron";
+import type { GenerationStats, SearchResult } from "@/types/electron";
 import {
   stripToolCallMarkup,
   extractToolCalls,
@@ -35,6 +37,8 @@ interface MessageProps {
   sources?: SearchResult[];
   thinking?: string; // Chain-of-thought analysis from models
   isThinking?: boolean; // True while streaming thinking content
+  /** Tokens and speed of this reply */
+  stats?: GenerationStats;
   onContinue?: () => void;
   onEdit?: (newContent: string) => void;
   onRegenerate?: () => void;
@@ -48,6 +52,7 @@ export const ChatMessage = memo(function ChatMessage({
   sources,
   thinking,
   isThinking,
+  stats,
   onContinue,
   onEdit,
   onRegenerate,
@@ -276,6 +281,19 @@ export const ChatMessage = memo(function ChatMessage({
                 />
               )}
             </div>
+          </div>
+        )}
+        {stats && !isStreaming && stats.outputTokens > 0 && (
+          <div
+            className="flex items-center justify-end gap-1 text-[11px] text-muted-foreground/60"
+            title={`${stats.outputTokens} tokens in ${(stats.durationMs / 1000).toFixed(1)}s, generated at ${stats.tokensPerSecond.toFixed(1)} tokens per second`}
+          >
+            <Zap className="h-3 w-3" />
+            <span>
+              {stats.tokensPerSecond.toFixed(1)} tok/s ·{" "}
+              {formatTokens(stats.outputTokens)} tok ·{" "}
+              {(stats.durationMs / 1000).toFixed(1)}s
+            </span>
           </div>
         )}
         {truncated && !isStreaming && (

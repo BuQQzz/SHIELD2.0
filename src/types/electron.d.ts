@@ -40,19 +40,42 @@ export interface ConversationMetadata {
   tags?: string[];
 }
 
+/** How one reply was generated (mirrors LlamaService) */
+export interface GenerationStats {
+  outputTokens: number;
+  tokensPerSecond: number;
+  durationMs: number;
+}
+
+/** How full the model's context window is */
+export interface ContextUsage {
+  used: number;
+  size: number;
+}
+
+/** What a chat call returns, with the numbers shown in the UI */
+export interface ChatResult {
+  success: boolean;
+  response?: string;
+  error?: string;
+  stats?: GenerationStats | null;
+  context?: ContextUsage | null;
+}
+
 export interface LlamaAPI {
   initialize: () => Promise<{ success: boolean; error?: string }>;
   loadModel: (
     config: ModelConfig
   ) => Promise<{ success: boolean; error?: string; warning?: string }>;
-  chat: (
-    message: string,
-    options?: ChatOptions
-  ) => Promise<{ success: boolean; response?: string; error?: string }>;
+  chat: (message: string, options?: ChatOptions) => Promise<ChatResult>;
   chatStreaming: (
     message: string,
     options?: ChatOptions
-  ) => Promise<{ success: boolean; response?: string; error?: string }>;
+  ) => Promise<ChatResult>;
+  getContextUsage: () => Promise<{
+    success: boolean;
+    context?: ContextUsage | null;
+  }>;
   onToken: (callback: (token: string) => void) => () => void;
   getModelInfo: () => Promise<{
     success: boolean;
