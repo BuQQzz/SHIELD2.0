@@ -159,11 +159,24 @@ describe("accessible directories", () => {
     const { prompt } = buildSystemPrompt({
       ...baseConfig,
       availableTools: tools,
-      allowedPaths: ["C:\\Users\\me\\Desktop"],
+      allowedPaths: ["C:\\Users\\me\\Desktop", "C:\\Users\\me\\Documents"],
     });
 
     expect(prompt).toContain("Accessible Directories");
     expect(prompt).toContain("C:\\Users\\me\\Desktop");
+  });
+
+  // A single folder is a workspace the user picked. Without saying so,
+  // "what's in this folder?" was answered by guessing Documents.
+  it("presents a single folder as the user's current folder", () => {
+    const prompt = generateMCPToolPrompt(tools, [
+      "C:\\Users\\me\\Projects\\app",
+    ]);
+
+    expect(prompt).toContain("## Current Folder");
+    expect(prompt).toContain("C:\\Users\\me\\Projects\\app");
+    expect(prompt).toContain('"this folder"');
+    expect(prompt).not.toContain("Accessible Directories");
   });
 });
 

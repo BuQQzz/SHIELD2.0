@@ -60,7 +60,7 @@ export function buildMCPRetryPrompt(
     "Do NOT refuse. Do NOT explain limitations.",
     "If the request is file-related, output ONLY a valid tool call in XML tool_call format.",
     "Prefer write_file for file creation requests.",
-    "Use a full Windows path in Desktop or Documents.",
+    "Use a full Windows path inside the folder listed in your instructions.",
     "No prose before or after the tool call.",
     "",
     `User request: ${userContent}`,

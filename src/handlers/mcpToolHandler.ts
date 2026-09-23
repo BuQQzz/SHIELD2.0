@@ -30,6 +30,34 @@ function neutralizeEnvelopeTags(text: string): string {
 }
 
 /**
+ * The readable payload of an MCP result.
+ *
+ * MCP servers answer with `{ content: [{ type: "text", text }] }`, and newer
+ * ones repeat it as `structuredContent`. Passing that JSON through doubled
+ * the tokens and put escaped "\n" noise in front of the model and the user.
+ * Text parts are joined; anything else falls back to JSON.
+ */
+export function resultPayload(data: unknown): string {
+  const content = (data as { content?: unknown } | null)?.content;
+  if (Array.isArray(content)) {
+    const texts = content
+      .filter(
+        (part): part is { type: "text"; text: string } =>
+          typeof part === "object" &&
+          part !== null &&
+          (part as { type?: unknown }).type === "text" &&
+          typeof (part as { text?: unknown }).text === "string"
+      )
+      .map((part) => part.text);
+    if (texts.length === content.length && texts.length > 0) {
+      return texts.join("\n");
+    }
+  }
+  if (typeof data === "string") return data;
+  return JSON.stringify(data, null, 2) ?? "";
+}
+
+/**
  * Format tool result for inclusion in conversation
  */
 export function formatToolResult(
@@ -47,7 +75,7 @@ export function formatToolResult(
 <tool>${toolCall.tool}</tool>
 ${UNTRUSTED_RESULT_NOTE}
 <result>
-${neutralizeEnvelopeTags(JSON.stringify(result.data, null, 2) ?? "")}
+${neutralizeEnvelopeTags(resultPayload(result.data))}
 </result>
 </tool_result>`;
 }

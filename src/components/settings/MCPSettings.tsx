@@ -186,7 +186,10 @@ export function MCPSettings({ settings, currentModel }: MCPSettingsProps) {
       <div className="text-xs text-muted-foreground space-y-1">
         <p>• MCP remains enabled for built-in tool-calling</p>
         <p>• Header status indicator shows: Initializing → Ready</p>
-        <p>• Only Desktop and Documents folders are accessible</p>
+        <p>
+          • Only the folder chosen next to the message box is accessible
+          (Documents and Desktop if none is chosen)
+        </p>
         <p>• All operations require your explicit permission</p>
         <p>• Keep at least one tool enabled for MCP workflows</p>
       </div>

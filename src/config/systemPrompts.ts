@@ -218,16 +218,26 @@ export function generateMCPToolPrompt(
     )
   );
 
+  // One folder means the user picked a workspace. Say so, or "what's in this
+  // folder?" gets answered by guessing Documents (seen 2026-09-22).
   const accessSection =
-    allowedPaths.length > 0
+    allowedPaths.length === 1
       ? `
+## Current Folder
+The user is working in this folder:
+${allowedPaths[0]}
+
+When the user says "this folder", "here", or names a file without a path, they mean this folder. You can ONLY access this folder and its subfolders. Always use a full path beginning with it.
+`
+      : allowedPaths.length > 1
+        ? `
 ## Accessible Directories
 You can ONLY access these directories and their subfolders:
 ${allowedPaths.map((p) => `- ${p}`).join("\n")}
 
 Always use a full path beginning with one of these. Never guess a path such as "/" or "C:\\".
 `
-      : "";
+        : "";
 
   return `
 ## 🔧 Available Tools
