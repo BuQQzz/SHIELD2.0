@@ -12,6 +12,7 @@ import {
   ExternalLink,
   ChevronDown,
   ChevronUp,
+  Loader2,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { LazyMessageContent } from "../lazy";
@@ -24,6 +25,7 @@ import {
   stripToolCallMarkup,
   extractToolCalls,
 } from "@/handlers/mcpToolHandler";
+import { streamingToolCallPreview } from "@/handlers/toolCallParsing";
 
 interface MessageProps {
   role: "user" | "assistant";
@@ -53,8 +55,17 @@ export const ChatMessage = memo(function ChatMessage({
   // Tool call markup is plumbing between the model and the MCP layer, not
   // something the user should read. The raw text is still what gets parsed
   // and what is stored - this only affects what is shown.
+  // While streaming, a call that is still being written is held back too,
+  // and a "preparing" line stands in for it until the tool row appears.
+  const preview =
+    role === "assistant" && isStreaming
+      ? streamingToolCallPreview(rawContent)
+      : null;
   const content =
-    role === "assistant" ? stripToolCallMarkup(rawContent) : rawContent;
+    role === "assistant"
+      ? (preview?.text ?? stripToolCallMarkup(rawContent))
+      : rawContent;
+  const pendingTool = preview?.pendingTool ?? null;
 
   // A reply that was nothing but a tool call has nothing left to show once
   // the markup is stripped. Hiding it is right ONLY when the call actually
@@ -241,7 +252,16 @@ export const ChatMessage = memo(function ChatMessage({
               >
                 <LazyMessageContent content={content} />
               </Suspense>
-              {isStreaming && (
+              {pendingTool !== null && (
+                <div className="not-prose mt-1 flex items-center gap-2 text-xs text-muted-foreground">
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  <span>
+                    Preparing tool call
+                    {pendingTool ? `: ${pendingTool}` : ""}…
+                  </span>
+                </div>
+              )}
+              {isStreaming && pendingTool === null && (
                 <motion.span
                   animate={{ opacity: [1, 0] }}
                   transition={{

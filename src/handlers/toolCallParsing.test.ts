@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { extractToolCalls, repairJsonStrings } from "./toolCallParsing";
+import {
+  extractToolCalls,
+  repairJsonStrings,
+  stripToolCallMarkup,
+  streamingToolCallPreview,
+} from "./toolCallParsing";
 
 /**
  * Regression cases captured from Qwen3-Coder-30B running locally. Each one
@@ -205,5 +210,53 @@ describe("repairJsonStrings", () => {
     expect(JSON.parse(repairJsonStrings('{\n  "a": "b\nc"\n}'))).toEqual({
       a: "b\nc",
     });
+  });
+});
+
+describe("streamingToolCallPreview", () => {
+  it("holds back a call that is still being written", () => {
+    const partial =
+      "Let me look.\n\n<tool_call>\n<server>filesystem</server>\n<tool>list_dir";
+    const { text, pendingTool } = streamingToolCallPreview(partial);
+    expect(text).toBe("Let me look.");
+    expect(pendingTool).toBe("");
+  });
+
+  it("names the tool once it has been written", () => {
+    const partial =
+      'Checking.\n<server>filesystem</server>\n<tool>list_directory</tool>\n<arguments>{"pa';
+    const { text, pendingTool } = streamingToolCallPreview(partial);
+    expect(text).toBe("Checking.");
+    expect(pendingTool).toBe("list_directory");
+  });
+
+  it("hides a tag that is only half typed", () => {
+    const { text, pendingTool } = streamingToolCallPreview(
+      "One moment <tool_ca"
+    );
+    expect(text).toBe("One moment");
+    expect(pendingTool).toBeNull();
+  });
+
+  it("shows text after a finished call normally", () => {
+    const done =
+      "<tool_call>\n<tool>read_file</tool>\n<arguments>{}</arguments>\n</tool_call>\nThe file says hi.";
+    const { text, pendingTool } = streamingToolCallPreview(done);
+    expect(text).toBe("The file says hi.");
+    expect(pendingTool).toBeNull();
+  });
+
+  it("leaves ordinary text alone", () => {
+    const { text, pendingTool } = streamingToolCallPreview("Use x < 3 here");
+    expect(text).toBe("Use x < 3 here");
+    expect(pendingTool).toBeNull();
+  });
+});
+
+describe("stripToolCallMarkup", () => {
+  it("removes a tagless call body and its empty fence", () => {
+    const raw =
+      'Reading it now.\n```markdown\n<server>filesystem</server>\n<tool>read_text_file</tool>\n<arguments>{"path":"C:/a.md"}</arguments>\n```';
+    expect(stripToolCallMarkup(raw)).toBe("Reading it now.");
   });
 });

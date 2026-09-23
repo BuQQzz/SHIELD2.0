@@ -329,10 +329,13 @@ function extractOpenAIToolCalls(content: string): ToolCallRequest[] {
  * <tool> element followed by a closed <arguments> element, optionally
  * preceded by <server> - so prose that mentions a tag is left alone.
  */
+const BARE_CALL_BODY =
+  /(?:<server>[^<]*<\/server>\s*)?<tool>[^<]+<\/tool>\s*<arguments>[\s\S]*?<\/arguments>/g;
+
 function wrapBareCallBodies(text: string): string {
   if (text.includes("<tool_call>")) return text;
   return text.replace(
-    /(?:<server>[^<]*<\/server>\s*)?<tool>[^<]+<\/tool>\s*<arguments>[\s\S]*?<\/arguments>/g,
+    BARE_CALL_BODY,
     (body) => `<tool_call>\n${body}\n</tool_call>`
   );
 }
@@ -559,9 +562,60 @@ export function stripToolCallMarkup(content: string): string {
       .replace(/<tool_call>[\s\S]*$/g, "")
       // Body and closer with no opener
       .replace(/<server>[\s\S]*?<\/tool_call>/g, "")
+      // Body with neither tag - the parser runs these (wrapBareCallBodies)
+      .replace(BARE_CALL_BODY, "")
       // OpenAI-style call emitted in a fenced block
       .replace(/```(?:json)?\s*\{\s*"tool_calls"[\s\S]*?```/g, "")
+      // A code fence the call was written in, now empty
+      .replace(/```[a-z]*\s*```/gi, "")
       .replace(/\n{3,}/g, "\n\n")
       .trim()
   );
+}
+
+/** Where a tool call that is still being written starts */
+const CALL_START =
+  /<tool_call|<server>|<tool>|<name>|```json\s*\{\s*"tool_calls"/;
+
+/**
+ * What to show while a reply is still streaming.
+ *
+ * stripToolCallMarkup only recognises a call once its tags are complete, so
+ * mid-generation the user saw raw `<tool_ca…` or `<server>filesystem…` text
+ * that then vanished into a tool row. Everything from the start of an
+ * unfinished call is held back instead, and `pendingTool` says a call is
+ * coming (its name once written, "" before that, null when there is none).
+ */
+export function streamingToolCallPreview(content: string): {
+  text: string;
+  pendingTool: string | null;
+} {
+  const CLOSE = "</tool_call>";
+  const lastClose = content.lastIndexOf(CLOSE);
+  const searchFrom = lastClose === -1 ? 0 : lastClose + CLOSE.length;
+  const relative = content.slice(searchFrom).search(CALL_START);
+
+  if (relative === -1) {
+    return {
+      // A tag still being typed at the very end, e.g. "<tool_ca"
+      text: stripToolCallMarkup(content)
+        .replace(/<[a-z_]*$/i, "")
+        .trimEnd(),
+      pendingTool: null,
+    };
+  }
+
+  const start = searchFrom + relative;
+  const unfinished = content.slice(start);
+  const name =
+    unfinished.match(/<(?:tool|name)>([^<]+)<\//)?.[1]?.trim() ??
+    unfinished.match(/"name"\s*:\s*"([^"]+)"/)?.[1] ??
+    "";
+
+  return {
+    text: stripToolCallMarkup(content.slice(0, start))
+      .replace(/```[a-z]*\s*$/i, "") // fence opened for the call
+      .trimEnd(),
+    pendingTool: name.includes(".") ? name.split(".").pop()! : name,
+  };
 }
