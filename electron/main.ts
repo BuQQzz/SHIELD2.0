@@ -64,6 +64,12 @@ async function setupIpcHandlers() {
     modelDownloadService.setCustomModelsDir(settings.system.modelDirectory);
   }
 
+  // Before the renderer initialises MCP, so the filesystem server starts
+  // with the saved folder rather than restarting straight after launch
+  if (settings.mcp?.workspaceFolder) {
+    await mcpService.setWorkspaceFolder(settings.mcp.workspaceFolder);
+  }
+
   // Apply HuggingFace token if configured
   if (settings.system.huggingFaceToken) {
     modelDownloadService.setHuggingFaceToken(settings.system.huggingFaceToken);
@@ -81,6 +87,13 @@ async function setupIpcHandlers() {
     modelDownloadService.setHuggingFaceToken(
       updatedSettings.system.huggingFaceToken
     );
+    // Keeps settings the source of truth (e.g. an imported or reset settings
+    // file). A no-op when the folder chip already applied the same folder.
+    mcpService
+      .setWorkspaceFolder(updatedSettings.mcp?.workspaceFolder ?? null)
+      .catch((error) =>
+        console.error("[main] Failed to apply workspace folder:", error)
+      );
   });
 
   return {

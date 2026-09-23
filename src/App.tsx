@@ -80,7 +80,7 @@ function App() {
     tools: mcpServerTools,
     allowedPaths: mcpAllowedPaths,
     settled: mcpToolsSettled,
-  } = useMCPTools(isMCPReady);
+  } = useMCPTools(isMCPReady, settings.mcp?.workspaceFolder);
 
   // The single place the permission mode turns into behaviour: what the model
   // is told exists, what stops for a prompt, and whether anything runs.

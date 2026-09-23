@@ -312,6 +312,12 @@ export interface MCPAPI {
     ready?: boolean;
     error?: string;
   }>;
+  /** Folder picker; resolves to the chosen path, or null if cancelled */
+  chooseWorkspace: () => Promise<string | null>;
+  /** Restrict file tools to a folder, or null for the default folders */
+  setWorkspace: (
+    folder: string | null
+  ) => Promise<{ success: boolean; folder?: string | null; error?: string }>;
   audit: {
     query: (
       options?: AuditLogQueryOptions

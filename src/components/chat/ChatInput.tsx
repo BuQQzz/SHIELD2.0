@@ -18,6 +18,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { PermissionModeSelector } from "./PermissionModeSelector";
+import { WorkspaceSelector } from "./WorkspaceSelector";
 
 interface ChatInputProps {
   onSend: (message: string, useWebSearch?: boolean) => void;
@@ -175,10 +176,11 @@ export const ChatInput = forwardRef<ChatInputRef, ChatInputProps>(
             )}
           </div>
 
-          {/* Permission mode sits under the composer: visible while typing,
-              out of the way of the send action. */}
-          <div className="mt-1 flex items-center px-1">
+          {/* Permission mode and folder sit under the composer: visible while
+              typing, out of the way of the send action. */}
+          <div className="mt-1 flex min-w-0 items-center gap-1 px-1">
             <PermissionModeSelector />
+            <WorkspaceSelector />
           </div>
         </div>
       </div>

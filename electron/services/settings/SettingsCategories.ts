@@ -61,6 +61,8 @@ export interface Settings {
     maxToolCallsPerTurn: number;
     /** Max tool -> result -> tool cycles in a single turn */
     maxToolRounds: number;
+    /** Folder file tools may use; unset means Documents and Desktop */
+    workspaceFolder?: string;
   };
 }
 

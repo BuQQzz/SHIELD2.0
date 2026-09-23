@@ -239,10 +239,19 @@ interface MCPAPI {
   listTools: (
     serverName: string
   ) => Promise<{ success: boolean; tools?: unknown[]; error?: string }>;
+  listServers: () => Promise<{
+    success: boolean;
+    servers?: string[];
+    error?: string;
+  }>;
   getServerConfig: (
     serverName: string
   ) => Promise<{ success: boolean; config?: MCPServerConfig; error?: string }>;
   isReady: () => Promise<{ success: boolean; ready?: boolean; error?: string }>;
+  chooseWorkspace: () => Promise<string | null>;
+  setWorkspace: (
+    folder: string | null
+  ) => Promise<{ success: boolean; folder?: string | null; error?: string }>;
   audit: {
     query: (
       options?: AuditLogQueryOptions
@@ -311,6 +320,8 @@ const mcpAPI: MCPAPI = {
   getServerConfig: (serverName) =>
     ipcRenderer.invoke("mcp:get-server-config", serverName),
   isReady: () => ipcRenderer.invoke("mcp:is-ready"),
+  chooseWorkspace: () => ipcRenderer.invoke("mcp:choose-workspace"),
+  setWorkspace: (folder) => ipcRenderer.invoke("mcp:set-workspace", folder),
   audit: {
     query: (options) => ipcRenderer.invoke("mcp:audit-query", options),
     stats: () => ipcRenderer.invoke("mcp:audit-stats"),

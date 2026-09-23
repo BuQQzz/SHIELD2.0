@@ -90,7 +90,7 @@ function toToolDefinition(
  * state". Callers must wait for it before deciding the tool list is empty,
  * otherwise they act on the initial [] and conclude there are no tools.
  */
-export function useMCPTools(isMCPReady: boolean) {
+export function useMCPTools(isMCPReady: boolean, workspaceFolder?: string) {
   const [tools, setTools] = useState<ToolDefinition[]>([]);
   const [allowedPaths, setAllowedPaths] = useState<string[]>([]);
   const [settled, setSettled] = useState(false);
@@ -168,7 +168,8 @@ export function useMCPTools(isMCPReady: boolean) {
     return () => {
       cancelled = true;
     };
-  }, [isMCPReady]);
+    // A new workspace restarts the filesystem server with different folders
+  }, [isMCPReady, workspaceFolder]);
 
   return { tools, allowedPaths, settled };
 }

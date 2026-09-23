@@ -51,6 +51,11 @@ export interface MCPSettings {
   maxToolCallsPerTurn: number;
   /** Max tool -> result -> tool cycles in a single turn */
   maxToolRounds: number;
+  /**
+   * Folder file tools may use. Unset means the defaults (Documents and
+   * Desktop). Chosen from the folder chip next to the composer.
+   */
+  workspaceFolder?: string;
 }
 
 export interface AppSettings {

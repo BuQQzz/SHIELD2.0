@@ -178,6 +178,13 @@ export function isValidSettings(data: unknown): boolean {
     ) {
       return false;
     }
+
+    if (
+      mcp.workspaceFolder !== undefined &&
+      typeof mcp.workspaceFolder !== "string"
+    ) {
+      return false;
+    }
   }
 
   return true;

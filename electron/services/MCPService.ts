@@ -37,6 +37,8 @@ class MCPService {
   private static instance: MCPService | null = null;
   private clients: Map<string, Client> = new Map();
   private isInitialized = false;
+  /** Folder the user chose for file tools; null means the default folders */
+  private workspaceFolder: string | null = null;
 
   /**
    * Private constructor for singleton pattern
@@ -80,7 +82,7 @@ class MCPService {
    * Connect to an MCP server
    */
   private async connectToServer(serverName: string): Promise<void> {
-    const config = OFFICIAL_MCP_SERVERS[serverName];
+    const config = this.effectiveConfig(serverName);
     if (!config) {
       throw new Error(`Unknown MCP server: ${serverName}`);
     }
@@ -152,7 +154,7 @@ class MCPService {
     const { serverName, tool, arguments: args } = request;
 
     // Verify server is in whitelist
-    const config = OFFICIAL_MCP_SERVERS[serverName];
+    const config = this.effectiveConfig(serverName);
     if (!config) {
       return {
         success: false,
@@ -246,7 +248,49 @@ class MCPService {
    * Get server configuration
    */
   public getServerConfig(serverName: string): MCPServerConfig | undefined {
-    return OFFICIAL_MCP_SERVERS[serverName];
+    return this.effectiveConfig(serverName);
+  }
+
+  /**
+   * A server's config with the user's workspace applied: when a folder has
+   * been chosen, the filesystem server may touch that folder and nothing
+   * else. Everything that checks or starts a server goes through here.
+   */
+  private effectiveConfig(serverName: string): MCPServerConfig | undefined {
+    const config = OFFICIAL_MCP_SERVERS[serverName];
+    if (!config || serverName !== "filesystem" || !this.workspaceFolder) {
+      return config;
+    }
+    return { ...config, allowedPaths: [this.workspaceFolder] };
+  }
+
+  public getWorkspaceFolder(): string | null {
+    return this.workspaceFolder;
+  }
+
+  /**
+   * Point file tools at a folder, or back at the defaults with null.
+   *
+   * The filesystem server takes its folders on the command line, so a
+   * running server is restarted to pick the change up.
+   */
+  public async setWorkspaceFolder(folder: string | null): Promise<void> {
+    const next = folder ? path.resolve(folder) : null;
+    if (next === this.workspaceFolder) return;
+
+    this.workspaceFolder = next;
+    console.log(`[MCPService] Workspace folder: ${next ?? "default folders"}`);
+
+    const client = this.clients.get("filesystem");
+    if (!client) return; // Not started yet - initialize() will use it
+
+    this.clients.delete("filesystem");
+    try {
+      await client.close();
+    } catch (error) {
+      console.error("[MCPService] Error closing filesystem server:", error);
+    }
+    await this.connectToServer("filesystem");
   }
 
   /**

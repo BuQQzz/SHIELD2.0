@@ -136,4 +136,23 @@ describe("isValidSettings", () => {
 
     expect(isValidSettings(bad)).toBe(false);
   });
+
+  it("accepts settings with and without a workspace folder", () => {
+    expect(isValidSettings(DEFAULT_SETTINGS)).toBe(true);
+    expect(
+      isValidSettings({
+        ...DEFAULT_SETTINGS,
+        mcp: { ...DEFAULT_SETTINGS.mcp, workspaceFolder: "D:\\Projects\\app" },
+      })
+    ).toBe(true);
+  });
+
+  it("rejects a workspace folder that is not a string", () => {
+    const bad = {
+      ...DEFAULT_SETTINGS,
+      mcp: { ...DEFAULT_SETTINGS.mcp, workspaceFolder: ["C:\\"] },
+    };
+
+    expect(isValidSettings(bad)).toBe(false);
+  });
 });
