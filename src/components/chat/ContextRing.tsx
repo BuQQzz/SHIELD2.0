@@ -39,10 +39,10 @@ const PARTS: Array<{ key: PartKey; label: string; color: string }> = [
 
 /** One actionable line about whatever is taking the most space */
 function tipFor(breakdown: ContextBreakdown): string | null {
-  const { parts, used, size } = breakdown;
-  if (used === 0) return null;
+  const { parts, total, size } = breakdown;
+  if (total === 0) return null;
   const largest = PARTS.reduce((a, b) => (parts[b.key] > parts[a.key] ? b : a));
-  const share = Math.round((parts[largest.key] / used) * 100);
+  const share = Math.round((parts[largest.key] / total) * 100);
 
   switch (largest.key) {
     case "toolResults":
@@ -52,7 +52,7 @@ function tipFor(breakdown: ContextBreakdown): string | null {
     case "systemPrompt":
       return `The system prompt is ${share}% of what's used. A shorter custom prompt in Settings frees space.`;
     case "messages":
-      return used / size >= 0.8
+      return total / size >= 0.8
         ? "This chat is getting long. A new chat starts with an empty context."
         : null;
     default:
@@ -103,8 +103,7 @@ export function ContextRing() {
 
   if (!context || context.size <= 0) return null;
 
-  // Prefer the breakdown's numbers once loaded: they include history that
-  // has been restored but not evaluated yet
+  // Same source in the main process; the breakdown is just fresher
   const used = breakdown?.used ?? context.used;
   const size = breakdown?.size ?? context.size;
   const fraction = Math.min(1, Math.max(0, used / size));
@@ -135,6 +134,9 @@ export function ContextRing() {
 
   const tip = breakdown ? tipFor(breakdown) : null;
   const free = Math.max(0, size - used);
+  // When the chat outgrows the window, shares are of the whole chat so they
+  // add up to 100% instead of reading 234%
+  const scale = Math.max(breakdown?.total ?? used, size);
 
   return (
     <DropdownMenu onOpenChange={load}>
@@ -166,7 +168,7 @@ export function ContextRing() {
                 <div
                   key={key}
                   className={color}
-                  style={{ width: `${(breakdown.parts[key] / size) * 100}%` }}
+                  style={{ width: `${(breakdown.parts[key] / scale) * 100}%` }}
                 />
               ) : null
             )}
@@ -186,7 +188,7 @@ export function ContextRing() {
                   {formatTokens(breakdown.parts[key])}
                 </span>
                 <span className="w-10 text-right tabular-nums text-muted-foreground/70">
-                  {((breakdown.parts[key] / size) * 100).toFixed(1)}%
+                  {((breakdown.parts[key] / scale) * 100).toFixed(1)}%
                 </span>
               </div>
             ))}
@@ -197,7 +199,7 @@ export function ContextRing() {
                 {formatTokens(free)}
               </span>
               <span className="w-10 text-right tabular-nums text-muted-foreground/70">
-                {((free / size) * 100).toFixed(1)}%
+                {((free / scale) * 100).toFixed(1)}%
               </span>
             </div>
           </div>
@@ -217,7 +219,15 @@ export function ContextRing() {
               {(lastStats.durationMs / 1000).toFixed(1)}s
             </p>
           )}
-          <p>When it fills, the oldest messages are dropped to make room.</p>
+          {breakdown && breakdown.dropped > 0 ? (
+            <p className="text-amber-500">
+              This chat is {formatTokens(breakdown.total)}; the oldest{" "}
+              {formatTokens(breakdown.dropped)} no longer fit and are dropped,
+              so the model has lost the start of the conversation.
+            </p>
+          ) : (
+            <p>When it fills, the oldest messages are dropped to make room.</p>
+          )}
           {tip && <p className="text-foreground/80">{tip}</p>}
         </div>
       </DropdownMenuContent>

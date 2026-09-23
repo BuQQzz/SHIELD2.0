@@ -24,8 +24,13 @@ export interface ContextParts {
 }
 
 export interface ContextBreakdown {
+  /** Tokens the model sees: the whole chat, or the window if it overflows */
   used: number;
   size: number;
+  /** Tokens the whole chat takes, rendered with the chat template */
+  total: number;
+  /** Older content that no longer fits and is dropped first */
+  dropped: number;
   /** The context length the model was trained for */
   trainContextSize: number;
   parts: ContextParts;
@@ -74,7 +79,17 @@ export function isToolResultTurn(text: string): boolean {
 export function breakDownContext(
   history: HistoryItem[],
   tokenize: (text: string) => number,
-  window: { used: number; size: number; trainContextSize: number }
+  window: {
+    /**
+     * The whole history rendered through the chat template and tokenised -
+     * exactly what the next prompt would load. Not the sequence's evaluated
+     * token count: that still holds the previous chat until the next reply,
+     * which made a new chat show old context.
+     */
+    rendered: number;
+    size: number;
+    trainContextSize: number;
+  }
 ): ContextBreakdown {
   const count = (text: string) => (text ? tokenize(text) : 0);
   const parts: ContextParts = {
@@ -107,14 +122,14 @@ export function breakDownContext(
     parts.toolInstructions +
     parts.messages +
     parts.toolResults;
-  // After a history restore nothing is evaluated yet, so the sequence can
-  // report less than the history holds; the next reply will need it all.
-  const used = Math.max(window.used, counted);
-  parts.formatting = used - counted;
+  const total = Math.max(window.rendered, counted);
+  parts.formatting = total - counted;
 
   return {
-    used,
+    used: Math.min(total, window.size),
     size: window.size,
+    total,
+    dropped: Math.max(0, total - window.size),
     trainContextSize: window.trainContextSize,
     parts,
   };

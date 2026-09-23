@@ -461,11 +461,13 @@ export class LlamaService {
     return this.lastStats;
   }
 
-  /** Tokens currently in the context window, or null with no model */
+  /**
+   * Tokens the model sees, or null with no model. Derived from the same
+   * breakdown as the context panel so the ring and the panel always agree.
+   */
   getContextUsage(): ContextUsage | null {
-    if (!this.session || !this.context) return null;
-    const sequence = this.session.sequence;
-    return { used: sequence.nextTokenIndex, size: sequence.contextSize };
+    const breakdown = this.getContextBreakdown();
+    return breakdown ? { used: breakdown.used, size: breakdown.size } : null;
   }
 
   /**
@@ -477,35 +479,39 @@ export class LlamaService {
     if (!this.session || !this.context || !this.model) return null;
     const model = this.model;
     const sequence = this.session.sequence;
+    const chatHistory = this.session.getChatHistory();
 
-    const history: HistoryItem[] = this.session
-      .getChatHistory()
-      .map((item): HistoryItem => {
-        if (item.type === "system") {
-          return {
-            type: "system",
-            text:
-              typeof item.text === "string"
-                ? item.text
-                : LlamaText.fromJSON(item.text).toString(),
-          };
-        }
-        if (item.type === "user") return { type: "user", text: item.text };
+    // Exactly what the next prompt would load, template tokens included
+    const rendered = this.session.chatWrapper
+      .generateContextState({ chatHistory })
+      .contextText.tokenize(model.tokenizer).length;
+
+    const history: HistoryItem[] = chatHistory.map((item): HistoryItem => {
+      if (item.type === "system") {
         return {
-          type: "model",
-          response: item.response.map((piece) =>
-            typeof piece === "string"
-              ? piece
-              : {
-                  type: piece.type,
-                  text: "text" in piece ? String(piece.text) : undefined,
-                }
-          ),
+          type: "system",
+          text:
+            typeof item.text === "string"
+              ? item.text
+              : LlamaText.fromJSON(item.text).toString(),
         };
-      });
+      }
+      if (item.type === "user") return { type: "user", text: item.text };
+      return {
+        type: "model",
+        response: item.response.map((piece) =>
+          typeof piece === "string"
+            ? piece
+            : {
+                type: piece.type,
+                text: "text" in piece ? String(piece.text) : undefined,
+              }
+        ),
+      };
+    });
 
     return breakDownContext(history, (text) => model.tokenize(text).length, {
-      used: sequence.nextTokenIndex,
+      rendered,
       size: sequence.contextSize,
       trainContextSize: model.trainContextSize,
     });

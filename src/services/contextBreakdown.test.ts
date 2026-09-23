@@ -8,7 +8,7 @@ import {
 
 // One token per word keeps the arithmetic readable
 const words = (text: string) => text.split(/\s+/).filter(Boolean).length;
-const window = { used: 0, size: 8192, trainContextSize: 262144 };
+const window = { rendered: 0, size: 8192, trainContextSize: 262144 };
 
 describe("splitSystemPrompt", () => {
   it("separates SHIELD's tool section from the base prompt", () => {
@@ -64,15 +64,32 @@ describe("breakDownContext", () => {
 
   it("reports the template's extra tokens as formatting", () => {
     const counted = 3 + 5 + 9 + 8;
-    const result = breakDownContext(history, words, { ...window, used: 40 });
+    const result = breakDownContext(history, words, {
+      ...window,
+      rendered: 40,
+    });
     expect(result.used).toBe(40);
+    expect(result.total).toBe(40);
+    expect(result.dropped).toBe(0);
     expect(result.parts.formatting).toBe(40 - counted);
   });
 
   it("never reports less than the history holds", () => {
-    // Right after a history restore the sequence has evaluated nothing yet
-    const result = breakDownContext(history, words, { ...window, used: 0 });
+    const result = breakDownContext(history, words, { ...window, rendered: 0 });
     expect(result.used).toBe(25);
     expect(result.parts.formatting).toBe(0);
+  });
+
+  // Seen in the app: a 34k-character file read three times made the chat
+  // 30.4k tokens in an 8.2k window, and the panel showed 234% and 115%.
+  it("caps what the model sees at the window and reports the overflow", () => {
+    const result = breakDownContext(history, words, {
+      rendered: 30,
+      size: 20,
+      trainContextSize: 262144,
+    });
+    expect(result.used).toBe(20);
+    expect(result.total).toBe(30);
+    expect(result.dropped).toBe(10);
   });
 });

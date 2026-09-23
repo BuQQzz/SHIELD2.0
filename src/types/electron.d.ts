@@ -57,6 +57,8 @@ export interface ContextUsage {
 export interface ContextBreakdown {
   used: number;
   size: number;
+  total: number;
+  dropped: number;
   trainContextSize: number;
   parts: {
     systemPrompt: number;
