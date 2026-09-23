@@ -24,6 +24,7 @@ import type {
   DownloadProgress,
   SystemAPI,
   ChatResult,
+  ContextBreakdown,
   ContextUsage,
 } from "../src/types/electron";
 
@@ -51,6 +52,11 @@ export interface LlamaAPI {
   getContextUsage: () => Promise<{
     success: boolean;
     context?: ContextUsage | null;
+  }>;
+  getContextBreakdown: () => Promise<{
+    success: boolean;
+    breakdown?: ContextBreakdown | null;
+    error?: string;
   }>;
   onToken: (callback: (token: string) => void) => () => void;
   getModelInfo: () => Promise<{
@@ -115,6 +121,7 @@ const llamaAPI: LlamaAPI = {
     return () => ipcRenderer.removeListener("llama:token", subscription);
   },
   getContextUsage: () => ipcRenderer.invoke("llama:getContextUsage"),
+  getContextBreakdown: () => ipcRenderer.invoke("llama:getContextBreakdown"),
   getModelInfo: () => ipcRenderer.invoke("llama:getModelInfo"),
   isModelLoaded: () => ipcRenderer.invoke("llama:isModelLoaded"),
   clearHistory: () => ipcRenderer.invoke("llama:clearHistory"),

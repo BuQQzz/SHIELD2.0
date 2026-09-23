@@ -7,11 +7,17 @@ import {
   resolveModelFile,
   resolveChatWrapper,
   InputLookupTokenPredictor,
+  LlamaText,
   type ChatHistoryItem,
 } from "node-llama-cpp";
 import path from "path";
 import { fileURLToPath } from "url";
 import { generateConversationTitle } from "./titleGenerator.js";
+import {
+  breakDownContext,
+  type ContextBreakdown,
+  type HistoryItem,
+} from "./contextBreakdown.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const defaultModelsDir = path.join(__dirname, "..", "..", "models");
@@ -460,6 +466,49 @@ export class LlamaService {
     if (!this.session || !this.context) return null;
     const sequence = this.session.sequence;
     return { used: sequence.nextTokenIndex, size: sequence.contextSize };
+  }
+
+  /**
+   * What is filling the context window, by kind. Tokenises the whole
+   * session history, so it is computed on demand (when the user opens the
+   * context panel), not after every reply.
+   */
+  getContextBreakdown(): ContextBreakdown | null {
+    if (!this.session || !this.context || !this.model) return null;
+    const model = this.model;
+    const sequence = this.session.sequence;
+
+    const history: HistoryItem[] = this.session
+      .getChatHistory()
+      .map((item): HistoryItem => {
+        if (item.type === "system") {
+          return {
+            type: "system",
+            text:
+              typeof item.text === "string"
+                ? item.text
+                : LlamaText.fromJSON(item.text).toString(),
+          };
+        }
+        if (item.type === "user") return { type: "user", text: item.text };
+        return {
+          type: "model",
+          response: item.response.map((piece) =>
+            typeof piece === "string"
+              ? piece
+              : {
+                  type: piece.type,
+                  text: "text" in piece ? String(piece.text) : undefined,
+                }
+          ),
+        };
+      });
+
+    return breakDownContext(history, (text) => model.tokenize(text).length, {
+      used: sequence.nextTokenIndex,
+      size: sequence.contextSize,
+      trainContextSize: model.trainContextSize,
+    });
   }
 
   getModelInfo(): ModelConfig | null {

@@ -97,6 +97,18 @@ export function registerLlamaHandlers(
     return { success: true, context: llamaService.getContextUsage() };
   });
 
+  // What is filling the context window, for the context panel
+  ipcMain.handle("llama:getContextBreakdown", async () => {
+    try {
+      return { success: true, breakdown: llamaService.getContextBreakdown() };
+    } catch (error) {
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : "Unknown error",
+      };
+    }
+  });
+
   // Get model info
   ipcMain.handle("llama:getModelInfo", async () => {
     try {

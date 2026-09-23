@@ -53,6 +53,20 @@ export interface ContextUsage {
   size: number;
 }
 
+/** What is filling the context window (mirrors contextBreakdown.ts) */
+export interface ContextBreakdown {
+  used: number;
+  size: number;
+  trainContextSize: number;
+  parts: {
+    systemPrompt: number;
+    toolInstructions: number;
+    messages: number;
+    toolResults: number;
+    formatting: number;
+  };
+}
+
 /** What a chat call returns, with the numbers shown in the UI */
 export interface ChatResult {
   success: boolean;
@@ -75,6 +89,11 @@ export interface LlamaAPI {
   getContextUsage: () => Promise<{
     success: boolean;
     context?: ContextUsage | null;
+  }>;
+  getContextBreakdown: () => Promise<{
+    success: boolean;
+    breakdown?: ContextBreakdown | null;
+    error?: string;
   }>;
   onToken: (callback: (token: string) => void) => () => void;
   getModelInfo: () => Promise<{
