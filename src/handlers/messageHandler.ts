@@ -279,6 +279,14 @@ export function createMessageHandler({
           maxToolCallsPerTurn: settings.mcp.maxToolCallsPerTurn,
           maxToolRounds: settings.mcp.maxToolRounds,
           workspaceFolder: settings.mcp.workspaceFolder,
+          // About a third of the context window for any one result (~3 chars
+          // per token for code), so the request and the reply still fit
+          maxResultChars: Math.max(
+            2000,
+            Math.floor(
+              (useGenerationStore.getState().context?.size ?? 8192) * 0.35 * 3
+            )
+          ),
           continueConversation: async (toolPrompt: string) => {
             // Continue the conversation with tool results
             setIsGenerating(true);

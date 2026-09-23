@@ -60,14 +60,30 @@ export function resultPayload(data: unknown): string {
 /**
  * Format tool result for inclusion in conversation
  */
+/**
+ * Cut a payload that would not fit the model's context.
+ *
+ * A 34k-character index.html is ~9k tokens; in an 8k window it pushed the
+ * user's request out, the model forgot it had read the file, asked for it
+ * again, and looped. Keeping the start and saying what was cut lets the
+ * model answer or ask for the part it needs.
+ */
+export function fitToBudget(payload: string, maxChars?: number): string {
+  if (!maxChars || payload.length <= maxChars) return payload;
+  return `${payload.slice(0, maxChars)}
+
+[Truncated: showing the first ${maxChars.toLocaleString("en-US")} of ${payload.length.toLocaleString("en-US")} characters so the result fits in the model's context. To see other parts, read a smaller section (read_text_file with "head" or "tail" lines), or search for what you need.]`;
+}
+
 export function formatToolResult(
   toolCall: ToolCallRequest,
-  result: { success: boolean; data?: unknown; error?: string }
+  result: { success: boolean; data?: unknown; error?: string },
+  maxChars?: number
 ): string {
   if (!result.success) {
     return `<tool_result trusted="false">
 <tool>${toolCall.tool}</tool>
-<error>${neutralizeEnvelopeTags(result.error || "Unknown error")}</error>
+<error>${neutralizeEnvelopeTags(fitToBudget(result.error || "Unknown error", maxChars))}</error>
 </tool_result>`;
   }
 
@@ -75,7 +91,7 @@ export function formatToolResult(
 <tool>${toolCall.tool}</tool>
 ${UNTRUSTED_RESULT_NOTE}
 <result>
-${neutralizeEnvelopeTags(resultPayload(result.data))}
+${neutralizeEnvelopeTags(fitToBudget(resultPayload(result.data), maxChars))}
 </result>
 </tool_result>`;
 }

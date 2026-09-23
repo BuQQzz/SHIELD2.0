@@ -378,3 +378,47 @@ describe("callSignature", () => {
     expect(onToolCallDetected).toHaveBeenCalledTimes(1);
   });
 });
+
+describe("large results and repeats", () => {
+  const read = `<tool_call>\n<server>filesystem</server>\n<tool>read_text_file</tool>\n<arguments>{"path":"C:/p/index.html"}</arguments>\n</tool_call>`;
+  const bigFile = { content: [{ type: "text", text: "z".repeat(33846) }] };
+
+  it("cuts a result to the budget before the model sees it", async () => {
+    const continueConversation = vi.fn().mockResolvedValueOnce("Done.");
+    await processMCPToolCalls(
+      { id: "b1", role: "assistant", content: read, timestamp: new Date() },
+      {
+        onToolCallDetected: vi
+          .fn()
+          .mockResolvedValue({ success: true, data: bigFile }),
+        addMessage: vi.fn(),
+        continueConversation,
+        maxResultChars: 8601,
+      }
+    );
+    const sent = continueConversation.mock.calls[0]?.[0] as string;
+    expect(sent.length).toBeLessThan(10_000);
+    expect(sent).toContain("[Truncated:");
+  });
+
+  it("does not resend a large result when the call is repeated", async () => {
+    const continueConversation = vi
+      .fn()
+      .mockResolvedValueOnce(read)
+      .mockResolvedValueOnce("Here is the rewrite.");
+    await processMCPToolCalls(
+      { id: "b2", role: "assistant", content: read, timestamp: new Date() },
+      {
+        onToolCallDetected: vi
+          .fn()
+          .mockResolvedValue({ success: true, data: bigFile }),
+        addMessage: vi.fn(),
+        continueConversation,
+        maxResultChars: 8601,
+      }
+    );
+    const repeat = continueConversation.mock.calls[1]?.[0] as string;
+    expect(repeat).toContain("its result is not repeated");
+    expect(repeat).not.toContain("zzzz");
+  });
+});

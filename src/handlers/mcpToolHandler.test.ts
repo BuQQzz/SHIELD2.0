@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   extractToolCalls,
+  fitToBudget,
   formatToolResult,
   resultPayload,
   stripToolCallMarkup,
@@ -389,5 +390,36 @@ describe("resultPayload", () => {
     );
     expect(out.match(/\[FILE\] a\.md/g)).toHaveLength(1);
     expect(out).not.toContain("structuredContent");
+  });
+});
+
+// Seen in the app, 2026-09-22: a 33,846-character index.html (~9k tokens)
+// did not fit Qwen3-Coder's 8k window; the model lost the read and looped.
+describe("fitToBudget", () => {
+  it("leaves results that fit alone", () => {
+    expect(fitToBudget("short", 100)).toBe("short");
+    expect(fitToBudget("no budget given")).toBe("no budget given");
+  });
+
+  it("keeps the start and says what was cut and how to see more", () => {
+    const html = "x".repeat(33846);
+    const out = fitToBudget(html, 8601);
+    expect(out.startsWith("x".repeat(8601))).toBe(true);
+    expect(out).toContain("first 8,601 of 33,846 characters");
+    expect(out).toContain("head");
+    expect(out.length).toBeLessThan(9000);
+  });
+
+  it("is applied inside the tool result envelope", () => {
+    const out = formatToolResult(
+      { serverName: "filesystem", tool: "read_text_file", arguments: {} },
+      {
+        success: true,
+        data: { content: [{ type: "text", text: "Q".repeat(5000) }] },
+      },
+      1000
+    );
+    expect(out).toContain("[Truncated:");
+    expect(out.match(/Q/g)?.length).toBe(1000);
   });
 });

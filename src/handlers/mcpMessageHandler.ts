@@ -33,7 +33,15 @@ export interface MCPMessageHandlerProps {
    * before running them.
    */
   workspaceFolder?: string;
+  /**
+   * Longest tool output passed to the model, in characters. Sized from the
+   * context window by the caller; anything longer is cut with a note.
+   */
+  maxResultChars?: number;
 }
+
+/** A repeat of a result this long is not sent again - see below */
+const REPEAT_RESEND_LIMIT = 1500;
 
 const PATH_KEYS = ["path", "source", "destination"];
 
@@ -110,6 +118,7 @@ export async function processMCPToolCalls(
     maxToolCallsPerTurn = 5,
     maxToolRounds = 5,
     workspaceFolder,
+    maxResultChars,
   } = props;
 
   // A single request usually needs several tool calls in sequence: list a
@@ -177,10 +186,15 @@ export async function processMCPToolCalls(
         }
       }
 
+      const formatted = formatToolResult(toolCall, result, maxResultChars);
+      // Resending a large result every time the model repeats a call is what
+      // kept an 8k window overflowing; point back to it instead.
       const toolResultFormatted =
-        (previous && !toolCall.argumentsError
-          ? "You already made this exact call in this turn, so it was not run again. Its result is repeated below; use it instead of calling again.\n"
-          : "") + formatToolResult(toolCall, result);
+        previous && !toolCall.argumentsError
+          ? formatted.length > REPEAT_RESEND_LIMIT
+            ? `You already made this exact call (${toolCall.tool}) in this turn, so it was not run again and its result is not repeated. Use the result you already have, or answer the user now.`
+            : `You already made this exact call in this turn, so it was not run again. Its result is repeated below; use it instead of calling again.\n${formatted}`
+          : formatted;
       formattedResults.push(toolResultFormatted);
 
       const toolResultMessage: Message = {
