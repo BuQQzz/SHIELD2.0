@@ -26,7 +26,8 @@ Done, in commit order:
 
 **Machine notes from this session:**
 
-- `--load-mode none` commits ~22 GB for Qwen3-Coder. With the old 15 GB pagefile the Windows commit limit ran out: renderer crash, then a bluescreen. The pagefile is now 32–48 GB (commit limit ~64 GB). Check free commit before loading a model.
+- `--load-mode none` commits ~22 GB for Qwen3-Coder. With the old 15 GB pagefile the Windows commit limit ran out and the renderer crashed. The pagefile is now 32–48 GB (commit limit ~64 GB). Check free commit before loading a model.
+- **The machine bluescreens under heavy RAM load, with or without SHIELD running:** `0x1A` MEMORY_MANAGEMENT (`41790`/`41792`) and `0x50`, on Sep 14 and three times on Sep 24 (once with SHIELD closed). These are page-table corruption codes, which point to unstable RAM (2×16 GB DDR4-3600 XMP on a Ryzen 9 3900X) rather than to SHIELD or the commit limit. If a crash happens during a model run, check the bugcheck code before debugging SHIELD.
 - After that bluescreen, Rollup's native `parseAstAsync` segfaulted until a Windows restart, which broke every Vitest run. If Vitest dies with exit 139 before running a test, restart Windows first.
 - Python heredocs turn `\n` inside test strings into real line breaks; use the editor for escapes.
 - For screenshots with computer-use, the dev window is `electron.exe`, not "SHIELD" (that is an installed build).
