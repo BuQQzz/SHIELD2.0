@@ -70,3 +70,23 @@ export function isReadOnlyTool(
 ): boolean {
   return !isMutatingTool(tool);
 }
+
+/**
+ * What to tell the model when it calls a tool that is not on the allowlist.
+ *
+ * Qwen3-Coder, asked to delete a file, called `delete_file` - which no
+ * server has - and was told it was "disabled in MCP tool settings", as if
+ * the user could switch it on. A tool that does not exist gets a different
+ * answer: what does exist, and to tell the user when none of it fits.
+ */
+export function unavailableToolMessage(
+  toolName: string,
+  knownTools: readonly string[],
+  offeredTools: readonly string[]
+): string {
+  if (knownTools.includes(toolName)) {
+    return `Tool '${toolName}' is disabled in MCP tool settings, so it did not run. Tell the user; they can enable it in Settings.`;
+  }
+  const offered = offeredTools.length > 0 ? offeredTools.join(", ") : "none";
+  return `There is no tool called '${toolName}'. The only tools that exist are: ${offered}. Do not invent tools. If none of these can do what the user asked (for example, deleting a file), tell the user plainly that it is not possible with the available tools.`;
+}

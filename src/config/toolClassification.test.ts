@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { isMutatingTool, isReadOnlyTool } from "./toolClassification";
+import {
+  isMutatingTool,
+  isReadOnlyTool,
+  unavailableToolMessage,
+} from "./toolClassification";
 
 /** Every tool the official filesystem server exposes, as of Sept 2026 */
 const FILESYSTEM_READS = [
@@ -76,5 +80,25 @@ describe("server annotations win over the local list", () => {
   it("falls back to the list when annotations are present but empty", () => {
     expect(isMutatingTool({ name: "read_file", annotations: {} })).toBe(false);
     expect(isMutatingTool({ name: "write_file", annotations: {} })).toBe(true);
+  });
+});
+
+// Seen in the app, 2026-09-24: asked to delete a file, Qwen3-Coder called
+// delete_file, which does not exist, and was told it was "disabled".
+describe("unavailableToolMessage", () => {
+  const known = ["read_text_file", "write_file", "move_file"];
+  const offered = ["read_text_file", "write_file"];
+
+  it("says a real tool is disabled and can be enabled", () => {
+    const message = unavailableToolMessage("move_file", known, offered);
+    expect(message).toContain("disabled in MCP tool settings");
+  });
+
+  it("says an invented tool does not exist and lists what does", () => {
+    const message = unavailableToolMessage("delete_file", known, offered);
+    expect(message).toContain("no tool called 'delete_file'");
+    expect(message).toContain("read_text_file, write_file");
+    expect(message).not.toContain("disabled");
+    expect(message).toContain("not possible");
   });
 });

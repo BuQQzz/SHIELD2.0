@@ -10,6 +10,8 @@
  * open is rejected explicitly rather than silently dropped.
  */
 
+import { unavailableToolMessage } from "@/config/toolClassification";
+import { FILESYSTEM_TOOLS } from "@/types/settings";
 import { useState, useCallback, useRef } from "react";
 import type { ToolCallRequest } from "@/handlers/mcpToolHandler";
 import type { MCPToolResult } from "@/types/electron";
@@ -68,7 +70,11 @@ export function useMCPDialogs({ callTool, policy }: UseMCPDialogsProps) {
       if (!allowedTools.includes(toolCall.tool)) {
         return {
           success: false,
-          error: `Tool '${toolCall.tool}' is disabled in MCP tool settings`,
+          error: unavailableToolMessage(
+            toolCall.tool,
+            FILESYSTEM_TOOLS,
+            policy.advertisedTools.map((tool) => tool.name)
+          ),
         };
       }
 
