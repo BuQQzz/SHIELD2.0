@@ -307,6 +307,7 @@ export class LlamaService {
 
     const sequence = this.session.sequence;
     const outputTokensBefore = sequence.tokenMeter.usedOutputTokens;
+    const inputTokensBefore = sequence.tokenMeter.usedInputTokens;
     const startedAt = performance.now();
     let firstTokenAt: number | null = null;
 
@@ -338,9 +339,15 @@ export class LlamaService {
         durationMs: endedAt - startedAt,
       };
 
+      // Time before the first token is the model reading the prompt; with
+      // part of a large model in system RAM it can run to minutes, which
+      // looked like a hang (2026-09-23). Logged so it can be told apart.
+      const readingSeconds = ((firstTokenAt ?? endedAt) - startedAt) / 1000;
       console.log(
         `[LlamaService] Inference complete: ${outputTokens} tokens, ` +
           `${this.lastStats.tokensPerSecond.toFixed(1)} tok/s, ` +
+          `first token after ${readingSeconds.toFixed(1)}s, ` +
+          `input ${sequence.tokenMeter.usedInputTokens - inputTokensBefore} tokens, ` +
           `context ${sequence.nextTokenIndex}/${sequence.contextSize}`
       );
       return response;

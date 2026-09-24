@@ -1,5 +1,6 @@
 "use client";
 
+import { ReadingIndicator } from "./ReadingIndicator";
 import { useRef, useEffect, useCallback } from "react";
 import { ChatMessage } from "./ChatMessage";
 import { ToolResultMessage } from "./ToolResultMessage";
@@ -177,6 +178,9 @@ export function MessageList({
           <AnimatePresence>
             <SearchingIndicator />
           </AnimatePresence>
+        )}
+        {isGenerating && !streamingContent && !runningTool && !isSearching && (
+          <ReadingIndicator />
         )}
         {streamingContent && (
           <ChatMessage
