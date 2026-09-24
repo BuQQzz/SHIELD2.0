@@ -10,6 +10,7 @@
 
 ## Related research
 
+- [HANDOFF.md](./HANDOFF.md) — **latest session state and the next line of work; start here**
 - [testing/AGENT_BENCHMARK.md](./testing/AGENT_BENCHMARK.md) — **the benchmark, its results, and findings; evidence for decisions below**
 - [PROMPT_RESEARCH.md](./PROMPT_RESEARCH.md) — prompt/harness findings from Codex, Goose, OpenCode, and future harness research
 - [MODEL_SYSTEM_BRAINSTORM.md](./MODEL_SYSTEM_BRAINSTORM.md) — model/runtime/provider brainstorming
