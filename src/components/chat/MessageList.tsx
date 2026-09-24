@@ -1,12 +1,12 @@
 "use client";
 
 import { ReadingIndicator } from "./ReadingIndicator";
-import { useRef, useEffect, useCallback } from "react";
+import { useRef, useEffect, useCallback, useMemo } from "react";
 import { ChatMessage } from "./ChatMessage";
-import { ToolResultMessage } from "./ToolResultMessage";
-import { ToolRunningRow } from "./ToolRunningRow";
+import { AssistantTurn } from "./AssistantTurn";
+import { ToolStep } from "./ToolStep";
 import { SearchingIndicator } from "./SearchingIndicator";
-import { AnimatePresence } from "framer-motion";
+import { groupIntoTurns } from "./turns";
 import type { Message } from "@/types/conversation";
 
 interface MessageListProps {
@@ -126,68 +126,90 @@ export function MessageList({
     };
   }, []);
 
+  const turns = useMemo(() => groupIntoTurns(messages), [messages]);
+
+  // A reply is keyed by the message it answers, so it stays mounted - and
+  // does not replay its entrance - as its first streamed message is saved
+  const replyKey = (index: number) => {
+    const asked = turns[index - 1];
+    return `reply-${asked?.kind === "user" ? asked.message.id : "start"}`;
+  };
+
+  const live = Boolean(
+    isGenerating || streamingContent || runningTool || isSearching
+  );
+
+  // What the reply in progress is doing right now, at the end of its block
+  const liveParts = (
+    <>
+      {runningTool && (
+        <ToolStep
+          tool={runningTool.tool}
+          serverName={runningTool.serverName}
+          running
+        />
+      )}
+      {isSearching && <SearchingIndicator />}
+      {isGenerating && !streamingContent && !runningTool && !isSearching && (
+        <ReadingIndicator />
+      )}
+      {streamingContent && (
+        <ChatMessage
+          variant="part"
+          role="assistant"
+          content={streamingContent}
+          isStreaming={isGenerating}
+        />
+      )}
+    </>
+  );
+
   return (
     <div ref={scrollContainerRef} className="flex-1 overflow-y-auto p-4">
       <div className="mx-auto max-w-4xl space-y-4">
-        {messages.map((message) =>
-          message.toolResult ? (
-            <ToolResultMessage
-              key={message.id}
-              tool={message.toolResult.tool}
-              serverName={message.toolResult.serverName}
-              success={message.toolResult.success}
-              blocked={message.toolResult.blocked}
-              content={message.content}
-            />
-          ) : (
-            <ChatMessage
-              key={message.id}
-              role={message.role}
-              content={message.content}
-              truncated={message.truncated}
-              sources={message.sources}
-              thinking={message.thinking}
-              isThinking={message.isThinking}
-              stats={message.stats}
-              onContinue={
-                message.truncated ? () => onContinue?.(message.id) : undefined
-              }
-              onEdit={
-                message.role === "user" && onEditMessage
-                  ? (newContent) => onEditMessage(message.id, newContent)
-                  : undefined
-              }
+        {turns.map((turn, i) => {
+          if (turn.kind === "user") {
+            const message = turn.message;
+            return (
+              <ChatMessage
+                key={message.id}
+                role="user"
+                content={message.content}
+                onEdit={
+                  onEditMessage
+                    ? (newContent) => onEditMessage(message.id, newContent)
+                    : undefined
+                }
+              />
+            );
+          }
+          const isLastTurn = i === turns.length - 1;
+          return (
+            <AssistantTurn
+              key={replyKey(i)}
+              messages={turn.messages}
+              parts={turn.parts}
+              isLive={live && isLastTurn}
+              onContinue={onContinue}
               onRegenerate={
-                message.role === "assistant" && onRegenerateMessage
-                  ? () => onRegenerateMessage(message.id)
+                onRegenerateMessage
+                  ? () => onRegenerateMessage(turn.id)
                   : undefined
               }
-            />
-          )
-        )}
-        <AnimatePresence mode="wait">
-          {runningTool && (
-            <ToolRunningRow
-              key={`${runningTool.serverName}.${runningTool.tool}`}
-              tool={runningTool.tool}
-              serverName={runningTool.serverName}
-            />
-          )}
-        </AnimatePresence>
-        {isSearching && (
-          <AnimatePresence>
-            <SearchingIndicator />
-          </AnimatePresence>
-        )}
-        {isGenerating && !streamingContent && !runningTool && !isSearching && (
-          <ReadingIndicator />
-        )}
-        {streamingContent && (
-          <ChatMessage
-            role="assistant"
-            content={streamingContent}
-            isStreaming={isGenerating}
-          />
+            >
+              {live && isLastTurn && liveParts}
+            </AssistantTurn>
+          );
+        })}
+        {live && turns.at(-1)?.kind !== "assistant" && (
+          <AssistantTurn
+            key={replyKey(turns.length)}
+            messages={[]}
+            parts={[]}
+            isLive
+          >
+            {liveParts}
+          </AssistantTurn>
         )}
         <div ref={messagesEndRef} />
       </div>

@@ -29,7 +29,8 @@ export function ReadingIndicator() {
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       transition={{ duration: 0.2, delay: 0.3 }}
-      className="flex items-center gap-2 px-3 py-2 text-xs text-muted-foreground"
+      // Sits inside the reply, lined up with its tool steps
+      className="flex items-center gap-2 py-0.5 text-[13px] text-muted-foreground"
       role="status"
     >
       <Loader2 className="h-3.5 w-3.5 animate-spin" />
