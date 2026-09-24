@@ -23,6 +23,7 @@ import {
   findLlamaServer,
 } from "./llamaServer/launch.js";
 import { SseParser, type ChatStreamChunk } from "./llamaServer/sse.js";
+import { compactHistory, shouldCompact } from "./historyCompaction.js";
 import type {
   ChatMessage,
   ChatOptions,
@@ -66,6 +67,8 @@ export class LlamaServerProvider {
   private trainContextSize = 0;
   private systemPrompt = "You are a helpful AI assistant.";
   private history: ChatMessage[] = [];
+  /** Prompt + reply tokens of the last request: how full the window is */
+  private lastContextTokens = 0;
   private abortController: AbortController | null = null;
   private lastStats: GenerationStats | null = null;
   private logTail: string[] = [];
@@ -225,6 +228,8 @@ export class LlamaServerProvider {
       throw new Error("No model loaded. Call loadModel() first");
     }
 
+    this.compactIfNeeded(message);
+
     this.abortController = new AbortController();
     const signal = options.signal ?? this.abortController.signal;
     const userMessage: ChatMessage = { role: "user", content: message };
@@ -283,6 +288,10 @@ export class LlamaServerProvider {
     }
 
     this.history.push(userMessage, { role: "assistant", content: reply });
+    if (final?.usage) {
+      this.lastContextTokens =
+        final.usage.prompt_tokens + final.usage.completion_tokens;
+    }
 
     const endedAt = performance.now();
     const outputTokens =
@@ -315,10 +324,46 @@ export class LlamaServerProvider {
 
   setChatHistory(messages: ChatMessage[]): void {
     this.history = messages.filter((m) => m.role !== "system");
+    // No request has measured it yet; ~3 characters per token
+    this.lastContextTokens =
+      (this.systemPrompt.length +
+        this.history.reduce((n, m) => n + m.content.length, 0)) /
+      3;
   }
 
   clearHistory(): void {
     this.history = [];
+    this.lastContextTokens = 0;
+  }
+
+  /**
+   * Clear old tool payloads out of the history before a request that would
+   * fill most of the window (see historyCompaction). The prompt cache is
+   * reused only up to the first changed message, so this costs one slower
+   * read of the shortened history - which is why it waits until needed
+   * rather than running every turn.
+   */
+  private compactIfNeeded(nextMessage: string): void {
+    if (
+      !shouldCompact(
+        this.lastContextTokens,
+        nextMessage.length,
+        this.contextSize
+      )
+    ) {
+      return;
+    }
+    // The last few exchanges are what the model is working from right now
+    const { history, savedChars } = compactHistory(this.history, 6);
+    if (savedChars === 0) return;
+    this.history = history;
+    this.lastContextTokens = Math.max(
+      0,
+      this.lastContextTokens - savedChars / 3
+    );
+    console.log(
+      `[LlamaServer] Compacted history: cleared ${savedChars} characters of old tool calls and results`
+    );
   }
 
   applySystemPrompt(prompt: string): void {
