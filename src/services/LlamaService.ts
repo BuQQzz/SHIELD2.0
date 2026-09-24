@@ -109,6 +109,13 @@ export class LlamaService {
     this.llama = await getLlama();
   }
 
+  /** The llama.cpp bindings, e.g. for reading GGUF insights */
+  async getLlama(): Promise<Llama> {
+    await this.initialize();
+    if (!this.llama) throw new Error("LlamaService not initialized");
+    return this.llama;
+  }
+
   /**
    * GPU memory and system RAM in GB, for picking quantizations and
    * recommending models. VRAM is null when no GPU backend is available.
@@ -349,7 +356,7 @@ export class LlamaService {
    * Find the file to load for a library model. Loading never downloads -
    * that is an explicit choice in the model browser.
    */
-  private async resolveModelPath(modelId: string): Promise<string> {
+  async resolveModelPath(modelId: string): Promise<string> {
     const model = getModelById(modelId);
     if (!model) {
       throw new Error(`Unknown model "${modelId}". Pick one from the library.`);
@@ -633,14 +640,21 @@ export class LlamaService {
    * Clean up resources
    */
   async cleanup(): Promise<void> {
+    const { context, model } = this;
     this.session = null;
     this.context = null;
-
-    if (this.model) {
-      this.model = null;
-    }
-
+    this.model = null;
     this.currentModelConfig = null;
+    this.requestedContextSize = undefined;
+
+    // Free VRAM now rather than at garbage collection: the next model, or
+    // a llama-server taking over, needs it straight away
+    try {
+      await context?.dispose();
+      await model?.dispose();
+    } catch (error) {
+      console.warn("[LlamaService] Failed to free the previous model:", error);
+    }
   }
 
   /**

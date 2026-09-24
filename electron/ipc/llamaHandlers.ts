@@ -1,5 +1,5 @@
 import { ipcMain, BrowserWindow } from "electron";
-import { getLlamaService } from "../../src/services/LlamaService.js";
+import { getModelRuntime } from "../../src/services/ModelRuntime.js";
 
 /**
  * Register all Llama.cpp related IPC handlers
@@ -8,7 +8,8 @@ import { getLlamaService } from "../../src/services/LlamaService.js";
 export function registerLlamaHandlers(
   getMainWindow: () => BrowserWindow | null
 ) {
-  const llamaService = getLlamaService();
+  // Routes each model to node-llama-cpp or a SHIELD-managed llama-server
+  const llamaService = getModelRuntime();
 
   // Initialize llama
   ipcMain.handle("llama:initialize", async () => {
@@ -44,7 +45,7 @@ export function registerLlamaHandlers(
         success: true,
         response,
         stats: llamaService.getLastStats(),
-        context: llamaService.getContextUsage(),
+        context: await llamaService.getContextUsage(),
       };
     } catch (error) {
       return {
@@ -81,7 +82,7 @@ export function registerLlamaHandlers(
         success: true,
         response,
         stats: llamaService.getLastStats(),
-        context: llamaService.getContextUsage(),
+        context: await llamaService.getContextUsage(),
       };
     } catch (error) {
       console.error("[IPC] chatStreaming error:", error);
@@ -94,13 +95,16 @@ export function registerLlamaHandlers(
 
   // How full the context window is, for the composer's context ring
   ipcMain.handle("llama:getContextUsage", async () => {
-    return { success: true, context: llamaService.getContextUsage() };
+    return { success: true, context: await llamaService.getContextUsage() };
   });
 
   // What is filling the context window, for the context panel
   ipcMain.handle("llama:getContextBreakdown", async () => {
     try {
-      return { success: true, breakdown: llamaService.getContextBreakdown() };
+      return {
+        success: true,
+        breakdown: await llamaService.getContextBreakdown(),
+      };
     } catch (error) {
       return {
         success: false,

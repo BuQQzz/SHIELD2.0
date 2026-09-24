@@ -66,6 +66,8 @@ async function setupIpcHandlers() {
     settings.system.modelDirectory ||
       path.join(app.getPath("userData"), "models")
   );
+  // Stops a llama-server orphaned by a crash, and records the next one
+  llamaService.setStateDir(app.getPath("userData"));
   if (settings.system.modelDirectory) {
     modelDownloadService.setCustomModelsDir(settings.system.modelDirectory);
   }

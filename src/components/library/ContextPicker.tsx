@@ -75,10 +75,15 @@ export function ContextPicker({
     onChange?.();
   };
 
+  // With llama-server, attention stays on the GPU and experts move to RAM
+  // to fit, so a size is not a layer trade-off
+  const experts = plan.placement === "experts";
   const onGpu = (gpuLayers: number) =>
-    gpuLayers >= plan.totalLayers
-      ? "all on GPU"
-      : `${gpuLayers}/${plan.totalLayers} layers on GPU`;
+    experts
+      ? ""
+      : gpuLayers >= plan.totalLayers
+        ? "all on GPU"
+        : `${gpuLayers}/${plan.totalLayers} layers on GPU`;
 
   return (
     <DropdownMenu>
@@ -102,6 +107,12 @@ export function ContextPicker({
             {formatTokens(plan.trainContextSize)}
           </span>
         </DropdownMenuLabel>
+        {experts && (
+          <p className="px-2 pb-1.5 text-[11px] leading-snug text-muted-foreground">
+            Experts move to system RAM to make room, so a bigger window mostly
+            costs prompt-reading speed.
+          </p>
+        )}
         <DropdownMenuItem onClick={() => choose(undefined)} className="gap-2">
           <span className="flex-1">
             Recommended{" "}

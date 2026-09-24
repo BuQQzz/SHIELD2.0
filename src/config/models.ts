@@ -53,8 +53,15 @@ export interface HardwareRequirements {
 export type ModelRole =
   "agent" | "coding" | "chat" | "small" | "long-context" | "vision";
 
-/** The engine that runs a variant */
-export type ModelRuntime = "node-llama-cpp" | "prism-llama-server";
+/**
+ * The engine that runs a variant:
+ * - node-llama-cpp: in-process
+ * - llama-server: a SHIELD-managed llama.cpp server, for models that need
+ *   placement node-llama-cpp cannot do (MoE experts in system RAM)
+ * - prism-llama-server: needs PrismML's fork (not wired up yet)
+ */
+export type ModelRuntime =
+  "node-llama-cpp" | "llama-server" | "prism-llama-server";
 
 /** One downloadable GGUF file (one quantization) of a variant */
 export interface ModelFile {
@@ -185,13 +192,14 @@ export const MODEL_FAMILIES: ModelFamilyEntry[] = [
         name: "Qwen3-Coder-30B-A3B-Instruct",
         displayName: "Qwen3 Coder 30B",
         description:
-          "Mixture-of-experts coder, 3B parameters active per token. The best-tested model with SHIELD's tools. On a 12 GB GPU, part of it runs from system RAM and stays quick.",
-        contextSize: 8192,
+          "Mixture-of-experts coder, 3B parameters active per token. The best-tested model with SHIELD's tools. Its experts run from system RAM while everything else stays on the GPU.",
+        // Measured on 12 GB: 32k keeps ~36 tok/s (docs/RUNTIME_SPEED_RESEARCH.md)
+        contextSize: 32768,
         provider: "Alibaba",
         releaseDate: "2025-07",
         chatTemplate: "qwen",
         roles: ["agent", "coding"],
-        runtime: "node-llama-cpp",
+        runtime: "llama-server",
         files: [
           {
             name: "Qwen3-Coder-30B-A3B-Instruct-Q4_K_M.gguf",
@@ -407,7 +415,7 @@ export function getModelById(id: string): ModelMetadata | undefined {
 
 /** True for variants SHIELD can run today */
 export function isRuntimeAvailable(model: Pick<ModelMetadata, "runtime">) {
-  return model.runtime === "node-llama-cpp";
+  return model.runtime !== "prism-llama-server";
 }
 
 // ---------------------------------------------------------------------------

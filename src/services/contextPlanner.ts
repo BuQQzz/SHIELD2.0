@@ -32,6 +32,11 @@ export interface ContextPlan {
   /** Ascending by context size, up to the trained context */
   options: ContextOption[];
   recommended: number;
+  /**
+   * "experts": llama-server keeps every layer's attention on the GPU and
+   * moves MoE experts to RAM to fit, so sizes are not a layer trade-off
+   */
+  placement?: "layers" | "experts";
 }
 
 /**
@@ -111,5 +116,62 @@ export async function planContext(
     totalLayers,
     options,
     recommended: recommendContextSize(options),
+    placement: "layers",
+  };
+}
+
+/** Share of VRAM a context may take when llama-server moves experts to fit */
+const SERVER_CONTEXT_SHARE = 0.5;
+
+/**
+ * Context sizes for a model llama-server runs with `--fit`: attention and
+ * the KV cache stay on the GPU and MoE experts move to RAM to make room, so
+ * the limit is the context's own VRAM. Offers sizes whose cache takes at
+ * most half the GPU; recommends `preferred` (a measured default) when
+ * offered, else the largest.
+ */
+export async function planServerContext(
+  modelPath: string,
+  llama: Llama,
+  vramTotalBytes: number,
+  preferred: number
+): Promise<ContextPlan> {
+  const insights = await GgufInsights.from(
+    await readGgufFileInfo(modelPath),
+    llama
+  );
+  const trainContextSize = insights.trainContextSize ?? FALLBACK_MAX_CONTEXT;
+  const totalLayers = insights.totalLayers;
+
+  const sizes = await Promise.all(
+    CONTEXT_STEPS.filter((size) => size <= trainContextSize).map(
+      async (contextSize) => {
+        const { gpuVram } =
+          await insights.estimateContextResourceRequirementsV2({
+            contextSize,
+            modelGpuLayers: totalLayers,
+            flashAttention: true,
+          });
+        return { contextSize, gpuVram };
+      }
+    )
+  );
+  const options = sizes
+    .filter(
+      ({ gpuVram }, i) =>
+        i === 0 || gpuVram <= vramTotalBytes * SERVER_CONTEXT_SHARE
+    )
+    .map(({ contextSize }) => ({ contextSize, gpuLayers: totalLayers }));
+
+  const offered = options.map((o) => o.contextSize);
+  return {
+    trainContextSize,
+    totalLayers,
+    options,
+    recommended:
+      offered.find((size) => size === preferred) ??
+      offered.at(-1) ??
+      CONTEXT_STEPS[0],
+    placement: "experts",
   };
 }

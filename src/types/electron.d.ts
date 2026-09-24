@@ -61,6 +61,7 @@ export interface ContextPlan {
   totalLayers: number;
   options: { contextSize: number; gpuLayers: number }[];
   recommended: number;
+  placement?: "layers" | "experts";
 }
 
 /** What is filling the context window (mirrors contextBreakdown.ts) */
