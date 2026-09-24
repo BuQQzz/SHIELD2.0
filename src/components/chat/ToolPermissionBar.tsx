@@ -116,8 +116,9 @@ export function ToolPermissionBar({
                   variant="ghost"
                   className="h-7 px-2 text-xs"
                   onClick={() => onApprove(true)}
+                  title="Don't ask again for this tool until SHIELD is closed"
                 >
-                  Allow always
+                  Allow for session
                 </Button>
               )}
               <Button

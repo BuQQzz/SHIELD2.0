@@ -13,7 +13,8 @@
  */
 
 import { useMemo } from "react";
-import { isMutatingTool } from "@/config/toolClassification";
+import { isDeletionTool, isMutatingTool } from "@/config/toolClassification";
+import { FILESYSTEM_TOOLS } from "@/types/settings";
 import type { PermissionMode } from "@/types/settings";
 import type { ToolDefinition } from "@/types/prompts";
 
@@ -75,9 +76,16 @@ export function resolveToolPolicy({
       case "ask":
         return "ask";
 
-      // Reads run unattended; anything that can change something still asks
-      case "auto":
-        return mutating ? "ask" : "run";
+      // Everything the user knows SHIELD can do runs unattended - reads,
+      // writes, edits, moves - except removing files, which always asks.
+      // A tool SHIELD does not recognise also asks: it could do anything.
+      case "auto": {
+        if (isDeletionTool(tool)) return "ask";
+        if (!mutating) return "run";
+        const known =
+          FILESYSTEM_TOOLS.includes(tool.name) || "annotations" in tool;
+        return known ? "run" : "ask";
+      }
 
       // Reads run so the plan is grounded in what is actually on disk - a
       // planner that cannot look at the file can only guess. Changes are

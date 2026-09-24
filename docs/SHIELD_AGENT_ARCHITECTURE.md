@@ -621,6 +621,8 @@ Use this section to record decisions once we stop brainstorming and commit to th
 | 2026-09-22 | Shipped | Only call-shaped JSON counts as a tool call | Quoted config data was being run as a phantom tool |
 | 2026-09-22 | Shipped | One advertised call format; no Thought/Observation template | Model fabricated tool results from the template (§4 "one fallback syntax" proposal → shipped) |
 | 2026-09-22 | Shipped | Load models reserving VRAM for the requested context | Large models silently lost context size under `gpuLayers: "auto"` |
+| 2026-09-24 | Shipped | Auto runs every known file change unprompted; deletes always ask; Ask's "Allow for session" never covers deletes | User decision: local models deleting the wrong thing could take out a codebase or system files |
+| 2026-09-24 | Shipped | delete_file moves to the Recycle Bin (SHIELD's own tool) | The filesystem server has no delete; the model invented one, then faked a delete by renaming |
 | 2026-09-22 | Direction | Native tools only where the wrapper matches the model's trained format; generic fallback → XML | Qwen3-Coder: XML 100%, generic native 83% with silent file corruption, forced Qwen wrapper 42% |
 
 ---

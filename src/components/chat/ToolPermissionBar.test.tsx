@@ -9,7 +9,7 @@ const base = {
 };
 
 describe("ToolPermissionBar", () => {
-  it("asks plainly before a delete and never offers Allow always", () => {
+  it("asks plainly before a delete and never offers Allow for session", () => {
     render(
       <ToolPermissionBar
         request={{
@@ -26,7 +26,7 @@ describe("ToolPermissionBar", () => {
       0
     );
     expect(screen.getByText(/awsome sauce\.md/)).toBeTruthy();
-    expect(screen.queryByText("Allow always")).toBeNull();
+    expect(screen.queryByText("Allow for session")).toBeNull();
   });
 
   it("shows where a move goes", () => {
@@ -43,6 +43,6 @@ describe("ToolPermissionBar", () => {
       />
     );
     expect(screen.getByText(/trash_file\.md/)).toBeTruthy();
-    expect(screen.getByText("Allow always")).toBeTruthy();
+    expect(screen.getByText("Allow for session")).toBeTruthy();
   });
 });

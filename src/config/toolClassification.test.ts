@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   isMutatingTool,
+  isDeletionTool,
   isReadOnlyTool,
   unavailableToolMessage,
 } from "./toolClassification";
@@ -101,5 +102,35 @@ describe("unavailableToolMessage", () => {
     expect(message).not.toContain("disabled");
     expect(message).toContain("not possible");
     expect(message).not.toContain("deleting");
+  });
+});
+
+describe("isDeletionTool", () => {
+  it("recognises deletes however a server names them", () => {
+    for (const name of [
+      "delete_file",
+      "remove_directory",
+      "rm",
+      "rmdir",
+      "unlink",
+      "trash_item",
+      "files.delete",
+      "purge_cache",
+    ]) {
+      expect(isDeletionTool({ name }), name).toBe(true);
+    }
+  });
+
+  it("leaves other tools alone", () => {
+    for (const name of [
+      "write_file",
+      "move_file",
+      "read_text_file",
+      "list_directory",
+      "remote_fetch",
+      "format_document",
+    ]) {
+      expect(isDeletionTool({ name }), name).toBe(false);
+    }
   });
 });

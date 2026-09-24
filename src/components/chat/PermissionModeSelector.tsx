@@ -28,12 +28,12 @@ const MODES: ModeOption[] = [
   {
     value: "ask",
     label: "Ask",
-    description: "Approve every tool call",
+    description: "Approve each tool call, or allow a tool for the session",
   },
   {
     value: "auto",
     label: "Auto",
-    description: "Run reads automatically, ask before changes",
+    description: "Run everything automatically, ask before deleting",
   },
   {
     value: "plan",

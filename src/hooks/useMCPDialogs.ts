@@ -10,7 +10,10 @@
  * open is rejected explicitly rather than silently dropped.
  */
 
-import { unavailableToolMessage } from "@/config/toolClassification";
+import {
+  isDeletionTool,
+  unavailableToolMessage,
+} from "@/config/toolClassification";
 import { FILESYSTEM_TOOLS } from "@/types/settings";
 import { useState, useCallback, useRef } from "react";
 import type { ToolCallRequest } from "@/handlers/mcpToolHandler";
@@ -55,6 +58,11 @@ export function useMCPDialogs({ callTool, policy }: UseMCPDialogsProps) {
     serverName: string;
   } | null>(null);
   const resolverRef = useRef<((result: MCPToolResult) => void) | null>(null);
+  /**
+   * Tools the user chose "Allow for session" on. Kept in memory only, so
+   * closing SHIELD resets it; deletes are never added.
+   */
+  const sessionApproved = useRef<Set<string>>(new Set());
   const { settings, updateSettings } = useSettingsStore();
 
   /** Settle the open request and clear it */
@@ -82,7 +90,13 @@ export function useMCPDialogs({ callTool, policy }: UseMCPDialogsProps) {
         };
       }
 
-      const decision = policy.decide({ name: toolCall.tool });
+      const policyDecision = policy.decide({ name: toolCall.tool });
+      const decision =
+        policyDecision === "ask" &&
+        sessionApproved.current.has(toolCall.tool) &&
+        !isDeletionTool({ name: toolCall.tool })
+          ? "run"
+          : policyDecision;
 
       // Recorded as an intended step rather than performed. In plan mode this
       // is only ever a mutating tool - reads still run, so the plan can be
@@ -146,7 +160,7 @@ export function useMCPDialogs({ callTool, policy }: UseMCPDialogsProps) {
             typeof toolCall.arguments.destination === "string"
               ? toolCall.arguments.destination
               : undefined,
-          isDestructive: toolCall.tool === "delete_file",
+          isDestructive: isDeletionTool({ name: toolCall.tool }),
         });
       });
     },
@@ -161,19 +175,11 @@ export function useMCPDialogs({ callTool, policy }: UseMCPDialogsProps) {
       const request = pendingRequest;
       if (!request) return;
 
-      // Never remembered for deletes: each one is confirmed on its own
+      // "Allow for session": stop asking for this tool until SHIELD closes.
+      // It used to widen the saved allowlist, which did nothing once every
+      // tool was allowed by default. Never for deletes - each is confirmed.
       if (remember && !request.isDestructive) {
-        // "Allow always" widens the allowlist, which the user can see and
-        // revoke in Settings -> MCP. It does not change the permission mode.
-        const current = settings.mcp?.allowedTools ?? [];
-        if (!current.includes(request.toolName)) {
-          await updateSettings({
-            mcp: {
-              ...settings.mcp,
-              allowedTools: [...current, request.toolName],
-            },
-          });
-        }
+        sessionApproved.current.add(request.toolName);
       }
 
       setRunningTool({

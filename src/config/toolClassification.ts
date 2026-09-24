@@ -90,3 +90,15 @@ export function unavailableToolMessage(
   const offered = offeredTools.length > 0 ? offeredTools.join(", ") : "none";
   return `There is no tool called '${toolName}'. The only tools that exist are: ${offered}. Do not invent tools. If none of these can do what the user asked, tell the user plainly that it is not possible with the available tools.`;
 }
+
+/**
+ * True for tools that remove files: SHIELD's delete_file, and anything a
+ * future server names like a delete. These always ask - even in Auto, and
+ * never "for the session" - because a local model deleting the wrong thing
+ * can take out a codebase or system files (decided 2026-09-24).
+ */
+export function isDeletionTool(tool: { name: string }): boolean {
+  return /(^|[_.-])(delete|remove|rm|rmdir|unlink|trash|erase|purge)([_.-]|$)/i.test(
+    tool.name
+  );
+}

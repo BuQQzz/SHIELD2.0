@@ -75,9 +75,19 @@ describe("auto mode", () => {
     expect(policy.decide(tool("search_files"))).toBe("run");
   });
 
-  it("asks before anything that can change a file", () => {
-    expect(policy.decide(tool("write_file"))).toBe("ask");
-    expect(policy.decide(tool("edit_file"))).toBe("ask");
+  // Decided 2026-09-24: Auto runs every known change without prompting,
+  // except deletes, which always ask.
+  it("runs writes, edits and moves without prompting", () => {
+    expect(policy.decide(tool("write_file"))).toBe("run");
+    expect(policy.decide(tool("edit_file"))).toBe("run");
+    expect(policy.decide({ name: "move_file" })).toBe("run");
+    expect(policy.decide({ name: "create_directory" })).toBe("run");
+  });
+
+  it("always asks before deleting", () => {
+    expect(policy.decide({ name: "delete_file" })).toBe("ask");
+    expect(policy.decide({ name: "remove_directory" })).toBe("ask");
+    expect(policy.decide({ name: "trash_item" })).toBe("ask");
   });
 
   it("asks for a tool it does not recognise", () => {
