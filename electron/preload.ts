@@ -29,6 +29,8 @@ import type {
 } from "../src/types/electron";
 
 export interface ModelConfig {
+  /** Library model id (src/config/models.ts) */
+  id: string;
   name: string;
   uri: string;
   contextSize?: number;
@@ -350,6 +352,7 @@ const modelDownloadAPI: ModelDownloadAPI = {
   isInstalled: (modelId) => ipcRenderer.invoke("model:is-installed", modelId),
   delete: (modelId) => ipcRenderer.invoke("model:delete", modelId),
   getDiskSpace: () => ipcRenderer.invoke("model:get-disk-space"),
+  getHardware: () => ipcRenderer.invoke("model:get-hardware"),
   onProgress: (callback) => {
     const handler = (
       _event: Electron.IpcRendererEvent,

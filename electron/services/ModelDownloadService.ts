@@ -7,8 +7,8 @@
 
 import path from "path";
 import fs from "fs/promises";
-import { BrowserWindow } from "electron";
-import type { ModelMetadata } from "../../src/config/models";
+import { BrowserWindow, shell } from "electron";
+import type { ModelFile, ModelMetadata } from "../../src/config/models.js";
 import {
   DownloadManager,
   type DownloadProgress,
@@ -28,7 +28,9 @@ class ModelDownloadService {
 
     const getModelsDir = () => this.getModelsDir();
     this.downloadManager = new DownloadManager(getModelsDir);
-    this.fileManager = new ModelFileManager(getModelsDir);
+    this.fileManager = new ModelFileManager(getModelsDir, {
+      trash: (target) => shell.trashItem(target),
+    });
 
     this.ensureModelsDirectory();
   }
@@ -75,9 +77,9 @@ class ModelDownloadService {
   }
 
   /**
-   * Download a model from Hugging Face
+   * Download one file (quantization) of a model from Hugging Face
    */
-  async downloadModel(model: ModelMetadata): Promise<string> {
+  async downloadModel(model: ModelMetadata, file: ModelFile): Promise<string> {
     // Check if already downloading
     if (this.downloadManager.isDownloading(model.id)) {
       throw new Error(`Model ${model.displayName} is already downloading`);
@@ -89,7 +91,7 @@ class ModelDownloadService {
       throw new Error(`Model ${model.displayName} is already installed`);
     }
 
-    return this.downloadManager.download(model);
+    return this.downloadManager.download(model, file);
   }
 
   /**

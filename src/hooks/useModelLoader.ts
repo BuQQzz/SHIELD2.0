@@ -1,5 +1,6 @@
 import { useEffect, useCallback } from "react";
-import type { ModelOption } from "../components/chat/ModelSelector";
+import type { ModelOption } from "@/config/models";
+import { isRuntimeAvailable } from "../config/models";
 
 interface UseModelLoaderProps {
   isInitialized: boolean;
@@ -8,6 +9,7 @@ interface UseModelLoaderProps {
   currentModel: { name: string; uri: string } | null;
   currentModelId: string;
   loadModel: (model: {
+    id: string;
     name: string;
     uri: string;
     contextSize?: number;
@@ -37,9 +39,10 @@ export function useModelLoader({
     ) {
       console.log("[App] Auto-loading default model...");
       // Try to find the default model, or use the first installed model
+      // SHIELD can run (an installed Bonsai needs a runtime still to come)
+      const runnable = installedModels.filter(isRuntimeAvailable);
       const defaultModel =
-        installedModels.find((m) => m.id === currentModelId) ||
-        installedModels[0];
+        runnable.find((m) => m.id === currentModelId) || runnable[0];
 
       if (defaultModel) {
         console.log(
@@ -50,6 +53,7 @@ export function useModelLoader({
         // family and capabilities were missing, all for a loaded model.
         setCurrentModelId(defaultModel.id);
         loadModel({
+          id: defaultModel.id,
           name: defaultModel.name,
           uri: defaultModel.uri,
           contextSize: defaultModel.contextSize,
@@ -73,13 +77,14 @@ export function useModelLoader({
 
   const handleModelSelect = useCallback(
     async (model: ModelOption) => {
-      if (isLoading) return;
+      if (isLoading || !isRuntimeAvailable(model)) return;
 
       console.log("[App] Switching to model:", model.displayName);
       setCurrentModelId(model.id);
 
       try {
         await loadModel({
+          id: model.id,
           name: model.name,
           uri: model.uri,
           contextSize: model.contextSize,

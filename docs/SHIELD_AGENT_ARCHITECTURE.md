@@ -625,6 +625,8 @@ Use this section to record decisions once we stop brainstorming and commit to th
 | 2026-09-24 | Shipped | Auto runs every known file change unprompted; deletes always ask; Ask's "Allow for session" never covers deletes | User decision: local models deleting the wrong thing could take out a codebase or system files |
 | 2026-09-24 | Shipped | delete_file moves to the Recycle Bin (SHIELD's own tool) | The filesystem server has no delete; the model invented one, then faked a delete by renaming |
 | 2026-09-22 | Direction | Native tools only where the wrapper matches the model's trained format; generic fallback → XML | Qwen3-Coder: XML 100%, generic native 83% with silent file corruption, forced Qwen wrapper 42% |
+| 2026-09-24 | Decision | Model library cut to three families: Qwen (Coder-30B + 3.8-27B), Gemma 4 (12B + E4B), Bonsai 2 27B | User decision: 17 mostly-2024 entries → a few current models. Plan: `MODEL_LIBRARY_PLAN.md` |
+| 2026-09-24 | Decision | Bonsai 2 runs through a SHIELD-managed Prism `llama-server`; it is the provider layer's first test | Its PTQ1_0/PQ2_0 formats need the PrismML fork; stock llama.cpp refuses them or outputs garbage |
 
 ---
 

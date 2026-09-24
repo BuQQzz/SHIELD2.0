@@ -16,7 +16,7 @@ import { motion } from "framer-motion";
 import { toast } from "sonner";
 import { useChatStore } from "@/stores/chat-store";
 import { useConversationStore } from "@/stores/conversation-store";
-import { ModelSelector, type ModelOption } from "./ModelSelector";
+import type { ModelOption } from "@/config/models";
 import { useState } from "react";
 import {
   DropdownMenu,
@@ -36,7 +36,6 @@ interface ChatHeaderProps {
   isLoading?: boolean;
   error?: string | null;
   warning?: string | null;
-  onModelSelect?: (model: ModelOption) => void;
   availableModels?: ModelOption[];
   currentModelId?: string;
   onClearHistory?: () => void;
@@ -47,7 +46,6 @@ export function ChatHeader({
   isLoading,
   error,
   warning,
-  onModelSelect,
   availableModels = [],
   currentModelId,
   onClearHistory,
@@ -162,16 +160,6 @@ export function ChatHeader({
         <MCPStatus
           currentModel={availableModels.find((m) => m.id === currentModelId)}
         />
-
-        {onModelSelect && (
-          <ModelSelector
-            models={availableModels}
-            currentModel={currentModelId}
-            onModelSelect={onModelSelect}
-            disabled={isLoading}
-            isLoading={isLoading}
-          />
-        )}
 
         {/* Options Menu */}
         <DropdownMenu>

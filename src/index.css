@@ -163,6 +163,11 @@ section {
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-ring: var(--sidebar-ring);
+  --color-signal: var(--signal);
+  --color-signal-soft: var(--signal-soft);
+  /* Numbers and specs: sizes, VRAM, speeds. Ships with Windows 11. */
+  --font-instrument:
+    "Cascadia Mono", "Cascadia Code", Consolas, ui-monospace, monospace;
 }
 
 :root {
@@ -198,6 +203,9 @@ section {
   --sidebar-accent-foreground: oklch(0.205 0 0);
   --sidebar-border: oklch(0.922 0 0);
   --sidebar-ring: oklch(0.708 0 0);
+  /* SHIELD's accent - the logo's blue */
+  --signal: oklch(0.55 0.17 250);
+  --signal-soft: oklch(0.55 0.17 250 / 12%);
 }
 
 .dark {
@@ -232,6 +240,8 @@ section {
   --sidebar-accent-foreground: oklch(0.985 0 0);
   --sidebar-border: oklch(1 0 0 / 10%);
   --sidebar-ring: oklch(0.556 0 0);
+  --signal: oklch(0.72 0.15 245);
+  --signal-soft: oklch(0.72 0.15 245 / 14%);
 }
 
 @layer base {

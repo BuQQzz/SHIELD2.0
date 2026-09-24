@@ -91,6 +91,8 @@ Benchmark (XML path, latest code): Qwen3-Coder 100% on 6 tasks; Qwen2.5-7B 67%. 
 
 ## Next line of work — recommended order
 
+> **Update 2026-09-24:** the model library revamp now comes first. See [MODEL_LIBRARY_PLAN.md](./MODEL_LIBRARY_PLAN.md). Item 1 below becomes its Phase 2, and item 5 its Phases 3–4 (Bonsai 2 through the Prism runtime).
+
 1. **Larger context for Qwen3-Coder (highest value).** It is loaded at 8k because that is what the catalog says; one file read used 65% of it. Make context size a setting with a VRAM-based suggestion (the `fitContext` fix makes 16k–32k plausible on 12 GB). The panel already shows "model supports 262k".
 2. **Overwrite warning for `write_file`.** In Auto it now replaces existing files unprompted — that is how `README.md` was overwritten. At minimum: note "replaces existing file" in the tool result/UI; better: keep a backup (e.g. previous version to the Recycle Bin) before overwriting.
 3. **Re-run the benchmark** on the latest code, and add Qwen3.8-27B (native tools work for it on node-llama-cpp 3.21) plus a small model (Qwen2.5-3B in `D:\AIMODELS`).

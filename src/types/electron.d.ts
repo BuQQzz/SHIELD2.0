@@ -1,4 +1,6 @@
 export interface ModelConfig {
+  /** Library model id (src/config/models.ts) */
+  id: string;
   name: string;
   uri: string;
   contextSize?: number;
@@ -417,6 +419,12 @@ export interface ModelDownloadAPI {
   getDiskSpace: () => Promise<{
     success: boolean;
     bytes?: number;
+    error?: string;
+  }>;
+  /** GPU memory and system RAM in GB (vramGB null without a GPU) */
+  getHardware: () => Promise<{
+    success: boolean;
+    hardware?: { vramGB: number | null; ramGB: number | null };
     error?: string;
   }>;
   onProgress: (callback: (progress: DownloadProgress) => void) => () => void;

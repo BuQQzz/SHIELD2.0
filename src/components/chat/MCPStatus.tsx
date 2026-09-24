@@ -13,7 +13,7 @@ import {
   Loader2,
   AlertTriangle,
 } from "lucide-react";
-import type { ModelOption } from "./ModelSelector";
+import type { ModelOption } from "@/config/models";
 
 interface MCPStatusProps {
   currentModel?: ModelOption | null;

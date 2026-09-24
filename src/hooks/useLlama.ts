@@ -33,6 +33,8 @@ export interface Message {
 }
 
 export interface ModelInfo {
+  /** Library model id (src/config/models.ts) */
+  id: string;
   name: string;
   uri: string;
   contextSize?: number;

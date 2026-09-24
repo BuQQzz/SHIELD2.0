@@ -10,7 +10,7 @@ import {
   DEFAULT_SETTINGS,
   type MCPSettings as MCPSettingsType,
 } from "@/types/settings";
-import type { ModelOption } from "@/components/chat/ModelSelector";
+import type { ModelOption } from "@/config/models";
 
 interface MCPSettingsProps {
   settings: MCPSettingsType;

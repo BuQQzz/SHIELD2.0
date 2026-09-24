@@ -1,151 +1,87 @@
-import path from "path";
 import fs from "fs/promises";
-import type { ModelMetadata } from "../../../src/config/models";
+import {
+  MODEL_CATALOG,
+  type ModelMetadata,
+} from "../../../src/config/models.js";
+import {
+  findGgufFiles,
+  findInstalledFiles,
+} from "../../../src/services/modelFiles.js";
+
+export interface ModelFileManagerDeps {
+  /** Moves a file to the Recycle Bin (Electron's shell.trashItem) */
+  trash: (target: string) => Promise<void>;
+}
 
 /**
- * Manages model file operations (checking, listing, deleting)
+ * Manages model file operations (checking, listing, deleting).
+ *
+ * Library models are found by file name anywhere below the models folder,
+ * so a folder shared with LM Studio or arranged by hand works as-is.
  */
 export class ModelFileManager {
-  constructor(private getModelsDir: () => string) {}
+  constructor(
+    private getModelsDir: () => string,
+    private deps: ModelFileManagerDeps
+  ) {}
 
-  /**
-   * Generate possible filenames for a model based on its URI
-   * node-llama-cpp uses format: hf_Owner_RepoName.Quantization.gguf
-   * Example: hf:Qwen/Qwen2.5-3B-Instruct-GGUF:Q4_K_M -> hf_Qwen_Qwen2.5-3B-Instruct.Q4_K_M.gguf
-   */
-  private getPossibleFilenames(model: ModelMetadata): string[] {
-    // Local models are referenced by a path relative to the models directory,
-    // which may point into a nested folder (e.g. the HuggingFace cache layout).
-    if (model.uri.startsWith("file://")) {
-      return [model.uri.slice("file://".length)];
-    }
-
-    const uriParts = model.uri.split(":");
-    if (uriParts[0] !== "hf" || uriParts.length < 3) {
-      return [];
-    }
-
-    const [, repoPath, quantization] = uriParts;
-    const [owner, repo] = repoPath.split("/");
-
-    // Remove -GGUF suffix from repo name if present (node-llama-cpp does this)
-    const cleanRepo = repo.replace(/-GGUF$/i, "");
-
-    // node-llama-cpp naming convention: hf_{owner}_{repo}.{quantization}.gguf
-    return [
-      `hf_${owner}_${cleanRepo}.${quantization}.gguf`,
-      `hf_${owner}_${repo}.${quantization}.gguf`,
-      // Legacy patterns (in case older downloads exist)
-      `${repo.toLowerCase()}.${quantization.toLowerCase()}.gguf`,
-      `${repo}.${quantization}.gguf`,
-    ];
+  private scan(): Promise<string[]> {
+    return findGgufFiles(this.getModelsDir());
   }
 
   /**
-   * Check if a model is installed
+   * Check if a model is installed (any of its quantizations)
    */
   async isModelInstalled(model: ModelMetadata): Promise<boolean> {
-    try {
-      const possibleFilenames = this.getPossibleFilenames(model);
-      if (possibleFilenames.length === 0) return false;
-
-      const modelsDir = this.getModelsDir();
-      for (const filename of possibleFilenames) {
-        const modelPath = path.join(modelsDir, filename);
-        try {
-          await fs.access(modelPath);
-          console.log(`[ModelFileManager] Found model file: ${modelPath}`);
-          return true;
-        } catch {
-          continue;
-        }
-      }
-
-      return false;
-    } catch (error) {
-      console.error(`Error checking if model ${model.id} is installed:`, error);
-      return false;
-    }
+    return findInstalledFiles(model, await this.scan()).length > 0;
   }
 
   /**
-   * Get list of installed models
-   * Returns model IDs (not filenames) by checking each catalog model against installed files
+   * IDs of the library models with at least one file on disk. One scan of
+   * the folder for the whole library.
    */
   async listInstalledModels(): Promise<string[]> {
-    try {
-      const modelsDir = this.getModelsDir();
-      const files = await fs.readdir(modelsDir);
-      const ggufFiles = files.filter((file) => file.endsWith(".gguf"));
-
-      // We need to import MODEL_CATALOG to map filenames back to model IDs
-      // For now, return the filenames - the caller should use isModelInstalled() for each model
-      return ggufFiles;
-    } catch (error) {
-      console.error("Error listing installed models:", error);
-      return [];
-    }
+    const paths = await this.scan();
+    return MODEL_CATALOG.filter(
+      (model) => findInstalledFiles(model, paths).length > 0
+    ).map((model) => model.id);
   }
 
   /**
-   * Delete a model
+   * Move every installed file of a model to the Recycle Bin. The folder may
+   * be shared with other tools, so nothing is erased outright.
    */
   async deleteModel(model: ModelMetadata): Promise<boolean> {
-    try {
-      const possibleFilenames = this.getPossibleFilenames(model);
-      if (possibleFilenames.length === 0) {
-        throw new Error("Invalid model URI - cannot determine filename");
-      }
-
-      const modelsDir = this.getModelsDir();
-      console.log(`[ModelFileManager] Attempting to delete model ${model.id}`);
-      console.log(`[ModelFileManager] Looking in: ${modelsDir}`);
-      console.log(`[ModelFileManager] Possible filenames:`, possibleFilenames);
-
-      for (const filename of possibleFilenames) {
-        const modelPath = path.join(modelsDir, filename);
-        try {
-          await fs.access(modelPath); // Check if file exists first
-          await fs.unlink(modelPath);
-          console.log(`[ModelFileManager] Deleted model: ${modelPath}`);
-          return true;
-        } catch {
-          continue;
-        }
-      }
-
-      // If we get here, no file was found
+    const installed = findInstalledFiles(model, await this.scan());
+    if (installed.length === 0) {
       console.warn(
         `[ModelFileManager] No matching file found for model ${model.id}`
       );
       return false;
-    } catch (error) {
-      console.error(`Error deleting model ${model.id}:`, error);
-      return false;
     }
+
+    for (const { path } of installed) {
+      await this.deps.trash(path);
+      console.log(`[ModelFileManager] Moved to Recycle Bin: ${path}`);
+    }
+    return true;
   }
 
   /**
-   * Get total disk space used by models
+   * Disk space used by library models
    */
   async getTotalDiskSpace(): Promise<number> {
-    try {
-      const modelsDir = this.getModelsDir();
-      const files = await fs.readdir(modelsDir);
-      let totalSize = 0;
-
-      for (const file of files) {
-        if (file.endsWith(".gguf")) {
-          const filePath = path.join(modelsDir, file);
-          const stats = await fs.stat(filePath);
-          totalSize += stats.size;
+    const paths = await this.scan();
+    let totalSize = 0;
+    for (const model of MODEL_CATALOG) {
+      for (const { path } of findInstalledFiles(model, paths)) {
+        try {
+          totalSize += (await fs.stat(path)).size;
+        } catch {
+          // Removed since the scan
         }
       }
-
-      return totalSize;
-    } catch (error) {
-      console.error("Error calculating disk space:", error);
-      return 0;
     }
+    return totalSize;
   }
 }

@@ -4,14 +4,20 @@ import {
   LlamaModel,
   LlamaContext,
   LlamaChatSession,
-  resolveModelFile,
   resolveChatWrapper,
   InputLookupTokenPredictor,
   LlamaText,
   type ChatHistoryItem,
 } from "node-llama-cpp";
+import os from "os";
 import path from "path";
 import { fileURLToPath } from "url";
+import {
+  getModelById,
+  isRuntimeAvailable,
+  type HardwareInfo,
+} from "../config/models.js";
+import { chooseInstalledFile, findGgufFiles } from "./modelFiles.js";
 import { generateConversationTitle } from "./titleGenerator.js";
 import {
   breakDownContext,
@@ -53,6 +59,8 @@ export interface ChatOptions {
 }
 
 export interface ModelConfig {
+  /** Library model id (src/config/models.ts) */
+  id: string;
   name: string;
   uri: string;
   contextSize?: number;
@@ -94,6 +102,20 @@ export class LlamaService {
   async initialize(): Promise<void> {
     if (this.llama) return;
     this.llama = await getLlama();
+  }
+
+  /**
+   * GPU memory and system RAM in GB, for picking quantizations and
+   * recommending models. VRAM is null when no GPU backend is available.
+   */
+  async getHardwareInfo(): Promise<HardwareInfo> {
+    await this.initialize();
+    const ramGB = os.totalmem() / 2 ** 30;
+    if (!this.llama || this.llama.gpu === false) {
+      return { vramGB: null, ramGB };
+    }
+    const { total } = await this.llama.getVramState();
+    return { vramGB: total / 2 ** 30, ramGB };
   }
 
   /**
@@ -159,19 +181,7 @@ export class LlamaService {
     // Clean up existing resources
     await this.cleanup();
 
-    // Resolve and load model
-    const modelsDir = this.getModelsDir();
-    let modelPath: string;
-
-    // Check if it's a custom local file (file:// URI) or Hugging Face URI
-    if (config.uri.startsWith("file://")) {
-      // Custom model: extract filename and build path
-      const filename = config.uri.replace("file://", "");
-      modelPath = path.join(modelsDir, filename);
-    } else {
-      // Standard Hugging Face model
-      modelPath = await resolveModelFile(config.uri, modelsDir);
-    }
+    const modelPath = await this.resolveModelPath(config.id);
 
     let contextSize = config.contextSize || 2048;
 
@@ -282,6 +292,37 @@ export class LlamaService {
     this.currentModelConfig = { ...config, contextSize };
 
     return { warning };
+  }
+
+  /**
+   * Find the file to load for a library model. Loading never downloads -
+   * that is an explicit choice in the model browser.
+   */
+  private async resolveModelPath(modelId: string): Promise<string> {
+    const model = getModelById(modelId);
+    if (!model) {
+      throw new Error(`Unknown model "${modelId}". Pick one from the library.`);
+    }
+    if (!isRuntimeAvailable(model)) {
+      throw new Error(
+        `${model.displayName} needs a runtime SHIELD does not support yet.`
+      );
+    }
+
+    const modelsDir = this.getModelsDir();
+    const { vramGB } = await this.getHardwareInfo();
+    const chosen = chooseInstalledFile(
+      model,
+      await findGgufFiles(modelsDir),
+      vramGB
+    );
+    if (!chosen) {
+      throw new Error(
+        `${model.displayName} is not installed in ${modelsDir}. Download it from Browse & Download Models.`
+      );
+    }
+    console.log(`[LlamaService] Loading ${model.id} from ${chosen.path}`);
+    return chosen.path;
   }
 
   /**

@@ -1,6 +1,6 @@
 import { useMemo } from "react";
 import type { ModelCapabilities } from "@/config/models";
-import type { ModelOption } from "@/components/chat/ModelSelector";
+import type { ModelOption } from "@/config/models";
 
 /**
  * Hook to check current model's capabilities
@@ -81,7 +81,7 @@ export function useModelCapabilities(currentModel: ModelOption | null) {
     switch (feature) {
       case "mcp":
         if (!supports.toolCalling) {
-          return "This model does not support native function calling. MCP tool operations may not work reliably. Recommended models: Llama 3.3 70B, Qwen 2.5 Coder 32B, Mistral Large.";
+          return "This model does not support native function calling. MCP tool operations may not work reliably. Recommended: Qwen3 Coder 30B.";
         }
         return null;
       case "webSearch":

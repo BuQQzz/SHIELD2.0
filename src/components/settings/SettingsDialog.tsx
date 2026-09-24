@@ -14,7 +14,7 @@ import { WebSearchSettings } from "./WebSearchSettings";
 import { MCPSettings } from "./MCPSettings";
 import { HelpSettings } from "./HelpSettings";
 import { useSettingsStore } from "@/store/settingsStore";
-import type { ModelOption } from "@/components/chat/ModelSelector";
+import type { ModelOption } from "@/config/models";
 
 interface SettingsDialogProps {
   open: boolean;

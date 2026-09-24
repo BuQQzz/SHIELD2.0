@@ -1,4 +1,12 @@
-import type { ModelOption } from "../components/chat/ModelSelector";
+/**
+ * Model Library
+ *
+ * SHIELD ships a short, curated list: three families, a few variants each
+ * (docs/MODEL_LIBRARY_PLAN.md). A variant names exact GGUF files rather than
+ * a machine-specific path, so it is found wherever it sits in the models
+ * folder - SHIELD's own downloads, LM Studio's publisher/repo folders, or a
+ * hand-arranged collection.
+ */
 
 /**
  * Model Capabilities
@@ -30,627 +38,365 @@ export interface ModelCapabilities {
 }
 
 /**
- * Hardware Requirements
+ * Hardware Requirements, in GB of VRAM / system RAM
  */
 export interface HardwareRequirements {
-  /** Minimum VRAM in GB */
+  /** Below this the variant is not offered as an option */
   minVRAM: number;
-  /** Recommended VRAM in GB */
+  /** At or above this it runs well */
   recommendedVRAM: number;
-  /** Minimum system RAM in GB */
   minRAM: number;
-  /** Recommended system RAM in GB */
   recommendedRAM: number;
 }
 
+/** What a variant is for - shown as tags, used for filtering */
+export type ModelRole =
+  "agent" | "coding" | "chat" | "small" | "long-context" | "vision";
+
+/** The engine that runs a variant */
+export type ModelRuntime = "node-llama-cpp" | "prism-llama-server";
+
+/** One downloadable GGUF file (one quantization) of a variant */
+export interface ModelFile {
+  /** Exact file name in the Hugging Face repo */
+  name: string;
+  /** Hugging Face repo, owner/name */
+  hfRepo: string;
+  sizeBytes: number;
+  /** Smallest GPU (GB) this quantization is picked for */
+  minVRAM: number;
+  /** Other names the same weights are published under (e.g. LM Studio's) */
+  aliases?: string[];
+}
+
+export type LibraryFamilyId = "qwen" | "gemma" | "bonsai";
+
 /**
- * Model metadata for catalog and UI display
+ * Model metadata for catalog and UI display - one variant of a family
  */
 export interface ModelMetadata {
-  /** Model identifier */
+  /** Stable identifier - stored in settings and conversations */
   id: string;
+  familyId: LibraryFamilyId;
   /** Full model name */
   name: string;
   /** Display name for UI */
   displayName: string;
-  /** Hugging Face download URI */
+  /** Download URI of the preferred file (hf:owner/repo/file.gguf) */
   uri: string;
-  /** File size as string */
+  /** Size of the preferred file, for display */
   size: string;
   /** Brief description */
   description: string;
-  /** Context window size in tokens */
+  /** Context window loaded by default, in tokens */
   contextSize: number;
   /** Model capabilities */
   capabilities: ModelCapabilities;
   /** Hardware requirements */
   hardware: HardwareRequirements;
-  /** Release/training date */
+  /** Release date (YYYY-MM) */
   releaseDate?: string;
   /** Model family/provider */
-  provider: "Meta" | "Alibaba" | "Mistral" | "Microsoft" | "Google" | "Other";
-  /** Chat template format (llama, qwen, mistral, phi, gemma, deepseek) */
+  provider: "Alibaba" | "Google" | "PrismML";
+  /** Chat template format (qwen, gemma, ...) */
   chatTemplate: string;
-  /** Is this model currently installed? */
-  isInstalled?: boolean;
-  /** Download progress (0-100) if downloading */
-  downloadProgress?: number;
+  roles: ModelRole[];
+  runtime: ModelRuntime;
+  /** Quantizations, best quality first */
+  files: ModelFile[];
   /** Requires HuggingFace authentication (gated model) */
   requiresAuth?: boolean;
 }
 
-/**
- * Currently installed/active models
- * These are loaded by default and shown in the quick-access dropdown
- */
-export const AVAILABLE_MODELS: ModelOption[] = [
-  {
-    id: "qwen-7b",
-    name: "Qwen2.5-7B-Instruct",
-    displayName: "Qwen 7B",
-    uri: "hf:Qwen/Qwen2.5-7B-Instruct-GGUF:Q4_K_M",
-    size: "4.2GB",
-    description: "Excellent multilingual understanding, balanced performance",
-    contextSize: 8192,
-    capabilities: {
-      toolCalling: false,
-      complexReasoning: true,
-      webSearch: true,
-      structuredOutput: true,
-      longContext: true,
-      codeGeneration: true,
-      multilingual: "excellent",
-      temperatureRange: { min: 0.1, max: 1.5, default: 0.7 },
-    },
-  },
-  {
-    id: "llama-3b",
-    name: "Llama-3.2-3B-Instruct",
-    displayName: "Llama 3B",
-    uri: "hf:bartowski/Llama-3.2-3B-Instruct-GGUF:Q4_K_M",
-    size: "2.0GB",
-    description: "Faster responses, smaller model, good for quick tasks",
-    contextSize: 4096,
-    capabilities: {
-      toolCalling: false,
-      complexReasoning: false,
-      webSearch: true,
-      structuredOutput: false,
-      longContext: false,
-      codeGeneration: false,
-      multilingual: "basic",
-      temperatureRange: { min: 0.1, max: 1.0, default: 0.7 },
-    },
-  },
-  {
-    id: "mistral-7b",
-    name: "Mistral-7B-Instruct",
-    displayName: "Mistral 7B",
-    uri: "hf:bartowski/Mistral-7B-Instruct-v0.3-GGUF:Q4_K_M",
-    size: "4.4GB",
-    description: "Strong reasoning capabilities, alternative to Qwen",
-    contextSize: 8192,
-    capabilities: {
-      toolCalling: false,
-      complexReasoning: true,
-      webSearch: true,
-      structuredOutput: true,
-      longContext: true,
-      codeGeneration: true,
-      multilingual: "good",
-      temperatureRange: { min: 0.1, max: 1.2, default: 0.7 },
-    },
-  },
-];
+export interface ModelFamilyEntry {
+  id: LibraryFamilyId;
+  name: string;
+  provider: ModelMetadata["provider"];
+  description: string;
+  /** Preferred first */
+  variants: ModelMetadata[];
+}
 
-/**
- * Complete model catalog - Available for download
- * Curated list of high-quality models from trusted sources
- */
-export const MODEL_CATALOG: ModelMetadata[] = [
-  // ---------------------------------------------------------------------------
-  // Local models - referenced by a path relative to the configured models
-  // directory, so they are used from disk instead of downloaded.
-  // ---------------------------------------------------------------------------
-  {
-    id: "qwen-3-coder-30b-local",
-    name: "Qwen3-Coder-30B-A3B-Instruct",
-    displayName: "Qwen3 Coder 30B (local)",
-    uri: "file://unsloth/Qwen3-Coder-30B-A3B-Instruct-Q4_K_M-GGUF/Qwen3-Coder-30B-A3B-Instruct-Q4_K_M.gguf",
-    size: "17.3GB",
-    description:
-      "MoE coder with 3B active params - strong tool calling, partially offloaded to RAM",
-    contextSize: 8192,
-    provider: "Alibaba",
-    releaseDate: "2025-07",
-    chatTemplate: "qwen",
-    capabilities: {
-      toolCalling: true,
-      complexReasoning: true,
-      webSearch: true,
-      structuredOutput: true,
-      longContext: true,
-      codeGeneration: true,
-      multilingual: "good",
-      temperatureRange: { min: 0.1, max: 1.0, default: 0.7 },
-    },
-    hardware: {
-      minVRAM: 8,
-      recommendedVRAM: 24,
-      minRAM: 24,
-      recommendedRAM: 32,
-    },
-  },
-  {
-    id: "qwen-2.5-3b-local",
-    name: "Qwen2.5-3B-Instruct",
-    displayName: "Qwen 3B (local)",
-    uri: "file://google/gemma-4/hf_Qwen_Qwen2.5-3B-Instruct.Q4_K_M.gguf",
-    size: "2.0GB",
-    description:
-      "Small and fast - useful as a quick baseline for prompt changes",
-    contextSize: 4096,
-    provider: "Alibaba",
-    releaseDate: "2024-09",
-    chatTemplate: "qwen",
-    capabilities: {
-      toolCalling: false,
-      complexReasoning: false,
-      webSearch: true,
-      structuredOutput: true,
-      longContext: false,
-      codeGeneration: true,
-      multilingual: "good",
-      temperatureRange: { min: 0.1, max: 1.2, default: 0.7 },
-    },
-    hardware: {
-      minVRAM: 4,
-      recommendedVRAM: 6,
-      minRAM: 8,
-      recommendedRAM: 16,
-    },
-  },
-  // === PREMIUM TIER: Tool Calling & Advanced Features ===
-  {
-    id: "llama-3.3-70b",
-    name: "Llama-3.3-70B-Instruct",
-    displayName: "Llama 3.3 70B",
-    uri: "hf:bartowski/Llama-3.3-70B-Instruct-GGUF:Q4_K_M",
-    size: "42.5GB",
-    description:
-      "🌟 Meta's flagship model with native tool calling. Exceptional reasoning and coding.",
-    contextSize: 131072,
-    provider: "Meta",
-    releaseDate: "2024-12",
-    chatTemplate: "llama",
-    capabilities: {
-      toolCalling: true,
-      complexReasoning: true,
-      webSearch: true,
-      structuredOutput: true,
-      longContext: true,
-      codeGeneration: true,
-      multilingual: "excellent",
-      temperatureRange: { min: 0.0, max: 1.5, default: 0.6 },
-    },
-    hardware: {
-      minVRAM: 24,
-      recommendedVRAM: 32,
-      minRAM: 32,
-      recommendedRAM: 64,
-    },
-  },
-  {
-    id: "qwen-2.5-coder-32b",
-    name: "Qwen2.5-Coder-32B-Instruct",
-    displayName: "Qwen 2.5 Coder 32B",
-    uri: "hf:Qwen/Qwen2.5-Coder-32B-Instruct-GGUF:Q4_K_M",
-    size: "18GB",
-    description:
-      "🌟 Specialized coding model with tool calling. Best for development tasks.",
-    contextSize: 32768,
-    provider: "Alibaba",
-    releaseDate: "2024-11",
-    chatTemplate: "qwen",
-    capabilities: {
-      toolCalling: true,
-      complexReasoning: true,
-      webSearch: true,
-      structuredOutput: true,
-      longContext: true,
-      codeGeneration: true,
-      multilingual: "excellent",
-      temperatureRange: { min: 0.0, max: 1.2, default: 0.5 },
-    },
-    hardware: {
-      minVRAM: 16,
-      recommendedVRAM: 20,
-      minRAM: 24,
-      recommendedRAM: 32,
-    },
-  },
-  {
-    id: "qwen-3-coder-next-80b",
-    name: "Qwen3-Coder-Next-80B-A3B-Instruct",
-    displayName: "Qwen3 Coder Next 80B",
-    uri: "hf:unsloth/Qwen3-Coder-Next-80B-A3B-Instruct-GGUF:Q4_K_M",
-    size: "50.1GB",
-    description:
-      "🌟 New Qwen3 coder model with strong tool use and structured outputs.",
-    contextSize: 262144,
-    provider: "Alibaba",
-    releaseDate: "2025-08",
-    chatTemplate: "qwen",
-    capabilities: {
-      toolCalling: true,
-      complexReasoning: true,
-      webSearch: true,
-      structuredOutput: true,
-      longContext: true,
-      codeGeneration: true,
-      multilingual: "excellent",
-      temperatureRange: { min: 0.0, max: 1.0, default: 0.4 },
-    },
-    hardware: {
-      minVRAM: 32,
-      recommendedVRAM: 48,
-      minRAM: 48,
-      recommendedRAM: 64,
-    },
-  },
-  {
-    id: "qwen-3-8b",
-    name: "Qwen3-8B",
-    displayName: "Qwen3 8B",
-    uri: "hf:Qwen/Qwen3-8B-GGUF:Q4_K_M",
-    size: "5.1GB",
-    description:
-      "🌟 Practical Qwen3 model for RTX 5070-class GPUs with strong tool use and coding.",
-    contextSize: 131072,
-    provider: "Alibaba",
-    releaseDate: "2025-08",
-    chatTemplate: "qwen",
-    capabilities: {
-      toolCalling: true,
-      complexReasoning: true,
-      webSearch: true,
-      structuredOutput: true,
-      longContext: true,
-      codeGeneration: true,
-      multilingual: "excellent",
-      temperatureRange: { min: 0.0, max: 1.0, default: 0.4 },
-    },
-    hardware: {
-      minVRAM: 8,
-      recommendedVRAM: 10,
-      minRAM: 12,
-      recommendedRAM: 16,
-    },
-  },
-  {
-    id: "qwen-3-4b",
-    name: "Qwen3-4B",
-    displayName: "Qwen3 4B",
-    uri: "hf:Qwen/Qwen3-4B-GGUF:Q4_K_M",
-    size: "2.7GB",
-    description:
-      "🌟 Lightweight Qwen3 model for mid-range and lower GPUs with solid general performance.",
-    contextSize: 131072,
-    provider: "Alibaba",
-    releaseDate: "2025-08",
-    chatTemplate: "qwen",
-    capabilities: {
-      toolCalling: true,
-      complexReasoning: true,
-      webSearch: true,
-      structuredOutput: true,
-      longContext: true,
-      codeGeneration: true,
-      multilingual: "excellent",
-      temperatureRange: { min: 0.0, max: 1.1, default: 0.5 },
-    },
-    hardware: {
-      minVRAM: 4,
-      recommendedVRAM: 6,
-      minRAM: 8,
-      recommendedRAM: 12,
-    },
-  },
-  {
-    id: "qwen-3.5-397b-a17b",
-    name: "Qwen3.5-397B-A17B-Instruct",
-    displayName: "Qwen3.5 397B A17B",
-    uri: "hf:unsloth/Qwen3.5-397B-A17B-GGUF:Q4_K_M",
-    size: "232GB",
-    description:
-      "🌟 New Qwen3.5 flagship MoE model for advanced reasoning and tool usage.",
-    contextSize: 262144,
-    provider: "Alibaba",
-    releaseDate: "2025-10",
-    chatTemplate: "qwen",
-    capabilities: {
-      toolCalling: true,
-      complexReasoning: true,
-      webSearch: true,
-      structuredOutput: true,
-      longContext: true,
-      codeGeneration: true,
-      multilingual: "excellent",
-      temperatureRange: { min: 0.0, max: 0.9, default: 0.3 },
-    },
-    hardware: {
-      minVRAM: 80,
-      recommendedVRAM: 120,
-      minRAM: 128,
-      recommendedRAM: 256,
-    },
-  },
-  {
-    id: "mistral-large-2",
-    name: "Mistral-Large-2-Instruct",
-    displayName: "Mistral Large 2",
-    uri: "hf:bartowski/Mistral-Large-Instruct-2407-GGUF:Q4_K_M",
-    size: "73.2GB",
-    description:
-      "🌟 Mistral's most capable model with function calling. Excellent for complex tasks.",
-    contextSize: 131072,
-    provider: "Mistral",
-    releaseDate: "2024-07",
-    chatTemplate: "mistral",
-    capabilities: {
-      toolCalling: true,
-      complexReasoning: true,
-      webSearch: true,
-      structuredOutput: true,
-      longContext: true,
-      codeGeneration: true,
-      multilingual: "excellent",
-      temperatureRange: { min: 0.0, max: 1.0, default: 0.6 },
-    },
-    hardware: {
-      minVRAM: 40,
-      recommendedVRAM: 48,
-      minRAM: 64,
-      recommendedRAM: 128,
-    },
-  },
+/** An installed model as the app's pickers and hooks pass it around */
+export interface ModelOption {
+  id: string;
+  name: string;
+  displayName: string;
+  uri: string;
+  size: string;
+  description: string;
+  contextSize: number;
+  capabilities?: ModelCapabilities;
+  chatTemplate?: string;
+  runtime: ModelRuntime;
+}
 
-  // === HIGH PERFORMANCE TIER: 7B-14B Models ===
-  {
-    id: "qwen-7b",
-    name: "Qwen2.5-7B-Instruct",
-    displayName: "Qwen 7B",
-    uri: "hf:Qwen/Qwen2.5-7B-Instruct-GGUF:Q4_K_M",
-    size: "4.2GB",
-    description: "Excellent multilingual understanding, balanced performance",
-    contextSize: 8192,
-    provider: "Alibaba",
-    releaseDate: "2024-09",
-    chatTemplate: "qwen",
-    capabilities: {
-      toolCalling: false,
-      complexReasoning: true,
-      webSearch: true,
-      structuredOutput: true,
-      longContext: true,
-      codeGeneration: true,
-      multilingual: "excellent",
-      temperatureRange: { min: 0.1, max: 1.5, default: 0.7 },
-    },
-    hardware: {
-      minVRAM: 6,
-      recommendedVRAM: 8,
-      minRAM: 8,
-      recommendedRAM: 16,
-    },
-    isInstalled: true, // Pre-installed
-  },
-  {
-    id: "mistral-7b",
-    name: "Mistral-7B-Instruct",
-    displayName: "Mistral 7B",
-    uri: "hf:bartowski/Mistral-7B-Instruct-v0.3-GGUF:Q4_K_M",
-    size: "4.4GB",
-    description: "Strong reasoning capabilities, alternative to Qwen",
-    contextSize: 8192,
-    provider: "Mistral",
-    releaseDate: "2024-05",
-    chatTemplate: "mistral",
-    capabilities: {
-      toolCalling: false,
-      complexReasoning: true,
-      webSearch: true,
-      structuredOutput: true,
-      longContext: true,
-      codeGeneration: true,
-      multilingual: "good",
-      temperatureRange: { min: 0.1, max: 1.2, default: 0.7 },
-    },
-    hardware: {
-      minVRAM: 6,
-      recommendedVRAM: 8,
-      minRAM: 8,
-      recommendedRAM: 16,
-    },
-    isInstalled: true, // Pre-installed
-  },
-  {
-    id: "phi-3-14b",
-    name: "Phi-3-Medium-14B-Instruct",
-    displayName: "Phi-3 Medium 14B",
-    uri: "hf:bartowski/Phi-3-medium-128k-instruct-GGUF:Q4_K_M",
-    size: "8.6GB",
-    description:
-      "Microsoft's efficient model with 128K context. Great for long documents.",
-    contextSize: 131072,
-    provider: "Microsoft",
-    releaseDate: "2024-06",
-    chatTemplate: "phi",
-    capabilities: {
-      toolCalling: false,
-      complexReasoning: true,
-      webSearch: true,
-      structuredOutput: true,
-      longContext: true,
-      codeGeneration: true,
-      multilingual: "good",
-      temperatureRange: { min: 0.1, max: 1.0, default: 0.7 },
-    },
-    hardware: {
-      minVRAM: 10,
-      recommendedVRAM: 12,
-      minRAM: 12,
-      recommendedRAM: 16,
-    },
-  },
+/** The host's GPU memory and system RAM, in GB. null when unknown. */
+export interface HardwareInfo {
+  vramGB: number | null;
+  ramGB: number | null;
+}
 
-  // === EFFICIENT TIER: Small & Fast Models ===
-  {
-    id: "llama-3b",
-    name: "Llama-3.2-3B-Instruct",
-    displayName: "Llama 3B",
-    uri: "hf:bartowski/Llama-3.2-3B-Instruct-GGUF:Q4_K_M",
-    size: "2.0GB",
-    description: "Faster responses, smaller model, good for quick tasks",
-    contextSize: 4096,
-    provider: "Meta",
-    releaseDate: "2024-09",
-    chatTemplate: "llama",
-    capabilities: {
-      toolCalling: false,
-      complexReasoning: false,
-      webSearch: true,
-      structuredOutput: false,
-      longContext: false,
-      codeGeneration: false,
-      multilingual: "basic",
-      temperatureRange: { min: 0.1, max: 1.0, default: 0.7 },
-    },
-    hardware: {
-      minVRAM: 4,
-      recommendedVRAM: 6,
-      minRAM: 4,
-      recommendedRAM: 8,
-    },
-    isInstalled: true, // Pre-installed
-  },
-  {
-    id: "llama-1b",
-    name: "Llama-3.2-1B-Instruct",
-    displayName: "Llama 1B",
-    uri: "hf:bartowski/Llama-3.2-1B-Instruct-GGUF:Q4_K_M",
-    size: "810MB",
-    description:
-      "Ultra-fast responses, minimal resource usage. Perfect for testing.",
-    contextSize: 4096,
-    provider: "Meta",
-    releaseDate: "2024-09",
-    chatTemplate: "llama",
-    capabilities: {
-      toolCalling: false,
-      complexReasoning: false,
-      webSearch: false,
-      structuredOutput: false,
-      longContext: false,
-      codeGeneration: false,
-      multilingual: "basic",
-      temperatureRange: { min: 0.1, max: 1.0, default: 0.7 },
-    },
-    hardware: {
-      minVRAM: 2,
-      recommendedVRAM: 4,
-      minRAM: 2,
-      recommendedRAM: 4,
-    },
-  },
-  {
-    id: "qwen-3b",
-    name: "Qwen2.5-3B-Instruct",
-    displayName: "Qwen 3B",
-    uri: "hf:Qwen/Qwen2.5-3B-Instruct-GGUF:Q4_K_M",
-    size: "1.9GB",
-    description:
-      "Compact multilingual model, good balance of speed and quality",
-    contextSize: 8192,
-    provider: "Alibaba",
-    releaseDate: "2024-09",
-    chatTemplate: "qwen",
-    capabilities: {
-      toolCalling: false,
-      complexReasoning: false,
-      webSearch: true,
-      structuredOutput: true,
-      longContext: false,
-      codeGeneration: true,
-      multilingual: "excellent",
-      temperatureRange: { min: 0.1, max: 1.2, default: 0.7 },
-    },
-    hardware: {
-      minVRAM: 4,
-      recommendedVRAM: 6,
-      minRAM: 4,
-      recommendedRAM: 8,
-    },
-  },
+// ---------------------------------------------------------------------------
+// Helpers used to build the catalog
+// ---------------------------------------------------------------------------
 
-  // === SPECIALIZED TIER: Purpose-Built Models ===
+export function hfUri(file: ModelFile): string {
+  return `hf:${file.hfRepo}/${file.name}`;
+}
+
+export function formatModelSize(bytes: number): string {
+  return `${(bytes / 1e9).toFixed(1)} GB`;
+}
+
+type VariantSpec = Omit<
+  ModelMetadata,
+  "uri" | "size" | "familyId" | "files"
+> & {
+  files: [ModelFile, ...ModelFile[]];
+};
+
+function variants(
+  familyId: LibraryFamilyId,
+  specs: VariantSpec[]
+): ModelMetadata[] {
+  return specs.map((spec) => ({
+    ...spec,
+    familyId,
+    uri: hfUri(spec.files[0]),
+    size: formatModelSize(spec.files[0].sizeBytes),
+  }));
+}
+
+// ---------------------------------------------------------------------------
+// The library
+// ---------------------------------------------------------------------------
+
+export const MODEL_FAMILIES: ModelFamilyEntry[] = [
   {
-    id: "deepseek-coder-7b",
-    name: "DeepSeek-Coder-6.7B-Instruct",
-    displayName: "DeepSeek Coder 6.7B",
-    uri: "hf:TheBloke/deepseek-coder-6.7B-instruct-GGUF:Q4_K_M",
-    size: "4.1GB",
-    description: "Specialized coding model, excellent for programming tasks",
-    contextSize: 16384,
-    provider: "Other",
-    releaseDate: "2024-01",
-    chatTemplate: "deepseek",
-    capabilities: {
-      toolCalling: false,
-      complexReasoning: true,
-      webSearch: false,
-      structuredOutput: true,
-      longContext: true,
-      codeGeneration: true,
-      multilingual: "basic",
-      temperatureRange: { min: 0.0, max: 1.0, default: 0.3 },
-    },
-    hardware: {
-      minVRAM: 6,
-      recommendedVRAM: 8,
-      minRAM: 8,
-      recommendedRAM: 16,
-    },
+    id: "qwen",
+    name: "Qwen",
+    provider: "Alibaba",
+    description:
+      "Qwen3-Coder for agent and coding work; Qwen3.8 for everyday use.",
+    variants: variants("qwen", [
+      {
+        id: "qwen3-coder-30b",
+        name: "Qwen3-Coder-30B-A3B-Instruct",
+        displayName: "Qwen3 Coder 30B",
+        description:
+          "Mixture-of-experts coder, 3B parameters active per token. The best-tested model with SHIELD's tools. On a 12 GB GPU, part of it runs from system RAM and stays quick.",
+        contextSize: 8192,
+        provider: "Alibaba",
+        releaseDate: "2025-07",
+        chatTemplate: "qwen",
+        roles: ["agent", "coding"],
+        runtime: "node-llama-cpp",
+        files: [
+          {
+            name: "Qwen3-Coder-30B-A3B-Instruct-Q4_K_M.gguf",
+            hfRepo: "unsloth/Qwen3-Coder-30B-A3B-Instruct-GGUF",
+            sizeBytes: 18_560_000_000,
+            minVRAM: 0,
+          },
+        ],
+        capabilities: {
+          toolCalling: true,
+          complexReasoning: true,
+          webSearch: true,
+          structuredOutput: true,
+          longContext: true,
+          codeGeneration: true,
+          multilingual: "good",
+          temperatureRange: { min: 0.1, max: 1.0, default: 0.7 },
+        },
+        hardware: {
+          minVRAM: 8,
+          recommendedVRAM: 12,
+          minRAM: 24,
+          recommendedRAM: 32,
+        },
+      },
+      {
+        id: "qwen3.8-27b",
+        name: "Qwen3.8-27B",
+        displayName: "Qwen3.8 27B",
+        description:
+          "Qwen's newest general model: chat, writing, reasoning and code. SHIELD picks the quantization that fits your GPU.",
+        contextSize: 8192,
+        provider: "Alibaba",
+        releaseDate: "2026-08",
+        chatTemplate: "qwen",
+        roles: ["chat", "vision"],
+        runtime: "node-llama-cpp",
+        files: [
+          {
+            name: "Qwen3.8-27B-UD-Q4_K_M.gguf",
+            hfRepo: "unsloth/Qwen3.8-27B-GGUF",
+            sizeBytes: 16_460_000_000,
+            minVRAM: 16,
+            aliases: ["Qwen3.8-27B-Q4_K_M.gguf"],
+          },
+          {
+            name: "Qwen3.8-27B-UD-IQ3_XXS.gguf",
+            hfRepo: "unsloth/Qwen3.8-27B-GGUF",
+            sizeBytes: 10_930_000_000,
+            minVRAM: 0,
+          },
+        ],
+        capabilities: {
+          toolCalling: true,
+          complexReasoning: true,
+          webSearch: true,
+          structuredOutput: true,
+          longContext: true,
+          codeGeneration: true,
+          multilingual: "excellent",
+          temperatureRange: { min: 0.1, max: 1.0, default: 0.7 },
+        },
+        hardware: {
+          minVRAM: 12,
+          recommendedVRAM: 16,
+          minRAM: 16,
+          recommendedRAM: 32,
+        },
+      },
+    ]),
   },
   {
-    id: "gemma-2-9b",
-    name: "Gemma-2-9B-Instruct",
-    displayName: "Gemma 2 9B",
-    uri: "hf:bartowski/gemma-2-9b-it-GGUF:Q4_K_M",
-    size: "5.8GB",
-    description: "Google's efficient model with strong safety features",
-    contextSize: 8192,
+    id: "gemma",
+    name: "Gemma 4",
     provider: "Google",
-    releaseDate: "2024-06",
-    chatTemplate: "gemma",
-    capabilities: {
-      toolCalling: false,
-      complexReasoning: true,
-      webSearch: true,
-      structuredOutput: true,
-      longContext: false,
-      codeGeneration: true,
-      multilingual: "good",
-      temperatureRange: { min: 0.1, max: 1.0, default: 0.7 },
-    },
-    hardware: {
-      minVRAM: 8,
-      recommendedVRAM: 10,
-      minRAM: 10,
-      recommendedRAM: 16,
-    },
+    description: "Fast everyday models that fit entirely on the GPU.",
+    variants: variants("gemma", [
+      {
+        id: "gemma-4-12b",
+        name: "Gemma-4-12B-it",
+        displayName: "Gemma 4 12B",
+        description:
+          "Quick, capable everyday model. Fits entirely on a 12 GB GPU with room left for context.",
+        contextSize: 8192,
+        provider: "Google",
+        chatTemplate: "gemma",
+        roles: ["chat", "vision"],
+        runtime: "node-llama-cpp",
+        files: [
+          {
+            name: "gemma-4-12b-it-Q4_K_M.gguf",
+            hfRepo: "unsloth/gemma-4-12b-it-GGUF",
+            sizeBytes: 7_120_000_000,
+            minVRAM: 0,
+          },
+        ],
+        capabilities: {
+          toolCalling: true,
+          complexReasoning: true,
+          webSearch: true,
+          structuredOutput: true,
+          longContext: true,
+          codeGeneration: true,
+          multilingual: "excellent",
+          temperatureRange: { min: 0.1, max: 1.2, default: 0.7 },
+        },
+        hardware: {
+          minVRAM: 8,
+          recommendedVRAM: 10,
+          minRAM: 16,
+          recommendedRAM: 16,
+        },
+      },
+      {
+        id: "gemma-4-e4b",
+        name: "Gemma-4-E4B-it",
+        displayName: "Gemma 4 E4B",
+        description:
+          "Small and fast, for GPUs with 4-8 GB. Not yet benchmarked with SHIELD's tools.",
+        contextSize: 8192,
+        provider: "Google",
+        chatTemplate: "gemma",
+        roles: ["small", "chat", "vision"],
+        runtime: "node-llama-cpp",
+        files: [
+          {
+            name: "gemma-4-E4B-it-Q4_K_M.gguf",
+            hfRepo: "unsloth/gemma-4-E4B-it-GGUF",
+            sizeBytes: 4_980_000_000,
+            minVRAM: 0,
+          },
+        ],
+        capabilities: {
+          toolCalling: true,
+          complexReasoning: false,
+          webSearch: true,
+          structuredOutput: true,
+          longContext: false,
+          codeGeneration: true,
+          multilingual: "good",
+          temperatureRange: { min: 0.1, max: 1.2, default: 0.7 },
+        },
+        hardware: {
+          minVRAM: 4,
+          recommendedVRAM: 6,
+          minRAM: 8,
+          recommendedRAM: 16,
+        },
+      },
+    ]),
+  },
+  {
+    id: "bonsai",
+    name: "Bonsai",
+    provider: "PrismML",
+    description:
+      "Ternary-weight models: a 27B model in 6 GB, with a long context window on a mid-range GPU.",
+    variants: variants("bonsai", [
+      {
+        id: "bonsai-2-27b",
+        name: "Ternary-Bonsai-2-27B",
+        displayName: "Bonsai 2 27B",
+        description:
+          "27B model at 1.58 bits per weight. Runs fully on a 12 GB GPU with a 64k context window. Needs PrismML's runtime, which SHIELD does not run yet.",
+        contextSize: 65536,
+        provider: "PrismML",
+        chatTemplate: "generic",
+        roles: ["long-context", "chat"],
+        runtime: "prism-llama-server",
+        files: [
+          {
+            name: "Ternary-Bonsai-2-27B-PTQ1_0.gguf",
+            hfRepo: "prism-ml/Ternary-Bonsai-2-27B-gguf",
+            sizeBytes: 5_950_000_000,
+            minVRAM: 0,
+          },
+        ],
+        capabilities: {
+          toolCalling: true,
+          complexReasoning: true,
+          webSearch: true,
+          structuredOutput: true,
+          longContext: true,
+          codeGeneration: true,
+          multilingual: "good",
+          temperatureRange: { min: 0.1, max: 1.0, default: 0.7 },
+        },
+        hardware: {
+          minVRAM: 8,
+          recommendedVRAM: 12,
+          minRAM: 16,
+          recommendedRAM: 32,
+        },
+      },
+    ]),
   },
 ];
+
+/** Every variant, in library order */
+export const MODEL_CATALOG: ModelMetadata[] = MODEL_FAMILIES.flatMap(
+  (family) => family.variants
+);
+
+/** Loaded at startup when nothing else has been chosen */
+export const DEFAULT_MODEL_ID = "qwen3-coder-30b";
 
 /**
  * Get model by ID from catalog
@@ -659,40 +405,83 @@ export function getModelById(id: string): ModelMetadata | undefined {
   return MODEL_CATALOG.find((model) => model.id === id);
 }
 
+/** True for variants SHIELD can run today */
+export function isRuntimeAvailable(model: Pick<ModelMetadata, "runtime">) {
+  return model.runtime === "node-llama-cpp";
+}
+
+// ---------------------------------------------------------------------------
+// Matching files on disk
+// ---------------------------------------------------------------------------
+
 /**
- * Filter models by capability
+ * Whether a file on disk is this model file. Case-insensitive; also accepts
+ * node-llama-cpp's download names, which prefix `hf_<owner>_[<repo>_]`.
  */
-export function filterModelsByCapability(
-  capability: keyof ModelCapabilities,
-  value?: boolean | string
-): ModelMetadata[] {
-  return MODEL_CATALOG.filter((model) => {
-    const capValue = model.capabilities[capability];
-    if (value !== undefined) {
-      return capValue === value;
-    }
-    return !!capValue;
+export function matchesModelFile(fileName: string, file: ModelFile): boolean {
+  const name = fileName.toLowerCase();
+  return [file.name, ...(file.aliases ?? [])].some((candidate) => {
+    const target = candidate.toLowerCase();
+    return (
+      name === target || (name.startsWith("hf_") && name.endsWith(`_${target}`))
+    );
   });
 }
 
 /**
- * Get models that support tool calling
+ * The quantization to use on this GPU: the best one whose `minVRAM` it
+ * meets, else the smallest. Unknown hardware gets the best.
  */
-export function getToolCallingModels(): ModelMetadata[] {
-  return filterModelsByCapability("toolCalling", true);
+export function pickModelFile<T extends ModelFile>(
+  files: T[],
+  vramGB: number | null
+): T | undefined {
+  if (files.length === 0) return undefined;
+  if (vramGB === null) return files[0];
+  return files.find((file) => vramGB >= file.minVRAM) ?? files.at(-1);
+}
+
+// ---------------------------------------------------------------------------
+// Fit and recommendations
+// ---------------------------------------------------------------------------
+
+/**
+ * How well a variant suits this machine:
+ * - "good": at or above the recommended VRAM
+ * - "tight": runs, but slower or with less context
+ * - "too-large": below the minimum VRAM or RAM
+ * - "unknown": the hardware could not be read
+ */
+export type ModelFit = "good" | "tight" | "too-large" | "unknown";
+
+export function getModelFit(
+  model: Pick<ModelMetadata, "hardware">,
+  hardware: HardwareInfo | null
+): ModelFit {
+  if (hardware?.vramGB == null) return "unknown";
+  const { vramGB, ramGB } = hardware;
+  const { minVRAM, recommendedVRAM, minRAM } = model.hardware;
+  if (vramGB < minVRAM || (ramGB !== null && ramGB < minRAM)) {
+    return "too-large";
+  }
+  return vramGB >= recommendedVRAM ? "good" : "tight";
 }
 
 /**
- * Get installed models
+ * The variant to suggest from a family: the first that runs well here, else
+ * the first that runs at all. Undefined when hardware is unknown or nothing
+ * fits.
  */
-export function getInstalledModels(): ModelMetadata[] {
-  return MODEL_CATALOG.filter((model) => model.isInstalled);
-}
-
-/**
- * Get chat template ID for a model
- */
-export function getChatTemplateForModel(modelId: string): string {
-  const model = getModelById(modelId);
-  return model?.chatTemplate || "llama"; // Default to llama template
+export function getRecommendedVariant(
+  family: Pick<ModelFamilyEntry, "variants">,
+  hardware: HardwareInfo | null
+): ModelMetadata | undefined {
+  const fits = family.variants.map((variant) => ({
+    variant,
+    fit: getModelFit(variant, hardware),
+  }));
+  return (
+    fits.find((entry) => entry.fit === "good")?.variant ??
+    fits.find((entry) => entry.fit === "tight")?.variant
+  );
 }

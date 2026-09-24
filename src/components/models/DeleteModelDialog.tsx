@@ -42,7 +42,7 @@ export function DeleteModelDialog({
             <div>
               <DialogTitle>Delete Model</DialogTitle>
               <DialogDescription className="mt-1">
-                This action cannot be undone
+                The files go to the Recycle Bin
               </DialogDescription>
             </div>
           </div>
@@ -57,9 +57,9 @@ export function DeleteModelDialog({
           </div>
 
           <p className="text-sm text-muted-foreground">
-            Are you sure you want to delete this model? The model file will be
-            permanently removed from your system and will need to be downloaded
-            again if you want to use it in the future.
+            Delete this model? Its files are moved to the Recycle Bin, where you
+            can restore them. Other apps that share your models folder will lose
+            them too until they are restored.
           </p>
         </div>
 

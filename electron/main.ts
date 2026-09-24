@@ -1,3 +1,4 @@
+import path from "path";
 import { app, BrowserWindow } from "electron";
 import { SettingsStorageService } from "./services/SettingsStorageService.js";
 import { mcpService } from "./services/MCPService.js";
@@ -58,9 +59,14 @@ async function setupIpcHandlers() {
   const modelDownloadService = registerModelHandlers();
   registerSystemHandlers();
 
-  // Apply initial settings to services
+  // Apply initial settings to services. The model loader gets the download
+  // folder even without a custom one - its own default was a different
+  // folder, so downloaded models could not be loaded.
+  llamaService.setCustomModelsDir(
+    settings.system.modelDirectory ||
+      path.join(app.getPath("userData"), "models")
+  );
   if (settings.system.modelDirectory) {
-    llamaService.setCustomModelsDir(settings.system.modelDirectory);
     modelDownloadService.setCustomModelsDir(settings.system.modelDirectory);
   }
 

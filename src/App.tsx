@@ -25,6 +25,10 @@ import { useMCPSystemPrompt } from "./hooks/useMCPSystemPrompt";
 import { useMCPTools } from "./hooks/useMCPTools";
 import { useToolPolicy } from "./hooks/useToolPolicy";
 import { useInstalledModels } from "./hooks/useInstalledModels";
+import { useChatStore } from "./stores/chat-store";
+import { ModelLibraryPage } from "./components/library/ModelLibraryPage";
+import { PluginsPage } from "./components/plugins/PluginsPage";
+import { DEFAULT_MODEL_ID } from "./config/models";
 import { createAppShortcuts } from "./config/shortcuts";
 import "./App.css";
 
@@ -32,7 +36,8 @@ function App() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [isGenerating, setIsGenerating] = useState(false);
   const [streamingContent, setStreamingContent] = useState("");
-  const [currentModelId, setCurrentModelId] = useState<string>("qwen-7b");
+  const [currentModelId, setCurrentModelId] =
+    useState<string>(DEFAULT_MODEL_ID);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [templateSelectorOpen, setTemplateSelectorOpen] = useState(false);
   const [isWebSearching, setIsWebSearching] = useState(false);
@@ -40,7 +45,12 @@ function App() {
   const inputRef = useRef<ChatInputRef>(null);
 
   // Load installed models
-  const { installedModels, isLoading: isLoadingModels } = useInstalledModels();
+  const {
+    installedModels,
+    isLoading: isLoadingModels,
+    refresh: refreshInstalledModels,
+  } = useInstalledModels();
+  const activeView = useChatStore((state) => state.activeView);
 
   const {
     isInitialized,
@@ -241,10 +251,33 @@ function App() {
           onNewChat={handleNewChat}
           onNewFromTemplate={() => setTemplateSelectorOpen(true)}
           onOpenSettings={() => setSettingsOpen(true)}
+          models={installedModels}
+          currentModelId={currentModelId}
+          isModelLoading={isLoading}
+          isModelLoaded={isModelLoaded}
+          onModelSelect={handleModelSelect}
         />
       }
     >
-      <div className="flex h-full flex-col">
+      {activeView === "library" && (
+        <ModelLibraryPage
+          currentModelId={currentModelId}
+          isModelLoaded={isModelLoaded}
+          isModelLoading={isLoading}
+          onLoadModel={handleModelSelect}
+          onInstalledChange={refreshInstalledModels}
+        />
+      )}
+      {activeView === "plugins" && (
+        <PluginsPage currentModel={currentModelConfig} />
+      )}
+      <div
+        className={
+          activeView === "chat" || activeView === "code"
+            ? "flex h-full flex-col"
+            : "hidden"
+        }
+      >
         <ChatHeader
           modelName={currentModel?.name}
           isLoading={isLoading || isLoadingModels}
@@ -252,7 +285,6 @@ function App() {
           warning={warning}
           availableModels={installedModels}
           currentModelId={currentModelId}
-          onModelSelect={handleModelSelect}
           onClearHistory={handleClearHistory}
         />
         {messages.length === 0 && !streamingContent ? (
