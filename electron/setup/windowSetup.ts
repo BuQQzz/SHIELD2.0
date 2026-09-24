@@ -71,6 +71,31 @@ export function createMainWindow(): BrowserWindow {
     mainWindow.webContents.invalidate();
   });
 
+  // A crashed renderer left a blank white window with no way back but a
+  // restart. It happened when llama-server's 22 GB of weights (loaded with
+  // --load-mode none) used up the Windows commit limit (2026-09-24).
+  // Reload, unless it keeps crashing - then a reload loop helps nobody.
+  const recentCrashes: number[] = [];
+  mainWindow.webContents.on("render-process-gone", (_event, details) => {
+    console.error(
+      `[main] Renderer gone: ${details.reason} (exit code ${details.exitCode})`
+    );
+    if (details.reason === "clean-exit" || mainWindow.isDestroyed()) return;
+
+    const now = Date.now();
+    recentCrashes.push(now);
+    while (recentCrashes[0]! < now - 60_000) recentCrashes.shift();
+    if (recentCrashes.length > 3) {
+      console.error(
+        "[main] Renderer crashed 4 times in a minute; not reloading"
+      );
+      return;
+    }
+    setTimeout(() => {
+      if (!mainWindow.isDestroyed()) mainWindow.webContents.reload();
+    }, 1000);
+  });
+
   mainWindow.on("closed", () => {
     // Window reference will be cleaned up by caller
   });

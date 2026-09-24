@@ -70,6 +70,12 @@ export function registerLlamaHandlers(
       const response = await llamaService.chatStreaming(
         message,
         (token) => {
+          // The page that asked is gone (renderer crash): stop generating
+          // instead of logging a send error for each of up to 8k tokens
+          if (mainWindow && mainWindow.webContents.isCrashed()) {
+            llamaService.stopGeneration();
+            return;
+          }
           // Send token to renderer
           if (mainWindow && !mainWindow.isDestroyed()) {
             mainWindow.webContents.send("llama:token", token);
