@@ -8,7 +8,7 @@ import {
   performWebSearchAndBuildContext,
 } from "./webSearchHelper";
 import { enhanceQueryWithContext } from "../utils/queryEnhancer";
-import { processMCPToolCalls } from "./mcpMessageHandler";
+import { processMCPToolCalls, unrunToolCallsNote } from "./mcpMessageHandler";
 import { extractToolCalls } from "./mcpToolHandler";
 import {
   buildMCPRetryPrompt,
@@ -96,6 +96,7 @@ export function createMessageHandler({
 
     setMessages((prev) => [...prev, userMessage]);
     addMessage(userMessage);
+    useGenerationStore.getState().setStopRequested(false);
 
     // Perform web search if requested (after user message is shown)
     let webSearchContext = "";
@@ -173,6 +174,12 @@ export function createMessageHandler({
         !webSearchContext
       ) {
         messageWithContext += `\n\n[Current folder: ${workspace}]`;
+      }
+
+      // The last turn ended at the tool-round limit with calls still pending
+      const unrun = currentConversation?.messages.at(-1)?.unrunToolCalls;
+      if (unrun?.length) {
+        messageWithContext += `\n\n${unrunToolCallsNote(unrun)}`;
       }
 
       const returnedResponse = await sendStreamingMessage(
@@ -279,6 +286,7 @@ export function createMessageHandler({
           maxToolCallsPerTurn: settings.mcp.maxToolCallsPerTurn,
           maxToolRounds: settings.mcp.maxToolRounds,
           workspaceFolder: settings.mcp.workspaceFolder,
+          isStopped: () => useGenerationStore.getState().stopRequested,
           // About a third of the context window for any one result (~3 chars
           // per token for code), so the request and the reply still fit
           maxResultChars: Math.max(

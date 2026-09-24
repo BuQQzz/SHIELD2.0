@@ -9,9 +9,11 @@ import {
   Settings,
   DEFAULT_SETTINGS,
   FILESYSTEM_TOOLS,
+  DEFAULT_MAX_TOOL_ROUNDS,
   LEGACY_DEFAULT_ALLOWED_TOOLS,
   PERMISSION_MODES,
   PREVIOUS_DEFAULT_ALLOWED_TOOLS,
+  PREVIOUS_DEFAULT_MAX_TOOL_ROUNDS,
   type PermissionMode,
 } from "./SettingsCategories";
 
@@ -65,6 +67,11 @@ export function migrateMcpSettings(
     isExactly(migrated.allowedTools, PREVIOUS_DEFAULT_ALLOWED_TOOLS)
   ) {
     migrated.allowedTools = [...FILESYSTEM_TOOLS];
+  }
+
+  // No control sets this, so a stored 5 is the old default, not a choice
+  if (migrated.maxToolRounds === PREVIOUS_DEFAULT_MAX_TOOL_ROUNDS) {
+    migrated.maxToolRounds = DEFAULT_MAX_TOOL_ROUNDS;
   }
 
   return migrated;

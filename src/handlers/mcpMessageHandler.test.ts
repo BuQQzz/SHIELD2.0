@@ -1,5 +1,9 @@
 import { describe, expect, it, vi } from "vitest";
-import { callSignature, processMCPToolCalls } from "./mcpMessageHandler";
+import {
+  callSignature,
+  processMCPToolCalls,
+  unrunToolCallsNote,
+} from "./mcpMessageHandler";
 import type { Message } from "../hooks/useLlama";
 
 describe("processMCPToolCalls", () => {
@@ -180,6 +184,180 @@ describe("multi-round tool chaining", () => {
 
     const prompt = continueConversation.mock.calls[0]?.[0] as string;
     expect(prompt).toContain("reached the tool call limit");
+  });
+
+  it("says so when the round limit stops a call from running", async () => {
+    const assistantMessage: Message = {
+      id: "assistant-limit",
+      role: "assistant",
+      content: call("list_directory", '{"path":"C:/Users/me/Desktop"}'),
+      timestamp: new Date(),
+    };
+    const addMessage = vi.fn();
+
+    await processMCPToolCalls(assistantMessage, {
+      onToolCallDetected: vi.fn().mockResolvedValue({ success: true }),
+      addMessage,
+      continueConversation: vi
+        .fn()
+        .mockResolvedValue(
+          call("write_file", '{"path":"a.txt","content":"x"}')
+        ),
+      maxToolRounds: 1,
+    });
+
+    const notice = addMessage.mock.calls.at(-1)?.[0] as Message;
+    expect(notice.role).toBe("assistant");
+    expect(notice.content).toContain("write_file");
+    expect(notice.content).toContain("continue");
+    // Kept so the next prompt can tell the model the call never happened
+    expect(notice.unrunToolCalls).toEqual(["write_file a.txt"]);
+    expect(unrunToolCallsNote(notice.unrunToolCalls!)).toContain(
+      "never executed"
+    );
+  });
+
+  it("keeps going when a reply is cut off mid-call", async () => {
+    const assistantMessage: Message = {
+      id: "assistant-cut",
+      role: "assistant",
+      content: call("list_directory", '{"path":"."}'),
+      timestamp: new Date(),
+    };
+    const onToolCallDetected = vi
+      .fn()
+      .mockResolvedValue({ success: true, data: {} });
+    // Hits the token limit inside the arguments, then retries in parts
+    const continueConversation = vi
+      .fn()
+      .mockResolvedValueOnce(
+        'Now let\'s enhance app.js:\n<tool_call>\n<server>filesystem</server>\n<tool>edit_file</tool>\n<arguments>{"path":"app.js","edits":[{"oldText":"class'
+      )
+      .mockResolvedValueOnce("I'll write it in smaller parts.");
+
+    await processMCPToolCalls(assistantMessage, {
+      onToolCallDetected,
+      addMessage: vi.fn(),
+      continueConversation,
+    });
+
+    // The cut-off call never runs; the model hears why and gets another turn
+    expect(onToolCallDetected).toHaveBeenCalledTimes(1);
+    expect(continueConversation).toHaveBeenCalledTimes(2);
+    const prompt = continueConversation.mock.calls[1]?.[0] as string;
+    expect(prompt).toContain("cut off");
+    expect(prompt).toContain("smaller steps");
+    expect(prompt).not.toContain("valid JSON object");
+  });
+
+  it("reports a tool that answered with isError as a failure", async () => {
+    const assistantMessage: Message = {
+      id: "assistant-iserror",
+      role: "assistant",
+      content: call("edit_file", '{"path":"a.css","edits":[]}'),
+      timestamp: new Date(),
+    };
+    const addMessage = vi.fn();
+    const continueConversation = vi.fn().mockResolvedValue("ok");
+
+    await processMCPToolCalls(assistantMessage, {
+      onToolCallDetected: vi.fn().mockResolvedValue({
+        success: true,
+        data: {
+          isError: true,
+          content: [{ type: "text", text: "Input validation error" }],
+        },
+      }),
+      addMessage,
+      continueConversation,
+    });
+
+    const row = addMessage.mock.calls[0]?.[0] as Message;
+    expect(row.toolResult?.success).toBe(false);
+    const prompt = continueConversation.mock.calls[0]?.[0] as string;
+    expect(prompt).toContain("<error>Input validation error</error>");
+  });
+
+  it("tells the model how to fix an edit that did not match", async () => {
+    const assistantMessage: Message = {
+      id: "assistant-miss",
+      role: "assistant",
+      content: call(
+        "edit_file",
+        '{"path":"a.js","edits":[{"oldText":"x","newText":"y"}]}'
+      ),
+      timestamp: new Date(),
+    };
+    const continueConversation = vi.fn().mockResolvedValue("ok");
+
+    await processMCPToolCalls(assistantMessage, {
+      onToolCallDetected: vi.fn().mockResolvedValue({
+        success: true,
+        data: {
+          isError: true,
+          content: [
+            { type: "text", text: "Could not find exact match for edit:\nx" },
+          ],
+        },
+      }),
+      addMessage: vi.fn(),
+      continueConversation,
+    });
+
+    const prompt = continueConversation.mock.calls[0]?.[0] as string;
+    expect(prompt).toContain("Read the file with read_text_file first");
+  });
+
+  it("ends the turn when the user pressed Stop", async () => {
+    const assistantMessage: Message = {
+      id: "assistant-stop",
+      role: "assistant",
+      content: call("list_directory", '{"path":"."}'),
+      timestamp: new Date(),
+    };
+    const onToolCallDetected = vi
+      .fn()
+      .mockResolvedValue({ success: true, data: {} });
+    let stopped = false;
+    // Stop pressed while this reply streamed; it ends mid-call
+    const continueConversation = vi.fn().mockImplementation(async () => {
+      stopped = true;
+      return (
+        call("read_file", '{"path":"a.txt"}') +
+        '\n<tool_call>\n<tool>write_file</tool>\n<arguments>{"path":"b'
+      );
+    });
+
+    await processMCPToolCalls(assistantMessage, {
+      onToolCallDetected,
+      addMessage: vi.fn(),
+      continueConversation,
+      isStopped: () => stopped,
+    });
+
+    // Nothing after the stop runs, and it is not reported as a cut-off
+    expect(onToolCallDetected).toHaveBeenCalledTimes(1);
+    expect(continueConversation).toHaveBeenCalledTimes(1);
+  });
+
+  it("adds no notice when the final reply is plain text", async () => {
+    const assistantMessage: Message = {
+      id: "assistant-limit-text",
+      role: "assistant",
+      content: call("list_directory", '{"path":"C:/Users/me/Desktop"}'),
+      timestamp: new Date(),
+    };
+    const addMessage = vi.fn();
+
+    await processMCPToolCalls(assistantMessage, {
+      onToolCallDetected: vi.fn().mockResolvedValue({ success: true }),
+      addMessage,
+      continueConversation: vi.fn().mockResolvedValue("All done."),
+      maxToolRounds: 1,
+    });
+
+    // Only the tool result
+    expect(addMessage).toHaveBeenCalledTimes(1);
   });
 
   it("does not continue when the reply is empty", async () => {

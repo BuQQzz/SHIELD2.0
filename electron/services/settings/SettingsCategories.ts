@@ -91,6 +91,16 @@ export const FILESYSTEM_TOOLS = [
   "delete_file",
 ];
 
+/**
+ * Tool -> result -> tool cycles allowed in one turn. It was 5, which a model
+ * building a project used up on two directory listings and two mkdirs, and
+ * the write_file that followed was dropped (2026-09-24).
+ */
+export const DEFAULT_MAX_TOOL_ROUNDS = 20;
+
+/** The maxToolRounds default before that; not editable in the UI */
+export const PREVIOUS_DEFAULT_MAX_TOOL_ROUNDS = 5;
+
 /** FILESYSTEM_TOOLS before delete_file was added (2026-09-24) */
 export const PREVIOUS_DEFAULT_ALLOWED_TOOLS = FILESYSTEM_TOOLS.filter(
   (tool) => tool !== "delete_file"
@@ -138,6 +148,6 @@ export const DEFAULT_SETTINGS: Settings = {
     allowedTools: [...FILESYSTEM_TOOLS],
     auditLogRetentionDays: 30,
     maxToolCallsPerTurn: 5,
-    maxToolRounds: 5,
+    maxToolRounds: DEFAULT_MAX_TOOL_ROUNDS,
   },
 };

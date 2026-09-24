@@ -133,6 +133,6 @@ export const DEFAULT_SETTINGS: AppSettings = {
     allowedTools: [...FILESYSTEM_TOOLS],
     auditLogRetentionDays: 30,
     maxToolCallsPerTurn: 5,
-    maxToolRounds: 5,
+    maxToolRounds: 20,
   },
 };

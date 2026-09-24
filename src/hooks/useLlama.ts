@@ -15,6 +15,12 @@ export interface Message {
   /** Tokens and speed of the reply, shown under assistant messages */
   stats?: GenerationStats;
   /**
+   * Tool calls the model wrote that were never run because the turn hit its
+   * tool-round limit, e.g. "write_file C:\p\index.html". Set on the
+   * notice shown to the user; the next prompt tells the model about them.
+   */
+  unrunToolCalls?: string[];
+  /**
    * Set when this message is an MCP tool result rather than something the
    * user typed. It is stored with role "user" because that is how the model's
    * chat template expects tool output, but it must not be rendered as if the
@@ -24,6 +30,8 @@ export interface Message {
     tool: string;
     serverName: string;
     success: boolean;
+    /** The file or folder it acted on, for the step's label */
+    target?: string;
     /**
      * Plan mode refused to run this. Not a failure - the mode working as
      * intended - so it must not be presented as an error.

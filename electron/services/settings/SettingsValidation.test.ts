@@ -103,6 +103,16 @@ describe("mergeWithDefaults", () => {
 
     expect(merged.mcp.maxToolRounds).toBe(DEFAULT_SETTINGS.mcp.maxToolRounds);
   });
+
+  it("moves the old 5-round default up to the current one", () => {
+    const migrated = migrateMcpSettings({ maxToolRounds: 5 });
+    expect(migrated.maxToolRounds).toBe(DEFAULT_SETTINGS.mcp.maxToolRounds);
+    expect(DEFAULT_SETTINGS.mcp.maxToolRounds).toBeGreaterThan(5);
+  });
+
+  it("keeps any other round limit", () => {
+    expect(migrateMcpSettings({ maxToolRounds: 8 }).maxToolRounds).toBe(8);
+  });
 });
 
 describe("isValidSettings", () => {

@@ -323,3 +323,22 @@ describe("plan mode prompt", () => {
     expect(prompt).toContain("<tool_call>");
   });
 });
+
+describe("edit rule", () => {
+  const editFile: ToolDefinition = {
+    name: "edit_file",
+    description: "Edit a file",
+    serverName: "filesystem",
+    parameters: [],
+  };
+
+  it("tells the model to edit rather than rewrite when edit_file exists", () => {
+    const prompt = generateMCPToolPrompt([editFile]);
+    expect(prompt).toContain("EDIT, DON'T REWRITE");
+    expect(prompt).toContain('"oldText"');
+  });
+
+  it("says nothing about edits without edit_file", () => {
+    expect(generateMCPToolPrompt(tools)).not.toContain("EDIT, DON'T REWRITE");
+  });
+});

@@ -44,6 +44,30 @@ function toParamType(value: unknown): ToolParameter["type"] {
   return "string";
 }
 
+/**
+ * "Each item: {oldText (string, required), newText (string, required)}" for
+ * an array of objects, else "".
+ *
+ * The prompt showed edit_file's `edits` only as "array", so Qwen3-Coder
+ * guessed {"replace", "with"}, every edit failed, and it rewrote whole files
+ * with write_file instead (2026-09-24).
+ */
+export function describeArrayItems(schema: Record<string, unknown>): string {
+  if (schema.type !== "array") return "";
+  const items = schema.items as
+    { properties?: Record<string, unknown>; required?: string[] } | undefined;
+  const properties = items?.properties;
+  if (!properties) return "";
+
+  const fields = Object.entries(properties).map(([key, raw]) => {
+    const type = (raw as { type?: unknown } | null)?.type;
+    const parts = [typeof type === "string" ? type : "any"];
+    if (items.required?.includes(key)) parts.push("required");
+    return `${key} (${parts.join(", ")})`;
+  });
+  return `Each item: {${fields.join(", ")}}`;
+}
+
 function toToolDefinition(
   serverName: string,
   tool: MCPToolSchema
@@ -59,11 +83,16 @@ function toToolDefinition(
         typeof rawSchema === "object" && rawSchema !== null ? rawSchema : {}
       ) as Record<string, unknown>;
 
+      const description =
+        typeof schema.description === "string" ? schema.description : "";
+      const itemShape = describeArrayItems(schema);
+
       return {
         name,
         type: toParamType(schema.type),
-        description:
-          typeof schema.description === "string" ? schema.description : "",
+        description: itemShape
+          ? `${description}${description ? " " : ""}${itemShape}`
+          : description,
         required: required.includes(name),
       };
     }

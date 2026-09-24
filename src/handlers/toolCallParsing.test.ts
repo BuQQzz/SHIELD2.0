@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
+  cutOffToolCall,
+  dropTrailingClosers,
+  escapeStrayQuotes,
   extractToolCalls,
   repairJsonStrings,
   stripToolCallMarkup,
@@ -35,6 +38,20 @@ describe("formats observed from real model output", () => {
     const calls = extractToolCalls(raw);
     expect(calls).toHaveLength(1);
     expect(calls[0]?.tool).toBe("read_file");
+  });
+
+  it("JSON arguments whose content is HTML (write_file, 2026-09-24)", () => {
+    const raw = `<tool_call>
+<server>filesystem</server>
+<tool>write_file</tool>
+<arguments>{"path":"C:\\\\p\\\\index.html","content":"<!DOCTYPE html>\\n<html>\\n<head>\\n<title>T</title>\\n</head>\\n<body>\\n<h1>Hi</h1>\\n</body>\\n</html>"}</arguments>
+</tool_call>`;
+
+    const calls = extractToolCalls(raw);
+    expect(calls).toHaveLength(1);
+    expect(calls[0]?.argumentsError).toBeUndefined();
+    expect(calls[0]?.arguments.path).toBe("C:\\p\\index.html");
+    expect(calls[0]?.arguments.content).toContain("<h1>Hi</h1>");
   });
 
   it("every captured format yields exactly one call", () => {
@@ -258,5 +275,110 @@ describe("stripToolCallMarkup", () => {
     const raw =
       'Reading it now.\n```markdown\n<server>filesystem</server>\n<tool>read_text_file</tool>\n<arguments>{"path":"C:/a.md"}</arguments>\n```';
     expect(stripToolCallMarkup(raw)).toBe("Reading it now.");
+  });
+});
+
+describe("cutOffToolCall", () => {
+  it("stands in for a call the reply ended inside (token limit, 2026-09-24)", () => {
+    const raw = `Now let's enhance our app.js file:
+
+<tool_call>
+<server>filesystem</server>
+<tool>edit_file</tool>
+<arguments>{"path":"app.js","edits":[{"oldText":"class WebSearcher {\n    constructor() {`;
+
+    expect(extractToolCalls(raw)).toHaveLength(0);
+    const call = cutOffToolCall(raw);
+    expect(call?.tool).toBe("edit_file");
+    expect(call?.argumentsError).toMatch(/^The tool call was cut off/);
+  });
+
+  it("ignores a reply whose calls are all complete", () => {
+    const raw = `<tool_call>
+<tool>list_directory</tool>
+<arguments>{"path":"."}</arguments>
+</tool_call>
+Done.`;
+    expect(cutOffToolCall(raw)).toBeNull();
+  });
+
+  it("ignores prose that mentions a tag", () => {
+    expect(
+      cutOffToolCall("Use the <tool> element to name the tool.")
+    ).toBeNull();
+  });
+});
+
+describe("unescaped quotes inside string values", () => {
+  it("recovers HTML quotes in a JS template literal (write_file, 2026-09-24)", () => {
+    const raw = `<tool_call>
+<server>filesystem</server>
+<tool>write_file</tool>
+<arguments>{"path":"app.js","content":"el.innerHTML = \`\n  <img src="\${item.url}" alt="\${item.title}">\n\`;\nf(\\"a\\", \\"b\\");"}</arguments>
+</tool_call>`;
+
+    const [call] = extractToolCalls(raw);
+    expect(call?.argumentsError).toBeUndefined();
+    expect(call?.arguments.path).toBe("app.js");
+    expect(call?.arguments.content).toContain(
+      '<img src="${item.url}" alt="${item.title}">'
+    );
+  });
+
+  it("keeps quotes that look like a second argument as text", () => {
+    expect(escapeStrayQuotes('{"c":"f("a", "b")"}')).toBe(
+      '{"c":"f(\\"a\\", \\"b\\")"}'
+    );
+  });
+
+  it("leaves real closing quotes alone", () => {
+    const json = '{"a":"x","b":["p","q"],"c":1}';
+    expect(escapeStrayQuotes(json)).toBe(json);
+  });
+});
+
+describe("edit_file key aliases", () => {
+  const edit = (edits: string) =>
+    extractToolCalls(`<tool_call>
+<server>filesystem</server>
+<tool>edit_file</tool>
+<arguments>{"path":"a.css","edits":${edits}}</arguments>
+</tool_call>`)[0]?.arguments.edits;
+
+  it("maps replace/with (Qwen3-Coder, 2026-09-24)", () => {
+    expect(edit('[{"replace":"a","with":"b"}]')).toEqual([
+      { oldText: "a", newText: "b" },
+    ]);
+  });
+
+  it("maps search/replace, where replace is the new text", () => {
+    expect(edit('[{"search":"a","replace":"b"}]')).toEqual([
+      { oldText: "a", newText: "b" },
+    ]);
+  });
+
+  it("leaves correct edits alone", () => {
+    expect(edit('[{"oldText":"a","newText":"b"}]')).toEqual([
+      { oldText: "a", newText: "b" },
+    ]);
+  });
+});
+
+describe("stray closing brackets after the arguments", () => {
+  it("accepts a valid object with one extra brace (write_file, 2026-09-24)", () => {
+    const raw = `<tool_call>
+<server>filesystem</server>
+<tool>write_file</tool>
+<arguments>{"path":"setup.sh","content":"echo \\"hi\\"\n"}
+}</arguments>
+</tool_call>`;
+    const [call] = extractToolCalls(raw);
+    expect(call?.argumentsError).toBeUndefined();
+    expect(call?.arguments.path).toBe("setup.sh");
+  });
+
+  it("does not drop real content after the object", () => {
+    expect(dropTrailingClosers('{"a":1} trailing')).toBeNull();
+    expect(dropTrailingClosers('{"a":1}}]')).toBe('{"a":1}');
   });
 });

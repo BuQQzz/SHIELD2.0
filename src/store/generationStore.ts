@@ -20,6 +20,13 @@ interface GenerationStore {
   setContext: (context: ContextUsage | null | undefined) => void;
   /** Ask the main process, e.g. after loading a model or switching chats */
   refreshContext: () => Promise<void>;
+  /**
+   * The user pressed Stop during this turn. Stopping aborts only the reply
+   * being generated; the tool loop reads this so it does not start another
+   * round. Cleared when the next message is sent.
+   */
+  stopRequested: boolean;
+  setStopRequested: (value: boolean) => void;
 }
 
 export const useGenerationStore = create<GenerationStore>((set) => ({
@@ -28,6 +35,8 @@ export const useGenerationStore = create<GenerationStore>((set) => ({
   record: (stats, context) =>
     set({ lastStats: stats ?? null, context: context ?? null }),
   setContext: (context) => set({ context: context ?? null }),
+  stopRequested: false,
+  setStopRequested: (value) => set({ stopRequested: value }),
   refreshContext: async () => {
     try {
       const result = await window.llama.getContextUsage();

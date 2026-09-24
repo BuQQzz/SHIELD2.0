@@ -5,6 +5,7 @@ import type { ChatInputRef } from "../components/chat/ChatInput";
 import type { SearchResult, PageContent } from "../types/electron";
 import type { ToolCallRequest } from "../handlers/mcpToolHandler";
 import type { MCPToolResult } from "@/types";
+import { useGenerationStore } from "../store/generationStore";
 import { createMessageHandler } from "../handlers/messageHandler";
 import { createContinuationHandler } from "../handlers/continuationHandler";
 import {
@@ -111,6 +112,8 @@ export function useAppHandlers({
 
   const handleStopGenerating = useCallback(async () => {
     try {
+      // Before aborting, so the tool loop sees it when the reply returns
+      useGenerationStore.getState().setStopRequested(true);
       await stopGeneration();
       setIsGenerating(false);
 

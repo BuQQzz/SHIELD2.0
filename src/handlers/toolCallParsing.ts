@@ -18,6 +18,9 @@ export interface ToolCallRequest {
   argumentsError?: string;
 }
 
+/** Set on the stand-in for a call the reply ended in the middle of */
+export const CUT_OFF_ERROR_PREFIX = "The tool call was cut off";
+
 export interface ExtractToolCallOptions {
   enableOpenAIToolCalls?: boolean;
   enableXmlToolCalls?: boolean;
@@ -88,16 +91,114 @@ export function repairJsonStrings(input: string): string {
   return out;
 }
 
-function parseJson(input: string): unknown | null {
-  try {
-    return JSON.parse(input);
-  } catch {
-    try {
-      return JSON.parse(repairJsonStrings(input));
-    } catch {
-      return null;
+/**
+ * What may follow a quote that really closes a string: the end, `}`, `]`,
+ * `:`, or a comma and then another value. `, "b")` is not a next value, so
+ * the quotes in `f("a", "b")` stay text.
+ */
+const AFTER_CLOSING_QUOTE =
+  /^\s*(?:$|[}\]:]|,\s*(?:"[^"\\\n]*"\s*[:,\]}]|[{[\-\d]|true|false|null))/;
+
+/**
+ * Escape double quotes that sit inside a string value.
+ *
+ * Writing a whole source file as a JSON string, Qwen3-Coder escaped most
+ * quotes but not those in HTML inside JS template literals:
+ * `<img src="${item.url}" alt="${item.title}">`. The first bare quote ended
+ * the string and the call failed twice (write_file and edit_file of app.js,
+ * 2026-09-24). A quote counts as closing only when valid JSON can follow it.
+ * Used only after a strict parse and repairJsonStrings have both failed.
+ */
+export function escapeStrayQuotes(input: string): string {
+  let out = "";
+  let inString = false;
+
+  for (let i = 0; i < input.length; i++) {
+    const ch = input[i]!;
+
+    if (!inString) {
+      if (ch === '"') inString = true;
+      out += ch;
+      continue;
+    }
+
+    if (ch === "\\") {
+      out += ch + (input[i + 1] ?? "");
+      i++;
+      continue;
+    }
+
+    if (ch === '"') {
+      if (AFTER_CLOSING_QUOTE.test(input.slice(i + 1, i + 200))) {
+        inString = false;
+        out += ch;
+      } else {
+        out += '\\"';
+      }
+      continue;
+    }
+
+    out += ch;
+  }
+
+  return out;
+}
+
+/**
+ * A complete JSON object or array followed only by stray closing brackets,
+ * with the strays removed; otherwise null.
+ *
+ * Qwen3-Coder ended three write_file calls in a row with `..."}\n}` - valid
+ * arguments plus one extra brace. Told "not valid JSON", it sent the same
+ * call again each time (setup.sh, setup.bat, 2026-09-24).
+ */
+export function dropTrailingClosers(input: string): string | null {
+  const text = input.trim();
+  if (text[0] !== "{" && text[0] !== "[") return null;
+
+  let depth = 0;
+  let inString = false;
+  for (let i = 0; i < text.length; i++) {
+    const ch = text[i]!;
+    if (inString) {
+      if (ch === "\\") i++;
+      else if (ch === '"') inString = false;
+    } else if (ch === '"') {
+      inString = true;
+    } else if (ch === "{" || ch === "[") {
+      depth++;
+    } else if (ch === "}" || ch === "]") {
+      depth--;
+      if (depth === 0) {
+        const rest = text.slice(i + 1);
+        return /^[\s}\]]+$/.test(rest) ? text.slice(0, i + 1) : null;
+      }
     }
   }
+  return null;
+}
+
+function parseJson(input: string): unknown | null {
+  const repaired = repairJsonStrings(input);
+  const candidates = [input, repaired, escapeStrayQuotes(repaired)];
+
+  for (const candidate of candidates) {
+    try {
+      return JSON.parse(candidate);
+    } catch {
+      // try the next repair
+    }
+  }
+  for (const candidate of candidates) {
+    const trimmed = dropTrailingClosers(candidate);
+    if (trimmed === null) continue;
+    try {
+      return JSON.parse(trimmed);
+    } catch {
+      // try the next repair
+    }
+  }
+  return null;
 }
 
 function parseArguments(value: unknown): {
@@ -175,9 +276,40 @@ function normalizeFilesystemPath(pathValue: string): string {
   return pathValue;
 }
 
+/** Key pairs models use for an edit, as [text to find, replacement] */
+const EDIT_KEY_ALIASES: Array<[string, string]> = [
+  ["replace", "with"],
+  ["search", "replace"],
+  ["find", "replace"],
+  ["old", "new"],
+  ["old_text", "new_text"],
+  ["oldString", "newString"],
+  ["old_string", "new_string"],
+];
+
+/**
+ * Map an edit written with made-up keys onto edit_file's oldText/newText.
+ *
+ * Qwen3-Coder wrote {"replace": old, "with": new} every time; the server
+ * rejected it, and the model fell back to rewriting the whole file with
+ * write_file (index.html and styles.css, 2026-09-24). An edit that already
+ * has oldText or newText, or matches no known pair, is left as it is.
+ */
+function normalizeEdit(edit: unknown): unknown {
+  if (!isRecord(edit) || "oldText" in edit || "newText" in edit) return edit;
+  for (const [from, to] of EDIT_KEY_ALIASES) {
+    if (typeof edit[from] === "string" && typeof edit[to] === "string") {
+      const { [from]: oldText, [to]: newText, ...rest } = edit;
+      return { ...rest, oldText, newText };
+    }
+  }
+  return edit;
+}
+
 function normalizeFilesystemArguments(
   serverName: string,
-  args: Record<string, unknown>
+  args: Record<string, unknown>,
+  tool?: string
 ): Record<string, unknown> {
   if (serverName !== "filesystem") {
     return args;
@@ -186,6 +318,9 @@ function normalizeFilesystemArguments(
   const normalizedArgs = { ...args };
   if (typeof normalizedArgs.path === "string") {
     normalizedArgs.path = normalizeFilesystemPath(normalizedArgs.path);
+  }
+  if (tool === "edit_file" && Array.isArray(normalizedArgs.edits)) {
+    normalizedArgs.edits = normalizedArgs.edits.map(normalizeEdit);
   }
 
   return normalizedArgs;
@@ -222,7 +357,7 @@ function parseOpenAIToolCall(item: ToolCallJsonObject): ToolCallRequest | null {
     return null;
   }
 
-  const normalizedArgs = normalizeFilesystemArguments(serverName, args);
+  const normalizedArgs = normalizeFilesystemArguments(serverName, args, tool);
 
   return {
     serverName,
@@ -445,8 +580,12 @@ function extractXmlToolCalls(rawContent: string): ToolCallRequest[] {
         let argumentsError: string | undefined;
         if (argsMatch?.[1]) {
           const body = argsMatch[1].trim();
-          // Nested elements first, then JSON
-          const elements = parseXmlArgumentElements(body);
+          // A JSON body is JSON even when a value holds markup: the HTML in
+          // a write_file content string was read as <head>/<body> arguments
+          // and the path was lost. Nested elements only otherwise.
+          const elements = body.startsWith("{")
+            ? null
+            : parseXmlArgumentElements(body);
           if (elements) {
             args = elements;
           } else {
@@ -455,7 +594,7 @@ function extractXmlToolCalls(rawContent: string): ToolCallRequest[] {
         }
 
         if (tool) {
-          args = normalizeFilesystemArguments(serverName, args);
+          args = normalizeFilesystemArguments(serverName, args, tool);
 
           toolCalls.push({
             serverName,
@@ -487,7 +626,11 @@ function extractXmlToolCalls(rawContent: string): ToolCallRequest[] {
           args.content = body;
         }
 
-        const normalizedArgs = normalizeFilesystemArguments("filesystem", args);
+        const normalizedArgs = normalizeFilesystemArguments(
+          "filesystem",
+          args,
+          tool
+        );
 
         toolCalls.push({
           serverName: "filesystem",
@@ -580,6 +723,8 @@ const CALL_START =
 export function streamingToolCallPreview(content: string): {
   text: string;
   pendingTool: string | null;
+  /** The call's path once written, so the UI can say "Writing app.js" */
+  pendingTarget?: string;
 } {
   const CLOSE = "</tool_call>";
   const lastClose = content.lastIndexOf(CLOSE);
@@ -603,10 +748,44 @@ export function streamingToolCallPreview(content: string): {
     unfinished.match(/"name"\s*:\s*"([^"]+)"/)?.[1] ??
     "";
 
+  const target = unfinished.match(/"(?:path|source)"\s*:\s*"([^"]+)"/)?.[1];
+
   return {
     text: stripToolCallMarkup(content.slice(0, start))
       .replace(/```[a-z]*\s*$/i, "") // fence opened for the call
       .trimEnd(),
     pendingTool: name.includes(".") ? name.split(".").pop()! : name,
+    ...(target ? { pendingTarget: target } : {}),
+  };
+}
+
+/**
+ * A stand-in for a call the reply stopped in the middle of, or null.
+ *
+ * A reply that reaches its token limit while writing a file ends inside the
+ * call's arguments. No complete call can be parsed from it, so the turn just
+ * ended: "Now let's enhance app.js:" and nothing happened (Qwen3-Coder,
+ * edit_file carrying the whole file, 3328/3328 tokens, 2026-09-24). The
+ * stand-in never runs; it carries an error telling the model what happened.
+ *
+ * Only a call that reached its arguments counts, so prose that merely
+ * mentions a tag is not mistaken for one.
+ */
+export function cutOffToolCall(content: string): ToolCallRequest | null {
+  const { pendingTool } = streamingToolCallPreview(content);
+  if (pendingTool === null) return null;
+
+  const CLOSE = "</tool_call>";
+  const lastClose = content.lastIndexOf(CLOSE);
+  const tail = content.slice(lastClose === -1 ? 0 : lastClose + CLOSE.length);
+  if (!/<arguments>|"arguments"\s*:/.test(tail)) return null;
+
+  const tool = pendingTool || "tool";
+  return {
+    serverName: "filesystem",
+    tool,
+    arguments: {},
+    format: "xml",
+    argumentsError: `${CUT_OFF_ERROR_PREFIX}: your reply reached its length limit partway through the ${tool} arguments, so it was not run and nothing changed. Do it in smaller steps: create a large file in parts (write_file with the first part, then edit_file to add each next part), and change existing files with edit_file using only the lines that change.`,
   };
 }
