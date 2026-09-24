@@ -87,7 +87,14 @@ export const FILESYSTEM_TOOLS = [
   "edit_file",
   "create_directory",
   "move_file",
+  // SHIELD's own: moves to the Recycle Bin (the server has no delete)
+  "delete_file",
 ];
+
+/** FILESYSTEM_TOOLS before delete_file was added (2026-09-24) */
+export const PREVIOUS_DEFAULT_ALLOWED_TOOLS = FILESYSTEM_TOOLS.filter(
+  (tool) => tool !== "delete_file"
+);
 
 /** The allowlist every install had before FILESYSTEM_TOOLS existed */
 export const LEGACY_DEFAULT_ALLOWED_TOOLS = [

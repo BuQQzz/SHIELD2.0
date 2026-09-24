@@ -190,6 +190,29 @@ describe("tool allowlist migration", () => {
 
   it("allows every filesystem tool on a fresh install", () => {
     expect(DEFAULT_SETTINGS.mcp.allowedTools).toEqual(FILESYSTEM_TOOLS);
-    expect(FILESYSTEM_TOOLS).toHaveLength(14);
+    expect(FILESYSTEM_TOOLS).toHaveLength(15);
+  });
+});
+
+describe("delete_file allowlist migration", () => {
+  it("adds delete_file to the untouched 14-tool default", () => {
+    const previous = FILESYSTEM_TOOLS.filter((t) => t !== "delete_file");
+    const migrated = migrateMcpSettings({
+      ...DEFAULT_SETTINGS.mcp,
+      allowedTools: previous,
+    });
+    expect(migrated.allowedTools).toContain("delete_file");
+    expect(migrated.allowedTools).toHaveLength(15);
+  });
+
+  it("does not add it to a list the user trimmed", () => {
+    const trimmed = FILESYSTEM_TOOLS.filter(
+      (t) => t !== "delete_file" && t !== "write_file"
+    );
+    const migrated = migrateMcpSettings({
+      ...DEFAULT_SETTINGS.mcp,
+      allowedTools: trimmed,
+    });
+    expect(migrated.allowedTools).not.toContain("delete_file");
   });
 });

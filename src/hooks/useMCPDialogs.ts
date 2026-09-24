@@ -30,6 +30,10 @@ export interface PendingToolRequest {
   previewContent?: string;
   /** The path the call targets, when it has one */
   targetPath?: string;
+  /** Deletes (to the Recycle Bin): shown in red, never "Allow always" */
+  isDestructive?: boolean;
+  /** For move_file: where the file ends up */
+  destinationPath?: string;
 }
 
 interface UseMCPDialogsProps {
@@ -135,7 +139,14 @@ export function useMCPDialogs({ callTool, policy }: UseMCPDialogsProps) {
           targetPath:
             typeof toolCall.arguments.path === "string"
               ? toolCall.arguments.path
+              : typeof toolCall.arguments.source === "string"
+                ? toolCall.arguments.source
+                : undefined,
+          destinationPath:
+            typeof toolCall.arguments.destination === "string"
+              ? toolCall.arguments.destination
               : undefined,
+          isDestructive: toolCall.tool === "delete_file",
         });
       });
     },
@@ -150,7 +161,8 @@ export function useMCPDialogs({ callTool, policy }: UseMCPDialogsProps) {
       const request = pendingRequest;
       if (!request) return;
 
-      if (remember) {
+      // Never remembered for deletes: each one is confirmed on its own
+      if (remember && !request.isDestructive) {
         // "Allow always" widens the allowlist, which the user can see and
         // revoke in Settings -> MCP. It does not change the permission mode.
         const current = settings.mcp?.allowedTools ?? [];

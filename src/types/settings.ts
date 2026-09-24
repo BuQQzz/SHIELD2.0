@@ -91,6 +91,8 @@ export const FILESYSTEM_TOOLS = [
   "edit_file",
   "create_directory",
   "move_file",
+  // SHIELD's own: moves to the Recycle Bin (the server has no delete)
+  "delete_file",
 ];
 
 export const DEFAULT_SETTINGS: AppSettings = {

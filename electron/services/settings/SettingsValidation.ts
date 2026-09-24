@@ -11,6 +11,7 @@ import {
   FILESYSTEM_TOOLS,
   LEGACY_DEFAULT_ALLOWED_TOOLS,
   PERMISSION_MODES,
+  PREVIOUS_DEFAULT_ALLOWED_TOOLS,
   type PermissionMode,
 } from "./SettingsCategories";
 
@@ -55,22 +56,26 @@ export function migrateMcpSettings(
     migrated.mode = showPermissionDialog === false ? "auto" : "ask";
   }
 
-  // Still on the old three-tool default means the list was never chosen:
-  // those users could not edit, search or use read_text_file without
-  // hunting for switches. Move them to the full set. A list anyone actually
-  // edited is left exactly as it is.
-  if (isLegacyDefaultAllowlist(migrated.allowedTools)) {
+  // Still on an earlier default means the list was never chosen: the old
+  // three tools (no edit, search or read_text_file), or the full set from
+  // before delete_file existed. Move them to the current full set. A list
+  // anyone actually edited is left exactly as it is.
+  if (
+    isExactly(migrated.allowedTools, LEGACY_DEFAULT_ALLOWED_TOOLS) ||
+    isExactly(migrated.allowedTools, PREVIOUS_DEFAULT_ALLOWED_TOOLS)
+  ) {
     migrated.allowedTools = [...FILESYSTEM_TOOLS];
   }
 
   return migrated;
 }
 
-function isLegacyDefaultAllowlist(tools: unknown): boolean {
+/** Same tools, in any order */
+function isExactly(tools: unknown, expected: readonly string[]): boolean {
   return (
     Array.isArray(tools) &&
-    tools.length === LEGACY_DEFAULT_ALLOWED_TOOLS.length &&
-    LEGACY_DEFAULT_ALLOWED_TOOLS.every((tool) => tools.includes(tool))
+    tools.length === expected.length &&
+    expected.every((tool) => tools.includes(tool))
   );
 }
 

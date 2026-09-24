@@ -10,7 +10,8 @@ import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
 import path from "path";
 import os from "os";
-import { app } from "electron";
+import { app, shell } from "electron";
+import fsPromises from "fs/promises";
 import {
   OFFICIAL_MCP_SERVERS,
   resolveToolPaths,
@@ -19,6 +20,11 @@ import {
   type MCPToolCall,
   type MCPToolResult,
 } from "./MCPServerConfig.js";
+import {
+  DELETE_TOOL,
+  DELETE_TOOL_NAME,
+  moveToRecycleBin,
+} from "./recycleBin.js";
 
 /**
  * Expand tilde (~) in paths to actual home directory
@@ -202,6 +208,19 @@ class MCPService {
         if (!validated.success) {
           return validated;
         }
+
+        // SHIELD's own tool - the server has no delete. Runs only after the
+        // same path checks as every server tool.
+        if (tool === DELETE_TOOL_NAME) {
+          return moveToRecycleBin(expandedArgs.path, config.allowedPaths, {
+            exists: (target) =>
+              fsPromises.stat(target).then(
+                () => true,
+                () => false
+              ),
+            trash: (target) => shell.trashItem(target),
+          });
+        }
       }
 
       // Call tool through MCP client
@@ -237,7 +256,9 @@ class MCPService {
     }
 
     const result = await client.listTools();
-    return result.tools || [];
+    const tools = result.tools || [];
+    // The filesystem server cannot delete; SHIELD adds a Recycle Bin delete
+    return serverName === "filesystem" ? [...tools, DELETE_TOOL] : tools;
   }
 
   /**

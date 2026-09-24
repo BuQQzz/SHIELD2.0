@@ -100,5 +100,6 @@ describe("unavailableToolMessage", () => {
     expect(message).toContain("read_text_file, write_file");
     expect(message).not.toContain("disabled");
     expect(message).toContain("not possible");
+    expect(message).not.toContain("deleting");
   });
 });

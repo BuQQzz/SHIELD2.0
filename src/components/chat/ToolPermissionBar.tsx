@@ -8,7 +8,14 @@
  */
 
 import { motion, AnimatePresence } from "framer-motion";
-import { FileText, FolderOpen, Pencil, Shield } from "lucide-react";
+import {
+  ArrowRight,
+  FileText,
+  FolderOpen,
+  Pencil,
+  Shield,
+  Trash2,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import type { PendingToolRequest } from "@/hooks/useMCPDialogs";
 
@@ -25,6 +32,7 @@ function shortenPath(path: string, max = 52): string {
 }
 
 function toolIcon(request: PendingToolRequest) {
+  if (request.isDestructive) return Trash2;
   if (request.previewContent !== undefined) return Pencil;
   if (request.isMutating) return FileText;
   if (
@@ -55,18 +63,35 @@ export function ToolPermissionBar({
           <div className="flex items-center gap-3 rounded-lg border border-border bg-muted/60 px-3 py-2 text-sm backdrop-blur">
             <Icon
               className={`h-4 w-4 shrink-0 ${
-                request.isMutating ? "text-amber-500" : "text-muted-foreground"
+                request.isDestructive
+                  ? "text-red-500"
+                  : request.isMutating
+                    ? "text-amber-500"
+                    : "text-muted-foreground"
               }`}
             />
 
             <div className="min-w-0 flex-1">
-              <span className="font-medium">{request.toolName}</span>
+              <span className="font-medium">
+                {request.isDestructive
+                  ? "Move to Recycle Bin"
+                  : request.toolName}
+              </span>
               {request.targetPath && (
                 <span
                   className="ml-2 truncate text-xs text-muted-foreground"
                   title={request.targetPath}
                 >
                   {shortenPath(request.targetPath)}
+                </span>
+              )}
+              {request.destinationPath && (
+                <span
+                  className="ml-1 inline-flex items-center gap-1 truncate text-xs text-muted-foreground"
+                  title={request.destinationPath}
+                >
+                  <ArrowRight className="h-3 w-3" />
+                  {shortenPath(request.destinationPath)}
                 </span>
               )}
               {request.previewContent !== undefined && (
@@ -85,20 +110,22 @@ export function ToolPermissionBar({
               >
                 Deny
               </Button>
-              <Button
-                size="sm"
-                variant="ghost"
-                className="h-7 px-2 text-xs"
-                onClick={() => onApprove(true)}
-              >
-                Allow always
-              </Button>
+              {!request.isDestructive && (
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  className="h-7 px-2 text-xs"
+                  onClick={() => onApprove(true)}
+                >
+                  Allow always
+                </Button>
+              )}
               <Button
                 size="sm"
                 className="h-7 px-3 text-xs"
                 onClick={() => onApprove(false)}
               >
-                Allow
+                {request.isDestructive ? "Move to Recycle Bin" : "Allow"}
               </Button>
             </div>
           </div>

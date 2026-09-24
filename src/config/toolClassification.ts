@@ -88,5 +88,5 @@ export function unavailableToolMessage(
     return `Tool '${toolName}' is disabled in MCP tool settings, so it did not run. Tell the user; they can enable it in Settings.`;
   }
   const offered = offeredTools.length > 0 ? offeredTools.join(", ") : "none";
-  return `There is no tool called '${toolName}'. The only tools that exist are: ${offered}. Do not invent tools. If none of these can do what the user asked (for example, deleting a file), tell the user plainly that it is not possible with the available tools.`;
+  return `There is no tool called '${toolName}'. The only tools that exist are: ${offered}. Do not invent tools. If none of these can do what the user asked, tell the user plainly that it is not possible with the available tools.`;
 }

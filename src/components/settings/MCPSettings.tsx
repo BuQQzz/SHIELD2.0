@@ -49,6 +49,7 @@ export function MCPSettings({ settings, currentModel }: MCPSettingsProps) {
       read_media_file: "Read image/audio file contents",
       list_directory_with_sizes: "List directory contents with file sizes",
       list_allowed_directories: "See allowed filesystem root paths",
+      delete_file: "Delete files or folders (moved to the Recycle Bin)",
     }),
     []
   );
