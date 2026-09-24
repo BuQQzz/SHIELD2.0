@@ -179,7 +179,10 @@ function App() {
     clearHistory,
     setMessages,
     planOnly: toolPolicy.isPlanning,
-    modelKey: currentModel?.uri,
+    // A reload at a new context size is a new session, so history is restored
+    modelKey: currentModel
+      ? `${currentModel.uri}|${currentModel.contextSize ?? "auto"}`
+      : undefined,
   });
 
   // Model loading hook

@@ -55,6 +55,14 @@ export interface ContextUsage {
   size: number;
 }
 
+/** Context sizes for a model and GPU layers each leaves (contextPlanner.ts) */
+export interface ContextPlan {
+  trainContextSize: number;
+  totalLayers: number;
+  options: { contextSize: number; gpuLayers: number }[];
+  recommended: number;
+}
+
 /** What is filling the context window (mirrors contextBreakdown.ts) */
 export interface ContextBreakdown {
   used: number;
@@ -97,6 +105,11 @@ export interface LlamaAPI {
   getContextBreakdown: () => Promise<{
     success: boolean;
     breakdown?: ContextBreakdown | null;
+    error?: string;
+  }>;
+  getContextPlan: (modelId: string) => Promise<{
+    success: boolean;
+    plan?: ContextPlan;
     error?: string;
   }>;
   onToken: (callback: (token: string) => void) => () => void;

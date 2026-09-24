@@ -109,6 +109,21 @@ export function registerLlamaHandlers(
     }
   });
 
+  // Context sizes for a library model and how much stays on the GPU
+  ipcMain.handle("llama:getContextPlan", async (_event, modelId: string) => {
+    try {
+      return {
+        success: true,
+        plan: await llamaService.getContextPlan(modelId),
+      };
+    } catch (error) {
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : "Unknown error",
+      };
+    }
+  });
+
   // Get model info
   ipcMain.handle("llama:getModelInfo", async () => {
     try {

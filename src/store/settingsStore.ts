@@ -4,6 +4,8 @@ import { AppSettings, DEFAULT_SETTINGS } from "@/types/settings";
 interface SettingsStore {
   settings: AppSettings;
   isLoading: boolean;
+  /** Saved settings have been read (or failed to) since launch */
+  hasLoaded: boolean;
   loadSettings: () => Promise<void>;
   updateSettings: (settings: Partial<AppSettings>) => Promise<void>;
   resetSettings: () => Promise<void>;
@@ -14,6 +16,7 @@ interface SettingsStore {
 export const useSettingsStore = create<SettingsStore>((set, get) => ({
   settings: DEFAULT_SETTINGS,
   isLoading: false,
+  hasLoaded: false,
 
   loadSettings: async () => {
     set({ isLoading: true });
@@ -38,7 +41,7 @@ export const useSettingsStore = create<SettingsStore>((set, get) => ({
     } catch (error) {
       console.error("Failed to load settings:", error);
     } finally {
-      set({ isLoading: false });
+      set({ isLoading: false, hasLoaded: true });
     }
   },
 

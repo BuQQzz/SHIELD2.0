@@ -1,6 +1,12 @@
 import { useEffect, useCallback } from "react";
 import type { ModelOption } from "@/config/models";
 import { isRuntimeAvailable } from "../config/models";
+import { useSettingsStore } from "../store/settingsStore";
+
+/** The user's context choice for a model; undefined = recommended */
+function chosenContextSize(modelId: string): number | undefined {
+  return useSettingsStore.getState().settings.model.contextByModel?.[modelId];
+}
 
 interface UseModelLoaderProps {
   isInitialized: boolean;
@@ -28,9 +34,13 @@ export function useModelLoader({
   setCurrentModelId,
   installedModels,
 }: UseModelLoaderProps) {
+  // The saved per-model context choice has to be known before loading
+  const settingsLoaded = useSettingsStore((state) => state.hasLoaded);
+
   // Auto-load model on initialization
   useEffect(() => {
     if (
+      settingsLoaded &&
       isInitialized &&
       !isModelLoaded &&
       !isLoading &&
@@ -56,7 +66,7 @@ export function useModelLoader({
           id: defaultModel.id,
           name: defaultModel.name,
           uri: defaultModel.uri,
-          contextSize: defaultModel.contextSize,
+          contextSize: chosenContextSize(defaultModel.id),
         }).catch((err) => {
           console.error("[App] Failed to auto-load model:", err);
         });
@@ -65,6 +75,7 @@ export function useModelLoader({
       }
     }
   }, [
+    settingsLoaded,
     isInitialized,
     isModelLoaded,
     isLoading,
@@ -87,7 +98,7 @@ export function useModelLoader({
           id: model.id,
           name: model.name,
           uri: model.uri,
-          contextSize: model.contextSize,
+          contextSize: chosenContextSize(model.id),
         });
         console.log("[App] Model switched successfully");
       } catch (err) {

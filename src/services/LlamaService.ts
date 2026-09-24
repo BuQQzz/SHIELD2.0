@@ -18,6 +18,7 @@ import {
   type HardwareInfo,
 } from "../config/models.js";
 import { chooseInstalledFile, findGgufFiles } from "./modelFiles.js";
+import { planContext, type ContextPlan } from "./contextPlanner.js";
 import { generateConversationTitle } from "./titleGenerator.js";
 import {
   breakDownContext,
@@ -81,6 +82,10 @@ export class LlamaService {
   private lastStats: GenerationStats | null = null;
   private systemPrompt: string = "You are a helpful AI assistant.";
   private customModelsDir: string | undefined;
+  /** The user's context choice for the loaded model (undefined = auto) */
+  private requestedContextSize: number | undefined;
+  /** Per model file; reading GGUF insights takes a moment */
+  private contextPlans = new Map<string, Promise<ContextPlan>>();
 
   /**
    * Set custom models directory from settings
@@ -161,16 +166,18 @@ export class LlamaService {
   }
 
   /**
-   * Load a model from Hugging Face URI
+   * Load a library model. `config.contextSize` is the user's choice for
+   * this model; without one the context plan's recommendation is used.
    */
   async loadModel(config: ModelConfig): Promise<{ warning?: string }> {
     if (!this.llama) {
       throw new Error("LlamaService not initialized. Call initialize() first");
     }
 
-    // Check if model is already loaded
+    // Already loaded with the same context choice
     if (
       this.currentModelConfig?.uri === config.uri &&
+      this.requestedContextSize === config.contextSize &&
       this.model &&
       this.context &&
       this.session
@@ -183,7 +190,12 @@ export class LlamaService {
 
     const modelPath = await this.resolveModelPath(config.id);
 
-    let contextSize = config.contextSize || 2048;
+    let contextSize =
+      config.contextSize ?? (await this.planContextFor(modelPath)).recommended;
+    this.requestedContextSize = config.contextSize;
+    console.log(
+      `[LlamaService] Context: ${contextSize} tokens (${config.contextSize ? "chosen" : "recommended"})`
+    );
 
     // Split layers between VRAM and system RAM, leaving VRAM for the
     // requested context. Plain "auto" fills the GPU with layers first, so on
@@ -218,7 +230,9 @@ export class LlamaService {
         );
 
         // Try progressively smaller context sizes
-        const fallbackSizes = [16384, 8192, 4096, 2048, 1024, 512];
+        const fallbackSizes = [
+          65536, 32768, 16384, 8192, 4096, 2048, 1024, 512,
+        ];
 
         for (const fallbackSize of fallbackSizes) {
           if (fallbackSize >= contextSize) continue; // Skip if not smaller
@@ -292,6 +306,43 @@ export class LlamaService {
     this.currentModelConfig = { ...config, contextSize };
 
     return { warning };
+  }
+
+  /**
+   * Context sizes for an installed library model and how much of it each
+   * leaves on the GPU, plus the recommended size.
+   */
+  async getContextPlan(modelId: string): Promise<ContextPlan> {
+    await this.initialize();
+    return this.planContextFor(await this.resolveModelPath(modelId));
+  }
+
+  private planContextFor(modelPath: string): Promise<ContextPlan> {
+    let plan = this.contextPlans.get(modelPath);
+    if (!plan) {
+      const llama = this.llama;
+      if (!llama) throw new Error("LlamaService not initialized");
+      plan = llama
+        .getVramState()
+        .then(({ total }) => planContext(modelPath, llama, total))
+        .then((result) => {
+          const sizes = result.options
+            .map(
+              (o) =>
+                `${o.contextSize / 1024}K ${o.gpuLayers}/${result.totalLayers}`
+            )
+            .join(", ");
+          console.log(
+            `[LlamaService] Context plan for ${path.basename(modelPath)} ` +
+              `(${llama.gpu || "cpu"}): ${sizes} -> ${result.recommended / 1024}K`
+          );
+          return result;
+        });
+      // A failed read should not stick
+      plan.catch(() => this.contextPlans.delete(modelPath));
+      this.contextPlans.set(modelPath, plan);
+    }
+    return plan;
   }
 
   /**

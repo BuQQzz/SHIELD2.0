@@ -25,6 +25,7 @@ import type {
   SystemAPI,
   ChatResult,
   ContextBreakdown,
+  ContextPlan,
   ContextUsage,
 } from "../src/types/electron";
 
@@ -58,6 +59,11 @@ export interface LlamaAPI {
   getContextBreakdown: () => Promise<{
     success: boolean;
     breakdown?: ContextBreakdown | null;
+    error?: string;
+  }>;
+  getContextPlan: (modelId: string) => Promise<{
+    success: boolean;
+    plan?: ContextPlan;
     error?: string;
   }>;
   onToken: (callback: (token: string) => void) => () => void;
@@ -124,6 +130,8 @@ const llamaAPI: LlamaAPI = {
   },
   getContextUsage: () => ipcRenderer.invoke("llama:getContextUsage"),
   getContextBreakdown: () => ipcRenderer.invoke("llama:getContextBreakdown"),
+  getContextPlan: (modelId) =>
+    ipcRenderer.invoke("llama:getContextPlan", modelId),
   getModelInfo: () => ipcRenderer.invoke("llama:getModelInfo"),
   isModelLoaded: () => ipcRenderer.invoke("llama:isModelLoaded"),
   clearHistory: () => ipcRenderer.invoke("llama:clearHistory"),

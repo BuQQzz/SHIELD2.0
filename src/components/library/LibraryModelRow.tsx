@@ -10,6 +10,7 @@ import {
 } from "@/config/models";
 import type { DownloadProgress } from "@/types/electron";
 import { cn } from "@/lib/utils";
+import { ContextPicker } from "./ContextPicker";
 
 const ROLE_LABELS: Record<ModelRole, string> = {
   agent: "Agent",
@@ -226,9 +227,14 @@ export function LibraryModelRow({
           </p>
           <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-muted-foreground/80">
             <span>{model.roles.map((r) => ROLE_LABELS[r]).join(" · ")}</span>
-            <span className="font-instrument">
-              {(model.contextSize / 1024).toFixed(0)}K ctx
-            </span>
+            {installed && runnable && (
+              <ContextPicker
+                modelId={model.id}
+                disabled={isModelLoading}
+                // The loaded model takes a new window size only on reload
+                onChange={isLoaded ? onLoad : undefined}
+              />
+            )}
             {model.releaseDate && (
               <span className="font-instrument">{model.releaseDate}</span>
             )}

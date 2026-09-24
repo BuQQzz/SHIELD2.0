@@ -1,0 +1,142 @@
+import { useEffect, useState } from "react";
+import { Check, ChevronDown, Loader2 } from "lucide-react";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { useSettingsStore } from "@/store/settingsStore";
+import type { ContextPlan } from "@/types/electron";
+import { cn } from "@/lib/utils";
+
+interface ContextPickerProps {
+  modelId: string;
+  /** Called after the choice changes, e.g. to reload the loaded model */
+  onChange?: () => void;
+  disabled?: boolean;
+}
+
+/** 8192 -> "8K", 262144 -> "256K" */
+function formatTokens(tokens: number): string {
+  return `${Math.round(tokens / 1024)}K`;
+}
+
+/**
+ * Context window for one model: the recommended size by default, or a
+ * fixed one. Each size says how much of the model stays on the GPU, since
+ * that is the price of a bigger window.
+ */
+export function ContextPicker({
+  modelId,
+  onChange,
+  disabled,
+}: ContextPickerProps) {
+  const [plan, setPlan] = useState<ContextPlan | null>(null);
+  const [failed, setFailed] = useState(false);
+  const { settings, updateSettings } = useSettingsStore();
+  const chosen = settings.model.contextByModel?.[modelId];
+
+  useEffect(() => {
+    let cancelled = false;
+    window.llama
+      .getContextPlan(modelId)
+      .then((result) => {
+        if (cancelled) return;
+        if (result.success && result.plan) setPlan(result.plan);
+        else setFailed(true);
+      })
+      .catch(() => !cancelled && setFailed(true));
+    return () => {
+      cancelled = true;
+    };
+  }, [modelId]);
+
+  if (failed) return null;
+  if (!plan) {
+    return (
+      <span className="flex items-center gap-1 font-instrument text-[11px] text-muted-foreground/70">
+        <Loader2 className="h-3 w-3 animate-spin" />
+        ctx
+      </span>
+    );
+  }
+
+  const choose = async (size: number | undefined) => {
+    if (size === chosen) return;
+    const next = { ...settings.model.contextByModel };
+    if (size === undefined) delete next[modelId];
+    else next[modelId] = size;
+    await updateSettings({
+      model: { ...settings.model, contextByModel: next },
+    });
+    onChange?.();
+  };
+
+  const onGpu = (gpuLayers: number) =>
+    gpuLayers >= plan.totalLayers
+      ? "all on GPU"
+      : `${gpuLayers}/${plan.totalLayers} layers on GPU`;
+
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <button
+          disabled={disabled}
+          className="flex items-center gap-1 rounded-md border border-border/60 px-1.5 py-0.5 font-instrument text-[11px] text-muted-foreground transition-colors hover:border-border hover:text-foreground disabled:opacity-50"
+          title="Context window: how much of the conversation the model sees"
+        >
+          {formatTokens(chosen ?? plan.recommended)} ctx
+          {chosen === undefined && (
+            <span className="text-signal/80">· auto</span>
+          )}
+          <ChevronDown className="h-3 w-3" />
+        </button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="start" className="w-64">
+        <DropdownMenuLabel className="text-xs font-normal text-muted-foreground">
+          Context window · trained for{" "}
+          <span className="font-instrument">
+            {formatTokens(plan.trainContextSize)}
+          </span>
+        </DropdownMenuLabel>
+        <DropdownMenuItem onClick={() => choose(undefined)} className="gap-2">
+          <span className="flex-1">
+            Recommended{" "}
+            <span className="font-instrument text-muted-foreground">
+              {formatTokens(plan.recommended)}
+            </span>
+          </span>
+          {chosen === undefined && <Check className="h-4 w-4 text-signal" />}
+        </DropdownMenuItem>
+        <DropdownMenuSeparator />
+        {plan.options.map(({ contextSize, gpuLayers }) => (
+          <DropdownMenuItem
+            key={contextSize}
+            onClick={() => choose(contextSize)}
+            className="gap-2"
+          >
+            <span className="w-11 font-instrument">
+              {formatTokens(contextSize)}
+            </span>
+            <span
+              className={cn(
+                "flex-1 text-xs",
+                gpuLayers >= plan.totalLayers
+                  ? "text-muted-foreground"
+                  : "text-amber-500"
+              )}
+            >
+              {onGpu(gpuLayers)}
+            </span>
+            {chosen === contextSize && (
+              <Check className="h-4 w-4 text-signal" />
+            )}
+          </DropdownMenuItem>
+        ))}
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+}

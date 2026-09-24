@@ -3,7 +3,10 @@ export interface ModelSettings {
   topP: number;
   topK: number;
   repeatPenalty: number;
+  /** Unused - context size is chosen per model (contextByModel) */
   contextLength: number;
+  /** Context size chosen per library model id; absent = recommended */
+  contextByModel?: Record<string, number>;
   maxTokens: number;
   speculativeDecoding: boolean; // Use input lookup token prediction for faster inference
 }

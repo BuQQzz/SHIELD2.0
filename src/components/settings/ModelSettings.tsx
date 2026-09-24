@@ -39,12 +39,6 @@ export function ModelSettings({ settings }: ModelSettingsProps) {
     }
   };
 
-  const handleContextLengthChange = (value: number[]) => {
-    if (value[0] !== undefined) {
-      updateSettings({ model: { ...settings, contextLength: value[0] } });
-    }
-  };
-
   const handleMaxTokensChange = (value: number[]) => {
     if (value[0] !== undefined) {
       updateSettings({ model: { ...settings, maxTokens: value[0] } });
@@ -179,28 +173,11 @@ export function ModelSettings({ settings }: ModelSettingsProps) {
           </div>
 
           <div>
-            <div className="flex justify-between items-center mb-2">
-              <Label htmlFor="context-length">Context Length</Label>
-              <span className="text-sm text-muted-foreground">
-                {settings.contextLength}
-              </span>
-            </div>
-            <Slider
-              id="context-length"
-              min={512}
-              max={16384}
-              step={512}
-              value={[settings.contextLength]}
-              onValueChange={handleContextLengthChange}
-            />
+            <Label>Context Length</Label>
             <p className="text-xs text-muted-foreground mt-1">
-              Maximum conversation context
+              Set per model in the Model Library. By default each model gets the
+              largest window that keeps it fast on your GPU.
             </p>
-            {settings.contextLength > 8192 && (
-              <p className="text-xs text-amber-600 dark:text-amber-400 mt-1">
-                ⚠️ High values require more RAM
-              </p>
-            )}
           </div>
 
           <div className="flex items-center justify-between">
