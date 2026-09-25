@@ -99,16 +99,25 @@ export function useModelLoader({
     installedModels,
   ]);
 
-  // Remember the loaded model, so the next start offers it first
+  // Select the model that loaded. After a window reload the page adopts
+  // the model the main process still holds, and without this the header,
+  // the prompt's model family and the library would name another one.
+  useEffect(() => {
+    if (currentModel) setCurrentModelId(currentModel.id);
+  }, [currentModel, setCurrentModelId]);
+
+  // Remember the loaded model, so the next start offers it first. Not
+  // before the saved settings are read: saving would write the defaults
+  // over them, and an adopted model is known that early.
   const loadedId = isModelLoaded ? currentModel?.id : undefined;
   useEffect(() => {
-    if (!loadedId) return;
+    if (!loadedId || !settingsLoaded) return;
     const { settings, updateSettings } = useSettingsStore.getState();
     if (settings.model.lastModelId === loadedId) return;
     void updateSettings({
       model: { ...settings.model, lastModelId: loadedId },
     });
-  }, [loadedId]);
+  }, [loadedId, settingsLoaded]);
 
   const handleModelSelect = useCallback(
     async (model: ModelOption) => {

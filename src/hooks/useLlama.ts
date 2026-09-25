@@ -58,6 +58,26 @@ export interface MemoryPrompt {
   check: MemoryCheck;
 }
 
+/**
+ * The model the main process already holds, or null. A window reload
+ * (Ctrl+R, or the one that follows a renderer crash) starts this page from
+ * scratch while the model stays loaded.
+ */
+async function findLoadedModel(): Promise<ModelInfo | null> {
+  try {
+    const [loaded, info] = await Promise.all([
+      window.llama.isModelLoaded(),
+      window.llama.getModelInfo(),
+    ]);
+    if (!loaded.loaded || !info.info) return null;
+    const { id, name, uri, contextSize } = info.info;
+    return { id, name, uri, contextSize };
+  } catch (err) {
+    console.warn("[useLlama] Could not ask which model is loaded:", err);
+    return null;
+  }
+}
+
 export function useLlama() {
   const [isInitialized, setIsInitialized] = useState(false);
   const [isModelLoaded, setIsModelLoaded] = useState(false);
@@ -87,6 +107,17 @@ export function useLlama() {
       try {
         const result = await window.llama.initialize();
         if (result.success) {
+          const loaded = await findLoadedModel();
+          if (loaded) {
+            // A reply the previous page was streaming has no one to show it
+            // to, and llama-server's single slot would make the next message
+            // wait for it to finish
+            await window.llama.stopGeneration();
+            console.log(`[useLlama] ${loaded.name} is already loaded`);
+            setCurrentModel(loaded);
+            setIsModelLoaded(true);
+            void useGenerationStore.getState().refreshContext();
+          }
           setIsInitialized(true);
         } else {
           setError(result.error || "Failed to initialize");
