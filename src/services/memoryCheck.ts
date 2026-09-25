@@ -48,11 +48,14 @@ export const COMMIT_MARGIN_BYTES = 2 * GB;
  */
 const SERVER_GPU_RESERVE_BYTES = 3 * GB;
 /**
- * Commit on top of the weights for llama-server with `--load-mode none`,
- * which reads every weight into private memory: 18.6 GB of Qwen3-Coder
- * committed ~22 GB. Revisit if the launch profile moves to mmap.
+ * Commit beyond the weights and the context for llama-server. With
+ * `--load-mode none` every weight is private memory, and on Windows the
+ * GPU's context allocations are backed by commit too. Measured for
+ * Qwen3-Coder-30B (17.3 GiB of weights): 21.8 GiB at 32k, 20.3 GiB at 16k -
+ * 1.5 GiB over weights + context both times, rounded up to err high.
+ * Revisit if the launch profile moves to mmap.
  */
-const SERVER_COMMIT_OVERHEAD_BYTES = 3.5 * GB;
+const SERVER_COMMIT_OVERHEAD_BYTES = 2 * GB;
 /**
  * Commit for node-llama-cpp beyond its context buffers. Its weights are
  * memory-mapped - backed by the file, not the commit limit.
@@ -71,7 +74,10 @@ export function serverMemoryNeed(options: {
   );
   return {
     ramBytes: Math.max(0, options.modelBytes - gpuWeights),
-    commitBytes: options.modelBytes + SERVER_COMMIT_OVERHEAD_BYTES,
+    commitBytes:
+      options.modelBytes +
+      options.contextVramBytes +
+      SERVER_COMMIT_OVERHEAD_BYTES,
   };
 }
 
@@ -103,21 +109,31 @@ export function assessMemory(
         : system.commitFreeBytes + held.commitBytes,
   };
 
+  // Short outright, or it fits but leaves less than the margin - said
+  // differently, since "needs 12 GB, 13 GB free" alone reads as fine
   const problems: string[] = [];
-  if (need.ramBytes + RAM_MARGIN_BYTES > free.ramFreeBytes) {
+  const ram = `Needs ~${formatGB(need.ramBytes)} of RAM, ${formatGB(free.ramFreeBytes)} free`;
+  if (need.ramBytes > free.ramFreeBytes) {
     problems.push(
-      `Needs ~${formatGB(need.ramBytes)} of RAM, ${formatGB(free.ramFreeBytes)} free. ` +
-        "Windows will move memory to disk, so the model and other apps can slow to a crawl."
+      `${ram}. Windows will move memory to disk, so the model and other apps can slow to a crawl.`
+    );
+  } else if (need.ramBytes + RAM_MARGIN_BYTES > free.ramFreeBytes) {
+    problems.push(
+      `${ram}: under ${formatGB(RAM_MARGIN_BYTES)} would be left for Windows and your other apps, so they can slow to a crawl.`
     );
   }
-  if (
-    free.commitFreeBytes !== undefined &&
-    need.commitBytes + COMMIT_MARGIN_BYTES > free.commitFreeBytes
-  ) {
-    problems.push(
-      `Needs ~${formatGB(need.commitBytes)} of virtual memory, ${formatGB(free.commitFreeBytes)} available. ` +
-        "When it runs out, loading fails or SHIELD crashes. A larger page file raises the limit."
-    );
+  if (free.commitFreeBytes !== undefined) {
+    const commit = `Needs ~${formatGB(need.commitBytes)} of virtual memory, ${formatGB(free.commitFreeBytes)} available`;
+    const pageFile = "A larger page file raises the limit.";
+    if (need.commitBytes > free.commitFreeBytes) {
+      problems.push(
+        `${commit}. When it runs out, loading fails or SHIELD crashes. ${pageFile}`
+      );
+    } else if (need.commitBytes + COMMIT_MARGIN_BYTES > free.commitFreeBytes) {
+      problems.push(
+        `${commit}: under ${formatGB(COMMIT_MARGIN_BYTES)} would be left, and when it runs out apps crash. ${pageFile}`
+      );
+    }
   }
   return { ok: problems.length === 0, need, free, problems };
 }

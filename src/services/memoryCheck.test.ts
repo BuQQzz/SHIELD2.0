@@ -5,20 +5,26 @@ import { assessMemory, nodeMemoryNeed, serverMemoryNeed } from "./memoryCheck";
 const GB = 1024 ** 3;
 
 describe("serverMemoryNeed", () => {
-  // Measured 2026-09-24: ~12 GB resident, ~22 GB (decimal) committed
-  const qwen3Coder = serverMemoryNeed({
-    modelBytes: 17.28 * GB,
-    vramTotalBytes: 12 * GB,
-    contextVramBytes: 3 * GB,
-  });
+  // Qwen3-Coder-30B Q4_K_M on an RTX 4070, measured 2026-09-24:
+  // 32k - 11.6 GiB resident, 21.8 GiB committed
+  // 16k - 10.0 GiB resident, 20.3 GiB committed
+  const at = (contextVramGB: number) =>
+    serverMemoryNeed({
+      modelBytes: 17.28 * GB,
+      vramTotalBytes: 12 * GB,
+      contextVramBytes: contextVramGB * GB,
+    });
 
   it("keeps in RAM what does not fit on the GPU", () => {
-    expect(qwen3Coder.ramBytes / GB).toBeCloseTo(11.3, 1);
+    expect(at(3).ramBytes / GB).toBeCloseTo(11.3, 1);
+    expect(at(1.5).ramBytes / GB).toBeCloseTo(9.8, 1);
   });
 
-  it("commits every weight with --load-mode none", () => {
-    expect(qwen3Coder.commitBytes).toBeGreaterThan(17.28 * GB);
-    expect(qwen3Coder.commitBytes / 1e9).toBeCloseTo(22.3, 0);
+  it("estimates commit at or just above what was measured", () => {
+    expect(at(3).commitBytes / GB).toBeGreaterThanOrEqual(21.8);
+    expect(at(3).commitBytes / GB).toBeLessThan(23);
+    expect(at(1.5).commitBytes / GB).toBeGreaterThanOrEqual(20.3);
+    expect(at(1.5).commitBytes / GB).toBeLessThan(21.5);
   });
 
   it("needs no RAM for weights that fit on the GPU", () => {
@@ -73,12 +79,23 @@ describe("assessMemory", () => {
     expect(check.problems[0]).toMatch(/virtual memory.*15 GB available/);
   });
 
-  it("keeps a margin for Windows and other apps", () => {
+  it("keeps a margin for Windows and other apps, and says so", () => {
     const check = assessMemory(need, {
       ramFreeBytes: 13 * GB,
       commitFreeBytes: 40 * GB,
     });
     expect(check.ok).toBe(false);
+    // "Needs 12, 13 free" alone would read as fine
+    expect(check.problems[0]).toContain("13 GB free: under 2 GB would be left");
+  });
+
+  it("explains a commit margin the same way", () => {
+    const check = assessMemory(need, {
+      ramFreeBytes: 20 * GB,
+      commitFreeBytes: 22 * GB,
+    });
+    expect(check.ok).toBe(false);
+    expect(check.problems[0]).toMatch(/22 GB available: under 2 GB/);
   });
 
   it("counts the loaded model as free, since it is unloaded first", () => {
