@@ -90,6 +90,20 @@ interface Verb {
   running: string;
   /** For a group of this tool: "Read 3 files" */
   noun?: [singular: string, plural: string];
+  /** How the target reads in the label; default: the file's name */
+  target?: (value: string) => string;
+}
+
+/** "example.com/docs/intro" - enough to recognise the page */
+export function shortUrl(value: string): string {
+  try {
+    const url = new URL(value);
+    const path = url.pathname.replace(/\/+$/, "");
+    const short = `${url.hostname.replace(/^www\./, "")}${path}`;
+    return short.length > 60 ? `${short.slice(0, 57)}...` : short;
+  } catch {
+    return value;
+  }
 }
 
 const VERBS: Record<string, Verb> = {
@@ -131,12 +145,25 @@ const VERBS: Record<string, Verb> = {
     done: "Listed allowed folders",
     running: "Listing allowed folders",
   },
+  web_search: {
+    done: "Searched the web for",
+    running: "Searching the web for",
+    noun: ["search", "searches"],
+    target: (query) => `"${query}"`,
+  },
+  fetch_page: {
+    done: "Read",
+    running: "Reading",
+    noun: ["page", "pages"],
+    target: shortUrl,
+  },
 };
 
 /** Group headings use a noun where the one-step verb names the thing */
 const GROUP_VERB: Record<string, string> = {
   create_directory: "Created",
   delete_file: "Moved to Recycle Bin:",
+  web_search: "Ran",
 };
 
 /**
@@ -152,7 +179,8 @@ export function stepLabel(
   const verb = VERBS[tool];
   if (!verb) return `${serverName}.${tool}`;
   const word = state === "running" ? verb.running : verb.done;
-  return target ? `${word} ${baseName(target)}` : word;
+  if (!target) return word;
+  return `${word} ${verb.target ? verb.target(target) : baseName(target)}`;
 }
 
 /** "Created 2 folders", "Read 3 files", else "Used 4 tools" */
@@ -203,6 +231,17 @@ export function stepDetail(
 
   const diff = tool === "edit_file" ? diffStat(body) : null;
   if (diff) return diff;
+
+  if (tool === "web_search") {
+    const results = (body.match(/^\d+\. /gm) ?? []).length;
+    return results
+      ? `${results} result${results === 1 ? "" : "s"}`
+      : "no results";
+  }
+  if (tool === "fetch_page") {
+    const part = body.match(/\[Characters ([\d,]+)-([\d,]+) of ([\d,]+)/);
+    return part ? `characters ${part[1]}-${part[2]} of ${part[3]}` : "";
+  }
 
   const files = (body.match(/\[FILE\]/g) ?? []).length;
   const dirs = (body.match(/\[DIR\]/g) ?? []).length;

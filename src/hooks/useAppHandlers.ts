@@ -2,7 +2,6 @@ import { useCallback, type MutableRefObject } from "react";
 import type { Message } from "./useLlama";
 import type { ModelSettings } from "../types/settings";
 import type { ChatInputRef } from "../components/chat/ChatInput";
-import type { SearchResult, PageContent } from "../types/electron";
 import type { ToolCallRequest } from "../handlers/mcpToolHandler";
 import type { MCPToolResult } from "@/types";
 import { useGenerationStore } from "../store/generationStore";
@@ -54,12 +53,6 @@ interface UseAppHandlersProps {
   setChatHistory: (messages: Message[]) => Promise<void>;
   createNewConversation: (title: string, modelId: string) => void;
   setSystemPrompt: (prompt: string) => Promise<void>;
-  performWebSearch?: (query: string) => Promise<{
-    results: SearchResult[];
-    contents: PageContent[];
-  } | null>;
-  setIsSearching?: React.Dispatch<React.SetStateAction<boolean>>;
-  clearResults?: () => void;
   handleToolCallRequest?: (request: ToolCallRequest) => Promise<MCPToolResult>;
   isMCPReady?: boolean;
 }
@@ -85,9 +78,6 @@ export function useAppHandlers({
   setChatHistory,
   createNewConversation,
   setSystemPrompt,
-  performWebSearch,
-  setIsSearching,
-  clearResults,
   handleToolCallRequest,
   isMCPReady,
 }: UseAppHandlersProps) {
@@ -104,8 +94,6 @@ export function useAppHandlers({
     updateTitle,
     saveCurrentConversation,
     modelSettings,
-    performWebSearch,
-    setIsSearching,
     handleToolCallRequest,
     isMCPReady,
   });
@@ -160,14 +148,12 @@ export function useAppHandlers({
     createNewConversation("New Chat", currentModelId);
     setMessages([]);
     clearHistory();
-    clearResults?.();
   }, [
     currentConversation,
     saveCurrentConversation,
     createNewConversation,
     currentModelId,
     clearHistory,
-    clearResults,
     setMessages,
   ]);
 

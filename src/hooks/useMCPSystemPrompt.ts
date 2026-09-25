@@ -30,8 +30,6 @@ interface UseMCPSystemPromptProps {
     codeGeneration?: boolean;
     longContext?: boolean;
   };
-  /** Optional: Whether web search is enabled */
-  webSearchEnabled?: boolean;
   /** Tools exposed by the connected MCP servers */
   availableTools?: ToolDefinition[];
   /** True while the MCP tool list is still being fetched */
@@ -50,7 +48,6 @@ export function useMCPSystemPrompt({
   setSystemPrompt,
   modelName,
   modelCapabilities,
-  webSearchEnabled,
   availableTools,
   toolsLoading = false,
   allowedPaths,
@@ -107,7 +104,6 @@ export function useMCPSystemPrompt({
         capabilities,
         customPrompt: isCustomPrompt ? baseSystemPrompt : undefined,
         mcpEnabled: true,
-        webSearchEnabled,
         availableTools,
         allowedPaths,
         planOnly,
@@ -134,7 +130,6 @@ export function useMCPSystemPrompt({
         capabilities,
         customPrompt: isCustomPrompt ? baseSystemPrompt : undefined,
         mcpEnabled: false,
-        webSearchEnabled,
       };
 
       const {
@@ -158,7 +153,6 @@ export function useMCPSystemPrompt({
     setSystemPrompt,
     modelFamily,
     capabilities,
-    webSearchEnabled,
     availableTools,
     toolsLoading,
     allowedPaths,

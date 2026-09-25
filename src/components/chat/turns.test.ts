@@ -104,6 +104,23 @@ describe("labels", () => {
     );
   });
 
+  it("names web steps by the query or the page", () => {
+    expect(stepLabel("web_search", "web", "node 24 release", "done")).toBe(
+      'Searched the web for "node 24 release"'
+    );
+    expect(
+      stepLabel(
+        "fetch_page",
+        "web",
+        "https://www.nodejs.org/en/blog/release/",
+        "running"
+      )
+    ).toBe("Reading nodejs.org/en/blog/release");
+    expect(groupLabel([tool("web_search"), tool("web_search")])).toBe(
+      "Ran 2 searches"
+    );
+  });
+
   it("takes the last path segment", () => {
     expect(baseName("C:\\Users\\me\\Searcher\\")).toBe("Searcher");
     expect(baseName("src/app.js")).toBe("app.js");
@@ -122,6 +139,29 @@ describe("step details", () => {
     expect(
       stepDetail("write_file", "Successfully wrote to C:\\a.txt", true)
     ).toBe("");
+  });
+
+  it("counts search results and shows which part of a page was read", () => {
+    const results = [
+      'Results for "x":',
+      "",
+      "1. A",
+      "   https://a.example",
+      "",
+      "2. B",
+      "   https://b.example",
+    ].join("\n");
+    expect(stepDetail("web_search", results, true)).toBe("2 results");
+    const page = [
+      "Title: T",
+      "URL: u",
+      "[Characters 1-8,000 of 16,100. To read on...]",
+      "",
+      "text",
+    ].join("\n");
+    expect(stepDetail("fetch_page", page, true)).toBe(
+      "characters 1-8,000 of 16,100"
+    );
   });
 
   it("shows the first line of a failure", () => {

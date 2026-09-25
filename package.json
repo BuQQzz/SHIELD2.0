@@ -67,7 +67,6 @@
     "jsdom": "^27.4.0",
     "lucide-react": "^0.451.0",
     "node-llama-cpp": "^3.21.1",
-    "playwright-core": "^1.63.0",
     "react": "^19.3.0",
     "react-dom": "^19.3.0",
     "react-markdown": "^10.1.0",

@@ -1,13 +1,7 @@
 import type { Message } from "../hooks/useLlama";
 import type { ModelSettings } from "../types/settings";
-import type { SearchResult, PageContent } from "../types/electron";
 import { useSettingsStore } from "../store/settingsStore";
 import { useGenerationStore } from "../store/generationStore";
-import {
-  isVagueFollowUpQuery,
-  performWebSearchAndBuildContext,
-} from "./webSearchHelper";
-import { enhanceQueryWithContext } from "../utils/queryEnhancer";
 import { processMCPToolCalls, unrunToolCallsNote } from "./mcpMessageHandler";
 import { extractToolCalls } from "./mcpToolHandler";
 import {
@@ -54,11 +48,6 @@ interface MessageHandlerProps {
   updateTitle: (title: string) => void;
   saveCurrentConversation: () => Promise<void>;
   modelSettings: ModelSettings;
-  performWebSearch?: (query: string) => Promise<{
-    results: SearchResult[];
-    contents: PageContent[];
-  } | null>;
-  setIsSearching?: (value: boolean) => void;
   handleToolCallRequest?: (request: ToolCallRequest) => Promise<MCPToolResult>;
   isMCPReady?: boolean;
 }
@@ -76,12 +65,12 @@ export function createMessageHandler({
   updateTitle,
   saveCurrentConversation,
   modelSettings,
-  performWebSearch,
-  setIsSearching,
   handleToolCallRequest,
   isMCPReady = false,
 }: MessageHandlerProps) {
-  return async (content: string, useWebSearch?: boolean) => {
+  // Web search is a tool the model calls (web_search, fetch_page) rather
+  // than a search run before the message
+  return async (content: string) => {
     if (!isModelLoaded) {
       return;
     }
@@ -98,29 +87,6 @@ export function createMessageHandler({
     addMessage(userMessage);
     useGenerationStore.getState().setStopRequested(false);
 
-    // Perform web search if requested (after user message is shown)
-    let webSearchContext = "";
-    let searchSources: SearchResult[] = [];
-
-    // Detect if this is a vague follow-up query that shouldn't trigger web search
-    const isVagueFollowUp = isVagueFollowUpQuery(content);
-
-    if (useWebSearch && performWebSearch && !isVagueFollowUp) {
-      // Get current messages for context
-      const currentMessages = currentConversation?.messages || [];
-
-      // Enhance query with conversation context if needed
-      const enhancedQuery = enhanceQueryWithContext(content, currentMessages);
-
-      const searchResult = await performWebSearchAndBuildContext(
-        enhancedQuery,
-        performWebSearch,
-        setIsSearching
-      );
-      webSearchContext = searchResult.context;
-      searchSources = searchResult.sources;
-    }
-
     setIsGenerating(true);
     setStreamingContent("");
     streamingContentRef.current = "";
@@ -130,33 +96,11 @@ export function createMessageHandler({
     try {
       const { settings } = useSettingsStore.getState();
 
-      // Combine user query with web search context
-      let messageWithContext: string;
-
-      if (webSearchContext) {
-        messageWithContext = `${webSearchContext}`;
-        messageWithContext += `\nUSER REQUEST:\n${content}\n\n`;
-        messageWithContext += `RESPONSE INSTRUCTIONS:\n`;
-        messageWithContext += `- Use only the web results above for factual claims.\n`;
-        messageWithContext += `- Respond naturally and helpfully, not in robotic or template-heavy style.\n`;
-        messageWithContext += `- Start with a direct answer in 1-2 sentences.\n`;
-        messageWithContext += `- If the user asks for places/events/venues/activities near a location, include a concise list with:\n`;
-        messageWithContext += `  1) Place name\n`;
-        messageWithContext += `  2) Area/neighborhood\n`;
-        messageWithContext += `  3) Why it matches the request (concerts/outdoor, etc.)\n`;
-        messageWithContext += `  4) Any timing/detail available in results\n`;
-        messageWithContext += `- If details are missing, say what is missing and suggest a specific follow-up search.\n`;
-        messageWithContext += `- Keep answer concise but useful.\n`;
-      } else {
-        messageWithContext = content;
-      }
+      let messageWithContext = content;
 
       const allowedTools = settings.mcp.allowedTools ?? [];
       const shouldForceMCPFirstAttempt =
-        !webSearchContext &&
-        isMCPReady &&
-        allowedTools.length > 0 &&
-        isLikelyMCPToolIntent(content);
+        isMCPReady && allowedTools.length > 0 && isLikelyMCPToolIntent(content);
 
       if (shouldForceMCPFirstAttempt) {
         messageWithContext = buildMCPRetryPrompt(content, allowedTools);
@@ -167,12 +111,7 @@ export function createMessageHandler({
       // Restated next to the request, where recency makes it hard to miss.
       // Only the model sees this; the stored message is the user's text.
       const workspace = settings.mcp.workspaceFolder;
-      if (
-        workspace &&
-        settings.mcp.enabled &&
-        isMCPReady &&
-        !webSearchContext
-      ) {
+      if (workspace && settings.mcp.enabled && isMCPReady) {
         messageWithContext += `\n\n[Current folder: ${workspace}]`;
       }
 
@@ -189,11 +128,11 @@ export function createMessageHandler({
           setStreamingContent(streamingContentRef.current);
         },
         {
-          temperature: webSearchContext ? 0.3 : modelSettings.temperature,
+          temperature: modelSettings.temperature,
           maxTokens: modelSettings.maxTokens,
-          topP: webSearchContext ? 0.85 : modelSettings.topP,
-          topK: webSearchContext ? 40 : modelSettings.topK,
-          repeatPenalty: webSearchContext ? 1.1 : modelSettings.repeatPenalty,
+          topP: modelSettings.topP,
+          topK: modelSettings.topK,
+          repeatPenalty: modelSettings.repeatPenalty,
         }
       );
 
@@ -204,7 +143,7 @@ export function createMessageHandler({
       // Parse and extract thinking/reasoning content from various XML formats
       const { reasoning, thinking, processedContent } = parseAllThinking(
         finalContent,
-        !!webSearchContext,
+        false,
         settings.webSearch.showReasoning
       );
 
@@ -246,7 +185,7 @@ export function createMessageHandler({
         const retryFinalContent = streamingContentRef.current || retryResponse;
         const retryParsed = parseAllThinking(
           retryFinalContent,
-          !!webSearchContext,
+          false,
           settings.webSearch.showReasoning
         );
 
@@ -266,7 +205,6 @@ export function createMessageHandler({
         content: assistantProcessedContent,
         timestamp: new Date(),
         truncated: wasTruncated,
-        sources: searchSources.length > 0 ? searchSources : undefined,
         reasoning: assistantReasoning,
         thinking: assistantThinking,
         stats: useGenerationStore.getState().lastStats ?? undefined,

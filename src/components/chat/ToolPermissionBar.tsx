@@ -12,6 +12,7 @@ import {
   ArrowRight,
   FileText,
   FolderOpen,
+  Globe,
   Pencil,
   Shield,
   Trash2,
@@ -33,6 +34,7 @@ function shortenPath(path: string, max = 52): string {
 
 function toolIcon(request: PendingToolRequest) {
   if (request.isDestructive) return Trash2;
+  if (request.webTarget !== undefined) return Globe;
   if (request.previewContent !== undefined) return Pencil;
   if (request.isMutating) return FileText;
   if (
@@ -83,6 +85,14 @@ export function ToolPermissionBar({
                   title={request.targetPath}
                 >
                   {shortenPath(request.targetPath)}
+                </span>
+              )}
+              {request.webTarget && (
+                <span
+                  className="ml-2 truncate text-xs text-muted-foreground"
+                  title={request.webTarget}
+                >
+                  {request.webTarget}
                 </span>
               )}
               {request.destinationPath && (

@@ -183,3 +183,61 @@ describe("server annotations", () => {
     expect(policy.advertisedTools).toEqual([]);
   });
 });
+
+// SHIELD's web tools, as the "web" server lists them (electron/services/webTools)
+describe("web tools", () => {
+  const webTool = (name: string): ToolDefinition => ({
+    name,
+    description: name,
+    serverName: "web",
+    parameters: [],
+    annotations: { readOnlyHint: true },
+  });
+  const serverTools = [
+    ...SERVER_TOOLS,
+    webTool("web_search"),
+    webTool("fetch_page"),
+  ];
+  const policy = (
+    mode: "ask" | "auto" | "plan" | "readonly",
+    webSearchEnabled: boolean
+  ) =>
+    resolveToolPolicy({
+      mode,
+      allowedTools: ALL_ALLOWED,
+      serverTools,
+      webSearchEnabled,
+    });
+
+  it("are offered only when web search is on in Settings", () => {
+    expect(names(policy("auto", true).advertisedTools)).toContain("web_search");
+    expect(names(policy("auto", false).advertisedTools)).not.toContain(
+      "web_search"
+    );
+    expect(policy("auto", false).allows("fetch_page")).toBe(false);
+    expect(policy("auto", true).allows("fetch_page")).toBe(true);
+  });
+
+  it("need no place on the filesystem allowlist", () => {
+    const p = resolveToolPolicy({
+      mode: "auto",
+      allowedTools: [],
+      serverTools,
+      webSearchEnabled: true,
+    });
+    expect(names(p.advertisedTools)).toEqual(["web_search", "fetch_page"]);
+  });
+
+  it.each(["auto", "plan", "readonly"] as const)(
+    "run without asking in %s: a call by name finds the read-only hint",
+    (mode) => {
+      const p = policy(mode, true);
+      expect(p.decide({ name: "web_search" })).toBe("run");
+      expect(p.decide({ name: "fetch_page" })).toBe("run");
+    }
+  );
+
+  it("still ask in ask mode", () => {
+    expect(policy("ask", true).decide({ name: "web_search" })).toBe("ask");
+  });
+});

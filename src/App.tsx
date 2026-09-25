@@ -16,7 +16,6 @@ import { useConversationStore } from "./stores/conversation-store";
 import { useConversationSync } from "./hooks/useConversationSync";
 import { useSettingsStore } from "./store/settingsStore";
 import { useKeyboardShortcuts } from "./hooks/useKeyboardShortcuts";
-import { useWebSearch } from "./hooks/useWebSearch";
 import { useAppHandlers } from "./hooks/useAppHandlers";
 import { useModelLoader } from "./hooks/useModelLoader";
 import { useMCP } from "./hooks/useMCP";
@@ -41,7 +40,6 @@ function App() {
     useState<string>(DEFAULT_MODEL_ID);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [templateSelectorOpen, setTemplateSelectorOpen] = useState(false);
-  const [isWebSearching, setIsWebSearching] = useState(false);
   const streamingContentRef = useRef("");
   const inputRef = useRef<ChatInputRef>(null);
 
@@ -82,7 +80,6 @@ function App() {
   } = useConversationStore();
 
   const { settings, loadSettings } = useSettingsStore();
-  const { performSearch, clearResults } = useWebSearch();
   const {
     isReady: isMCPReady,
     isInitializing: isMCPInitializing,
@@ -103,6 +100,7 @@ function App() {
     mode: settings.mcp?.mode ?? "ask",
     allowedTools: settings.mcp?.allowedTools ?? [],
     serverTools: mcpServerTools,
+    webSearchEnabled: settings.webSearch?.enabled ?? false,
   });
 
   // MCP dialog management
@@ -162,7 +160,6 @@ function App() {
     setSystemPrompt,
     modelName: currentModelConfig?.name,
     modelCapabilities: currentModelConfig?.capabilities,
-    webSearchEnabled: settings.webSearch?.enabled,
     availableTools: toolPolicy.advertisedTools,
     allowedPaths: mcpAllowedPaths,
     planOnly: toolPolicy.isPlanning,
@@ -233,9 +230,6 @@ function App() {
     setChatHistory,
     createNewConversation,
     setSystemPrompt,
-    performWebSearch: performSearch,
-    setIsSearching: setIsWebSearching,
-    clearResults,
     handleToolCallRequest, // Pass MCP handler
     isMCPReady,
   });
@@ -317,7 +311,6 @@ function App() {
             messages={messages}
             streamingContent={streamingContent}
             isGenerating={isGenerating}
-            isSearching={isWebSearching}
             onContinue={handleContinue}
             onEditMessage={handleEditMessage}
             onRegenerateMessage={handleRegenerateMessage}

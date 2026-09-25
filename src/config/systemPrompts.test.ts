@@ -341,4 +341,32 @@ describe("edit rule", () => {
   it("says nothing about edits without edit_file", () => {
     expect(generateMCPToolPrompt(tools)).not.toContain("EDIT, DON'T REWRITE");
   });
+
+});
+
+describe("web search section", () => {
+  const webSearch: ToolDefinition = {
+    name: "web_search",
+    description: "Search the web",
+    serverName: "web",
+    parameters: [],
+  };
+
+  it("is included when the web_search tool is offered", () => {
+    const { prompt, includedModules } = buildSystemPrompt({
+      ...baseConfig,
+      availableTools: [...tools, webSearch],
+    });
+    expect(includedModules).toContain("web-search");
+    expect(prompt).toContain("fetch_page");
+  });
+
+  it("is left out when web search is off (no web tools offered)", () => {
+    const { prompt, includedModules } = buildSystemPrompt({
+      ...baseConfig,
+      availableTools: tools,
+    });
+    expect(includedModules).not.toContain("web-search");
+    expect(prompt).not.toContain("## Web Search");
+  });
 });

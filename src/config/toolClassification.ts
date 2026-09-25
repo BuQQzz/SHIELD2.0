@@ -33,6 +33,10 @@ const KNOWN_READ_ONLY_TOOLS = new Set([
   "search_files",
   "get_file_info",
   "list_allowed_directories",
+  // SHIELD's web tools (electron/services/webTools.ts): they fetch from the
+  // internet but change nothing on this PC
+  "web_search",
+  "fetch_page",
 ]);
 
 /** A tool as the server described it, including optional MCP annotations */
@@ -85,7 +89,7 @@ export function unavailableToolMessage(
   offeredTools: readonly string[]
 ): string {
   if (knownTools.includes(toolName)) {
-    return `Tool '${toolName}' is disabled in MCP tool settings, so it did not run. Tell the user; they can enable it in Settings.`;
+    return `Tool '${toolName}' is turned off in Settings, so it did not run. Tell the user; they can turn it on there.`;
   }
   const offered = offeredTools.length > 0 ? offeredTools.join(", ") : "none";
   return `There is no tool called '${toolName}'. The only tools that exist are: ${offered}. Do not invent tools. If none of these can do what the user asked, tell the user plainly that it is not possible with the available tools.`;

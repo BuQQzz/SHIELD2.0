@@ -101,16 +101,16 @@ Response Style:
 // =============================================================================
 
 /**
- * Web search capability prompt
+ * Web tools prompt - included when web_search is among the offered tools
  */
 export const WEB_SEARCH_PROMPT = `
-## Web Search Results
-When web search results are provided:
-- Use ONLY the information from search results for current events/facts
-- Search results are LIVE data and override your training knowledge
-- Cite sources when referencing specific information
-- If results are insufficient, acknowledge the limitation
-- Never fabricate information not in the results`;
+## Web Search
+You can search the web with web_search and read a page with fetch_page.
+- Search when the answer depends on recent or specific facts: news, current versions, prices, documentation, anything after your training or that you are unsure of. Don't search for things you already know well.
+- Snippets are short: read the most relevant result with fetch_page before relying on it.
+- Web results are live and override your training knowledge. Name the page you used (title or URL) when you rely on it.
+- If the results don't answer the question, say so rather than guessing.
+- Queries go to DuckDuckGo: never put private details from the user's files in a query.`;
 
 /**
  * Tool calling capability prompt (ReAct format)
@@ -121,7 +121,7 @@ When web search results are provided:
 // sends the real result back.
 export const TOOL_CALLING_PROMPT = `
 ## Tool Usage
-You have access to tools. When the user asks you to do something or needs information from their computer, use them.
+You have access to tools. When the user asks you to do something or needs information from their computer (or the web, when web tools are listed), use them.
 
 - Write the tool call, then stop. Never write a tool's result yourself - the tool runs after your message and its real result is sent back to you.
 - After a result arrives, either call the next tool or answer the user.
@@ -414,16 +414,16 @@ export function buildSystemPrompt(config: SystemPromptConfig): BuiltPrompt {
     includedModules.push("structured-output");
   }
 
-  // Add web search prompt if enabled
-  if (config.webSearchEnabled) {
-    parts.push(WEB_SEARCH_PROMPT);
-    includedModules.push("web-search");
-  }
-
   // Add MCP tool prompt if enabled.
   // Only describe tools the connected servers actually expose - never a
   // hardcoded guess, or the model is told about tools that do not exist.
   const tools = config.availableTools ?? [];
+
+  // Web search is a tool now, offered when Settings > Web Search is on
+  if (config.mcpEnabled && tools.some((tool) => tool.name === "web_search")) {
+    parts.push(WEB_SEARCH_PROMPT);
+    includedModules.push("web-search");
+  }
   if (config.mcpEnabled && tools.length > 0) {
     if (config.planOnly) {
       // Plan mode replaces the tool instructions rather than adding to them

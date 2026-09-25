@@ -30,6 +30,11 @@ export type ToolDecision = "run" | "ask" | "block";
 export interface ToolPolicy {
   /** Tools described to the model in the system prompt */
   advertisedTools: ToolDefinition[];
+  /**
+   * The user permits this tool at all: on the allowlist, or a web tool
+   * with web search on. A mode may still ask or block it (see decide).
+   */
+  allows: (toolName: string) => boolean;
   /** What to do with a given tool call */
   decide: (tool: ToolDefinition | { name: string }) => ToolDecision;
   /** True in plan mode, where changes are described rather than made */
@@ -44,7 +49,16 @@ export interface ToolPolicyInput {
   allowedTools: string[];
   /** Tools the connected servers actually expose */
   serverTools: ToolDefinition[];
+  /**
+   * Settings > Web Search. The "web" server's tools (web_search,
+   * fetch_page) are offered only when it is on; the allowlist covers the
+   * filesystem tools.
+   */
+  webSearchEnabled?: boolean;
 }
+
+/** SHIELD's own web tools come from this server (electron/services/webTools) */
+export const WEB_SERVER_NAME = "web";
 
 /**
  * Pure policy resolution, exported for testing without React.
@@ -53,12 +67,16 @@ export function resolveToolPolicy({
   mode,
   allowedTools,
   serverTools,
+  webSearchEnabled = false,
 }: ToolPolicyInput): ToolPolicy {
   // The allowlist applies in every mode - a mode can narrow what the user
   // permitted, never widen it.
   const allowlisted = serverTools.filter((tool) =>
-    allowedTools.includes(tool.name)
+    tool.serverName === WEB_SERVER_NAME
+      ? webSearchEnabled
+      : allowedTools.includes(tool.name)
   );
+  const allowedNames = new Set(allowlisted.map((tool) => tool.name));
 
   // In readonly the model is never told mutating tools exist, so it does not
   // propose them and the user never sees a refusal for something it could
@@ -69,7 +87,10 @@ export function resolveToolPolicy({
       ? allowlisted.filter((tool) => !isMutatingTool(tool))
       : allowlisted;
 
-  const decide = (tool: ToolDefinition | { name: string }): ToolDecision => {
+  const decide = (call: ToolDefinition | { name: string }): ToolDecision => {
+    // A call carries only a name; the server's definition has its
+    // read-only hint (web_search and fetch_page declare one)
+    const tool = serverTools.find((known) => known.name === call.name) ?? call;
     const mutating = isMutatingTool(tool);
 
     switch (mode) {
@@ -101,6 +122,7 @@ export function resolveToolPolicy({
 
   return {
     advertisedTools,
+    allows: (toolName) => allowedNames.has(toolName),
     decide,
     isPlanning: mode === "plan",
     mode,
@@ -111,10 +133,11 @@ export function resolveToolPolicy({
  * React binding for {@link resolveToolPolicy}.
  */
 export function useToolPolicy(input: ToolPolicyInput): ToolPolicy {
-  const { mode, allowedTools, serverTools } = input;
+  const { mode, allowedTools, serverTools, webSearchEnabled } = input;
 
   return useMemo(
-    () => resolveToolPolicy({ mode, allowedTools, serverTools }),
-    [mode, allowedTools, serverTools]
+    () =>
+      resolveToolPolicy({ mode, allowedTools, serverTools, webSearchEnabled }),
+    [mode, allowedTools, serverTools, webSearchEnabled]
   );
 }

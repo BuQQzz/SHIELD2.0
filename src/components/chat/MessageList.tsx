@@ -5,7 +5,6 @@ import { useRef, useEffect, useCallback, useMemo } from "react";
 import { ChatMessage } from "./ChatMessage";
 import { AssistantTurn } from "./AssistantTurn";
 import { ToolStep } from "./ToolStep";
-import { SearchingIndicator } from "./SearchingIndicator";
 import { groupIntoTurns } from "./turns";
 import type { Message } from "@/types/conversation";
 
@@ -13,7 +12,6 @@ interface MessageListProps {
   messages: Message[];
   streamingContent?: string;
   isGenerating?: boolean;
-  isSearching?: boolean;
   onContinue?: (messageId: string) => void;
   onEditMessage?: (messageId: string, newContent: string) => void;
   onRegenerateMessage?: (messageId: string) => void;
@@ -25,7 +23,6 @@ export function MessageList({
   messages,
   streamingContent,
   isGenerating,
-  isSearching,
   onContinue,
   onEditMessage,
   onRegenerateMessage,
@@ -135,9 +132,7 @@ export function MessageList({
     return `reply-${asked?.kind === "user" ? asked.message.id : "start"}`;
   };
 
-  const live = Boolean(
-    isGenerating || streamingContent || runningTool || isSearching
-  );
+  const live = Boolean(isGenerating || streamingContent || runningTool);
 
   // What the reply in progress is doing right now, at the end of its block
   const liveParts = (
@@ -149,8 +144,7 @@ export function MessageList({
           running
         />
       )}
-      {isSearching && <SearchingIndicator />}
-      {isGenerating && !streamingContent && !runningTool && !isSearching && (
+      {isGenerating && !streamingContent && !runningTool && (
         <ReadingIndicator />
       )}
       {streamingContent && (

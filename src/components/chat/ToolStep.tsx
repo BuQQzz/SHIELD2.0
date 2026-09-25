@@ -17,6 +17,8 @@ import {
   FileText,
   FolderOpen,
   FolderPlus,
+  Globe,
+  Link,
   ListChecks,
   Loader2,
   Search,
@@ -43,6 +45,8 @@ const ICONS: Record<string, LucideIcon> = {
   get_file_info: FileText,
   move_file: FilePen,
   delete_file: Trash2,
+  web_search: Globe,
+  fetch_page: Link,
 };
 
 interface ToolStepProps {

@@ -87,9 +87,10 @@ export function callSignature(
   return `${toolCall.serverName}:${toolCall.tool}:${JSON.stringify(args)}`;
 }
 
-/** The file or folder a call acts on, if it names one */
+/** What a call acts on: a file or folder, a search query or a web page */
 function callTarget(toolCall: ToolCallRequest): string | undefined {
-  return [toolCall.arguments.path, toolCall.arguments.source].find(
+  const { path, source, query, url } = toolCall.arguments;
+  return [path, source, query, url].find(
     (value): value is string => typeof value === "string"
   );
 }

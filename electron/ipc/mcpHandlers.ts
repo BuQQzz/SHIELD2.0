@@ -4,10 +4,48 @@ import {
   ipcMain,
   type OpenDialogOptions,
 } from "electron";
+import dns from "dns/promises";
 import fs from "fs/promises";
 import path from "path";
 import { mcpService } from "../services/MCPService.js";
 import { auditLogService } from "../services/AuditLogService.js";
+import { SettingsStorageService } from "../services/SettingsStorageService.js";
+import { getWebSearchService } from "../services/WebSearchService.js";
+import {
+  isWebTool,
+  runWebTool,
+  WEB_SERVER_NAME,
+  WEB_TOOLS,
+} from "../services/webTools.js";
+import type { MCPToolCall, MCPToolResult } from "../services/MCPService.js";
+import { ensurePageCache, fetchPageCached } from "./searchHandlers.js";
+
+const BROWSER_OPTIONS = { blockTrackers: true, useRandomUA: true };
+
+/**
+ * web_search / fetch_page, with the user's current Web Search settings.
+ * Read per call, so switching web search off takes effect at once.
+ */
+async function callWebTool(request: MCPToolCall): Promise<MCPToolResult> {
+  const { webSearch } = await SettingsStorageService.loadSettings();
+  if (webSearch?.enabled && webSearch.cacheEnabled) {
+    await ensurePageCache({ cacheExpiryHours: webSearch.cacheTTL / 60 });
+  }
+  return runWebTool(request.tool, request.arguments ?? {}, {
+    enabled: webSearch?.enabled ?? false,
+    maxResults: webSearch?.maxResults ?? 5,
+    search: (query, maxResults) =>
+      getWebSearchService().search(query, maxResults, {
+        ...BROWSER_OPTIONS,
+        timeout: 15000,
+      }),
+    fetchPage: async (url) =>
+      (await fetchPageCached(url, { ...BROWSER_OPTIONS, timeout: 15000 }))
+        .content,
+    lookup: async (hostname) =>
+      (await dns.lookup(hostname, { all: true })).map((a) => a.address),
+  });
+}
 
 /**
  * Register all MCP (Model Context Protocol) related IPC handlers
@@ -31,7 +69,12 @@ export async function registerMcpHandlers() {
   // Call MCP tool
   ipcMain.handle("mcp:call-tool", async (_event, request) => {
     try {
-      const result = await mcpService.callTool(request);
+      // SHIELD's own web tools are routed by name as well: a model writes
+      // bare tool names, which the chat assumes are filesystem tools
+      const result =
+        request.serverName === WEB_SERVER_NAME || isWebTool(request.tool)
+          ? await callWebTool(request)
+          : await mcpService.callTool(request);
 
       // Log the tool call
       const logId = await auditLogService.logToolCall(
@@ -57,7 +100,10 @@ export async function registerMcpHandlers() {
   // List available tools
   ipcMain.handle("mcp:list-tools", async (_event, serverName) => {
     try {
-      const tools = await mcpService.listTools(serverName);
+      const tools =
+        serverName === WEB_SERVER_NAME
+          ? WEB_TOOLS
+          : await mcpService.listTools(serverName);
       return { success: true, tools };
     } catch (error) {
       console.error("Failed to list MCP tools:", error);
@@ -71,7 +117,12 @@ export async function registerMcpHandlers() {
   // Get server configuration
   ipcMain.handle("mcp:list-servers", async () => {
     try {
-      return { success: true, servers: mcpService.getConnectedServers() };
+      // The web tools are always listed; Settings > Web Search decides
+      // whether the model is offered them (and runWebTool checks it too)
+      return {
+        success: true,
+        servers: [...mcpService.getConnectedServers(), WEB_SERVER_NAME],
+      };
     } catch (error) {
       console.error("Failed to list MCP servers:", error);
       return {

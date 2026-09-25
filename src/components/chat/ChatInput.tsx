@@ -8,21 +8,14 @@ import {
   forwardRef,
   useImperativeHandle,
 } from "react";
-import { Send, Square, Globe } from "lucide-react";
+import { Send, Square } from "lucide-react";
 import { motion } from "framer-motion";
-import { useSettingsStore } from "@/store/settingsStore";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
 import { PermissionModeSelector } from "./PermissionModeSelector";
 import { WorkspaceSelector } from "./WorkspaceSelector";
 import { ContextRing } from "./ContextRing";
 
 interface ChatInputProps {
-  onSend: (message: string, useWebSearch?: boolean) => void;
+  onSend: (message: string) => void;
   isGenerating?: boolean;
   onStop?: () => void;
   disabled?: boolean;
@@ -38,9 +31,7 @@ export const ChatInput = forwardRef<ChatInputRef, ChatInputProps>(
     ref
   ) {
     const [input, setInput] = useState("");
-    const [webSearchEnabled, setWebSearchEnabled] = useState(false);
     const textareaRef = useRef<HTMLTextAreaElement>(null);
-    const { settings } = useSettingsStore();
 
     // Expose focus method via ref
     useImperativeHandle(ref, () => ({
@@ -67,11 +58,7 @@ export const ChatInput = forwardRef<ChatInputRef, ChatInputProps>(
       );
 
       if (input.trim() && !isGenerating && !disabled) {
-        console.log(
-          "[ChatInput] Calling onSend with message and webSearch:",
-          webSearchEnabled
-        );
-        onSend(input.trim(), webSearchEnabled);
+        onSend(input.trim());
         setInput("");
         if (textareaRef.current) {
           textareaRef.current.style.height = "auto";
@@ -108,37 +95,6 @@ export const ChatInput = forwardRef<ChatInputRef, ChatInputProps>(
       <div className="bg-background p-4">
         <div className="mx-auto max-w-3xl">
           <div className="relative flex items-end gap-2 rounded-xl bg-muted/50 p-2 shadow-sm ring-1 ring-black/5 transition-shadow focus-within:shadow-md dark:bg-muted/30 dark:ring-white/5">
-            {/* Web Search Toggle - only show if enabled in settings */}
-            {settings.webSearch.enabled && (
-              <TooltipProvider>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <motion.button
-                      whileTap={{ scale: 0.95 }}
-                      onClick={() => setWebSearchEnabled(!webSearchEnabled)}
-                      className={`shrink-0 rounded-md p-2 transition-colors ${
-                        webSearchEnabled
-                          ? "bg-primary text-primary-foreground"
-                          : "hover:bg-accent"
-                      }`}
-                      type="button"
-                    >
-                      <Globe
-                        className={`h-5 w-5 ${webSearchEnabled ? "" : "text-muted-foreground"}`}
-                      />
-                    </motion.button>
-                  </TooltipTrigger>
-                  <TooltipContent>
-                    <p>
-                      {webSearchEnabled
-                        ? "Web search enabled"
-                        : "Enable web search"}
-                    </p>
-                  </TooltipContent>
-                </Tooltip>
-              </TooltipProvider>
-            )}
-
             <textarea
               ref={textareaRef}
               value={input}

@@ -1,8 +1,55 @@
 import { ipcMain } from "electron";
-import { getWebSearchService } from "../services/WebSearchService.js";
+import {
+  getWebSearchService,
+  type PageContent,
+  type PrivacyOptions,
+} from "../services/WebSearchService.js";
 import { getWebCacheService } from "../services/WebCacheService.js";
 
 let webCacheService: ReturnType<typeof getWebCacheService> | null = null;
+
+/**
+ * Start the page cache if it is not running. The chat's globe toggle used to
+ * do this before each search; the model's fetch_page tool now does it on
+ * first use. A cache that fails to start is skipped, not fatal.
+ */
+export async function ensurePageCache(settings?: {
+  maxCacheSizeMB?: number;
+  cacheExpiryHours?: number;
+}): Promise<void> {
+  if (webCacheService) return;
+  try {
+    const cache = getWebCacheService(
+      settings?.maxCacheSizeMB,
+      settings?.cacheExpiryHours
+    );
+    await cache.initialize();
+    webCacheService = cache;
+    console.log("[WebSearch] Cache initialized successfully");
+  } catch (cacheError) {
+    console.warn(
+      "[WebSearch] Cache initialization failed (will proceed without cache):",
+      cacheError instanceof Error ? cacheError.message : "Unknown error"
+    );
+  }
+}
+
+/** A page's clean text, from the cache when it has it */
+export async function fetchPageCached(
+  url: string,
+  options: PrivacyOptions = {}
+): Promise<{ content: PageContent; fromCache: boolean }> {
+  if (webCacheService) {
+    const cached = await webCacheService.get(url);
+    if (cached) {
+      console.log("[WebSearch] Returning cached content for:", url);
+      return { content: cached, fromCache: true };
+    }
+  }
+  const content = await getWebSearchService().fetchPage(url, options);
+  if (webCacheService) await webCacheService.set(url, content);
+  return { content, fromCache: false };
+}
 
 /**
  * Register all web search related IPC handlers
@@ -13,21 +60,8 @@ export function registerSearchHandlers() {
   // Initialize web search
   ipcMain.handle("web-search:initialize", async (_event, settings) => {
     try {
-      // Try to initialize cache with user settings (optional - graceful failure)
-      try {
-        webCacheService = getWebCacheService(
-          settings?.maxCacheSizeMB,
-          settings?.cacheExpiryHours
-        );
-        await webCacheService.initialize();
-        console.log("[WebSearch] Cache initialized successfully");
-      } catch (cacheError) {
-        console.warn(
-          "[WebSearch] Cache initialization failed (will proceed without cache):",
-          cacheError instanceof Error ? cacheError.message : "Unknown error"
-        );
-        webCacheService = null; // Disable cache
-      }
+      // Optional - search works without the cache
+      await ensurePageCache(settings);
 
       // Initialize search service (required)
       await webSearchService.initialize();
@@ -63,24 +97,8 @@ export function registerSearchHandlers() {
   // Fetch web page content
   ipcMain.handle("web-search:fetch", async (_event, url, options) => {
     try {
-      // Check cache first
-      if (webCacheService) {
-        const cached = await webCacheService.get(url);
-        if (cached) {
-          console.log("[WebSearch] Returning cached content for:", url);
-          return { success: true, content: cached, fromCache: true };
-        }
-      }
-
-      // Fetch fresh content
-      const content = await webSearchService.fetchPage(url, options);
-
-      // Store in cache
-      if (webCacheService) {
-        await webCacheService.set(url, content);
-      }
-
-      return { success: true, content, fromCache: false };
+      const { content, fromCache } = await fetchPageCached(url, options);
+      return { success: true, content, fromCache };
     } catch (error) {
       return {
         success: false,

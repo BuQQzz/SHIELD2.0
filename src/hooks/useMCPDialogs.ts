@@ -15,6 +15,9 @@ import {
   unavailableToolMessage,
 } from "@/config/toolClassification";
 import { FILESYSTEM_TOOLS } from "@/types/settings";
+
+/** SHIELD's web tools; known, so a call with web search off says "turned off" */
+const WEB_TOOL_NAMES = ["web_search", "fetch_page"];
 import { useState, useCallback, useRef } from "react";
 import type { ToolCallRequest } from "@/handlers/mcpToolHandler";
 import type { MCPToolResult } from "@/types/electron";
@@ -37,6 +40,8 @@ export interface PendingToolRequest {
   isDestructive?: boolean;
   /** For move_file: where the file ends up */
   destinationPath?: string;
+  /** For the web tools: the search query or page address that leaves the PC */
+  webTarget?: string;
 }
 
 interface UseMCPDialogsProps {
@@ -77,18 +82,26 @@ export function useMCPDialogs({ callTool, policy }: UseMCPDialogsProps) {
    * Entry point for every tool call the model makes.
    */
   const handleToolCallRequest = useCallback(
-    async (toolCall: ToolCallRequest): Promise<MCPToolResult> => {
-      const allowedTools = settings.mcp?.allowedTools ?? [];
-      if (!allowedTools.includes(toolCall.tool)) {
+    async (request: ToolCallRequest): Promise<MCPToolResult> => {
+      if (!policy.allows(request.tool)) {
         return {
           success: false,
           error: unavailableToolMessage(
-            toolCall.tool,
-            FILESYSTEM_TOOLS,
+            request.tool,
+            [...FILESYSTEM_TOOLS, ...WEB_TOOL_NAMES],
             policy.advertisedTools.map((tool) => tool.name)
           ),
         };
       }
+
+      // Models write bare tool names, which the parser files under
+      // "filesystem"; send the call to the server that has the tool
+      const toolCall = {
+        ...request,
+        serverName:
+          policy.advertisedTools.find((tool) => tool.name === request.tool)
+            ?.serverName ?? request.serverName,
+      };
 
       const policyDecision = policy.decide({ name: toolCall.tool });
       const decision =
@@ -161,10 +174,16 @@ export function useMCPDialogs({ callTool, policy }: UseMCPDialogsProps) {
               ? toolCall.arguments.destination
               : undefined,
           isDestructive: isDeletionTool({ name: toolCall.tool }),
+          webTarget:
+            typeof toolCall.arguments.query === "string"
+              ? toolCall.arguments.query
+              : typeof toolCall.arguments.url === "string"
+                ? toolCall.arguments.url
+                : undefined,
         });
       });
     },
-    [settings.mcp?.allowedTools, policy, callTool]
+    [policy, callTool]
   );
 
   /**

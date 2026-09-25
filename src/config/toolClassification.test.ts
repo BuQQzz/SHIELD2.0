@@ -92,7 +92,7 @@ describe("unavailableToolMessage", () => {
 
   it("says a real tool is disabled and can be enabled", () => {
     const message = unavailableToolMessage("move_file", known, offered);
-    expect(message).toContain("disabled in MCP tool settings");
+    expect(message).toContain("turned off in Settings");
   });
 
   it("says an invented tool does not exist and lists what does", () => {

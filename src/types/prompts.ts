@@ -37,8 +37,6 @@ export interface SystemPromptConfig {
   customPrompt?: string;
   /** Whether MCP tools are enabled */
   mcpEnabled?: boolean;
-  /** Whether web search is enabled */
-  webSearchEnabled?: boolean;
   /** Available MCP tools (for tool descriptions) */
   availableTools?: ToolDefinition[];
   /** Directories the MCP servers are permitted to touch */
