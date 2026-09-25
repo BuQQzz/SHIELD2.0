@@ -1,11 +1,22 @@
 # SHIELD — Session Handoff
 
-**Last session:** 2026-09-22 → 2026-09-24  
-**Branch:** `chore/dependency-refresh` (built on `feat/mcp-permission-modes`; neither is merged to `main`)  
-**Tests:** 230 passing (`npx vitest run`) · `tsc`, ESLint and Prettier clean  
-**Tested in the app with:** Qwen3-Coder-30B-A3B Q4_K_M on an RTX 4070 (12 GB), workspace `C:\Users\imend\Desktop\Projects\EXPERIMENT`
+**Last session:** 2026-09-25 (previous: 2026-09-22 → 2026-09-24)  
+**Branch:** `feat/model-library`, 65 commits ahead of `main`; it contains `chore/dependency-refresh` and `feat/mcp-permission-modes`. Nothing is merged to `main`.  
+**Tests:** 399 passing (`npx vitest run`) · `tsc`, ESLint and Prettier clean on changed files  
+**Tested in the app with:** Qwen3-Coder-30B-A3B Q4_K_M on an RTX 4070 (12 GB), SHIELD-managed llama-server at 32K
 
 Read this first, then [SHIELD_AGENT_ARCHITECTURE.md](./SHIELD_AGENT_ARCHITECTURE.md) (§13 priorities, §17 decision log, §20 evidence) and [testing/AGENT_BENCHMARK.md](./testing/AGENT_BENCHMARK.md).
+
+---
+
+## Update — 2026-09-25 (`67b29ab`, `996509b`)
+
+- **Reload keeps the model** (`67b29ab`). After Ctrl+R or the crash-recovery reload, the page asks the main process what is loaded and adopts it, instead of showing "No model loaded". It also stops a reply the old page was still streaming, and no longer saves `lastModelId` before settings are read (that would have written the defaults over them). Tried in the app: load, Ctrl+R, prompt family still `qwen`, next message ran a tool round. Stopping a mid-stream reply on reload is unit-tested only. In dev the adopt line logs twice: React StrictMode runs mount effects twice.
+- **`--load-mode none` stays** (`996509b`, [RUNTIME_SPEED_RESEARCH.md](./RUNTIME_SPEED_RESEARCH.md) Finding 6). mmap loads 7 s faster and commits half (10.9 vs 21.5 GiB), but reads prompts 30–54% slower, decodes up to 38% slower, and kept the whole file resident (17.7 vs 11.9 GiB of RAM in use). The script is not in the repo; the run was two llama-server starts with `launch.ts`'s arguments plus `scripts/bench/server-speed.ts` twice each.
+- **Payload clearing seen live.** Workspace = this repo; five source files read one per round (22k, 15k, 9k, 12k, 11k characters). Clearing fired on the fifth (`Compacted history: cleared 21987 characters`), and the next request re-read 11.7k tokens: 9.7 s to the first token, the one slow read by design. Asked about the cleared file afterwards, the model re-read it and answered correctly. Sending that re-read back cleared again (23,249 characters, another 9.5 s). So with large reads the window sits near the 60% trigger and each clearing costs ~10 s. Worth weighing in the compaction design below.
+- Speeds are ~30% below earlier tables because the RAM runs at 2133 MT/s: Qwen3-Coder decodes ~21 tok/s in the app, 25.8 in the probe.
+
+**Next: context compaction proper** (item 6 below, second half). The research docs call it a Task Capsule (objective, state, completed work, files touched, decisions, open questions, next steps) that replaces the oldest turns in the model's view only ([SHIELD_OPTIMIZATION_TOOLING_CONTEXT_DESIGN.md](./SHIELD_OPTIMIZATION_TOOLING_CONTEXT_DESIGN.md) §9, [SHIELD_AGENT_ARCHITECTURE.md](./SHIELD_AGENT_ARCHITECTURE.md) "hardware-aware auto-compaction"). Today nothing happens when clearing is not enough: the history keeps growing until llama-server refuses a prompt larger than the window.
 
 ---
 
@@ -33,7 +44,7 @@ Items 1–4 below are done and **tried in the running app** (2026-09-24, Qwen3-C
 - **3 · `cleanup()`** — context and model disposal in separate `try`s, with a test.
 - **4 · Orphaned llama-server: not a bug.** Tested: hard-killing Electron's main (`Stop-Process -Force`) killed its attached child too — libuv puts attached children in a kill-on-close job object. The handoff's claim was an assumption. The spawn call now says why it must never be `detached`. (A PowerShell watchdog was built and dropped: detached PowerShell 5.1 gets no console and exits before running.)
 
-Still to do from the list: 5 (mmap vs none) and 6.
+Still to do from the list: 5 (mmap vs none) and 6. **2026-09-25:** 5 done (keep `none`), 6 seen live; compaction proper is next.
 
 ### Update — 2026-09-24 night: web search as tools (`78f66a2`…`2c766ee`)
 
@@ -46,7 +57,7 @@ Still to do from the list: 5 (mmap vs none) and 6.
 **Open:**
 
 - `C:\Users\imend\Desktop\Projects\GAME\check_node_version.js` was written by the model during the failed first web test (3 lines printing `process.version`). The user has not decided whether to remove it.
-- After a window reload (Ctrl+R) the renderer shows "No model loaded" while llama-server still runs the model; Load reconnects instantly. The renderer should ask the main process what is loaded on start.
+- ~~After a window reload (Ctrl+R) the renderer shows "No model loaded" while llama-server still runs the model.~~ Fixed 2026-09-25 (`67b29ab`).
 - `fetch_page` of a PDF or a JavaScript-only app returns little text; not handled specially.
 
 ### Next session — start here
@@ -57,8 +68,8 @@ Decided with the user at the end of the session (2026-09-24). In order:
 2. **Library label** on spill-over models: "Runs partly from system RAM · ~12 GB". Its explanation says this is heavy, sustained memory load — normally fine, but if a PC's memory is unstable (e.g. overclocked RAM), long runs of this model are where it shows. Word it as a heads-up, **not** "this model causes instability": the model exposes a weak memory setup, it doesn't create one. Shown once per model. Where a lighter option exists (smaller context or quant), offer it in the same place.
 3. **`LlamaService.cleanup()` fix:** context and model disposal share one `try`, so a throw while disposing the context skips model disposal. In-process (node-llama-cpp) engine only; small.
 4. **Kill llama-server when SHIELD dies hard.** A normal close stops it (verified 2026-09-24: server gone, PID file removed, ~13 GB freed). A hard crash or Task Manager kill of Electron does not run the cleanup, and on Windows the child survives — holding up to ~22 GB — until the next SHIELD start removes it via the PID file. Plan: start a hidden `Wait-Process -Id <SHIELD pid>; Stop-Process -Id <server pid>` watcher next to the server.
-5. **Measure `--load-mode mmap` vs `none`** for Qwen3-Coder (tok/s, prompt speed, RAM and commit). mmap weights are file-backed: Windows can drop them under pressure and they don't count against the commit limit. Decide default vs option. Note the RAM now runs at 2133 MT/s, so tok/s will be lower than the ~36 measured at 3600 either way.
-6. **Watch the payload clearing run live** (item 5 above), then **context compaction proper** (summarising, not just clearing) from the research docs; then whether node-llama-cpp models need the same.
+5. **Done 2026-09-25: keep `none`.** **Measure `--load-mode mmap` vs `none`** for Qwen3-Coder (tok/s, prompt speed, RAM and commit). mmap weights are file-backed: Windows can drop them under pressure and they don't count against the commit limit. Decide default vs option. Note the RAM now runs at 2133 MT/s, so tok/s will be lower than the ~36 measured at 3600 either way.
+6. **Watch the payload clearing run live** (item 5 above; seen 2026-09-25), then **context compaction proper** (summarising, not just clearing) from the research docs; then whether node-llama-cpp models need the same.
 
 **Machine notes from this session:**
 
