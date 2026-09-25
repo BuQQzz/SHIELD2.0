@@ -50,7 +50,7 @@ export function createEditMessageHandler(props: EditMessageHandlerProps) {
     props.streamingContentRef.current = "";
 
     try {
-      await props.sendStreamingMessage(
+      const returned = await props.sendStreamingMessage(
         newContent,
         (token) => {
           props.streamingContentRef.current += token;
@@ -65,7 +65,8 @@ export function createEditMessageHandler(props: EditMessageHandlerProps) {
         }
       );
 
-      const finalContent = props.streamingContentRef.current;
+      // Complete even when late tokens were missed (see messageHandler)
+      const finalContent = returned || props.streamingContentRef.current;
       const finalMessage: Message = {
         id: crypto.randomUUID(),
         role: "assistant",
@@ -110,7 +111,7 @@ export function createRegenerateMessageHandler(props: EditMessageHandlerProps) {
     props.streamingContentRef.current = "";
 
     try {
-      await props.sendStreamingMessage(
+      const returned = await props.sendStreamingMessage(
         userMessage.content,
         (token) => {
           props.streamingContentRef.current += token;
@@ -125,7 +126,8 @@ export function createRegenerateMessageHandler(props: EditMessageHandlerProps) {
         }
       );
 
-      const finalContent = props.streamingContentRef.current;
+      // Complete even when late tokens were missed (see messageHandler)
+      const finalContent = returned || props.streamingContentRef.current;
       const finalMessage: Message = {
         id: crypto.randomUUID(),
         role: "assistant",

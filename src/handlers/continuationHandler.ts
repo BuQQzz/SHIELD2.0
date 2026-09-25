@@ -62,7 +62,7 @@ export const createContinuationHandler = ({
     const assistantMessageId = generateMessageId();
 
     try {
-      await sendStreamingMessage(
+      const returned = await sendStreamingMessage(
         "Continue",
         (token) => {
           streamingContentRef.current += token;
@@ -77,7 +77,8 @@ export const createContinuationHandler = ({
         }
       );
 
-      const finalContent = streamingContentRef.current;
+      // Complete even when late tokens were missed (see messageHandler)
+      const finalContent = returned || streamingContentRef.current;
 
       // Detect truncation with same logic as messageHandler
       const estimatedTokens = Math.ceil(finalContent.length / 3.5);

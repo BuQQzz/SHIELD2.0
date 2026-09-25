@@ -136,9 +136,12 @@ export function createMessageHandler({
         }
       );
 
-      // Use streamed content if available, otherwise fall back to returned response
-      // This handles cases where streaming doesn't work but the response is returned
-      const finalContent = streamingContentRef.current || returnedResponse;
+      // The returned reply is complete; the streamed one only when nothing
+      // came back. Streamed tokens can arrive after the reply (a cached
+      // reply at 70 tok/s) and be missed: the chat kept "I'll check the
+      // current Node.js release version for you by" - 57 of 212 characters,
+      // without its tool call (2026-09-24).
+      const finalContent = returnedResponse || streamingContentRef.current;
 
       // Parse and extract thinking/reasoning content from various XML formats
       const { reasoning, thinking, processedContent } = parseAllThinking(
@@ -182,7 +185,7 @@ export function createMessageHandler({
           }
         );
 
-        const retryFinalContent = streamingContentRef.current || retryResponse;
+        const retryFinalContent = retryResponse || streamingContentRef.current;
         const retryParsed = parseAllThinking(
           retryFinalContent,
           false,
@@ -257,7 +260,7 @@ export function createMessageHandler({
                 }
               );
 
-              const toolReply = streamingContentRef.current || returned;
+              const toolReply = returned || streamingContentRef.current;
 
               const toolResponseMessage: Message = {
                 id: toolMessageId,
