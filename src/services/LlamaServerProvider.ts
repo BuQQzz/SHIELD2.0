@@ -392,10 +392,18 @@ export class LlamaServerProvider {
 
   setChatHistory(messages: ChatMessage[]): void {
     // Only what the model reads: the chat's messages also carry ids, stats
-    // and tool metadata, which went to the server with every request
-    this.history = messages
-      .filter((m) => m.role !== "system")
-      .map(({ role, content }) => ({ role, content }));
+    // and tool metadata, which went to the server with every request.
+    // One message per turn: a saved chat can hold two in a row - the
+    // tool-round limit notice after the model's last reply - and the
+    // server refuses "2 or more assistant messages at the end of the list"
+    // (2026-09-25).
+    this.history = [];
+    for (const { role, content } of messages) {
+      if (role === "system") continue;
+      const last = this.history.at(-1);
+      if (last?.role === role) last.content += `\n\n${content}`;
+      else this.history.push({ role, content });
+    }
     // A restored chat starts whole; it is compacted again if needed
     this.capsule = null;
     this.lastContextTokens = this.estimateTokens();
