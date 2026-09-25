@@ -63,6 +63,8 @@ const MAX_NOTE_CHARS = 1200;
 
 /** Shortened replies in the kept part keep at least this much */
 const MIN_REPLY_CHARS = 1500;
+/** Model prose in a removed slice worth a new note */
+const NOTE_PROSE_CHARS = 1000;
 
 /**
  * Sent after the turns that are about to go, before `nextMessage` is. A
@@ -311,6 +313,39 @@ export function renderCapsule(capsule: Capsule, maxChars = Infinity): string {
 }
 
 /**
+ * Where the latest exchange starts: the last user-role entry (the user's
+ * message, or the tool results the model is working from). The history's
+ * length when there is none.
+ */
+export function latestExchange(history: HistoryEntry[]): number {
+  for (let i = history.length - 1; i >= 0; i--) {
+    if (history[i]!.role === "user") return i;
+  }
+  return history.length;
+}
+
+/**
+ * Whether removing `older` needs a new note from the model: it holds a
+ * request from the user or a good deal of the model's own reasoning. A
+ * slice of plain tool rounds does not - the lists record it and the last
+ * note stands. Asking anyway cost a 4-7 s pause every round (2026-09-25).
+ * A first capsule always gets one.
+ */
+export function needsNote(
+  older: HistoryEntry[],
+  previous: Capsule | null
+): boolean {
+  if (!previous) return true;
+  if (older.some((e) => e.role === "user" && !isToolResultTurn(e.content))) {
+    return true;
+  }
+  const prose = older
+    .filter((e) => e.role === "assistant")
+    .reduce((n, e) => n + stripToolCallMarkup(e.content).trim().length, 0);
+  return prose >= NOTE_PROSE_CHARS;
+}
+
+/**
  * Where the kept part of the history starts: the most recent entries that
  * fit in `keepChars`, beginning at a user-role entry so that after the
  * system message the roles still alternate. Never after the last user-role
@@ -321,13 +356,7 @@ export function renderCapsule(capsule: Capsule, maxChars = Infinity): string {
  * summarise.
  */
 export function capsuleCut(history: HistoryEntry[], keepChars: number): number {
-  let cut = history.length;
-  for (let i = history.length - 1; i >= 0; i--) {
-    if (history[i]!.role === "user") {
-      cut = i;
-      break;
-    }
-  }
+  let cut = latestExchange(history);
   let size = history.slice(cut).reduce((n, e) => n + e.content.length, 0);
   for (let i = cut - 1; i >= 0; i--) {
     size += history[i]!.content.length;
@@ -402,7 +431,7 @@ export async function summariseOldest(
   const older = history.slice(0, cut);
   let note = "";
   try {
-    note = await writeNote(older);
+    if (needsNote(older, previous)) note = await writeNote(older);
   } catch (error) {
     // Stop was pressed: fetch throws a DOMException, not always an Error
     if ((error as { name?: unknown } | null)?.name === "AbortError") {

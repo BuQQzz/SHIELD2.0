@@ -4,6 +4,8 @@ import {
   capsuleCut,
   cleanNote,
   fitKept,
+  latestExchange,
+  needsNote,
   noteRequest,
   renderCapsule,
   requestText,
@@ -340,6 +342,47 @@ describe("noteRequest", () => {
   });
 });
 
+describe("latestExchange", () => {
+  it("starts at the last user-role entry, tool results included", () => {
+    expect(
+      latestExchange([
+        user("fix it"),
+        assistant(call("read_text_file", { path: "C:/p/a" })),
+        user(results(result("read_text_file", "x"))),
+        assistant(call("edit_file", { path: "C:/p/a", edits: [] })),
+      ])
+    ).toBe(2);
+    expect(latestExchange([])).toBe(0);
+  });
+});
+
+describe("needsNote", () => {
+  const earlier = addToCapsule(null, [user("fix the wifi scripts")], "note");
+  const toolRound = [
+    assistant(call("read_text_file", { path: "C:/p/run.ps1" })),
+    user(results(result("read_text_file", bigFile))),
+  ];
+
+  it("always writes a first note", () => {
+    expect(needsNote(toolRound, null)).toBe(true);
+  });
+
+  it("skips a slice of plain tool rounds", () => {
+    // What made every round at 8K pause 4-7 s for a note (2026-09-25)
+    expect(needsNote(toolRound, earlier)).toBe(false);
+  });
+
+  it("writes one when the slice holds a request or real reasoning", () => {
+    expect(needsNote([user("now fix it"), ...toolRound], earlier)).toBe(true);
+    expect(
+      needsNote(
+        [assistant(`${"The signatures are wrong. ".repeat(50)}`), ...toolRound],
+        earlier
+      )
+    ).toBe(true);
+  });
+});
+
 describe("summariseOldest", () => {
   const history = [
     user("build a search page"),
@@ -394,5 +437,25 @@ describe("summariseOldest", () => {
     const writeNote = vi.fn();
     expect(await summariseOldest(history, null, 10_000, writeNote)).toBeNull();
     expect(writeNote).not.toHaveBeenCalled();
+  });
+
+  it("folds a slice of tool rounds into the lists without asking", async () => {
+    const earlier = addToCapsule(null, [user("fix the wifi scripts")], "old");
+    const writeNote = vi.fn();
+    const rounds = [
+      assistant(call("read_text_file", { path: "C:/p/run.ps1" })),
+      user(results(result("read_text_file", "x"))),
+      assistant(call("read_text_file", { path: "C:/p/set-radio.ps1" })),
+      user(results(result("read_text_file", "y"))),
+      assistant("Found it."),
+    ];
+    const out = await summariseOldest(rounds, earlier, 50, writeNote);
+
+    expect(writeNote).not.toHaveBeenCalled();
+    expect(out?.capsule.note).toBe("old");
+    expect(out?.capsule.steps.map((s) => s.target)).toEqual([
+      "C:/p/run.ps1",
+      "C:/p/set-radio.ps1",
+    ]);
   });
 });

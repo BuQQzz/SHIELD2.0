@@ -31,6 +31,7 @@ import { compactHistory, shouldCompact } from "./historyCompaction.js";
 import {
   CAPSULE_SHARE,
   KEEP_SHARE,
+  latestExchange,
   NOTE_MAX_TOKENS,
   noteRequest,
   renderCapsule,
@@ -407,12 +408,17 @@ export class LlamaServerProvider {
   }
 
   /**
-   * Make room before a request that would fill most of the window. First
-   * clear old tool payloads out of the history (historyCompaction); if it
-   * is still too full, replace the oldest turns with a capsule
-   * (taskCapsule). The prompt cache is reused only up to the first changed
-   * message, so either costs one slower read of the shortened history -
-   * which is why neither runs until needed.
+   * Make room before a request that would fill most of the window, in the
+   * cheapest way that is enough:
+   * 1. clear old tool payloads, keeping the last few exchanges whole
+   *    (historyCompaction);
+   * 2. clear them from all but the latest exchange - still no model call,
+   *    and what large tool results need: at 8K, going straight to step 3
+   *    summarised every tool round, 4-7 s each (2026-09-25);
+   * 3. replace the oldest turns with a capsule (taskCapsule).
+   * The prompt cache is reused only up to the first changed message, so
+   * each costs a slower read of the shortened history - which is why none
+   * runs until needed.
    */
   private async makeRoom(
     nextMessage: string,
@@ -428,17 +434,9 @@ export class LlamaServerProvider {
     if (!tooFull()) return;
 
     // The last few exchanges are what the model is working from right now
-    const { history, savedChars } = compactHistory(this.history, 6);
-    if (savedChars > 0) {
-      this.history = history;
-      this.lastContextTokens = Math.max(
-        0,
-        this.lastContextTokens - savedChars / 3
-      );
-      console.log(
-        `[LlamaServer] Compacted history: cleared ${savedChars} characters of old tool calls and results`
-      );
-    }
+    this.clearPayloads(6);
+    if (!tooFull()) return;
+    this.clearPayloads(this.history.length - latestExchange(this.history));
     if (!tooFull()) return;
 
     onProgress?.({ phase: "summarising" });
@@ -457,6 +455,20 @@ export class LlamaServerProvider {
     this.lastContextTokens = this.estimateTokens();
     console.log(
       `[LlamaServer] Summarised ${removed} older messages into a capsule of ${this.lastSummary.length} characters`
+    );
+  }
+
+  /** Clear old tool payloads, leaving the last `keepRecent` entries whole */
+  private clearPayloads(keepRecent: number): void {
+    const { history, savedChars } = compactHistory(this.history, keepRecent);
+    if (savedChars === 0) return;
+    this.history = history;
+    this.lastContextTokens = Math.max(
+      0,
+      this.lastContextTokens - savedChars / 3
+    );
+    console.log(
+      `[LlamaServer] Compacted history: cleared ${savedChars} characters of old tool calls and results`
     );
   }
 
