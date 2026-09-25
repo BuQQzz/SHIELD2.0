@@ -1,4 +1,4 @@
-import { useEffect, useCallback } from "react";
+import { useEffect, useCallback, useRef } from "react";
 import type { ModelOption } from "@/config/models";
 import { isRuntimeAvailable } from "../config/models";
 import { useSettingsStore } from "../store/settingsStore";
@@ -36,10 +36,14 @@ export function useModelLoader({
 }: UseModelLoaderProps) {
   // The saved per-model context choice has to be known before loading
   const settingsLoaded = useSettingsStore((state) => state.hasLoaded);
+  // Once per session: a load that fails or is held back for lack of memory
+  // leaves no model loaded, which would otherwise start the next attempt
+  const autoLoadTried = useRef(false);
 
   // Auto-load model on initialization
   useEffect(() => {
     if (
+      !autoLoadTried.current &&
       settingsLoaded &&
       isInitialized &&
       !isModelLoaded &&
@@ -55,6 +59,7 @@ export function useModelLoader({
         runnable.find((m) => m.id === currentModelId) || runnable[0];
 
       if (defaultModel) {
+        autoLoadTried.current = true;
         console.log(
           `[App] Loading ${defaultModel.displayName} (${defaultModel.id})`
         );

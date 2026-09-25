@@ -27,6 +27,7 @@ import type {
   ContextBreakdown,
   ContextPlan,
   ContextUsage,
+  MemoryCheck,
 } from "../src/types/electron";
 
 export interface ModelConfig {
@@ -35,6 +36,7 @@ export interface ModelConfig {
   name: string;
   uri: string;
   contextSize?: number;
+  allowLowMemory?: boolean;
 }
 
 export interface ChatOptions {
@@ -44,9 +46,12 @@ export interface ChatOptions {
 
 export interface LlamaAPI {
   initialize: () => Promise<{ success: boolean; error?: string }>;
-  loadModel: (
-    config: ModelConfig
-  ) => Promise<{ success: boolean; error?: string }>;
+  loadModel: (config: ModelConfig) => Promise<{
+    success: boolean;
+    error?: string;
+    warning?: string;
+    memory?: MemoryCheck;
+  }>;
   chat: (message: string, options?: ChatOptions) => Promise<ChatResult>;
   chatStreaming: (
     message: string,

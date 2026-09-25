@@ -4,6 +4,8 @@ export interface ModelConfig {
   name: string;
   uri: string;
   contextSize?: number;
+  /** The user chose to load despite a low-memory warning */
+  allowLowMemory?: boolean;
 }
 
 export interface ChatOptions {
@@ -59,9 +61,23 @@ export interface ContextUsage {
 export interface ContextPlan {
   trainContextSize: number;
   totalLayers: number;
-  options: { contextSize: number; gpuLayers: number }[];
+  options: { contextSize: number; gpuLayers: number; memory?: MemoryNeed }[];
   recommended: number;
   placement?: "layers" | "experts";
+}
+
+/** System memory a model needs (mirrors memoryCheck.ts) */
+export interface MemoryNeed {
+  ramBytes: number;
+  commitBytes: number;
+}
+
+/** Why a model load was held back (mirrors memoryCheck.ts) */
+export interface MemoryCheck {
+  ok: boolean;
+  need: MemoryNeed;
+  free: { ramFreeBytes: number; commitFreeBytes?: number };
+  problems: string[];
 }
 
 /** What is filling the context window (mirrors contextBreakdown.ts) */
@@ -91,9 +107,13 @@ export interface ChatResult {
 
 export interface LlamaAPI {
   initialize: () => Promise<{ success: boolean; error?: string }>;
-  loadModel: (
-    config: ModelConfig
-  ) => Promise<{ success: boolean; error?: string; warning?: string }>;
+  /** `memory` without `error`: held back for lack of memory, not loaded */
+  loadModel: (config: ModelConfig) => Promise<{
+    success: boolean;
+    error?: string;
+    warning?: string;
+    memory?: MemoryCheck;
+  }>;
   chat: (message: string, options?: ChatOptions) => Promise<ChatResult>;
   chatStreaming: (
     message: string,

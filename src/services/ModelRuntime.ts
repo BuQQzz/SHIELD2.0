@@ -15,6 +15,12 @@ import fs from "fs";
 import path from "path";
 import { getModelById } from "../config/models.js";
 import { planServerContext, type ContextPlan } from "./contextPlanner.js";
+import {
+  assessMemory,
+  readSystemMemory,
+  type MemoryCheck,
+  type MemoryNeed,
+} from "./memoryCheck.js";
 import type { ContextBreakdown } from "./contextBreakdown.js";
 import {
   getLlamaService,
@@ -38,6 +44,8 @@ export class ModelRuntime {
   private requestedServerContext: number | undefined;
   private serverPlans = new Map<string, Promise<ContextPlan>>();
   private pidFile: string | undefined;
+  /** Estimated memory of the loaded model; freed before the next load */
+  private held: MemoryNeed | undefined;
 
   constructor() {
     // Never leave a server holding the GPU after SHIELD exits
@@ -65,7 +73,54 @@ export class ModelRuntime {
     return this.node.getHardwareInfo();
   }
 
-  async loadModel(config: ModelConfig): Promise<{ warning?: string }> {
+  /**
+   * Loads the model, unless it needs more system memory than is free and
+   * the user has not accepted that (`allowLowMemory`): then nothing is
+   * unloaded or loaded, and `memory` says why.
+   */
+  async loadModel(
+    config: ModelConfig
+  ): Promise<{ warning?: string; memory?: MemoryCheck }> {
+    // Reading free commit takes ~1.5 s on Windows; overlap it with the plan
+    const system = config.allowLowMemory ? undefined : readSystemMemory();
+    const need = await this.estimateMemory(config);
+    if (need && system) {
+      const check = assessMemory(need, await system, this.held);
+      if (!check.ok) {
+        console.warn(
+          `[ModelRuntime] Holding back ${config.id}: ${check.problems.join(" ")}`
+        );
+        return { memory: check };
+      }
+    }
+
+    this.held = undefined;
+    const result = await this.loadEngine(config);
+    this.held = need;
+    return result;
+  }
+
+  /**
+   * What the model needs at the context it will load with, from the
+   * context plan. Undefined when the plan cannot be made - the load then
+   * goes ahead unchecked rather than being blocked by the estimate.
+   */
+  private async estimateMemory(
+    config: ModelConfig
+  ): Promise<MemoryNeed | undefined> {
+    try {
+      const plan = await this.getContextPlan(config.id);
+      const size = config.contextSize ?? plan.recommended;
+      const option =
+        plan.options.find((o) => o.contextSize >= size) ?? plan.options.at(-1);
+      return option?.memory;
+    } catch (error) {
+      console.warn("[ModelRuntime] No memory estimate:", error);
+      return undefined;
+    }
+  }
+
+  private async loadEngine(config: ModelConfig): Promise<{ warning?: string }> {
     const model = getModelById(config.id);
     if (model?.runtime !== "llama-server") {
       if (this.server.isRunning()) await this.server.stop();

@@ -28,6 +28,8 @@ export function registerLlamaHandlers(
   ipcMain.handle("llama:loadModel", async (_event, config) => {
     try {
       const result = await llamaService.loadModel(config);
+      // Held back for lack of memory: the renderer asks the user
+      if (result.memory) return { success: false, memory: result.memory };
       return { success: true, warning: result.warning };
     } catch (error) {
       return {

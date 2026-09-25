@@ -28,6 +28,7 @@ import { useInstalledModels } from "./hooks/useInstalledModels";
 import { useChatStore } from "./stores/chat-store";
 import { ModelLibraryPage } from "./components/library/ModelLibraryPage";
 import { PluginsPage } from "./components/plugins/PluginsPage";
+import { LowMemoryDialog } from "./components/models/LowMemoryDialog";
 import { DEFAULT_MODEL_ID } from "./config/models";
 import { createAppShortcuts } from "./config/shortcuts";
 import "./App.css";
@@ -59,6 +60,9 @@ function App() {
     isLoading,
     error,
     warning,
+    memoryPrompt,
+    confirmLowMemory,
+    cancelLowMemory,
     loadModel,
     sendStreamingMessage,
     clearHistory,
@@ -339,6 +343,12 @@ function App() {
           />
         </Suspense>
       )}
+
+      <LowMemoryDialog
+        prompt={memoryPrompt}
+        onContinue={confirmLowMemory}
+        onCancel={cancelLowMemory}
+      />
     </ChatLayout>
   );
 }

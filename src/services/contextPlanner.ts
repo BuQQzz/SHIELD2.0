@@ -8,6 +8,11 @@
  */
 
 import { GgufInsights, readGgufFileInfo, type Llama } from "node-llama-cpp";
+import {
+  nodeMemoryNeed,
+  serverMemoryNeed,
+  type MemoryNeed,
+} from "./memoryCheck.js";
 
 /** Context sizes offered, in tokens */
 export const CONTEXT_STEPS = [
@@ -24,6 +29,8 @@ export interface ContextOption {
   contextSize: number;
   /** Layers that fit on the GPU with this context */
   gpuLayers: number;
+  /** System memory the model needs at this size */
+  memory?: MemoryNeed;
 }
 
 export interface ContextPlan {
@@ -102,12 +109,31 @@ export async function planContext(
     return low;
   };
 
+  // What stays in system RAM at a size: the layers that did not fit
+  const memoryAt = async (contextSize: number, gpuLayers: number) => {
+    const [model, context] = await Promise.all([
+      insights.estimateModelResourceRequirementsV2({ gpuLayers }),
+      insights.estimateContextResourceRequirementsV2({
+        contextSize,
+        modelGpuLayers: gpuLayers,
+      }),
+    ]);
+    return nodeMemoryNeed({
+      modelCpuRamBytes: model.cpuRam,
+      contextCpuRamBytes: context.cpuRam,
+    });
+  };
+
   const options: ContextOption[] = await Promise.all(
     CONTEXT_STEPS.filter((size) => size <= trainContextSize).map(
-      async (contextSize) => ({
-        contextSize,
-        gpuLayers: await maxGpuLayers(contextSize),
-      })
+      async (contextSize) => {
+        const gpuLayers = await maxGpuLayers(contextSize);
+        return {
+          contextSize,
+          gpuLayers,
+          memory: await memoryAt(contextSize, gpuLayers),
+        };
+      }
     )
   );
 
@@ -161,7 +187,15 @@ export async function planServerContext(
       ({ gpuVram }, i) =>
         i === 0 || gpuVram <= vramTotalBytes * SERVER_CONTEXT_SHARE
     )
-    .map(({ contextSize }) => ({ contextSize, gpuLayers: totalLayers }));
+    .map(({ contextSize, gpuVram }) => ({
+      contextSize,
+      gpuLayers: totalLayers,
+      memory: serverMemoryNeed({
+        modelBytes: insights.modelSize,
+        vramTotalBytes,
+        contextVramBytes: gpuVram,
+      }),
+    }));
 
   const offered = options.map((o) => o.contextSize);
   return {

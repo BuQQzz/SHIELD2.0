@@ -1,5 +1,9 @@
 import { useState, useEffect, useCallback } from "react";
-import type { GenerationStats, SearchResult } from "../types/electron";
+import type {
+  GenerationStats,
+  MemoryCheck,
+  SearchResult,
+} from "../types/electron";
 import { useGenerationStore } from "../store/generationStore";
 
 export interface Message {
@@ -48,6 +52,12 @@ export interface ModelInfo {
   contextSize?: number;
 }
 
+/** A load held back because the model needs more memory than is free */
+export interface MemoryPrompt {
+  model: ModelInfo;
+  check: MemoryCheck;
+}
+
 export function useLlama() {
   const [isInitialized, setIsInitialized] = useState(false);
   const [isModelLoaded, setIsModelLoaded] = useState(false);
@@ -55,6 +65,7 @@ export function useLlama() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [warning, setWarning] = useState<string | null>(null);
+  const [memoryPrompt, setMemoryPrompt] = useState<MemoryPrompt | null>(null);
 
   // Initialize llama.cpp on mount
   useEffect(() => {
@@ -89,30 +100,45 @@ export function useLlama() {
     init();
   }, []);
 
-  const loadModel = useCallback(async (model: ModelInfo) => {
-    setIsLoading(true);
-    setError(null);
-    setWarning(null);
-    try {
-      const result = await window.llama.loadModel(model);
-      if (result.success) {
-        setIsModelLoaded(true);
-        setCurrentModel(model);
-        void useGenerationStore.getState().refreshContext();
-        if (result.warning) {
-          setWarning(result.warning);
+  const loadModel = useCallback(
+    async (model: ModelInfo, options: { allowLowMemory?: boolean } = {}) => {
+      setIsLoading(true);
+      setError(null);
+      setWarning(null);
+      setMemoryPrompt(null);
+      try {
+        const result = await window.llama.loadModel({ ...model, ...options });
+        if (result.memory) {
+          // Nothing was unloaded or loaded; the user decides
+          setMemoryPrompt({ model, check: result.memory });
+        } else if (result.success) {
+          setIsModelLoaded(true);
+          setCurrentModel(model);
+          void useGenerationStore.getState().refreshContext();
+          if (result.warning) {
+            setWarning(result.warning);
+          }
+        } else {
+          setError(result.error || "Failed to load model");
+          console.error("[useLlama] Load model failed:", result.error);
         }
-      } else {
-        setError(result.error || "Failed to load model");
-        console.error("[useLlama] Load model failed:", result.error);
+      } catch (err) {
+        console.error("[useLlama] Load model exception:", err);
+        setError(err instanceof Error ? err.message : "Unknown error");
+      } finally {
+        setIsLoading(false);
       }
-    } catch (err) {
-      console.error("[useLlama] Load model exception:", err);
-      setError(err instanceof Error ? err.message : "Unknown error");
-    } finally {
-      setIsLoading(false);
+    },
+    []
+  );
+
+  const confirmLowMemory = useCallback(() => {
+    if (memoryPrompt) {
+      void loadModel(memoryPrompt.model, { allowLowMemory: true });
     }
-  }, []);
+  }, [memoryPrompt, loadModel]);
+
+  const cancelLowMemory = useCallback(() => setMemoryPrompt(null), []);
 
   const sendMessage = useCallback(
     async (
@@ -303,6 +329,9 @@ export function useLlama() {
     isLoading,
     error,
     warning,
+    memoryPrompt,
+    confirmLowMemory,
+    cancelLowMemory,
     loadModel,
     sendMessage,
     sendStreamingMessage,

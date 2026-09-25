@@ -66,6 +66,8 @@ export interface ModelConfig {
   uri: string;
   contextSize?: number;
   speculativeDecoding?: boolean; // Enable input lookup token prediction
+  /** The user chose to load despite a low-memory warning */
+  allowLowMemory?: boolean;
 }
 
 /**
