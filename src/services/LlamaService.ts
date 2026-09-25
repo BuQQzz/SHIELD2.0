@@ -648,12 +648,17 @@ export class LlamaService {
     this.requestedContextSize = undefined;
 
     // Free VRAM now rather than at garbage collection: the next model, or
-    // a llama-server taking over, needs it straight away
+    // a llama-server taking over, needs it straight away. Separately, so a
+    // context that fails to dispose does not leave the weights loaded.
     try {
       await context?.dispose();
+    } catch (error) {
+      console.warn("[LlamaService] Failed to free the context:", error);
+    }
+    try {
       await model?.dispose();
     } catch (error) {
-      console.warn("[LlamaService] Failed to free the previous model:", error);
+      console.warn("[LlamaService] Failed to free the model:", error);
     }
   }
 
