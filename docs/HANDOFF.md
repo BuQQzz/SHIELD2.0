@@ -22,6 +22,17 @@ Done, in commit order:
 4. **Chat layout** — one block per reply, tool calls as quiet collapsible steps ("Wrote index.html", "Edited styles.css +4 −2"), consecutive calls grouped.
 5. **Clearing old tool payloads** — above 60% of the window, older write/read payloads in the model's history become "[N characters, cleared to save space]". ~31.6k → ~7.9k tokens on the Searcher chat. **Not yet seen running live**: look for `[LlamaServer] Compacted history` in the log. llama-server only.
 
+### Update — 2026-09-24 evening (`92b4aea`…`16515e2`)
+
+Items 1–4 below are done; **not yet tried in the running app**.
+
+- **1 · RAM check** — every load (auto-load, picker, Library) estimates RAM and commit from the context plan and compares with free memory; the loaded model counts as free. Short → nothing unloads, a dialog gives the numbers with Load anyway / Cancel. Estimates for Qwen3-Coder on llama-server at 32K: ~12 GB RAM, ~21 GiB commit (measured: ~12 / ~22 GB). Startup auto-load now runs once (a failed load used to retry in a loop).
+- **2 · Library label** — "Runs partly from system RAM · ~12 GB" on installed models above 1 GB; heads-up opens once per model (`model.ramNoticeSeen`); offers a smaller context if it saves ≥ 2 GB. The context picker shows RAM per size for llama-server models.
+- **3 · `cleanup()`** — context and model disposal in separate `try`s, with a test.
+- **4 · Orphaned llama-server: not a bug.** Tested: hard-killing Electron's main (`Stop-Process -Force`) killed its attached child too — libuv puts attached children in a kill-on-close job object. The handoff's claim was an assumption. The spawn call now says why it must never be `detached`. (A PowerShell watchdog was built and dropped: detached PowerShell 5.1 gets no console and exits before running.)
+
+Still to do from the list: 5 (mmap vs none) and 6.
+
 ### Next session — start here
 
 Decided with the user at the end of the session (2026-09-24). In order:
