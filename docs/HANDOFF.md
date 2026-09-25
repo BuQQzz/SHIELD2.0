@@ -24,7 +24,9 @@ Done, in commit order:
 
 ### Update — 2026-09-24 evening (`92b4aea`…`16515e2`)
 
-Items 1–4 below are done; **not yet tried in the running app**.
+Items 1–4 below are done and **tried in the running app** (2026-09-24, Qwen3-Coder on llama-server): with 10 GB held by a helper process, startup held the load back once and showed the dialog, Cancel loaded nothing, no retry loop; with the memory released the Library load passed; a 32K → 16K reload passed with only 9.8 GB free (loaded model counted as free). Measured vs estimate — 32K: 11.6 GiB RAM / 21.8 GiB commit (est. 12.0 / 22.3 after recalibrating, `12336a3`); 16K: 10.0 / 20.3 (est. 10.4 / 20.8).
+
+**Also (`3b11cdd`): SHIELD starts without a model.** Startup selects the last model loaded (`model.lastModelId`) and the empty chat offers "Load …"; Settings › Model › "Load last model at startup" (off by default) restores the old behaviour.
 
 - **1 · RAM check** — every load (auto-load, picker, Library) estimates RAM and commit from the context plan and compares with free memory; the loaded model counts as free. Short → nothing unloads, a dialog gives the numbers with Load anyway / Cancel. Estimates for Qwen3-Coder on llama-server at 32K: ~12 GB RAM, ~21 GiB commit (measured: ~12 / ~22 GB). Startup auto-load now runs once (a failed load used to retry in a loop).
 - **2 · Library label** — "Runs partly from system RAM · ~12 GB" on installed models above 1 GB; heads-up opens once per model (`model.ramNoticeSeen`); offers a smaller context if it saves ≥ 2 GB. The context picker shows RAM per size for llama-server models.
