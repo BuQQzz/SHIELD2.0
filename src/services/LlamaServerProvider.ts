@@ -107,6 +107,10 @@ export class LlamaServerProvider {
     console.log(`[LlamaServer] Starting ${binary} ${args.join(" ")}`);
 
     this.logTail = [];
+    // Never `detached`: on Windows libuv puts attached children in a job
+    // object that kills them when SHIELD's main process dies, even from a
+    // crash or Task Manager (verified 2026-09-24). That is what keeps a
+    // hard-killed SHIELD from leaving ~22 GB committed to an orphaned server.
     const child = spawn(binary, args, { windowsHide: true });
     this.process = child;
     this.baseUrl = `http://127.0.0.1:${port}`;
