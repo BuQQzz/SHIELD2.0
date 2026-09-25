@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { useSettingsStore } from "@/store/settingsStore";
 import { ModelSettings as ModelSettingsType } from "@/types/settings";
-import { ChevronDown, ChevronUp, Zap } from "lucide-react";
+import { ChevronDown, ChevronUp, Play, Zap } from "lucide-react";
 
 interface ModelSettingsProps {
   settings: ModelSettingsType;
@@ -49,8 +49,30 @@ export function ModelSettings({ settings }: ModelSettingsProps) {
     updateSettings({ model: { ...settings, speculativeDecoding: checked } });
   };
 
+  const handleLoadOnStartupChange = (checked: boolean) => {
+    updateSettings({ model: { ...settings, loadOnStartup: checked } });
+  };
+
   return (
     <div className="space-y-6">
+      <div className="flex items-center justify-between gap-4">
+        <div className="space-y-0.5">
+          <div className="flex items-center gap-2">
+            <Play className="h-4 w-4 text-muted-foreground" />
+            <Label htmlFor="load-on-startup">Load last model at startup</Label>
+          </div>
+          <p className="text-xs text-muted-foreground">
+            Off: SHIELD starts without a model and loads one when you ask. A
+            large model takes the GPU and several GB of system RAM.
+          </p>
+        </div>
+        <Switch
+          id="load-on-startup"
+          checked={settings.loadOnStartup ?? false}
+          onCheckedChange={handleLoadOnStartupChange}
+        />
+      </div>
+
       {/* Essential Settings */}
       <div>
         <div className="flex justify-between items-center mb-2">

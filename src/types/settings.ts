@@ -9,6 +9,13 @@ export interface ModelSettings {
   contextByModel?: Record<string, number>;
   /** Models whose "runs partly from system RAM" explanation was dismissed */
   ramNoticeSeen?: string[];
+  /**
+   * Load the last model when SHIELD starts. Off by default: a large model
+   * takes the GPU and up to ~12 GB of RAM, so loading is the user's call.
+   */
+  loadOnStartup?: boolean;
+  /** Library id of the last model loaded, offered first at startup */
+  lastModelId?: string;
   maxTokens: number;
   speculativeDecoding: boolean; // Use input lookup token prediction for faster inference
 }

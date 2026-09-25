@@ -2,6 +2,7 @@ import { useEffect, useCallback, useRef } from "react";
 import type { ModelOption } from "@/config/models";
 import { isRuntimeAvailable } from "../config/models";
 import { useSettingsStore } from "../store/settingsStore";
+import { pickStartupModel } from "./startupModel";
 
 /** The user's context choice for a model; undefined = recommended */
 function chosenContextSize(modelId: string): number | undefined {
@@ -12,7 +13,7 @@ interface UseModelLoaderProps {
   isInitialized: boolean;
   isModelLoaded: boolean;
   isLoading: boolean;
-  currentModel: { name: string; uri: string } | null;
+  currentModel: { id: string; name: string; uri: string } | null;
   currentModelId: string;
   loadModel: (model: {
     id: string;
@@ -38,47 +39,54 @@ export function useModelLoader({
   const settingsLoaded = useSettingsStore((state) => state.hasLoaded);
   // Once per session: a load that fails or is held back for lack of memory
   // leaves no model loaded, which would otherwise start the next attempt
-  const autoLoadTried = useRef(false);
+  const startupDone = useRef(false);
 
-  // Auto-load model on initialization
+  // At startup, select the last model. Load it only if the user asked for
+  // that (Settings > Model); otherwise the chat offers it with one click.
   useEffect(() => {
     if (
-      !autoLoadTried.current &&
-      settingsLoaded &&
-      isInitialized &&
-      !isModelLoaded &&
-      !isLoading &&
-      !currentModel &&
-      installedModels.length > 0
+      startupDone.current ||
+      !settingsLoaded ||
+      !isInitialized ||
+      isModelLoaded ||
+      isLoading ||
+      currentModel ||
+      installedModels.length === 0
     ) {
-      console.log("[App] Auto-loading default model...");
-      // Try to find the default model, or use the first installed model
-      // SHIELD can run (an installed Bonsai needs a runtime still to come)
-      const runnable = installedModels.filter(isRuntimeAvailable);
-      const defaultModel =
-        runnable.find((m) => m.id === currentModelId) || runnable[0];
-
-      if (defaultModel) {
-        autoLoadTried.current = true;
-        console.log(
-          `[App] Loading ${defaultModel.displayName} (${defaultModel.id})`
-        );
-        // The fallback may not be the model currentModelId names. Without
-        // this the header showed "Select Model", the prompt used the generic
-        // family and capabilities were missing, all for a loaded model.
-        setCurrentModelId(defaultModel.id);
-        loadModel({
-          id: defaultModel.id,
-          name: defaultModel.name,
-          uri: defaultModel.uri,
-          contextSize: chosenContextSize(defaultModel.id),
-        }).catch((err) => {
-          console.error("[App] Failed to auto-load model:", err);
-        });
-      } else {
-        console.log("[App] No installed models found to auto-load");
-      }
+      return;
     }
+    startupDone.current = true;
+
+    const { model: modelSettings } = useSettingsStore.getState().settings;
+    const startupModel = pickStartupModel(
+      installedModels,
+      modelSettings.lastModelId,
+      currentModelId
+    );
+    if (!startupModel) {
+      console.log("[App] No installed model SHIELD can run");
+      return;
+    }
+    // The fallback may not be the model currentModelId names. Without this
+    // the header showed "Select Model", the prompt used the generic family
+    // and capabilities were missing, all for a loaded model.
+    setCurrentModelId(startupModel.id);
+    if (!modelSettings.loadOnStartup) {
+      console.log(`[App] ${startupModel.displayName} selected, not loaded`);
+      return;
+    }
+
+    console.log(
+      `[App] Loading ${startupModel.displayName} (${startupModel.id}) at startup`
+    );
+    loadModel({
+      id: startupModel.id,
+      name: startupModel.name,
+      uri: startupModel.uri,
+      contextSize: chosenContextSize(startupModel.id),
+    }).catch((err) => {
+      console.error("[App] Failed to load model at startup:", err);
+    });
   }, [
     settingsLoaded,
     isInitialized,
@@ -90,6 +98,17 @@ export function useModelLoader({
     setCurrentModelId,
     installedModels,
   ]);
+
+  // Remember the loaded model, so the next start offers it first
+  const loadedId = isModelLoaded ? currentModel?.id : undefined;
+  useEffect(() => {
+    if (!loadedId) return;
+    const { settings, updateSettings } = useSettingsStore.getState();
+    if (settings.model.lastModelId === loadedId) return;
+    void updateSettings({
+      model: { ...settings.model, lastModelId: loadedId },
+    });
+  }, [loadedId]);
 
   const handleModelSelect = useCallback(
     async (model: ModelOption) => {

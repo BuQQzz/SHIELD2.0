@@ -29,7 +29,7 @@ import { useChatStore } from "./stores/chat-store";
 import { ModelLibraryPage } from "./components/library/ModelLibraryPage";
 import { PluginsPage } from "./components/plugins/PluginsPage";
 import { LowMemoryDialog } from "./components/models/LowMemoryDialog";
-import { DEFAULT_MODEL_ID } from "./config/models";
+import { DEFAULT_MODEL_ID, isRuntimeAvailable } from "./config/models";
 import { createAppShortcuts } from "./config/shortcuts";
 import "./App.css";
 
@@ -52,6 +52,7 @@ function App() {
     refresh: refreshInstalledModels,
   } = useInstalledModels();
   const activeView = useChatStore((state) => state.activeView);
+  const setActiveView = useChatStore((state) => state.setActiveView);
 
   const {
     isInitialized,
@@ -298,6 +299,17 @@ function App() {
           <ChatPlaceholder
             modelLoaded={isModelLoaded}
             isLoading={isLoading}
+            selectedModelName={
+              currentModelConfig && isRuntimeAvailable(currentModelConfig)
+                ? currentModelConfig.displayName
+                : undefined
+            }
+            onLoadSelected={
+              currentModelConfig
+                ? () => handleModelSelect(currentModelConfig)
+                : undefined
+            }
+            onOpenLibrary={() => setActiveView("library")}
             onPromptClick={handleSendMessage}
           />
         ) : (
