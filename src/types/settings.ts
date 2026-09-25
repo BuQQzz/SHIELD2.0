@@ -7,6 +7,8 @@ export interface ModelSettings {
   contextLength: number;
   /** Context size chosen per library model id; absent = recommended */
   contextByModel?: Record<string, number>;
+  /** Models whose "runs partly from system RAM" explanation was dismissed */
+  ramNoticeSeen?: string[];
   maxTokens: number;
   speculativeDecoding: boolean; // Use input lookup token prediction for faster inference
 }

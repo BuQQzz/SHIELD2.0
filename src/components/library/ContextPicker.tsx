@@ -1,4 +1,3 @@
-import { useEffect, useState } from "react";
 import { Check, ChevronDown, Loader2 } from "lucide-react";
 import {
   DropdownMenu,
@@ -9,7 +8,9 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { useSettingsStore } from "@/store/settingsStore";
-import type { ContextPlan } from "@/types/electron";
+import { useContextPlan } from "@/hooks/useContextPlan";
+import { formatGB } from "@/lib/format";
+import type { MemoryNeed } from "@/types/electron";
 import { cn } from "@/lib/utils";
 
 interface ContextPickerProps {
@@ -34,25 +35,9 @@ export function ContextPicker({
   onChange,
   disabled,
 }: ContextPickerProps) {
-  const [plan, setPlan] = useState<ContextPlan | null>(null);
-  const [failed, setFailed] = useState(false);
+  const { plan, failed } = useContextPlan(modelId);
   const { settings, updateSettings } = useSettingsStore();
   const chosen = settings.model.contextByModel?.[modelId];
-
-  useEffect(() => {
-    let cancelled = false;
-    window.llama
-      .getContextPlan(modelId)
-      .then((result) => {
-        if (cancelled) return;
-        if (result.success && result.plan) setPlan(result.plan);
-        else setFailed(true);
-      })
-      .catch(() => !cancelled && setFailed(true));
-    return () => {
-      cancelled = true;
-    };
-  }, [modelId]);
 
   if (failed) return null;
   if (!plan) {
@@ -78,9 +63,11 @@ export function ContextPicker({
   // With llama-server, attention stays on the GPU and experts move to RAM
   // to fit, so a size is not a layer trade-off
   const experts = plan.placement === "experts";
-  const onGpu = (gpuLayers: number) =>
+  const onGpu = (gpuLayers: number, memory?: MemoryNeed) =>
     experts
-      ? ""
+      ? memory
+        ? `~${formatGB(memory.ramBytes)} in RAM`
+        : ""
       : gpuLayers >= plan.totalLayers
         ? "all on GPU"
         : `${gpuLayers}/${plan.totalLayers} layers on GPU`;
@@ -123,7 +110,7 @@ export function ContextPicker({
           {chosen === undefined && <Check className="h-4 w-4 text-signal" />}
         </DropdownMenuItem>
         <DropdownMenuSeparator />
-        {plan.options.map(({ contextSize, gpuLayers }) => (
+        {plan.options.map(({ contextSize, gpuLayers, memory }) => (
           <DropdownMenuItem
             key={contextSize}
             onClick={() => choose(contextSize)}
@@ -135,12 +122,12 @@ export function ContextPicker({
             <span
               className={cn(
                 "flex-1 text-xs",
-                gpuLayers >= plan.totalLayers
+                gpuLayers >= plan.totalLayers && !experts
                   ? "text-muted-foreground"
                   : "text-amber-500"
               )}
             >
-              {onGpu(gpuLayers)}
+              {onGpu(gpuLayers, memory)}
             </span>
             {chosen === contextSize && (
               <Check className="h-4 w-4 text-signal" />

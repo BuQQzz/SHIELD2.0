@@ -11,6 +11,7 @@ import {
 import type { DownloadProgress } from "@/types/electron";
 import { cn } from "@/lib/utils";
 import { ContextPicker } from "./ContextPicker";
+import { RamNotice } from "./RamNotice";
 
 const ROLE_LABELS: Record<ModelRole, string> = {
   agent: "Agent",
@@ -239,6 +240,13 @@ export function LibraryModelRow({
               <span className="font-instrument">{model.releaseDate}</span>
             )}
           </div>
+          {installed && runnable && (
+            <RamNotice
+              modelId={model.id}
+              disabled={isModelLoading}
+              onContextChange={isLoaded ? onLoad : undefined}
+            />
+          )}
         </div>
 
         {/* Fit */}

@@ -10,6 +10,7 @@
 
 import { execFile } from "child_process";
 import os from "os";
+import { formatGB } from "../lib/format.js";
 
 export interface MemoryNeed {
   /** System RAM the model keeps resident while running */
@@ -83,12 +84,6 @@ export function nodeMemoryNeed(options: {
     ramBytes: options.modelCpuRamBytes + options.contextCpuRamBytes,
     commitBytes: options.contextCpuRamBytes + NODE_COMMIT_OVERHEAD_BYTES,
   };
-}
-
-/** "12 GB", "0.8 GB" */
-export function formatGB(bytes: number): string {
-  const gb = bytes / GB;
-  return `${gb >= 10 ? Math.round(gb) : Math.round(gb * 10) / 10} GB`;
 }
 
 /**

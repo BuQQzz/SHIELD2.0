@@ -1,11 +1,6 @@
 // @vitest-environment node
 import { describe, expect, it } from "vitest";
-import {
-  assessMemory,
-  formatGB,
-  nodeMemoryNeed,
-  serverMemoryNeed,
-} from "./memoryCheck";
+import { assessMemory, nodeMemoryNeed, serverMemoryNeed } from "./memoryCheck";
 
 const GB = 1024 ** 3;
 
@@ -98,12 +93,5 @@ describe("assessMemory", () => {
   it("skips the commit check where commit cannot be read", () => {
     const check = assessMemory(need, { ramFreeBytes: 20 * GB });
     expect(check.ok).toBe(true);
-  });
-});
-
-describe("formatGB", () => {
-  it("rounds large sizes to whole GB and small ones to a tenth", () => {
-    expect(formatGB(12.4 * GB)).toBe("12 GB");
-    expect(formatGB(0.84 * GB)).toBe("0.8 GB");
   });
 });
