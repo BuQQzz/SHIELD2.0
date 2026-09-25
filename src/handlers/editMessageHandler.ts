@@ -1,4 +1,5 @@
 import type { Message } from "../hooks/useLlama";
+import { useGenerationStore } from "../store/generationStore";
 
 interface EditMessageHandlerProps {
   messages: Message[];
@@ -72,6 +73,7 @@ export function createEditMessageHandler(props: EditMessageHandlerProps) {
         role: "assistant",
         content: finalContent,
         timestamp: new Date(),
+        summary: useGenerationStore.getState().lastSummary ?? undefined,
       };
 
       props.setMessages((prev) => [...prev, finalMessage]);
@@ -133,6 +135,7 @@ export function createRegenerateMessageHandler(props: EditMessageHandlerProps) {
         role: "assistant",
         content: finalContent,
         timestamp: new Date(),
+        summary: useGenerationStore.getState().lastSummary ?? undefined,
       };
 
       props.setMessages((prev) => [...prev, finalMessage]);

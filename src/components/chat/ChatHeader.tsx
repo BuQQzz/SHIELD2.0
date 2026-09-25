@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import {
   Menu,
   MoreVertical,
@@ -30,6 +30,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Tag } from "./Tag";
 import { MCPStatus } from "./MCPStatus";
+import { SummariesMenu, type ChatSummary } from "./SummariesMenu";
 
 interface ChatHeaderProps {
   modelName?: string;
@@ -60,6 +61,17 @@ export function ChatHeader({
   const [newTagInput, setNewTagInput] = useState("");
   const [showTagInput, setShowTagInput] = useState(false);
   const lastWarningRef = useRef<string | null>(null);
+
+  // Replies that had to summarise earlier turns first
+  const summaries = useMemo(
+    () =>
+      (currentConversation?.messages ?? []).flatMap((m): ChatSummary[] =>
+        m.summary
+          ? [{ id: m.id, summary: m.summary, timestamp: m.timestamp }]
+          : []
+      ),
+    [currentConversation?.messages]
+  );
 
   // Show warning as toast notification (only once per unique warning)
   useEffect(() => {
@@ -157,6 +169,10 @@ export function ChatHeader({
 
       {/* Right Section */}
       <div className="flex items-center gap-2">
+        <SummariesMenu
+          conversationId={currentConversation?.id}
+          summaries={summaries}
+        />
         <MCPStatus
           currentModel={availableModels.find((m) => m.id === currentModelId)}
         />

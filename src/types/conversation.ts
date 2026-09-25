@@ -13,6 +13,12 @@ export interface Message {
     tokensPerSecond: number;
     durationMs: number;
   };
+  /**
+   * The model's history was too full before this reply, and its oldest
+   * turns were replaced by this summary (the model's copy only). Shown as a
+   * step in the reply.
+   */
+  summary?: string;
   sources?: Array<{
     title: string;
     url: string;

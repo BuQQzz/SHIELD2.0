@@ -78,6 +78,37 @@ describe("groupIntoTurns", () => {
     expect(group.kind === "tools" && group.messages.length).toBe(2);
   });
 
+  it("shows a summary before the reply it was written for", () => {
+    const bareCall = `<tool_call>
+<server>filesystem</server>
+<tool>read_text_file</tool>
+<arguments>{"path":"a"}</arguments>
+</tool_call>`;
+    const turns = groupIntoTurns([
+      msg("user", "go on"),
+      msg("assistant", "Reading it again", { summary: "first capsule" }),
+      tool("read_text_file", "a"),
+      // A reply that is only a call shows nothing, but its summary shows
+      msg("assistant", bareCall, { summary: "second capsule" }),
+      tool("read_text_file", "a"),
+      msg("assistant", "Done"),
+    ]);
+    const reply = turns[1]!;
+    if (reply.kind !== "assistant") throw new Error("expected a reply");
+    expect(reply.parts.map((p) => p.kind)).toEqual([
+      "summary",
+      "text",
+      "tools",
+      "summary",
+      "tools",
+      "text",
+    ]);
+    const summaries = reply.parts.filter((p) => p.kind === "summary");
+    expect(
+      summaries.map((p) => p.kind === "summary" && p.message.summary)
+    ).toEqual(["first capsule", "second capsule"]);
+  });
+
   it("treats tool results as part of the reply, not user turns", () => {
     const turns = groupIntoTurns([msg("user", "hi"), tool("read_file")]);
     expect(turns.map((t) => t.kind)).toEqual(["user", "assistant"]);

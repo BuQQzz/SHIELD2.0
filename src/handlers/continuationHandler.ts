@@ -1,4 +1,5 @@
 import type { Message } from "../hooks/useLlama";
+import { useGenerationStore } from "../store/generationStore";
 import type { ModelSettings } from "../types/settings";
 
 // Generate unique message IDs to prevent React key collisions
@@ -105,6 +106,7 @@ export const createContinuationHandler = ({
         content: finalContent,
         timestamp: new Date(),
         truncated: wasTruncated,
+        summary: useGenerationStore.getState().lastSummary ?? undefined,
       };
 
       setMessages((prev) => [...prev, assistantMessage]);

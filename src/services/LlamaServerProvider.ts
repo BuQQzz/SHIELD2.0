@@ -22,11 +22,25 @@ import {
   defaultThreads,
   findLlamaServer,
 } from "./llamaServer/launch.js";
-import { SseParser, type ChatStreamChunk } from "./llamaServer/sse.js";
+import {
+  chunkProgress,
+  SseParser,
+  type ChatStreamChunk,
+} from "./llamaServer/sse.js";
 import { compactHistory, shouldCompact } from "./historyCompaction.js";
+import {
+  CAPSULE_SHARE,
+  KEEP_SHARE,
+  NOTE_MAX_TOKENS,
+  noteRequest,
+  renderCapsule,
+  summariseOldest,
+  type Capsule,
+} from "./taskCapsule.js";
 import type {
   ChatMessage,
   ChatOptions,
+  ChatProgress,
   ContextUsage,
   GenerationStats,
 } from "./LlamaService.js";
@@ -67,6 +81,10 @@ export class LlamaServerProvider {
   private trainContextSize = 0;
   private systemPrompt = "You are a helpful AI assistant.";
   private history: ChatMessage[] = [];
+  /** What the turns summarised out of the history held (taskCapsule) */
+  private capsule: Capsule | null = null;
+  /** The capsule as the last request left it, if it wrote one; for the chat */
+  private lastSummary: string | null = null;
   /** Prompt + reply tokens of the last request: how full the window is */
   private lastContextTokens = 0;
   private abortController: AbortController | null = null;
@@ -116,6 +134,7 @@ export class LlamaServerProvider {
     this.baseUrl = `http://127.0.0.1:${port}`;
     this.systemPrompt = options.systemPrompt;
     this.history = [];
+    this.capsule = null;
     this.pidFile = options.pidFile;
     if (this.pidFile && child.pid) {
       fs.writeFileSync(this.pidFile, String(child.pid));
@@ -219,12 +238,39 @@ export class LlamaServerProvider {
     return response.json();
   }
 
+  /** The capsule within its share of the window */
+  private capsuleText(): string {
+    return this.capsule
+      ? renderCapsule(this.capsule, this.contextSize * CAPSULE_SHARE * 3)
+      : "";
+  }
+
+  /**
+   * The system prompt, then the capsule. The capsule goes in the system
+   * message because a message of its own before the kept turns would
+   * break the user/assistant alternation strict chat templates require.
+   */
+  private systemContent(): string {
+    return this.capsule
+      ? `${this.systemPrompt}\n\n${this.capsuleText()}`
+      : this.systemPrompt;
+  }
+
   private messages(extra?: ChatMessage) {
     return [
-      { role: "system", content: this.systemPrompt },
+      { role: "system", content: this.systemContent() },
       ...this.history,
       ...(extra ? [extra] : []),
     ];
+  }
+
+  /** Before a request has measured it: ~3 characters per token */
+  private estimateTokens(): number {
+    return (
+      (this.systemContent().length +
+        this.history.reduce((n, m) => n + m.content.length, 0)) /
+      3
+    );
   }
 
   async chat(message: string, options: ChatOptions = {}): Promise<string> {
@@ -232,17 +278,22 @@ export class LlamaServerProvider {
       throw new Error("No model loaded. Call loadModel() first");
     }
 
-    this.compactIfNeeded(message);
-
     this.abortController = new AbortController();
     const signal = options.signal ?? this.abortController.signal;
+    this.lastSummary = null;
     const userMessage: ChatMessage = { role: "user", content: message };
     const startedAt = performance.now();
     let firstTokenAt: number | null = null;
     let reply = "";
     let final: ChatStreamChunk | null = null;
+    /** The whole prompt, once the server says how long it is */
+    let promptTokens = 0;
 
     try {
+      // Inside the try: Stop while summarising ends the turn like Stop
+      // while replying
+      await this.makeRoom(message, signal, options.onProgress);
+
       const response = await fetch(`${this.baseUrl}/v1/chat/completions`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -251,6 +302,10 @@ export class LlamaServerProvider {
           messages: this.messages(userMessage),
           stream: true,
           stream_options: { include_usage: true },
+          // Live progress: reading once per batch, then a count per token
+          // that includes thinking, which is not streamed as content
+          return_progress: true,
+          timings_per_token: true,
           cache_prompt: true,
           temperature: options.temperature ?? 0.7,
           max_tokens: options.maxTokens ?? 512,
@@ -280,6 +335,9 @@ export class LlamaServerProvider {
             reply += text;
             options.onToken?.(text);
           }
+          const progress = chunkProgress(chunk, promptTokens);
+          if (progress?.phase === "reading") promptTokens = progress.total;
+          if (progress) options.onProgress?.(progress);
           if (chunk.timings || chunk.usage)
             final = { ...(final ?? {}), ...chunk };
         }
@@ -326,48 +384,117 @@ export class LlamaServerProvider {
     return this.lastStats;
   }
 
+  /** The capsule, if the last request had to write one to make room */
+  getLastSummary(): string | null {
+    return this.lastSummary;
+  }
+
   setChatHistory(messages: ChatMessage[]): void {
-    this.history = messages.filter((m) => m.role !== "system");
-    // No request has measured it yet; ~3 characters per token
-    this.lastContextTokens =
-      (this.systemPrompt.length +
-        this.history.reduce((n, m) => n + m.content.length, 0)) /
-      3;
+    // Only what the model reads: the chat's messages also carry ids, stats
+    // and tool metadata, which went to the server with every request
+    this.history = messages
+      .filter((m) => m.role !== "system")
+      .map(({ role, content }) => ({ role, content }));
+    // A restored chat starts whole; it is compacted again if needed
+    this.capsule = null;
+    this.lastContextTokens = this.estimateTokens();
   }
 
   clearHistory(): void {
     this.history = [];
+    this.capsule = null;
     this.lastContextTokens = 0;
   }
 
   /**
-   * Clear old tool payloads out of the history before a request that would
-   * fill most of the window (see historyCompaction). The prompt cache is
-   * reused only up to the first changed message, so this costs one slower
-   * read of the shortened history - which is why it waits until needed
-   * rather than running every turn.
+   * Make room before a request that would fill most of the window. First
+   * clear old tool payloads out of the history (historyCompaction); if it
+   * is still too full, replace the oldest turns with a capsule
+   * (taskCapsule). The prompt cache is reused only up to the first changed
+   * message, so either costs one slower read of the shortened history -
+   * which is why neither runs until needed.
    */
-  private compactIfNeeded(nextMessage: string): void {
-    if (
-      !shouldCompact(
+  private async makeRoom(
+    nextMessage: string,
+    signal: AbortSignal,
+    onProgress?: (progress: ChatProgress) => void
+  ): Promise<void> {
+    const tooFull = () =>
+      shouldCompact(
         this.lastContextTokens,
         nextMessage.length,
         this.contextSize
-      )
-    ) {
-      return;
-    }
+      );
+    if (!tooFull()) return;
+
     // The last few exchanges are what the model is working from right now
     const { history, savedChars } = compactHistory(this.history, 6);
-    if (savedChars === 0) return;
-    this.history = history;
-    this.lastContextTokens = Math.max(
-      0,
-      this.lastContextTokens - savedChars / 3
+    if (savedChars > 0) {
+      this.history = history;
+      this.lastContextTokens = Math.max(
+        0,
+        this.lastContextTokens - savedChars / 3
+      );
+      console.log(
+        `[LlamaServer] Compacted history: cleared ${savedChars} characters of old tool calls and results`
+      );
+    }
+    if (!tooFull()) return;
+
+    onProgress?.({ phase: "summarising" });
+    const summarised = await summariseOldest(
+      this.history,
+      this.capsule,
+      this.contextSize * KEEP_SHARE * 3,
+      (older) => this.writeNote(older, nextMessage, signal)
     );
+    if (!summarised) return;
+
+    const removed = this.history.length - summarised.history.length;
+    this.history = summarised.history;
+    this.capsule = summarised.capsule;
+    this.lastSummary = this.capsuleText();
+    this.lastContextTokens = this.estimateTokens();
     console.log(
-      `[LlamaServer] Compacted history: cleared ${savedChars} characters of old tool calls and results`
+      `[LlamaServer] Summarised ${removed} older messages into a capsule of ${this.lastSummary.length} characters`
     );
+  }
+
+  /**
+   * The model's note on the turns about to be removed, told what comes
+   * after it (`nextMessage`). Sent with the same system message and history
+   * as the chat, so the server's prompt cache covers everything before the
+   * first message clearing changed.
+   */
+  private async writeNote(
+    older: ChatMessage[],
+    nextMessage: string,
+    signal: AbortSignal
+  ): Promise<string> {
+    const response = await fetch(`${this.baseUrl}/v1/chat/completions`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      signal,
+      body: JSON.stringify({
+        messages: [
+          { role: "system", content: this.systemContent() },
+          ...older,
+          { role: "user", content: noteRequest(nextMessage) },
+        ],
+        cache_prompt: true,
+        temperature: 0.2,
+        max_tokens: NOTE_MAX_TOKENS,
+      }),
+    });
+    if (!response.ok) {
+      throw new Error(
+        `llama-server: HTTP ${response.status} ${await response.text()}`
+      );
+    }
+    const result = (await response.json()) as {
+      choices?: { message?: { content?: string } }[];
+    };
+    return result.choices?.[0]?.message?.content ?? "";
   }
 
   applySystemPrompt(prompt: string): void {
@@ -397,6 +524,11 @@ export class LlamaServerProvider {
 
     const history: HistoryItem[] = [
       { type: "system", text: this.systemPrompt },
+      // Sent in the system message, but it stands for earlier messages;
+      // counted there it would read as tool instructions
+      ...(this.capsule
+        ? [{ type: "user", text: this.capsuleText() } as HistoryItem]
+        : []),
       ...this.history.map((m): HistoryItem =>
         m.role === "user"
           ? { type: "user", text: m.content }

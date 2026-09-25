@@ -23,6 +23,7 @@ import type {
   ModelDownloadAPI,
   DownloadProgress,
   SystemAPI,
+  ChatProgress,
   ChatResult,
   ContextBreakdown,
   ContextPlan,
@@ -72,6 +73,7 @@ export interface LlamaAPI {
     error?: string;
   }>;
   onToken: (callback: (token: string) => void) => () => void;
+  onProgress: (callback: (progress: ChatProgress) => void) => () => void;
   getModelInfo: () => Promise<{
     success: boolean;
     info?: ModelConfig | null;
@@ -132,6 +134,14 @@ const llamaAPI: LlamaAPI = {
       callback(token);
     ipcRenderer.on("llama:token", subscription);
     return () => ipcRenderer.removeListener("llama:token", subscription);
+  },
+  onProgress: (callback) => {
+    const subscription = (
+      _event: Electron.IpcRendererEvent,
+      progress: ChatProgress
+    ) => callback(progress);
+    ipcRenderer.on("llama:progress", subscription);
+    return () => ipcRenderer.removeListener("llama:progress", subscription);
   },
   getContextUsage: () => ipcRenderer.invoke("llama:getContextUsage"),
   getContextBreakdown: () => ipcRenderer.invoke("llama:getContextBreakdown"),

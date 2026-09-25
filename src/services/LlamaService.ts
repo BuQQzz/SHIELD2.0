@@ -56,8 +56,33 @@ export interface ChatOptions {
   topK?: number;
   repeatPenalty?: number;
   onToken?: (token: string) => void;
+  /** What the engine is doing, as it happens: for the chat's live status */
+  onProgress?: (progress: ChatProgress) => void;
   signal?: AbortSignal;
 }
+
+/**
+ * One request as it runs. `contextUsed` is how many tokens the window
+ * holds at that moment, so the context ring can follow along.
+ */
+export type ChatProgress =
+  /** The history was too full: the model is summarising older turns */
+  | { phase: "summarising" }
+  /** Reading the prompt (llama-server); `done` includes the `cached` part */
+  | {
+      phase: "reading";
+      done: number;
+      total: number;
+      cached: number;
+      contextUsed: number;
+    }
+  /** Generating: thinking or the reply itself */
+  | {
+      phase: "writing";
+      generated: number;
+      tokensPerSecond: number;
+      contextUsed: number;
+    };
 
 export interface ModelConfig {
   /** Library model id (src/config/models.ts) */
@@ -426,6 +451,17 @@ export class LlamaService {
         onTextChunk: (chunk: string) => {
           firstTokenAt ??= performance.now();
           options.onToken?.(chunk);
+          if (options.onProgress) {
+            const generated =
+              sequence.tokenMeter.usedOutputTokens - outputTokensBefore;
+            const seconds = (performance.now() - firstTokenAt) / 1000;
+            options.onProgress({
+              phase: "writing",
+              generated,
+              tokensPerSecond: seconds > 0 ? generated / seconds : 0,
+              contextUsed: sequence.nextTokenIndex,
+            });
+          }
         },
         signal,
       });

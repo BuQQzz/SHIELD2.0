@@ -7,7 +7,7 @@
  * call the same visual weight as the conversation itself.
  */
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   ChevronRight,
@@ -21,12 +21,14 @@ import {
   Link,
   ListChecks,
   Loader2,
+  ScrollText,
   Search,
   Trash2,
   Wrench,
   type LucideIcon,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useSummaryFocus } from "@/stores/summary-focus-store";
 import { resultBody, stepDetail, stepLabel } from "./turns";
 
 const ICONS: Record<string, LucideIcon> = {
@@ -173,6 +175,80 @@ export function ToolStep({
               )}
               <pre className="max-h-72 overflow-auto px-3 py-2 font-mono text-xs whitespace-pre-wrap text-muted-foreground">
                 {isDiff ? <DiffBody body={body} /> : body || "(no output)"}
+              </pre>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+}
+
+/**
+ * The model's history was too full, so its oldest turns were replaced by a
+ * summary before this reply. One quiet line that opens to show the summary
+ * exactly as the model now sees it. Picked in the header's summaries menu,
+ * it scrolls into view, opens and flashes.
+ */
+export function SummaryStep({ id, summary }: { id: string; summary: string }) {
+  const [expanded, setExpanded] = useState(false);
+  const [flash, setFlash] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+  const focused = useSummaryFocus((state) => state.focusedId === id);
+
+  useEffect(() => {
+    if (!focused) return;
+    setExpanded(true);
+    setFlash(true);
+    ref.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+    useSummaryFocus.getState().focus(null);
+  }, [focused]);
+
+  useEffect(() => {
+    if (!flash) return;
+    const timer = setTimeout(() => setFlash(false), 1600);
+    return () => clearTimeout(timer);
+  }, [flash]);
+
+  return (
+    <div
+      ref={ref}
+      className={cn(
+        "-mx-1.5 rounded-md px-1.5 transition-colors duration-700",
+        flash && "bg-signal-soft"
+      )}
+    >
+      <button
+        onClick={() => setExpanded((v) => !v)}
+        aria-expanded={expanded}
+        className="group/step flex items-center gap-2 py-0.5 text-left text-[13px] text-muted-foreground transition-colors hover:text-foreground"
+      >
+        <ScrollText className="h-3.5 w-3.5 shrink-0" />
+        <span>Summarised earlier turns to free space</span>
+        <ChevronRight
+          className={cn(
+            "h-3.5 w-3.5 shrink-0 opacity-50 transition-transform group-hover/step:opacity-100",
+            expanded && "rotate-90"
+          )}
+        />
+      </button>
+
+      <AnimatePresence initial={false}>
+        {expanded && (
+          <motion.div
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: "auto", opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            transition={{ duration: 0.15, ease: "easeOut" }}
+            className="overflow-hidden"
+          >
+            <div className="mt-1 mb-2 overflow-hidden rounded-md border border-border/60 bg-muted/30">
+              <div className="border-b border-border/60 px-3 py-1.5 text-[11px] text-muted-foreground/70">
+                The model sees this instead of the older messages. The chat
+                itself keeps everything.
+              </div>
+              <pre className="max-h-72 overflow-auto px-3 py-2 font-mono text-xs whitespace-pre-wrap text-muted-foreground">
+                {summary}
               </pre>
             </div>
           </motion.div>

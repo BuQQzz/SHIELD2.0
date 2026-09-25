@@ -21,6 +21,8 @@ export interface Message {
   role: "user" | "assistant";
   content: string;
   timestamp: Date;
+  /** Older turns were summarised before this reply (see types/conversation) */
+  summary?: string;
 }
 
 export interface Conversation {
@@ -103,7 +105,32 @@ export interface ChatResult {
   error?: string;
   stats?: GenerationStats | null;
   context?: ContextUsage | null;
+  /**
+   * Set when the model's history was too full and its oldest turns were
+   * replaced by this summary before the reply (llama-server only)
+   */
+  summary?: string | null;
 }
+
+/**
+ * One request as it runs (see ChatProgress in LlamaService). `contextUsed`
+ * is how many tokens the window holds at that moment.
+ */
+export type ChatProgress =
+  | { phase: "summarising" }
+  | {
+      phase: "reading";
+      done: number;
+      total: number;
+      cached: number;
+      contextUsed: number;
+    }
+  | {
+      phase: "writing";
+      generated: number;
+      tokensPerSecond: number;
+      contextUsed: number;
+    };
 
 export interface LlamaAPI {
   initialize: () => Promise<{ success: boolean; error?: string }>;
@@ -134,6 +161,8 @@ export interface LlamaAPI {
     error?: string;
   }>;
   onToken: (callback: (token: string) => void) => () => void;
+  /** Summarising, reading and writing, as they happen */
+  onProgress: (callback: (progress: ChatProgress) => void) => () => void;
   getModelInfo: () => Promise<{
     success: boolean;
     info?: ModelConfig | null;

@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import type {
+  ChatProgress,
   GenerationStats,
   MemoryCheck,
   SearchResult,
@@ -18,6 +19,12 @@ export interface Message {
   isThinking?: boolean; // True while streaming thinking content
   /** Tokens and speed of the reply, shown under assistant messages */
   stats?: GenerationStats;
+  /**
+   * The model's history was too full before this reply, and its oldest
+   * turns were replaced by this summary (the model's copy only). Shown as a
+   * step in the reply.
+   */
+  summary?: string;
   /**
    * Tool calls the model wrote that were never run because the turn hit its
    * tool-round limit, e.g. "write_file C:\p\index.html". Set on the
@@ -56,6 +63,36 @@ export interface ModelInfo {
 export interface MemoryPrompt {
   model: ModelInfo;
   check: MemoryCheck;
+}
+
+/** Live progress reaches the page at most this often while writing */
+const PROGRESS_INTERVAL_MS = 150;
+
+/**
+ * Progress, throttled while the reply is written. One store update per
+ * token re-rendered the page for each, and it fell up to 28 s behind a
+ * 1,770-token reply (2026-09-25). The counts animate between updates. The
+ * first report of each phase always passes, so the status changes at once;
+ * reading and summarising reports are rare enough to pass straight through.
+ */
+export function throttleProgress(
+  setProgress: (progress: ChatProgress) => void
+): (progress: ChatProgress) => void {
+  let last = 0;
+  let lastPhase: ChatProgress["phase"] | null = null;
+  return (progress) => {
+    const now = performance.now();
+    if (
+      progress.phase === "writing" &&
+      lastPhase === "writing" &&
+      now - last < PROGRESS_INTERVAL_MS
+    ) {
+      return;
+    }
+    last = now;
+    lastPhase = progress.phase;
+    setProgress(progress);
+  };
 }
 
 /**
@@ -180,7 +217,9 @@ export function useLlama() {
       try {
         const result = await window.llama.chat(message, options);
         if (result.success && result.response) {
-          useGenerationStore.getState().record(result.stats, result.context);
+          useGenerationStore
+            .getState()
+            .record(result.stats, result.context, result.summary);
           return result.response;
         } else {
           throw new Error(result.error || "Failed to get response");
@@ -222,11 +261,23 @@ export function useLlama() {
       try {
         // No per-token or full-response logging: both flooded the console
         const unsubscribe = window.llama.onToken(onToken);
-        const result = await window.llama.chatStreaming(message, options);
-        unsubscribe();
+        const { setProgress } = useGenerationStore.getState();
+        const unsubscribeProgress = window.llama.onProgress(
+          throttleProgress(setProgress)
+        );
+        let result;
+        try {
+          result = await window.llama.chatStreaming(message, options);
+        } finally {
+          unsubscribe();
+          unsubscribeProgress();
+          setProgress(null);
+        }
 
         if (result.success && result.response) {
-          useGenerationStore.getState().record(result.stats, result.context);
+          useGenerationStore
+            .getState()
+            .record(result.stats, result.context, result.summary);
           return result.response;
         } else {
           console.error("[useLlama] Failed:", result.error);

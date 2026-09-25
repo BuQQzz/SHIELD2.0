@@ -211,6 +211,7 @@ export function createMessageHandler({
         reasoning: assistantReasoning,
         thinking: assistantThinking,
         stats: useGenerationStore.getState().lastStats ?? undefined,
+        summary: useGenerationStore.getState().lastSummary ?? undefined,
       };
 
       setMessages((prev) => [...prev, assistantMessage]);
@@ -268,6 +269,7 @@ export function createMessageHandler({
                 content: toolReply,
                 timestamp: new Date(),
                 stats: useGenerationStore.getState().lastStats ?? undefined,
+                summary: useGenerationStore.getState().lastSummary ?? undefined,
               };
 
               setMessages((prev) => [...prev, toolResponseMessage]);

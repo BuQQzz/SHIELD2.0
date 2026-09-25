@@ -8,15 +8,29 @@
  */
 
 import { create } from "zustand";
-import type { ContextUsage, GenerationStats } from "@/types/electron";
+import type {
+  ChatProgress,
+  ContextUsage,
+  GenerationStats,
+} from "@/types/electron";
 
 interface GenerationStore {
   lastStats: GenerationStats | null;
   context: ContextUsage | null;
+  /**
+   * The summary the last request wrote to make room in the model's
+   * history, if it had to; shown as a step in the reply
+   */
+  lastSummary: string | null;
   record: (
     stats: GenerationStats | null | undefined,
-    context: ContextUsage | null | undefined
+    context: ContextUsage | null | undefined,
+    summary?: string | null
   ) => void;
+  /** The request in progress: summarising, reading or writing, live */
+  progress: ChatProgress | null;
+  /** Also moves the context ring, which otherwise updates after a reply */
+  setProgress: (progress: ChatProgress | null) => void;
   setContext: (context: ContextUsage | null | undefined) => void;
   /** Ask the main process, e.g. after loading a model or switching chats */
   refreshContext: () => Promise<void>;
@@ -32,8 +46,22 @@ interface GenerationStore {
 export const useGenerationStore = create<GenerationStore>((set) => ({
   lastStats: null,
   context: null,
-  record: (stats, context) =>
-    set({ lastStats: stats ?? null, context: context ?? null }),
+  lastSummary: null,
+  record: (stats, context, summary) =>
+    set({
+      lastStats: stats ?? null,
+      context: context ?? null,
+      lastSummary: summary ?? null,
+    }),
+  progress: null,
+  setProgress: (progress) =>
+    set((state) => ({
+      progress,
+      context:
+        progress && progress.phase !== "summarising" && state.context
+          ? { ...state.context, used: progress.contextUsed }
+          : state.context,
+    })),
   setContext: (context) => set({ context: context ?? null }),
   stopRequested: false,
   setStopRequested: (value) => set({ stopRequested: value }),

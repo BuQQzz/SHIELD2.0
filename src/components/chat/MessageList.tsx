@@ -1,6 +1,7 @@
 "use client";
 
 import { ReadingIndicator } from "./ReadingIndicator";
+import { WritingIndicator } from "./WritingIndicator";
 import { useRef, useEffect, useCallback, useMemo } from "react";
 import { ChatMessage } from "./ChatMessage";
 import { AssistantTurn } from "./AssistantTurn";
@@ -155,6 +156,7 @@ export function MessageList({
           isStreaming={isGenerating}
         />
       )}
+      {streamingContent && isGenerating && <WritingIndicator />}
     </>
   );
 

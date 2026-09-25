@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { renderHook, waitFor } from "@testing-library/react";
-import { useLlama } from "./useLlama";
+import { throttleProgress, useLlama } from "./useLlama";
 import type { ModelConfig } from "@/types/electron";
 
 const qwen: ModelConfig = {
@@ -90,5 +90,40 @@ describe("useLlama after a window reload", () => {
 
     expect(result.current.isModelLoaded).toBe(false);
     expect(result.current.error).toBeNull();
+  });
+});
+
+describe("throttleProgress", () => {
+  it("passes a few writing updates a second, and every phase change", () => {
+    let now = 1000;
+    const clock = vi.spyOn(performance, "now").mockImplementation(() => now);
+    const seen: string[] = [];
+    const update = throttleProgress((p) =>
+      seen.push(p.phase === "writing" ? `writing ${p.generated}` : p.phase)
+    );
+    const writing = (generated: number) =>
+      update({
+        phase: "writing",
+        generated,
+        tokensPerSecond: 25,
+        contextUsed: 100 + generated,
+      });
+
+    update({ phase: "summarising" });
+    writing(1); // right after a phase change: through
+    now += 40;
+    writing(2); // 40 ms later: dropped
+    now += 120;
+    writing(6); // 160 ms after the last one: through
+    update({
+      phase: "reading",
+      done: 10,
+      total: 20,
+      cached: 0,
+      contextUsed: 10,
+    }); // never held back
+    clock.mockRestore();
+
+    expect(seen).toEqual(["summarising", "writing 1", "writing 6", "reading"]);
   });
 });

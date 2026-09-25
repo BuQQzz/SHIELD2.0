@@ -195,6 +195,11 @@ export class ModelRuntime {
       : this.node.getLastStats();
   }
 
+  /** The capsule the last request wrote to make room (llama-server only) */
+  getLastSummary(): string | null {
+    return this.engine === "server" ? this.server.getLastSummary() : null;
+  }
+
   async getContextUsage(): Promise<ContextUsage | null> {
     return this.engine === "server"
       ? this.server.getContextUsage()

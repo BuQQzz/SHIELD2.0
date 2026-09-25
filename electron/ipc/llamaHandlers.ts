@@ -48,6 +48,7 @@ export function registerLlamaHandlers(
         response,
         stats: llamaService.getLastStats(),
         context: await llamaService.getContextUsage(),
+        summary: llamaService.getLastSummary(),
       };
     } catch (error) {
       return {
@@ -83,7 +84,16 @@ export function registerLlamaHandlers(
             mainWindow.webContents.send("llama:token", token);
           }
         },
-        options
+        {
+          ...options,
+          // Summarising, reading and writing as they happen, for the live
+          // status line and the context ring
+          onProgress: (progress) => {
+            if (mainWindow && !mainWindow.isDestroyed()) {
+              mainWindow.webContents.send("llama:progress", progress);
+            }
+          },
+        }
       );
 
       return {
@@ -91,6 +101,7 @@ export function registerLlamaHandlers(
         response,
         stats: llamaService.getLastStats(),
         context: await llamaService.getContextUsage(),
+        summary: llamaService.getLastSummary(),
       };
     } catch (error) {
       console.error("[IPC] chatStreaming error:", error);

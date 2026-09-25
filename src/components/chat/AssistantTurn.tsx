@@ -14,7 +14,7 @@ import { Bot, Check, Copy, RefreshCw, Zap } from "lucide-react";
 import { formatTokens } from "@/lib/format";
 import { stripToolCallMarkup } from "@/handlers/mcpToolHandler";
 import { ChatMessage } from "./ChatMessage";
-import { ToolStep, ToolStepGroup } from "./ToolStep";
+import { SummaryStep, ToolStep, ToolStepGroup } from "./ToolStep";
 import { groupLabel, turnStats, type TurnPart } from "./turns";
 import type { Message } from "@/types/conversation";
 
@@ -49,6 +49,12 @@ function Part({
   part: TurnPart;
   onContinue?: (messageId: string) => void;
 }) {
+  if (part.kind === "summary") {
+    return (
+      <SummaryStep id={part.message.id} summary={part.message.summary ?? ""} />
+    );
+  }
+
   if (part.kind === "text") {
     const m = part.message;
     return (
@@ -79,6 +85,12 @@ function Part({
       ))}
     </ToolStepGroup>
   );
+}
+
+/** A summary shares its message with the text after it, so it needs its own */
+function partKey(part: TurnPart): string {
+  if (part.kind === "summary") return `${part.message.id}-summary`;
+  return part.kind === "text" ? part.message.id : part.messages[0]!.id;
 }
 
 export const AssistantTurn = memo(function AssistantTurn({
@@ -147,11 +159,7 @@ export const AssistantTurn = memo(function AssistantTurn({
         </div>
 
         {parts.map((part) => (
-          <Part
-            key={part.kind === "text" ? part.message.id : part.messages[0]!.id}
-            part={part}
-            onContinue={onContinue}
-          />
+          <Part key={partKey(part)} part={part} onContinue={onContinue} />
         ))}
         {children}
 

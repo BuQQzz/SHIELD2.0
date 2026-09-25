@@ -6,6 +6,11 @@
  * real, physical limit: when it fills, the oldest turns are dropped and the
  * model starts forgetting the start of the conversation. Showing what takes
  * the space lets the user do something about it.
+ *
+ * It follows a reply live, as the prompt is read and the reply written.
+ * Amber from 60%, where SHIELD starts making room on llama-server (clearing
+ * old tool output, then summarising); red from 85%, where a long reply may
+ * not fit.
  */
 
 import { useState } from "react";
@@ -109,9 +114,9 @@ export function ContextRing() {
   const fraction = Math.min(1, Math.max(0, used / size));
   const percent = Math.round(fraction * 100);
   const tone =
-    fraction >= 0.95
+    fraction >= 0.85
       ? "text-red-500"
-      : fraction >= 0.8
+      : fraction >= 0.6
         ? "text-amber-500"
         : "text-muted-foreground";
 

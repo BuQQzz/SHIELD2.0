@@ -13,7 +13,10 @@ import type { Message } from "@/types/conversation";
 import { stripToolCallMarkup } from "@/handlers/toolCallParsing";
 
 export type TurnPart =
-  { kind: "text"; message: Message } | { kind: "tools"; messages: Message[] };
+  | { kind: "text"; message: Message }
+  | { kind: "tools"; messages: Message[] }
+  /** Older turns were summarised to make room before this message */
+  | { kind: "summary"; message: Message };
 
 export type Turn =
   | { kind: "user"; message: Message }
@@ -34,10 +37,15 @@ function isBareCall(message: Message, next: Message | undefined): boolean {
   );
 }
 
-/** Consecutive tool results sit together; text between them splits them */
+/**
+ * Consecutive tool results sit together; text between them splits them. A
+ * summary comes first, even on a reply that shows nothing else: it happened
+ * before the reply was written.
+ */
 function toParts(messages: Message[]): TurnPart[] {
   const parts: TurnPart[] = [];
   for (const [i, message] of messages.entries()) {
+    if (message.summary) parts.push({ kind: "summary", message });
     if (isBareCall(message, messages[i + 1])) continue;
     const last = parts.at(-1);
     if (message.toolResult) {
