@@ -2,10 +2,42 @@
 
 **Last session:** 2026-09-25 (previous: 2026-09-22 → 2026-09-24)  
 **Branch:** `feat/model-library`, 65 commits ahead of `main`; it contains `chore/dependency-refresh` and `feat/mcp-permission-modes`. Nothing is merged to `main`.  
-**Tests:** 399 passing (`npx vitest run`) · `tsc`, ESLint and Prettier clean on changed files  
-**Tested in the app with:** Qwen3-Coder-30B-A3B Q4_K_M on an RTX 4070 (12 GB), SHIELD-managed llama-server at 32K
+**Tests:** 454 passing (`npx vitest run`) · `tsc`, ESLint and Prettier clean on changed files  
+**Tested in the app with:** Qwen3-Coder-30B-A3B Q4_K_M on an RTX 4070 (12 GB), SHIELD-managed llama-server at 32K (and 8K to force summaries)
 
 Read this first, then [SHIELD_AGENT_ARCHITECTURE.md](./SHIELD_AGENT_ARCHITECTURE.md) (§13 priorities, §17 decision log, §20 evidence) and [testing/AGENT_BENCHMARK.md](./testing/AGENT_BENCHMARK.md).
+
+---
+
+## Update — 2026-09-25 afternoon: summarising, live progress, work groups (`176064c`…`871a05a`)
+
+**Making room in the model's history** (llama-server only). Before a request that would pass 60% of the window, in the cheapest step that is enough:
+
+1. clear old tool payloads, keeping the last 6 entries (`historyCompaction.ts`, since 2026-09-24);
+2. clear them from all but the latest exchange — added after, at 8K, every tool round summarised with a 4–7 s note (`7b36096`);
+3. summarise (`taskCapsule.ts`, `176064c`): the oldest turns become a capsule in the system message — the user's requests and the tool calls listed exactly by SHIELD, plus a three-line note from the model (State / Decisions / Next). The latest exchange always stays; a long answer is cut to its start and end. A slice of plain tool rounds gets no new note.
+
+Only the model's copy changes. The reply that needed a summary shows it as a quiet step; a pill at the top right of the chat header counts a chat's summaries, lists them (the note's State line) and jumps to one. Notes are asked for with a fixed three-line form and told what comes next — asked mid-task the model once carried on with its answer inside the note, and once wrote "my web search didn't return clear results" before the results were sent.
+
+**Live progress** (`176064c`). llama-server's `return_progress` and `timings_per_token`: "Reading the conversation · 2.0k / 5.2k tokens" with a bar, "Summarising earlier turns", "Thinking · ↓ N tokens" (thinking was invisible on llama-server before), "↓ 523 tokens · 24.1 tok/s" under a streaming reply. The context ring follows a reply live: amber from 60% (where making room starts), red from 85%. Page updates are throttled to one per 150 ms — one per token made the page fall 28 s behind a 1,770-token reply; now 0.0–0.1 s behind at 3,552 tokens.
+
+**Chat view** (`da6cd93`, `871a05a`; the user liked the work groups: "not cluttered with calls and thinking"):
+
+- **Work groups** (`WorkGroup.tsx`, `turns.ts`): tool steps, summaries and the short lines between calls ("I'll continue examining the remaining files.") fold into one collapsible. Live, its header says what is happening ("Reading MISTAKES.md…"); done, what it did ("Listed wifi, read 6 files · summarised 3 times"). Replies without a tool call, and text over 400 characters, stay in view.
+- **Auto-scroll that lets go** (`MessageList.tsx`): follows the bottom while there; scrolling up releases it at once; back at the bottom, sending a message or opening a chat takes hold again. It used to snap down after every tool round.
+- **Restored chats**: consecutive same-role messages are joined in `setChatHistory` — the 20-round limit notice after the model's last reply gave "Cannot have 2 or more assistant messages at the end of the list".
+
+**Open, in the order I would take them:**
+
+1. **A reopened or reloaded chat is summarised again from the full history** (one 5–15 s pause on its next message). Persist the capsule with the chat and restore it with `setChatHistory`; that is also what editing or pinning summaries needs.
+2. **Clearing at 32K costs ~10 s each time** (one re-read of ~12k tokens), and big file writes brought the window back to 60% twice in one turn. Clear further when it runs (hysteresis), so it runs less often.
+3. **Re-reading loops at small windows.** At 8K, "review the whole repo" (16 files) re-read files whose contents had been cleared and hit the 20-round limit. At 32K the same question took 7 rounds. A recall tool (read the original messages behind a summary from the saved chat) is the lossless fix the design docs describe.
+4. **Knowledge questions explore the workspace.** The `[Current folder: …]` note on every message sends Qwen3-Coder listing and reading files for "explain MCP".
+5. Fork a chat from a summary; the summaries-menu extensions discussed with the user.
+
+Also seen: the model's edits to the user's wifi project (`C:\Users\imend\Desktop\Continue\wifi\set-radio.ps1`) renamed P/Invoke parameters, which changes no behaviour; the user was told.
+
+**Working on it:** editing main-process code (anything under `src/services/` the main bundle imports, e.g. `LlamaServerProvider.ts`, `taskCapsule.ts`) while the dev app runs makes vite-plugin-electron rebuild and restart Electron; on 2026-09-25 that came back cleanly but unloaded the model. A half-finished renderer edit also hot-reloads — change a type and its consumers in one go.
 
 ---
 
