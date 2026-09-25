@@ -1,6 +1,6 @@
 # Runtime Speed Research — big MoE models on a consumer GPU
 
-**Status:** Stages 1–2 done (2026-09-24); Stage 3 not started  
+**Status:** Stages 1–2 done (2026-09-24); load mode settled (Finding 6, 2026-09-25); Stage 3 not started  
 **Date:** 2026-09-24  
 **Goal:** make Qwen3-Coder-30B-A3B run much faster on a 12 GB GPU **without** shrinking the context window (32k) or tool-result limits.  
 **Machine:** RTX 4070 12 GB (~500 GB/s) · Ryzen 9 3900X 12C/24T, AVX2 · 32 GB DDR4-3600 (~40 GB/s real) · PCIe 4.0
@@ -143,6 +143,26 @@ A 2048-token micro-batch amortises copying CPU-resident experts to the GPU for e
 | C′ — `-ncmoe 34` without a draft                | 33.0             | 35.5                      | 33.7                          |
 
 N-gram lookup costs nothing and gives +65% on edits, which is what the agent's `edit_file`/`write_file` calls look like. A draft model is a net loss on this hardware. With experts in RAM, verifying 8 drafted tokens touches many more experts than one token, so rejected drafts are expensive; the draft's own VRAM also pushes the main model toward the cliff.
+
+### Finding 6 — keep `--load-mode none`: mmap is slower and holds more RAM (2026-09-25)
+
+SHIELD's launch profile (`launch.ts`, 32k context), one fresh server per mode, `server-speed.ts` run twice on each. Pass 2 gets drafts from `ngram-mod` remembering pass 1's identical output, so compare pass 1 with pass 1. **The RAM now runs at 2133 MT/s** (BIOS Auto since the 2026-09-24 bluescreens, see HANDOFF), so every speed here is ~30% below the 3600 MT/s tables above.
+
+|                                            | `none` (SHIELD)        | `mmap` (llama.cpp default)  |
+| ------------------------------------------ | ---------------------- | --------------------------- |
+| Load                                       | 17.2 s                 | 9.9 s                       |
+| Commit                                     | 21.5 GiB               | 10.9 GiB                    |
+| RAM in use after load                      | 11.3 GiB               | 8.3 GiB                     |
+| RAM in use after the first requests        | 11.9 GiB               | **17.7 GiB** (0.5 GiB left) |
+| GPU                                        | 11.1 GiB               | 11.1 GiB                    |
+| Prompt, 5,150 tokens (pass 1 / 2)          | **1,421** / 1,419 t/s  | 892 / 999 t/s               |
+| Prompt, 361 tokens (pass 1 / 2)            | **392** / 398 t/s      | 179 / 240 t/s               |
+| Decode: new code / edit / summary (pass 1) | **25.8** / 64.2 / 24.4 | 23.3 / 45.6 / 24.1          |
+| Decode with remembered drafts (pass 2)     | **76.1** / 86.9 / 63.3 | 55.3 / 54.3 / 55.6          |
+
+mmap wins only on commit and load time. It reads prompts 30–54% slower. Plain decoding is close (−1 to −10%), but it is 29–38% slower wherever a step reads many experts at once: prompt batches and verifying drafts. It does not save RAM in use either: every page of the file the loader touched, including the ~6 GB of weights it copied to the GPU, stayed in llama-server's working set, so after the first three requests Windows had 0.5 GiB available instead of 6.2. Those pages are file-backed and Windows can drop them, but only by trimming working sets under pressure, and that slows other apps too. llama.cpp warns about exactly this setup at load: "tensor overrides to CPU are used with mmap enabled - consider using --load-mode none for better performance".
+
+**Decision:** keep `none`. Its cost is commit, which the page file (commit limit ~64 GB since 2026-09-24) and the pre-load memory check cover. Not built: if commit ever runs short while RAM does not, the low-memory dialog could offer an mmap load, labelled slower.
 
 ### Next
 

@@ -30,8 +30,9 @@ export interface LaunchOptions {
  *   on edits (output that repeats a file) at no cost elsewhere.
  * - `-np 1`: one slot, so each turn reuses the previous turn's cache.
  * - `--load-mode none`: read weights into RAM rather than memory-mapping
- *   them, which llama.cpp recommends with experts in RAM (and measured
- *   faster).
+ *   them, as llama.cpp recommends with experts in RAM. mmap halves the
+ *   commit but reads prompts 30-54% slower, decodes up to 38% slower and
+ *   keeps the whole file resident (RUNTIME_SPEED_RESEARCH Finding 6).
  * - `--jinja`: format chats with the model's own template.
  */
 export function buildServerArgs(options: LaunchOptions): string[] {
