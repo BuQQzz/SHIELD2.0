@@ -9,6 +9,18 @@ Read this first, then [SHIELD_AGENT_ARCHITECTURE.md](./SHIELD_AGENT_ARCHITECTURE
 
 ---
 
+## Next session — start here (todos from 2026-09-25)
+
+The user will pick these up in a new session. Suggested order; each stands on its own. Background for all of them is in the update below.
+
+- [ ] **Keep summaries on reload.** Save the capsule with the chat, so reopening or reloading does not summarise again (a 5–15 s pause on the next message today). Also the base for editing or pinning summaries later. Today `setChatHistory` in `LlamaServerProvider.ts` resets `capsule`, and the page restores the full chat (`useConversationSync.ts`); only the rendered text is saved (`Message.summary`). Save the `Capsule` itself and how many messages it replaced, and restore both.
+- [ ] **Clear less often at 32K.** When clearing runs, clear further, so it runs less often: each clearing costs a ~10 s re-read (~12k tokens), and it hit twice in one turn on 2026-09-25. `makeRoom` in `LlamaServerProvider.ts` stops as soon as the estimate is under 60%; aim lower (say 40%) once it has started.
+- [ ] **Recall tool.** Let the model read back the original messages a summary replaced, from the saved chat. Summaries become an index instead of a loss, and the re-reading loops stop (at 8K, "review the whole repo" re-read cleared files until the 20-round limit). A SHIELD-owned tool like `delete_file` and `web_search` (`electron/services/webTools.ts` shows how one is registered); the design docs' "compaction does not delete history".
+- [ ] **Stop workspace detours.** The `[Current folder: …]` note added to every message (`src/handlers/messageHandler.ts`) makes Qwen3-Coder list and read files even for knowledge questions like "explain MCP". It was added because the model guessed the wrong folder for "what's in this folder?" — keep that case working (`npm run bench:agent`).
+- [ ] Later: fork a chat from a summary; edit or pin summaries (needs the first item); whether node-llama-cpp models need clearing and summarising too (today they fall back on node-llama-cpp's own context shift, which drops the oldest turns).
+
+---
+
 ## Update — 2026-09-25 afternoon: summarising, live progress, work groups (`176064c`…`871a05a`)
 
 **Making room in the model's history** (llama-server only). Before a request that would pass 60% of the window, in the cheapest step that is enough:
@@ -27,13 +39,7 @@ Only the model's copy changes. The reply that needed a summary shows it as a qui
 - **Auto-scroll that lets go** (`MessageList.tsx`): follows the bottom while there; scrolling up releases it at once; back at the bottom, sending a message or opening a chat takes hold again. It used to snap down after every tool round.
 - **Restored chats**: consecutive same-role messages are joined in `setChatHistory` — the 20-round limit notice after the model's last reply gave "Cannot have 2 or more assistant messages at the end of the list".
 
-**Open, in the order I would take them:**
-
-1. **A reopened or reloaded chat is summarised again from the full history** (one 5–15 s pause on its next message). Persist the capsule with the chat and restore it with `setChatHistory`; that is also what editing or pinning summaries needs.
-2. **Clearing at 32K costs ~10 s each time** (one re-read of ~12k tokens), and big file writes brought the window back to 60% twice in one turn. Clear further when it runs (hysteresis), so it runs less often.
-3. **Re-reading loops at small windows.** At 8K, "review the whole repo" (16 files) re-read files whose contents had been cleared and hit the 20-round limit. At 32K the same question took 7 rounds. A recall tool (read the original messages behind a summary from the saved chat) is the lossless fix the design docs describe.
-4. **Knowledge questions explore the workspace.** The `[Current folder: …]` note on every message sends Qwen3-Coder listing and reading files for "explain MCP".
-5. Fork a chat from a summary; the summaries-menu extensions discussed with the user.
+**Open:** the todo list at the top. Measured on the way: at 8K the 16-file repo question re-read cleared files and hit the 20-round limit; at 32K the same question took 7 rounds, and clearing (24.6k, 5k and 35k characters) needed no summary.
 
 Also seen: the model's edits to the user's wifi project (`C:\Users\imend\Desktop\Continue\wifi\set-radio.ps1`) renamed P/Invoke parameters, which changes no behaviour; the user was told.
 
@@ -92,7 +98,7 @@ Still to do from the list: 5 (mmap vs none) and 6. **2026-09-25:** 5 done (keep 
 - ~~After a window reload (Ctrl+R) the renderer shows "No model loaded" while llama-server still runs the model.~~ Fixed 2026-09-25 (`67b29ab`).
 - `fetch_page` of a PDF or a JavaScript-only app returns little text; not handled specially.
 
-### Next session — start here
+### 2026-09-24's list (done by 2026-09-25 except where noted — the current list is at the top)
 
 Decided with the user at the end of the session (2026-09-24). In order:
 
