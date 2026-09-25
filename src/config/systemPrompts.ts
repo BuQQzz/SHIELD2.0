@@ -218,12 +218,17 @@ export function generateMCPToolPrompt(
     )
   );
 
+  // Rule 5 (ANSWER, THEN STOP): Qwen3-Coder answered a web question in
+  // full, ended the answer with list_allowed_directories, then repeated the
+  // answer after its result (2026-09-24). The other rules only say "use
+  // tools".
+  //
   // Without this Qwen3-Coder rewrote a whole file with write_file for every
   // change (index.html, styles.css, app.js - 2026-09-24): slow, and each
   // copy fills the context window.
   const editRule = tools.some((t) => t.name === "edit_file")
     ? `
-5. **EDIT, DON'T REWRITE** - To change an existing file, use edit_file with only the lines that change, copied exactly from the file:
+6. **EDIT, DON'T REWRITE** - To change an existing file, use edit_file with only the lines that change, copied exactly from the file:
    {"path": "...", "edits": [{"oldText": "<current lines>", "newText": "<replacement>"}]}
    Use write_file only to create a new file.`
     : "";
@@ -278,7 +283,8 @@ Stop after </tool_call>. The result arrives in the next message; then summarise 
 1. **ALWAYS USE TOOLS** - When asked to perform an action, USE the tools
 2. **NEVER JUST EXPLAIN** - Don't tell users how to do it manually
 3. **ONLY USE LISTED TOOLS** - Never invent a tool that is not listed above
-4. **USE FULL PATHS** - Windows paths like C:\\Users\\...${editRule}`;
+4. **USE FULL PATHS** - Windows paths like C:\\Users\\...
+5. **ANSWER, THEN STOP** - Call only the tools the request needs. Once you can answer, answer without a tool call.${editRule}`;
 }
 
 /**

@@ -342,6 +342,14 @@ describe("edit rule", () => {
     expect(generateMCPToolPrompt(tools)).not.toContain("EDIT, DON'T REWRITE");
   });
 
+  // Qwen3-Coder ended a finished web answer with list_allowed_directories
+  it("tells the model a finished answer needs no tool call", () => {
+    const prompt = generateMCPToolPrompt(tools);
+    expect(prompt).toContain("5. **ANSWER, THEN STOP**");
+    expect(generateMCPToolPrompt([editFile])).toContain(
+      "6. **EDIT, DON'T REWRITE**"
+    );
+  });
 });
 
 describe("web search section", () => {
