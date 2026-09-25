@@ -35,6 +35,20 @@ Items 1–4 below are done and **tried in the running app** (2026-09-24, Qwen3-C
 
 Still to do from the list: 5 (mmap vs none) and 6.
 
+### Update — 2026-09-24 night: web search as tools (`78f66a2`…`2c766ee`)
+
+- **`web_search` / `fetch_page`** are model tools on a `web` server (`electron/services/webTools.ts`), on when Settings › Web Search is on. The globe toggle and the pre-search code are gone. Auto/Plan/Read-only run them unprompted; Ask shows the query or URL.
+- **In-app browser** (`electron/services/web-search/InAppBrowser.ts`): hidden `BrowserWindow`, in-memory `shield-web` session, storage cleared per page, no permissions/downloads/popups, trackers dropped, DNT + GPC. Replaces Playwright (its Chromium build broke after the dependency refresh; `playwright-core` removed from dependencies — `playwright` stays as a dev tool for `scripts/`).
+- **URL safety** (`urlSafety.ts`): public http(s) only, checked before DNS, after DNS, and for every request a page makes.
+- **Fixed on the way:** the chat kept streamed text over the returned reply, so a fast cached reply lost its tail and tool call (`3951eb1`); new prompt rule 5 "ANSWER, THEN STOP" stopped a stray `list_allowed_directories` after a finished answer (`2c766ee`).
+- Tested with Qwen3-Coder: "newest Node.js release?" → search → nodejs.org → v26.10.0 Current / v24.21.0 LTS.
+
+**Open:**
+
+- `C:\Users\imend\Desktop\Projects\GAME\check_node_version.js` was written by the model during the failed first web test (3 lines printing `process.version`). The user has not decided whether to remove it.
+- After a window reload (Ctrl+R) the renderer shows "No model loaded" while llama-server still runs the model; Load reconnects instantly. The renderer should ask the main process what is loaded on start.
+- `fetch_page` of a PDF or a JavaScript-only app returns little text; not handled specially.
+
 ### Next session — start here
 
 Decided with the user at the end of the session (2026-09-24). In order:
