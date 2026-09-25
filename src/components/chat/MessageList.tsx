@@ -1,13 +1,14 @@
 "use client";
 
-import { ReadingIndicator } from "./ReadingIndicator";
 import { WritingIndicator } from "./WritingIndicator";
-import { useRef, useEffect, useCallback, useMemo } from "react";
+import { useRef, useEffect, useLayoutEffect, useMemo } from "react";
 import { ChatMessage } from "./ChatMessage";
 import { AssistantTurn } from "./AssistantTurn";
-import { ToolStep } from "./ToolStep";
 import { groupIntoTurns } from "./turns";
 import type { Message } from "@/types/conversation";
+
+/** Within this distance of the bottom counts as at the bottom */
+const BOTTOM_PX = 48;
 
 interface MessageListProps {
   messages: Message[];
@@ -17,7 +18,7 @@ interface MessageListProps {
   onEditMessage?: (messageId: string, newContent: string) => void;
   onRegenerateMessage?: (messageId: string) => void;
   /** A tool call currently executing, shown at the end of the thread */
-  runningTool?: { tool: string; serverName: string } | null;
+  runningTool?: { tool: string; serverName: string; target?: string } | null;
 }
 
 export function MessageList({
@@ -29,99 +30,59 @@ export function MessageList({
   onRegenerateMessage,
   runningTool,
 }: MessageListProps) {
-  const messagesEndRef = useRef<HTMLDivElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
-  const isAutoScrollingRef = useRef(false);
-  const animationFrameRef = useRef<number | null>(null);
+  const contentRef = useRef<HTMLDivElement>(null);
+  /**
+   * Whether the view follows the conversation to the bottom. Scrolling up
+   * lets go - it used to snap back down after every tool round and every
+   * finished reply, so nothing further up could be read while SHIELD
+   * worked. Coming back to the bottom, sending a message or opening
+   * another chat takes hold again.
+   */
+  const followRef = useRef(true);
 
-  // Smooth scroll to bottom using requestAnimationFrame
-  const scrollToBottom = useCallback((instant = false) => {
+  const scrollToBottom = () => {
     const container = scrollContainerRef.current;
-    const endElement = messagesEndRef.current;
+    if (container) container.scrollTop = container.scrollHeight;
+  };
 
-    if (!container || !endElement) return;
+  const onScroll = () => {
+    const container = scrollContainerRef.current;
+    if (!container) return;
+    const distance =
+      container.scrollHeight - container.scrollTop - container.clientHeight;
+    // Following scrolls only ever go down to the bottom, so a position
+    // away from it is the user's doing (scrollbar, keys, touch)
+    followRef.current = distance <= BOTTOM_PX;
+  };
 
-    // Cancel any ongoing animation
-    if (animationFrameRef.current) {
-      cancelAnimationFrame(animationFrameRef.current);
-      animationFrameRef.current = null;
-    }
+  // A wheel turned up lets go at once, before any scroll lands
+  const onWheel = (event: React.WheelEvent) => {
+    if (event.deltaY < 0) followRef.current = false;
+  };
 
-    const targetScroll = endElement.offsetTop;
-    const currentScroll = container.scrollTop;
-    const distance = targetScroll - currentScroll;
+  // Sending a message, or opening another chat, jumps to the bottom
+  const lastMessage = messages.at(-1);
+  const sentByUser =
+    lastMessage?.role === "user" && !lastMessage.toolResult
+      ? lastMessage.id
+      : undefined;
+  const chatStart = messages[0]?.id;
+  useLayoutEffect(() => {
+    followRef.current = true;
+    scrollToBottom();
+  }, [sentByUser, chatStart]);
 
-    // If instant or very close, just set it
-    if (instant || Math.abs(distance) < 10) {
-      container.scrollTop = targetScroll;
-      isAutoScrollingRef.current = false;
-      return;
-    }
-
-    // Smooth scroll using easing
-    const duration = 150; // ms
-    const startTime = performance.now();
-    isAutoScrollingRef.current = true;
-
-    const animate = (currentTime: number) => {
-      const elapsed = currentTime - startTime;
-      const progress = Math.min(elapsed / duration, 1);
-
-      // Ease-out cubic for smooth deceleration
-      const easeProgress = 1 - Math.pow(1 - progress, 3);
-
-      container.scrollTop = currentScroll + distance * easeProgress;
-
-      if (progress < 1) {
-        animationFrameRef.current = requestAnimationFrame(animate);
-      } else {
-        isAutoScrollingRef.current = false;
-        animationFrameRef.current = null;
-      }
-    };
-
-    animationFrameRef.current = requestAnimationFrame(animate);
-  }, []);
-
-  // Auto-scroll when streaming (smooth, non-blocking)
+  // Anything that makes the conversation taller - streamed tokens, steps,
+  // a step opened, markdown settling - is followed while holding on
   useEffect(() => {
-    if (isGenerating && streamingContent) {
-      // Use requestAnimationFrame for smooth, efficient scrolling
-      const container = scrollContainerRef.current;
-      const endElement = messagesEndRef.current;
-
-      if (!container || !endElement) return;
-
-      // Only auto-scroll if user is near the bottom (within 150px)
-      const isNearBottom =
-        container.scrollHeight - container.scrollTop - container.clientHeight <
-        150;
-
-      if (isNearBottom) {
-        // Use requestAnimationFrame for smooth scroll during streaming
-        requestAnimationFrame(() => {
-          if (container && endElement) {
-            container.scrollTop = container.scrollHeight;
-          }
-        });
-      }
-    }
-  }, [streamingContent, isGenerating]);
-
-  // Smooth scroll when messages change (not during streaming)
-  useEffect(() => {
-    if (!isGenerating) {
-      scrollToBottom(false);
-    }
-  }, [messages, isGenerating, scrollToBottom]);
-
-  // Cleanup animation frame on unmount
-  useEffect(() => {
-    return () => {
-      if (animationFrameRef.current) {
-        cancelAnimationFrame(animationFrameRef.current);
-      }
-    };
+    const content = contentRef.current;
+    if (!content) return;
+    const observer = new ResizeObserver(() => {
+      if (followRef.current) scrollToBottom();
+    });
+    observer.observe(content);
+    return () => observer.disconnect();
   }, []);
 
   const turns = useMemo(() => groupIntoTurns(messages), [messages]);
@@ -134,35 +95,35 @@ export function MessageList({
   };
 
   const live = Boolean(isGenerating || streamingContent || runningTool);
+  // What the reply in progress is doing: its latest group shows it
+  const liveWork = live
+    ? {
+        runningTool,
+        busy: Boolean(isGenerating && !streamingContent && !runningTool),
+      }
+    : null;
 
-  // What the reply in progress is doing right now, at the end of its block
-  const liveParts = (
+  // The text being written, at the end of the reply's block
+  const streaming = streamingContent ? (
     <>
-      {runningTool && (
-        <ToolStep
-          tool={runningTool.tool}
-          serverName={runningTool.serverName}
-          running
-        />
-      )}
-      {isGenerating && !streamingContent && !runningTool && (
-        <ReadingIndicator />
-      )}
-      {streamingContent && (
-        <ChatMessage
-          variant="part"
-          role="assistant"
-          content={streamingContent}
-          isStreaming={isGenerating}
-        />
-      )}
-      {streamingContent && isGenerating && <WritingIndicator />}
+      <ChatMessage
+        variant="part"
+        role="assistant"
+        content={streamingContent}
+        isStreaming={isGenerating}
+      />
+      {isGenerating && <WritingIndicator />}
     </>
-  );
+  ) : null;
 
   return (
-    <div ref={scrollContainerRef} className="flex-1 overflow-y-auto p-4">
-      <div className="mx-auto max-w-4xl space-y-4">
+    <div
+      ref={scrollContainerRef}
+      onScroll={onScroll}
+      onWheel={onWheel}
+      className="flex-1 overflow-y-auto p-4"
+    >
+      <div ref={contentRef} className="mx-auto max-w-4xl space-y-4">
         {turns.map((turn, i) => {
           if (turn.kind === "user") {
             const message = turn.message;
@@ -186,6 +147,7 @@ export function MessageList({
               messages={turn.messages}
               parts={turn.parts}
               isLive={live && isLastTurn}
+              live={isLastTurn ? liveWork : null}
               onContinue={onContinue}
               onRegenerate={
                 onRegenerateMessage
@@ -193,7 +155,7 @@ export function MessageList({
                   : undefined
               }
             >
-              {live && isLastTurn && liveParts}
+              {live && isLastTurn && streaming}
             </AssistantTurn>
           );
         })}
@@ -203,11 +165,11 @@ export function MessageList({
             messages={[]}
             parts={[]}
             isLive
+            live={liveWork}
           >
-            {liveParts}
+            {streaming}
           </AssistantTurn>
         )}
-        <div ref={messagesEndRef} />
       </div>
     </div>
   );

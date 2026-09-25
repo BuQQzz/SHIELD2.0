@@ -88,7 +88,7 @@ export function callSignature(
 }
 
 /** What a call acts on: a file or folder, a search query or a web page */
-function callTarget(toolCall: ToolCallRequest): string | undefined {
+export function callTarget(toolCall: ToolCallRequest): string | undefined {
   const { path, source, query, url } = toolCall.arguments;
   return [path, source, query, url].find(
     (value): value is string => typeof value === "string"

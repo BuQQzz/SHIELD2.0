@@ -7,6 +7,8 @@ import {
   stepDetail,
   stepLabel,
   turnStats,
+  workLabel,
+  type WorkItem,
 } from "./turns";
 import type { Message } from "@/types/conversation";
 
@@ -46,16 +48,17 @@ describe("groupIntoTurns", () => {
 
     const reply = turns[1]!;
     if (reply.kind !== "assistant") throw new Error("expected a reply");
+    // Text that calls no tool is a real reply and stays in view
     expect(reply.parts.map((p) => p.kind)).toEqual([
       "text",
-      "tools",
+      "work",
       "text",
-      "tools",
+      "work",
       "text",
     ]);
     // The two folder creations with no text between them form one group
     const group = reply.parts[3]!;
-    expect(group.kind === "tools" && group.messages.length).toBe(2);
+    expect(group.kind === "work" && group.items.length).toBe(2);
   });
 
   it("keeps a run of steps together across replies that were only a call", () => {
@@ -73,9 +76,47 @@ describe("groupIntoTurns", () => {
     ]);
     const reply = turns[1]!;
     if (reply.kind !== "assistant") throw new Error("expected a reply");
-    expect(reply.parts.map((p) => p.kind)).toEqual(["text", "tools"]);
+    expect(reply.parts.map((p) => p.kind)).toEqual(["text", "work"]);
     const group = reply.parts[1]!;
-    expect(group.kind === "tools" && group.messages.length).toBe(2);
+    expect(group.kind === "work" && group.items.length).toBe(2);
+  });
+
+  it("folds the lines between tool calls into one stretch of work", () => {
+    const call = (path: string) =>
+      `<tool_call>\n<server>filesystem</server>\n<tool>read_text_file</tool>\n<arguments>{"path":"${path}"}</arguments>\n</tool_call>`;
+    const turns = groupIntoTurns([
+      msg("user", "review the repo"),
+      msg("assistant", `I'll read the files one by one.\n${call("a.ps1")}`),
+      tool("read_text_file", "a.ps1"),
+      msg("assistant", `I'll continue examining the files.\n${call("b.ps1")}`),
+      tool("read_text_file", "b.ps1"),
+      msg(
+        "assistant",
+        "Both scripts call WlanOpenHandle; b.ps1 never frees it."
+      ),
+    ]);
+    const reply = turns[1]!;
+    if (reply.kind !== "assistant") throw new Error("expected a reply");
+    expect(reply.parts.map((p) => p.kind)).toEqual(["work", "text"]);
+    const work = reply.parts[0]!;
+    expect(work.kind === "work" && work.items.map((i) => i.kind)).toEqual([
+      "narration",
+      "tool",
+      "narration",
+      "tool",
+    ]);
+  });
+
+  it("keeps a long explanation in view even when it ends in a call", () => {
+    const explanation = `${"The radio handle is opened twice. ".repeat(20)}\n<tool_call>\n<server>filesystem</server>\n<tool>read_text_file</tool>\n<arguments>{"path":"a"}</arguments>\n</tool_call>`;
+    const turns = groupIntoTurns([
+      msg("user", "why?"),
+      msg("assistant", explanation),
+      tool("read_text_file", "a"),
+    ]);
+    const reply = turns[1]!;
+    if (reply.kind !== "assistant") throw new Error("expected a reply");
+    expect(reply.parts.map((p) => p.kind)).toEqual(["text", "work"]);
   });
 
   it("shows a summary before the reply it was written for", () => {
@@ -96,22 +137,72 @@ describe("groupIntoTurns", () => {
     const reply = turns[1]!;
     if (reply.kind !== "assistant") throw new Error("expected a reply");
     expect(reply.parts.map((p) => p.kind)).toEqual([
-      "summary",
+      "work",
       "text",
-      "tools",
-      "summary",
-      "tools",
+      "work",
       "text",
     ]);
-    const summaries = reply.parts.filter((p) => p.kind === "summary");
-    expect(
-      summaries.map((p) => p.kind === "summary" && p.message.summary)
-    ).toEqual(["first capsule", "second capsule"]);
+    const summaries = reply.parts.flatMap((p) =>
+      p.kind === "work"
+        ? p.items.flatMap((i) =>
+            i.kind === "summary" ? [i.message.summary] : []
+          )
+        : []
+    );
+    expect(summaries).toEqual(["first capsule", "second capsule"]);
+    // The second summary sits between the two reads, where it happened
+    const second = reply.parts[2]!;
+    expect(second.kind === "work" && second.items.map((i) => i.kind)).toEqual([
+      "tool",
+      "summary",
+      "tool",
+    ]);
   });
 
   it("treats tool results as part of the reply, not user turns", () => {
     const turns = groupIntoTurns([msg("user", "hi"), tool("read_file")]);
     expect(turns.map((t) => t.kind)).toEqual(["user", "assistant"]);
+  });
+});
+
+describe("workLabel", () => {
+  const read = (target: string): WorkItem => ({
+    kind: "tool",
+    message: tool("read_text_file", target),
+  });
+  const summary: WorkItem = {
+    kind: "summary",
+    message: msg("assistant", "", { summary: "capsule" }),
+  };
+
+  it("says what a stretch of work did", () => {
+    const items: WorkItem[] = [
+      { kind: "tool", message: tool("list_directory", "C:/p/wifi") },
+      ...["a", "b", "c"].map((f) => read(`C:/p/wifi/${f}.ps1`)),
+      summary,
+      read("C:/p/wifi/d.ps1"),
+      summary,
+      { kind: "narration", message: msg("assistant", "Next file.") },
+    ];
+    expect(workLabel(items)).toBe(
+      "Listed wifi, read 4 files · summarised 2 times"
+    );
+  });
+
+  it("names a single step, and counts the rest past two kinds", () => {
+    expect(workLabel([read("C:/p/diag3.ps1")])).toBe("Read diag3.ps1");
+    expect(
+      workLabel([
+        read("a"),
+        { kind: "tool", message: tool("write_file", "b") },
+        { kind: "tool", message: tool("edit_file", "c") },
+        { kind: "tool", message: tool("edit_file", "d") },
+      ])
+    ).toBe("Read a, wrote b and 2 more steps");
+  });
+
+  it("falls back to the summaries alone", () => {
+    expect(workLabel([summary])).toBe("Summarised earlier turns");
   });
 });
 

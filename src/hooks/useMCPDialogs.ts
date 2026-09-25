@@ -20,6 +20,7 @@ import { FILESYSTEM_TOOLS } from "@/types/settings";
 const WEB_TOOL_NAMES = ["web_search", "fetch_page"];
 import { useState, useCallback, useRef } from "react";
 import type { ToolCallRequest } from "@/handlers/mcpToolHandler";
+import { callTarget } from "@/handlers/mcpMessageHandler";
 import type { MCPToolResult } from "@/types/electron";
 import { useSettingsStore } from "@/store/settingsStore";
 import { isMutatingTool } from "@/config/toolClassification";
@@ -61,6 +62,8 @@ export function useMCPDialogs({ callTool, policy }: UseMCPDialogsProps) {
   const [runningTool, setRunningTool] = useState<{
     tool: string;
     serverName: string;
+    /** The file, folder, query or page it acts on */
+    target?: string;
   } | null>(null);
   const resolverRef = useRef<((result: MCPToolResult) => void) | null>(null);
   /**
@@ -132,6 +135,7 @@ export function useMCPDialogs({ callTool, policy }: UseMCPDialogsProps) {
         setRunningTool({
           tool: toolCall.tool,
           serverName: toolCall.serverName,
+          target: callTarget(toolCall),
         });
         try {
           return await callTool({
@@ -204,6 +208,7 @@ export function useMCPDialogs({ callTool, policy }: UseMCPDialogsProps) {
       setRunningTool({
         tool: request.toolName,
         serverName: request.serverName,
+        target: request.targetPath ?? request.webTarget,
       });
 
       try {

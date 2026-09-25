@@ -12,11 +12,21 @@
 import type { Message } from "@/types/conversation";
 import { stripToolCallMarkup } from "@/handlers/toolCallParsing";
 
-export type TurnPart =
-  | { kind: "text"; message: Message }
-  | { kind: "tools"; messages: Message[] }
+/** One step of a stretch of work */
+export type WorkItem =
+  /** What the model said on its way to a tool call */
+  | { kind: "narration"; message: Message }
+  | { kind: "tool"; message: Message }
   /** Older turns were summarised to make room before this message */
   | { kind: "summary"; message: Message };
+
+export type TurnPart =
+  | { kind: "text"; message: Message }
+  /**
+   * Tool steps, summaries and the short lines the model wrote between
+   * them, shown as one collapsible block
+   */
+  | { kind: "work"; items: WorkItem[] };
 
 export type Turn =
   | { kind: "user"; message: Message }
@@ -37,23 +47,40 @@ function isBareCall(message: Message, next: Message | undefined): boolean {
   );
 }
 
+/** Longer text on the way to a tool call stays in view */
+const NARRATION_MAX_CHARS = 400;
+
 /**
- * Consecutive tool results sit together; text between them splits them. A
- * summary comes first, even on a reply that shows nothing else: it happened
- * before the reply was written.
+ * A reply that calls a tool and says little else: "I'll continue examining
+ * the remaining files." One of those per round, each splitting the steps,
+ * buried a repo review under a wall of lines (2026-09-25).
+ */
+function isNarration(message: Message): boolean {
+  if (message.role !== "assistant" || message.thinking || message.truncated) {
+    return false;
+  }
+  const text = stripToolCallMarkup(message.content);
+  return text !== message.content && text.trim().length <= NARRATION_MAX_CHARS;
+}
+
+/**
+ * Tool steps, summaries and the narration between them run together into
+ * one stretch of work; a real reply ends it. A summary comes first, even on
+ * a reply that shows nothing else: it happened before the reply was written.
  */
 function toParts(messages: Message[]): TurnPart[] {
   const parts: TurnPart[] = [];
-  for (const [i, message] of messages.entries()) {
-    if (message.summary) parts.push({ kind: "summary", message });
-    if (isBareCall(message, messages[i + 1])) continue;
+  const work = (item: WorkItem) => {
     const last = parts.at(-1);
-    if (message.toolResult) {
-      if (last?.kind === "tools") last.messages.push(message);
-      else parts.push({ kind: "tools", messages: [message] });
-    } else {
-      parts.push({ kind: "text", message });
-    }
+    if (last?.kind === "work") last.items.push(item);
+    else parts.push({ kind: "work", items: [item] });
+  };
+  for (const [i, message] of messages.entries()) {
+    if (message.summary) work({ kind: "summary", message });
+    if (isBareCall(message, messages[i + 1])) continue;
+    if (message.toolResult) work({ kind: "tool", message });
+    else if (isNarration(message)) work({ kind: "narration", message });
+    else parts.push({ kind: "text", message });
   }
   return parts;
 }
@@ -189,6 +216,51 @@ export function stepLabel(
   const word = state === "running" ? verb.running : verb.done;
   if (!target) return word;
   return `${word} ${verb.target ? verb.target(target) : baseName(target)}`;
+}
+
+const lowerFirst = (text: string) =>
+  text.charAt(0).toLowerCase() + text.slice(1);
+
+/** "Read diag3.ps1", "Read 12 files": one tool's steps in a stretch */
+function toolPhrase(messages: Message[]): string {
+  const result = messages[0]!.toolResult!;
+  if (messages.length === 1) {
+    return stepLabel(result.tool, result.serverName, result.target, "done");
+  }
+  return groupLabel(messages);
+}
+
+/**
+ * "Read 12 files, listed wifi · summarised 3 times": what a stretch of work
+ * did, for its collapsed header
+ */
+export function workLabel(items: WorkItem[]): string {
+  const byTool = new Map<string, Message[]>();
+  for (const item of items) {
+    if (item.kind !== "tool") continue;
+    const tool = item.message.toolResult!.tool;
+    byTool.set(tool, [...(byTool.get(tool) ?? []), item.message]);
+  }
+  const phrases = [...byTool.values()].map(toolPhrase);
+  let label = phrases
+    .slice(0, 2)
+    .map((phrase, i) => (i === 0 ? phrase : lowerFirst(phrase)))
+    .join(", ");
+  const moreSteps = [...byTool.values()]
+    .slice(2)
+    .reduce((n, group) => n + group.length, 0);
+  if (moreSteps > 0) {
+    label += ` and ${moreSteps} more step${moreSteps === 1 ? "" : "s"}`;
+  }
+
+  const summaries = items.filter((item) => item.kind === "summary").length;
+  if (summaries > 0) {
+    const times = summaries === 1 ? "" : ` ${summaries} times`;
+    label = label
+      ? `${label} · summarised${times}`
+      : `Summarised earlier turns${times}`;
+  }
+  return label || "Worked on it";
 }
 
 /** "Created 2 folders", "Read 3 files", else "Used 4 tools" */

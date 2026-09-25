@@ -2,10 +2,11 @@
  * Assistant Turn
  *
  * Everything SHIELD did in reply to one user message, under one header: what
- * the model said, and the tool calls it made in between, as quiet steps.
- * While a reply is in progress the live pieces (streaming text, a running
- * tool, the reading indicator) are passed in as children and appear at the
- * end of the same block rather than as new messages.
+ * the model said, and the work it did in between - tool steps, summaries and
+ * the short lines on the way - folded into collapsible groups. While a reply
+ * is in progress, `live` says what it is doing: shown in the header of the
+ * latest group, or as its own line when there is none. The streaming text is
+ * passed in as children and appears at the end of the same block.
  */
 
 import { memo, useState, type ReactNode } from "react";
@@ -14,83 +15,103 @@ import { Bot, Check, Copy, RefreshCw, Zap } from "lucide-react";
 import { formatTokens } from "@/lib/format";
 import { stripToolCallMarkup } from "@/handlers/mcpToolHandler";
 import { ChatMessage } from "./ChatMessage";
-import { SummaryStep, ToolStep, ToolStepGroup } from "./ToolStep";
-import { groupLabel, turnStats, type TurnPart } from "./turns";
+import { ReadingIndicator } from "./ReadingIndicator";
+import { SummaryStep, ToolStep } from "./ToolStep";
+import { WorkGroup, type LiveWork } from "./WorkGroup";
+import { turnStats, type TurnPart } from "./turns";
 import type { Message } from "@/types/conversation";
 
 interface AssistantTurnProps {
   messages: Message[];
   parts: TurnPart[];
-  /** Streaming text, running tool, reading indicator */
+  /** Streaming text */
   children?: ReactNode;
   isLive?: boolean;
+  /** What the reply in progress is doing right now */
+  live?: LiveWork | null;
   onContinue?: (messageId: string) => void;
   onRegenerate?: () => void;
 }
 
-function ToolResultStep({ message }: { message: Message }) {
-  const result = message.toolResult!;
+function TextPart({
+  message,
+  onContinue,
+}: {
+  message: Message;
+  onContinue?: (messageId: string) => void;
+}) {
   return (
-    <ToolStep
-      tool={result.tool}
-      serverName={result.serverName}
-      target={result.target}
-      success={result.success}
-      blocked={result.blocked}
+    <ChatMessage
+      variant="part"
+      role="assistant"
       content={message.content}
+      truncated={message.truncated}
+      sources={message.sources}
+      thinking={message.thinking}
+      isThinking={message.isThinking}
+      onContinue={
+        message.truncated ? () => onContinue?.(message.id) : undefined
+      }
     />
   );
 }
 
 function Part({
   part,
+  live,
   onContinue,
 }: {
   part: TurnPart;
+  /** Only for the live reply's latest part */
+  live?: LiveWork | null;
   onContinue?: (messageId: string) => void;
 }) {
-  if (part.kind === "summary") {
-    return (
-      <SummaryStep id={part.message.id} summary={part.message.summary ?? ""} />
-    );
+  if (part.kind === "text") {
+    return <TextPart message={part.message} onContinue={onContinue} />;
   }
 
-  if (part.kind === "text") {
-    const m = part.message;
+  // Finished and on its own, a step needs no group around it
+  const only = part.items.length === 1 ? part.items[0]! : null;
+  if (!live && only?.kind === "tool") {
+    const result = only.message.toolResult!;
     return (
-      <ChatMessage
-        variant="part"
-        role="assistant"
-        content={m.content}
-        truncated={m.truncated}
-        sources={m.sources}
-        thinking={m.thinking}
-        isThinking={m.isThinking}
-        onContinue={m.truncated ? () => onContinue?.(m.id) : undefined}
+      <ToolStep
+        tool={result.tool}
+        serverName={result.serverName}
+        target={result.target}
+        success={result.success}
+        blocked={result.blocked}
+        content={only.message.content}
       />
     );
   }
-
-  if (part.messages.length === 1) {
-    return <ToolResultStep message={part.messages[0]!} />;
+  if (!live && only?.kind === "summary") {
+    return (
+      <SummaryStep id={only.message.id} summary={only.message.summary ?? ""} />
+    );
   }
-
-  const failed = part.messages.filter(
-    (m) => !m.toolResult?.success && !m.toolResult?.blocked
-  ).length;
-  return (
-    <ToolStepGroup label={groupLabel(part.messages)} failed={failed}>
-      {part.messages.map((m) => (
-        <ToolResultStep key={m.id} message={m} />
-      ))}
-    </ToolStepGroup>
-  );
+  // Lines on the way to a call that never came back: just text
+  if (!live && part.items.every((item) => item.kind === "narration")) {
+    return (
+      <>
+        {part.items.map((item) => (
+          <TextPart
+            key={item.message.id}
+            message={item.message}
+            onContinue={onContinue}
+          />
+        ))}
+      </>
+    );
+  }
+  return <WorkGroup items={part.items} live={live} />;
 }
 
-/** A summary shares its message with the text after it, so it needs its own */
+/** Stable while a group grows: keyed by where it starts */
 function partKey(part: TurnPart): string {
-  if (part.kind === "summary") return `${part.message.id}-summary`;
-  return part.kind === "text" ? part.message.id : part.messages[0]!.id;
+  if (part.kind === "text") return part.message.id;
+  const first = part.items[0]!;
+  return `work-${first.kind}-${first.message.id}`;
 }
 
 export const AssistantTurn = memo(function AssistantTurn({
@@ -98,11 +119,14 @@ export const AssistantTurn = memo(function AssistantTurn({
   parts,
   children,
   isLive,
+  live,
   onContinue,
   onRegenerate,
 }: AssistantTurnProps) {
   const [copied, setCopied] = useState(false);
   const stats = isLive ? null : turnStats(messages);
+  // The latest group shows what is happening; without one it gets a line
+  const liveInGroup = Boolean(live) && parts.at(-1)?.kind === "work";
 
   const handleCopy = async () => {
     const text = messages
@@ -158,9 +182,25 @@ export const AssistantTurn = memo(function AssistantTurn({
           )}
         </div>
 
-        {parts.map((part) => (
-          <Part key={partKey(part)} part={part} onContinue={onContinue} />
+        {parts.map((part, i) => (
+          <Part
+            key={partKey(part)}
+            part={part}
+            live={liveInGroup && i === parts.length - 1 ? live : null}
+            onContinue={onContinue}
+          />
         ))}
+        {live && !liveInGroup && live.runningTool && (
+          <ToolStep
+            tool={live.runningTool.tool}
+            serverName={live.runningTool.serverName}
+            target={live.runningTool.target}
+            running
+          />
+        )}
+        {live && !liveInGroup && !live.runningTool && live.busy && (
+          <ReadingIndicator />
+        )}
         {children}
 
         {stats && (

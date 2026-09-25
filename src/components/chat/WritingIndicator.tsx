@@ -17,7 +17,8 @@ export function WritingIndicator() {
     <div className="flex items-center gap-1.5 pt-0.5 text-[11px] text-muted-foreground/70">
       <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-signal" />
       <span>
-        ↓ <AnimatedCount value={progress.generated} /> tokens
+        ↓ <AnimatedCount value={progress.generated} /> token
+        {progress.generated === 1 ? "" : "s"}
       </span>
       {progress.tokensPerSecond > 0 && (
         <span className="tabular-nums">
