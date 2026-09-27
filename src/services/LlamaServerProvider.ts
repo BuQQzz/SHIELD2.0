@@ -35,8 +35,11 @@ import {
   NOTE_MAX_TOKENS,
   noteRequest,
   renderCapsule,
+  restoreHistory,
   summariseOldest,
   type Capsule,
+  type SavedCapsule,
+  type SavedMessage,
 } from "./taskCapsule.js";
 import type {
   ChatMessage,
@@ -84,8 +87,22 @@ export class LlamaServerProvider {
   private history: ChatMessage[] = [];
   /** What the turns summarised out of the history held (taskCapsule) */
   private capsule: Capsule | null = null;
+  /** Model-history entries represented by the current capsule, across cuts */
+  private capsuleReplacedEntries = 0;
+  /**
+   * The capsule a restored chat saved and its exact model history; used
+   * instead of writing another summary of the same turns.
+   */
+  private savedCapsule: {
+    capsule: Capsule;
+    modelHistory: ChatMessage[];
+    start: number;
+    replacedEntries: number;
+  } | null = null;
   /** The capsule as the last request left it, if it wrote one; for the chat */
   private lastSummary: string | null = null;
+  /** The same capsule for the chat to save and restore from */
+  private lastCapsule: SavedCapsule | null = null;
   /** Prompt + reply tokens of the last request: how full the window is */
   private lastContextTokens = 0;
   private abortController: AbortController | null = null;
@@ -136,6 +153,8 @@ export class LlamaServerProvider {
     this.systemPrompt = options.systemPrompt;
     this.history = [];
     this.capsule = null;
+    this.capsuleReplacedEntries = 0;
+    this.savedCapsule = null;
     this.pidFile = options.pidFile;
     if (this.pidFile && child.pid) {
       fs.writeFileSync(this.pidFile, String(child.pid));
@@ -282,6 +301,7 @@ export class LlamaServerProvider {
     this.abortController = new AbortController();
     const signal = options.signal ?? this.abortController.signal;
     this.lastSummary = null;
+    this.lastCapsule = null;
     const userMessage: ChatMessage = { role: "user", content: message };
     const startedAt = performance.now();
     let firstTokenAt: number | null = null;
@@ -390,28 +410,31 @@ export class LlamaServerProvider {
     return this.lastSummary;
   }
 
-  setChatHistory(messages: ChatMessage[]): void {
+  /** The same capsule as the chat saves it, to restore from */
+  getLastCapsule(): SavedCapsule | null {
+    return this.lastCapsule;
+  }
+
+  setChatHistory(messages: SavedMessage[]): void {
     // Only what the model reads: the chat's messages also carry ids, stats
-    // and tool metadata, which went to the server with every request.
-    // One message per turn: a saved chat can hold two in a row - the
-    // tool-round limit notice after the model's last reply - and the
-    // server refuses "2 or more assistant messages at the end of the list"
-    // (2026-09-25).
-    this.history = [];
-    for (const { role, content } of messages) {
-      if (role === "system") continue;
-      const last = this.history.at(-1);
-      if (last?.role === role) last.content += `\n\n${content}`;
-      else this.history.push({ role, content });
-    }
-    // A restored chat starts whole; it is compacted again if needed
+    // and tool metadata, which went to the server with every request
+    const { history, saved } = restoreHistory(messages);
+    this.history = history;
     this.capsule = null;
+    this.capsuleReplacedEntries = 0;
+    this.savedCapsule = saved;
     this.lastContextTokens = this.estimateTokens();
+    // The chat whole if it fits, else as it was left: a restored chat that
+    // needed a summary would otherwise write it again before the next
+    // message, 5-15 s of reading and writing
+    this.makeRoomCheaply(0);
   }
 
   clearHistory(): void {
     this.history = [];
     this.capsule = null;
+    this.capsuleReplacedEntries = 0;
+    this.savedCapsule = null;
     this.lastContextTokens = 0;
   }
 
@@ -421,9 +444,10 @@ export class LlamaServerProvider {
    * 1. clear old tool payloads, keeping the last few exchanges whole
    *    (historyCompaction);
    * 2. clear them from all but the latest exchange - still no model call,
-   *    and what large tool results need: at 8K, going straight to step 3
+   *    and what large tool results need: at 8K, going straight to step 4
    *    summarised every tool round, 4-7 s each (2026-09-25);
-   * 3. replace the oldest turns with a capsule (taskCapsule).
+   * 3. in a restored chat, go back to the capsule it saved;
+   * 4. replace the oldest turns with a capsule (taskCapsule).
    * The prompt cache is reused only up to the first changed message, so
    * each costs a slower read of the shortened history - which is why none
    * runs until needed.
@@ -433,19 +457,7 @@ export class LlamaServerProvider {
     signal: AbortSignal,
     onProgress?: (progress: ChatProgress) => void
   ): Promise<void> {
-    const tooFull = () =>
-      shouldCompact(
-        this.lastContextTokens,
-        nextMessage.length,
-        this.contextSize
-      );
-    if (!tooFull()) return;
-
-    // The last few exchanges are what the model is working from right now
-    this.clearPayloads(6);
-    if (!tooFull()) return;
-    this.clearPayloads(this.history.length - latestExchange(this.history));
-    if (!tooFull()) return;
+    if (this.makeRoomCheaply(nextMessage.length)) return;
 
     onProgress?.({ phase: "summarising" });
     const summarised = await summariseOldest(
@@ -459,11 +471,60 @@ export class LlamaServerProvider {
     const removed = this.history.length - summarised.history.length;
     this.history = summarised.history;
     this.capsule = summarised.capsule;
+    this.capsuleReplacedEntries += removed;
     this.lastSummary = this.capsuleText();
+    this.lastCapsule = {
+      ...summarised.capsule,
+      modelHistory: summarised.history.map(({ role, content }) => ({
+        role,
+        content,
+      })),
+      replacedEntries: this.capsuleReplacedEntries,
+    };
     this.lastContextTokens = this.estimateTokens();
     console.log(
       `[LlamaServer] Summarised ${removed} older messages into a capsule of ${this.lastSummary.length} characters`
     );
+  }
+
+  /**
+   * Steps 1-3 of makeRoom, which need no model call. True once the history
+   * leaves room for a message of `nextMessageChars`.
+   */
+  private makeRoomCheaply(nextMessageChars: number): boolean {
+    const fits = () =>
+      !shouldCompact(
+        this.lastContextTokens,
+        nextMessageChars,
+        this.contextSize
+      );
+    if (fits()) return true;
+
+    // The last few exchanges are what the model is working from right now
+    this.clearPayloads(6);
+    if (fits()) return true;
+    this.clearPayloads(this.history.length - latestExchange(this.history));
+    if (fits()) return true;
+    return this.useSavedCapsule() && fits();
+  }
+
+  /**
+   * Go back to the capsule a restored chat saved: the turns it replaced
+   * leave the history again, with no new note to write. False when there
+   * is none.
+   */
+  private useSavedCapsule(): boolean {
+    const saved = this.savedCapsule;
+    if (!saved) return false;
+    this.savedCapsule = null;
+    this.history = [...saved.modelHistory, ...this.history.slice(saved.start)];
+    this.capsule = saved.capsule;
+    this.capsuleReplacedEntries = saved.replacedEntries;
+    this.lastContextTokens = this.estimateTokens();
+    console.log(
+      `[LlamaServer] Went back to the chat's saved summary of ${saved.replacedEntries} older model messages`
+    );
+    return true;
   }
 
   /** Clear old tool payloads, leaving the last `keepRecent` entries whole */

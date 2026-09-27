@@ -1,4 +1,6 @@
 import { contextBridge, ipcRenderer } from "electron";
+import type { NativeToolResult } from "../src/types/nativeTools";
+import type { ToolDefinition } from "../src/types/prompts";
 import type {
   Conversation,
   ConversationMetadata,
@@ -43,6 +45,7 @@ export interface ModelConfig {
 export interface ChatOptions {
   temperature?: number;
   maxTokens?: number;
+  toolResults?: NativeToolResult[];
 }
 
 export interface LlamaAPI {
@@ -90,7 +93,8 @@ export interface LlamaAPI {
   ) => Promise<{ success: boolean; error?: string }>;
   stopGeneration: () => Promise<{ success: boolean; error?: string }>;
   setSystemPrompt: (
-    prompt: string
+    prompt: string,
+    tools?: ToolDefinition[]
   ) => Promise<{ success: boolean; error?: string }>;
   getSystemPrompt: () => Promise<{
     success: boolean;
@@ -153,8 +157,8 @@ const llamaAPI: LlamaAPI = {
   setChatHistory: (messages) =>
     ipcRenderer.invoke("llama:setChatHistory", messages),
   stopGeneration: () => ipcRenderer.invoke("llama:stopGeneration"),
-  setSystemPrompt: (prompt) =>
-    ipcRenderer.invoke("llama:setSystemPrompt", prompt),
+  setSystemPrompt: (prompt, tools) =>
+    ipcRenderer.invoke("llama:setSystemPrompt", prompt, tools),
   getSystemPrompt: () => ipcRenderer.invoke("llama:getSystemPrompt"),
   generateTitle: (userMessage) =>
     ipcRenderer.invoke("llama:generateTitle", userMessage),

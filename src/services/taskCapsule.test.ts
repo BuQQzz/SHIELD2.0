@@ -9,9 +9,11 @@ import {
   noteRequest,
   renderCapsule,
   requestText,
+  restoreHistory,
   stepsFrom,
   summariseOldest,
   type Capsule,
+  type SavedMessage,
 } from "./taskCapsule";
 import { compactHistory, type HistoryEntry } from "./historyCompaction";
 
@@ -456,6 +458,196 @@ describe("summariseOldest", () => {
     expect(out?.capsule.steps.map((s) => s.target)).toEqual([
       "C:/p/run.ps1",
       "C:/p/set-radio.ps1",
+    ]);
+  });
+});
+
+describe("restoreHistory", () => {
+  const capsule: Capsule = {
+    requests: ["build a search page"],
+    earlierRequests: 0,
+    steps: [],
+    earlierSteps: 0,
+    note: "State: page built.",
+  };
+  const savedOn = (
+    reply: string,
+    modelHistory: HistoryEntry[],
+    replacedEntries = 2
+  ): SavedMessage => ({
+    ...assistant(reply),
+    capsule: { ...capsule, modelHistory, replacedEntries },
+  });
+
+  it("joins back-to-back messages of one role into one turn", () => {
+    // One saved message per tool result, and the round-limit notice after
+    // the model's last reply: the server refuses two assistant messages at
+    // the end (2026-09-25)
+    const { history, saved } = restoreHistory([
+      user("read a and b"),
+      assistant("calls"),
+      user(result("read_text_file", "A")),
+      user(result("read_text_file", "B")),
+      assistant("Both are short."),
+      assistant("Stopped after 20 rounds of tool calls."),
+    ]);
+    expect(history).toEqual([
+      user("read a and b"),
+      assistant("calls"),
+      user(
+        `${result("read_text_file", "A")}\n\n${result("read_text_file", "B")}`
+      ),
+      assistant("Both are short.\n\nStopped after 20 rounds of tool calls."),
+    ]);
+    expect(saved).toBeNull();
+  });
+
+  it("resumes from the exact kept model history, then the visible request and reply", () => {
+    const modelHistory = [
+      user("now style it"),
+      assistant("Styled, shortened."),
+    ];
+    const { history, saved } = restoreHistory([
+      user("build a search page"),
+      assistant("Built it."),
+      user("now style it"),
+      assistant("Styled, with a long explanation."),
+      user("add paging"),
+      savedOn("Paging added.", modelHistory),
+      user("thanks"),
+      assistant("You're welcome."),
+    ]);
+    expect(history).toHaveLength(8);
+    expect(history[3]?.content).toBe("Styled, with a long explanation.");
+    expect(saved).toEqual({
+      capsule,
+      modelHistory,
+      start: 4,
+      replacedEntries: 2,
+    });
+    expect([...saved!.modelHistory, ...history.slice(saved!.start)]).toEqual([
+      ...modelHistory,
+      user("add paging"),
+      assistant("Paging added."),
+      user("thanks"),
+      assistant("You're welcome."),
+    ]);
+  });
+
+  it("uses the latest capsule, which holds the earlier ones", () => {
+    const later = {
+      ...capsule,
+      note: "State: styled too.",
+      modelHistory: [user("e"), assistant("f")],
+      replacedEntries: 4,
+    };
+    const { saved } = restoreHistory([
+      user("a"),
+      assistant("b"),
+      user("c"),
+      savedOn("d", [], 2),
+      user("e"),
+      assistant("f"),
+      user("g"),
+      { ...assistant("h"), capsule: later },
+    ]);
+    expect(saved?.capsule.note).toBe("State: styled too.");
+    expect(saved?.modelHistory).toEqual([user("e"), assistant("f")]);
+    expect(saved?.start).toBe(6);
+    expect(saved?.replacedEntries).toBe(4);
+  });
+
+  it("restores the chat whole when the saved snapshot is invalid", () => {
+    expect(
+      restoreHistory([
+        user("a"),
+        assistant("b"),
+        user("c"),
+        savedOn("d", [], 0),
+      ]).saved
+    ).toBeNull();
+    expect(
+      restoreHistory([
+        user("a"),
+        assistant("b"),
+        {
+          ...savedOn("d", []),
+          capsule: {
+            ...capsule,
+            keptTurns: 1,
+          } as unknown as SavedMessage["capsule"],
+        },
+      ]).saved
+    ).toBeNull();
+  });
+
+  it("keeps model-only retry turns that the visible chat never saved", () => {
+    const modelHistory = [
+      user("read file"),
+      assistant("I cannot."),
+      user("retry with the filesystem tool"),
+      assistant("The file says hello."),
+    ];
+    const { history, saved } = restoreHistory([
+      user("older"),
+      assistant("Done."),
+      user("read file"),
+      assistant("The file says hello."),
+      user("what next?"),
+      savedOn("Continue.", modelHistory),
+    ]);
+    expect([...saved!.modelHistory, ...history.slice(saved!.start)]).toEqual([
+      ...modelHistory,
+      user("what next?"),
+      assistant("Continue."),
+    ]);
+  });
+
+  it("finds the cut summariseOldest made in the chat as it was saved", async () => {
+    const readBoth =
+      call("read_text_file", { path: "C:/p/a" }) +
+      call("read_text_file", { path: "C:/p/b" });
+    // The model's history: one turn for the results of one reply's calls
+    const live = [
+      user("read a and b"),
+      assistant(readBoth),
+      user(
+        results(result("read_text_file", "A"), result("read_text_file", "B"))
+      ),
+      assistant("Both are short."),
+      user("compare them"),
+      assistant("A is older than B."),
+    ];
+    const out = await summariseOldest(live, null, 60, async () => "note");
+    expect(out?.history).toEqual(live.slice(4));
+
+    // The chat: one message per result, the round-limit notice, and the
+    // capsule saved on the reply to the request that needed it
+    const { history, saved } = restoreHistory([
+      user("read a and b"),
+      assistant(readBoth),
+      user(result("read_text_file", "A")),
+      user(result("read_text_file", "B")),
+      assistant("Both are short."),
+      assistant("Stopped after 20 rounds of tool calls."),
+      user("compare them"),
+      assistant("A is older than B."),
+      user("which is longer?"),
+      {
+        ...assistant("B."),
+        capsule: {
+          ...out!.capsule,
+          modelHistory: out!.history,
+          replacedEntries: live.length - out!.history.length,
+        },
+      },
+    ]);
+    expect(saved?.capsule).toEqual(out!.capsule);
+    expect(history).toHaveLength(8);
+    expect([...saved!.modelHistory, ...history.slice(saved!.start)]).toEqual([
+      ...live.slice(4),
+      user("which is longer?"),
+      assistant("B."),
     ]);
   });
 });

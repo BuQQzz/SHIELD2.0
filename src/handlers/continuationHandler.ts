@@ -107,6 +107,7 @@ export const createContinuationHandler = ({
         timestamp: new Date(),
         truncated: wasTruncated,
         summary: useGenerationStore.getState().lastSummary ?? undefined,
+        capsule: useGenerationStore.getState().lastCapsule ?? undefined,
       };
 
       setMessages((prev) => [...prev, assistantMessage]);

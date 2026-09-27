@@ -24,7 +24,6 @@ import {
 import type { ContextBreakdown } from "./contextBreakdown.js";
 import {
   getLlamaService,
-  type ChatMessage,
   type ChatOptions,
   type ContextUsage,
   type GenerationStats,
@@ -32,6 +31,8 @@ import {
   type ModelConfig,
 } from "./LlamaService.js";
 import { LlamaServerProvider } from "./LlamaServerProvider.js";
+import type { SavedCapsule, SavedMessage } from "./taskCapsule.js";
+import type { ToolDefinition } from "../types/prompts.js";
 
 type Engine = "node" | "server";
 
@@ -200,6 +201,11 @@ export class ModelRuntime {
     return this.engine === "server" ? this.server.getLastSummary() : null;
   }
 
+  /** The same capsule for the chat to save and restore from */
+  getLastCapsule(): SavedCapsule | null {
+    return this.engine === "server" ? this.server.getLastCapsule() : null;
+  }
+
   async getContextUsage(): Promise<ContextUsage | null> {
     return this.engine === "server"
       ? this.server.getContextUsage()
@@ -224,7 +230,8 @@ export class ModelRuntime {
       : this.node.isModelLoaded();
   }
 
-  setChatHistory(messages: ChatMessage[]): void {
+  /** node-llama-cpp restores the chat whole; it has no capsules */
+  setChatHistory(messages: SavedMessage[]): void {
     if (this.engine === "server") this.server.setChatHistory(messages);
     else this.node.setChatHistory(messages);
   }
@@ -240,10 +247,13 @@ export class ModelRuntime {
   }
 
   /** Both engines keep it, so a model switch starts with the right prompt */
-  async applySystemPrompt(prompt: string): Promise<void> {
+  async applySystemPrompt(
+    prompt: string,
+    tools?: ToolDefinition[]
+  ): Promise<void> {
     this.systemPrompt = prompt;
     this.server.applySystemPrompt(prompt);
-    await this.node.applySystemPrompt(prompt);
+    await this.node.applySystemPrompt(prompt, tools);
   }
 
   getSystemPrompt(): string {

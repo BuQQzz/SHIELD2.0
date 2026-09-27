@@ -15,6 +15,8 @@
  *
  * Only the model's copy changes. The conversation shown and saved keeps
  * everything, and shows the capsule as a step in the reply that needed it.
+ * The reply saves the capsule too, so a restored chat resumes from it
+ * instead of summarising again.
  */
 
 import {
@@ -442,5 +444,91 @@ export async function summariseOldest(
   return {
     history: fitKept(history.slice(cut), keepChars),
     capsule: addToCapsule(previous, older, note),
+  };
+}
+
+/**
+ * A capsule as saved with the chat, on the reply that needed it, so that
+ * reopening the chat does not summarise it all over again (a 5-15 s pause
+ * on the next message)
+ */
+export interface SavedCapsule extends Capsule {
+  /**
+   * The model's exact history after summarising, before the request that
+   * needed the capsule. Kept replies may have been shortened and the model
+   * may have seen retry turns that are absent from the visible chat.
+   */
+  modelHistory: HistoryEntry[];
+  /** Total model-history entries represented by this and earlier capsules. */
+  replacedEntries: number;
+}
+
+/** A chat message as the page sends it back to restore a chat */
+export interface SavedMessage extends HistoryEntry {
+  capsule?: SavedCapsule;
+}
+
+/**
+ * The model's history for a restored chat, one entry per turn: a saved
+ * chat can hold two messages of one role in a row - one per tool result,
+ * or the tool-round limit notice after the model's last reply - and the
+ * server refuses "2 or more assistant messages at the end of the list"
+ * (2026-09-25). `saved` holds the exact model history the latest capsule
+ * kept and the start of the visible request/reply that needed it. The
+ * provider appends the live history from that point when the capsule is
+ * used, so turns added after restoring the chat are retained too.
+ */
+export function restoreHistory(messages: SavedMessage[]): {
+  history: HistoryEntry[];
+  saved: {
+    capsule: Capsule;
+    modelHistory: HistoryEntry[];
+    start: number;
+    replacedEntries: number;
+  } | null;
+} {
+  const history: HistoryEntry[] = [];
+  let latest: { capsule: SavedCapsule; at: number } | null = null;
+  for (const { role, content, capsule } of messages) {
+    if (role === "system") continue;
+    const last = history.at(-1);
+    if (last?.role === role) last.content += `\n\n${content}`;
+    else history.push({ role, content });
+    if (capsule) latest = { capsule, at: history.length - 1 };
+  }
+  if (!latest) return { history, saved: null };
+
+  const { modelHistory, replacedEntries, ...capsule } = latest.capsule;
+  if (
+    !Array.isArray(modelHistory) ||
+    !modelHistory.every(
+      (entry) =>
+        (entry.role === "user" || entry.role === "assistant") &&
+        typeof entry.content === "string"
+    ) ||
+    !Number.isInteger(replacedEntries) ||
+    replacedEntries < 1
+  ) {
+    return { history, saved: null };
+  }
+
+  // The capsule is saved on the assistant reply. The user-role run just
+  // before it is the request that needed the summary, including all tool
+  // results when several calls answered one reply.
+  let start = latest.at - 1;
+  while (start >= 0 && history[start]!.role !== "user") start--;
+  if (start < 0) return { history, saved: null };
+
+  return {
+    history,
+    saved: {
+      capsule,
+      modelHistory: modelHistory.map(({ role, content }) => ({
+        role,
+        content,
+      })),
+      start,
+      replacedEntries,
+    },
   };
 }

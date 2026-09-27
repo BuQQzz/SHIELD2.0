@@ -12,6 +12,7 @@ import type {
   ChatProgress,
   ContextUsage,
   GenerationStats,
+  SavedCapsule,
 } from "@/types/electron";
 
 interface GenerationStore {
@@ -22,10 +23,13 @@ interface GenerationStore {
    * history, if it had to; shown as a step in the reply
    */
   lastSummary: string | null;
+  /** The same summary, saved with the reply to restore from */
+  lastCapsule: SavedCapsule | null;
   record: (
     stats: GenerationStats | null | undefined,
     context: ContextUsage | null | undefined,
-    summary?: string | null
+    summary?: string | null,
+    capsule?: SavedCapsule | null
   ) => void;
   /** The request in progress: summarising, reading or writing, live */
   progress: ChatProgress | null;
@@ -47,11 +51,13 @@ export const useGenerationStore = create<GenerationStore>((set) => ({
   lastStats: null,
   context: null,
   lastSummary: null,
-  record: (stats, context, summary) =>
+  lastCapsule: null,
+  record: (stats, context, summary, capsule) =>
     set({
       lastStats: stats ?? null,
       context: context ?? null,
       lastSummary: summary ?? null,
+      lastCapsule: capsule ?? null,
     }),
   progress: null,
   setProgress: (progress) =>

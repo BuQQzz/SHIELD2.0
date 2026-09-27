@@ -7,7 +7,35 @@ import {
   repairJsonStrings,
   stripToolCallMarkup,
   streamingToolCallPreview,
+  UNSUPPORTED_NATIVE_TOOL_CALL_MESSAGE,
 } from "./toolCallParsing";
+
+describe("unsupported Gemma 4 native tool calls", () => {
+  const nativeCall =
+    '<|tool_call>call:read_file{path:<|"|>C:/a.txt<|"|>}<tool_call|>';
+  const xmlCall =
+    '<tool_call><server>filesystem</server><tool>write_file</tool><arguments>{"path":"C:/a.txt","content":"changed"}</arguments></tool_call>';
+
+  it("does not execute a mixed native and XML reply", () => {
+    expect(extractToolCalls(`${xmlCall}\n${nativeCall}`)).toEqual([]);
+    expect(cutOffToolCall(`${xmlCall}\n${nativeCall}`)).toBeNull();
+  });
+
+  it("shows a clear error instead of native markers while streaming or saved", () => {
+    expect(streamingToolCallPreview(`Checking. ${nativeCall}`).text).toBe(
+      UNSUPPORTED_NATIVE_TOOL_CALL_MESSAGE
+    );
+    expect(streamingToolCallPreview("<|tool_call>call:").text).toBe(
+      UNSUPPORTED_NATIVE_TOOL_CALL_MESSAGE
+    );
+    expect(stripToolCallMarkup(nativeCall)).toBe(
+      UNSUPPORTED_NATIVE_TOOL_CALL_MESSAGE
+    );
+    expect(streamingToolCallPreview("Checking. <|tool_ca").text).toBe(
+      "Checking."
+    );
+  });
+});
 
 /**
  * Regression cases captured from Qwen3-Coder-30B running locally. Each one
@@ -279,6 +307,53 @@ describe("stripToolCallMarkup", () => {
 });
 
 describe("cutOffToolCall", () => {
+  const nativeEnvelope =
+    '```json\n{"tool_calls":[{"id":"native-123","type":"function","function":{"name":"filesystem.read_text_file","arguments":"{\\"path\\":\\"C:/config.json\\"}"}}]}\n```';
+
+  it("does not add a phantom cutoff call for a complete native JSON envelope", () => {
+    expect(extractToolCalls(nativeEnvelope)).toHaveLength(1);
+    expect(cutOffToolCall(nativeEnvelope)).toBeNull();
+    expect(
+      streamingToolCallPreview(`${nativeEnvelope}\nThe file is ready.`)
+    ).toEqual({
+      text: "The file is ready.",
+      pendingTool: null,
+    });
+  });
+
+  it("still detects truncated JSON after a complete native envelope", () => {
+    const partial =
+      '```json\n{"tool_calls":[{"function":{"name":"filesystem.write_file","arguments":{"path":"C:/out.txt","content":"unfinished';
+    for (const content of [partial, `${nativeEnvelope}\n${partial}`]) {
+      expect(cutOffToolCall(content)).toMatchObject({
+        tool: "write_file",
+        argumentsError: expect.stringContaining("The tool call was cut off"),
+      });
+    }
+  });
+
+  it("still detects partial XML after a complete native envelope", () => {
+    const partial =
+      '<tool_call><tool>edit_file</tool><arguments>{"path":"C:/config.json","edits":[';
+    expect(cutOffToolCall(`${nativeEnvelope}\n${partial}`)).toMatchObject({
+      tool: "edit_file",
+      argumentsError: expect.stringContaining("The tool call was cut off"),
+    });
+  });
+
+  it("does not borrow arguments from a completed call for a later unfinished tag", () => {
+    expect(
+      cutOffToolCall(`${nativeEnvelope}\n<tool_call><tool>write_file</tool>`)
+    ).toBeNull();
+  });
+
+  it("leaves malformed arguments to the existing complete-call error handling", () => {
+    const raw =
+      '```json\n{"tool_calls":[{"function":{"name":"filesystem.read_file","arguments":"bad JSON"}}]}\n```';
+    expect(extractToolCalls(raw)[0]?.argumentsError).toBeDefined();
+    expect(cutOffToolCall(raw)).toBeNull();
+  });
+
   it("stands in for a call the reply ended inside (token limit, 2026-09-24)", () => {
     const raw = `Now let's enhance our app.js file:
 

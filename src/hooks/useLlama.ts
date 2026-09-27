@@ -1,8 +1,11 @@
 import { useState, useEffect, useCallback } from "react";
+import type { NativeToolResult } from "../types/nativeTools";
+import type { ToolDefinition } from "../types/prompts";
 import type {
   ChatProgress,
   GenerationStats,
   MemoryCheck,
+  SavedCapsule,
   SearchResult,
 } from "../types/electron";
 import { useGenerationStore } from "../store/generationStore";
@@ -25,6 +28,8 @@ export interface Message {
    * step in the reply.
    */
   summary?: string;
+  /** That summary as data: a restored chat resumes from it */
+  capsule?: SavedCapsule;
   /**
    * Tool calls the model wrote that were never run because the turn hit its
    * tool-round limit, e.g. "write_file C:\p\index.html". Set on the
@@ -219,7 +224,12 @@ export function useLlama() {
         if (result.success && result.response) {
           useGenerationStore
             .getState()
-            .record(result.stats, result.context, result.summary);
+            .record(
+              result.stats,
+              result.context,
+              result.summary,
+              result.capsule
+            );
           return result.response;
         } else {
           throw new Error(result.error || "Failed to get response");
@@ -251,6 +261,7 @@ export function useLlama() {
         topP?: number;
         topK?: number;
         repeatPenalty?: number;
+        toolResults?: NativeToolResult[];
       }
     ) => {
       console.log("[useLlama] sendStreamingMessage called");
@@ -277,7 +288,12 @@ export function useLlama() {
         if (result.success && result.response) {
           useGenerationStore
             .getState()
-            .record(result.stats, result.context, result.summary);
+            .record(
+              result.stats,
+              result.context,
+              result.summary,
+              result.capsule
+            );
           return result.response;
         } else {
           console.error("[useLlama] Failed:", result.error);
@@ -370,20 +386,23 @@ export function useLlama() {
     []
   );
 
-  const setSystemPrompt = useCallback(async (prompt: string) => {
-    if (!window.llama) {
-      console.warn(
-        "[useLlama] setSystemPrompt called but window.llama not available"
-      );
-      return;
-    }
-    try {
-      await window.llama.setSystemPrompt(prompt);
-    } catch (err) {
-      console.error("[useLlama] setSystemPrompt failed:", err);
-      setError(err instanceof Error ? err.message : "Unknown error");
-    }
-  }, []);
+  const setSystemPrompt = useCallback(
+    async (prompt: string, tools?: ToolDefinition[]) => {
+      if (!window.llama) {
+        console.warn(
+          "[useLlama] setSystemPrompt called but window.llama not available"
+        );
+        return;
+      }
+      try {
+        await window.llama.setSystemPrompt(prompt, tools);
+      } catch (err) {
+        console.error("[useLlama] setSystemPrompt failed:", err);
+        setError(err instanceof Error ? err.message : "Unknown error");
+      }
+    },
+    []
+  );
 
   const getSystemPrompt = useCallback(async (): Promise<string | null> => {
     if (!window.llama) {

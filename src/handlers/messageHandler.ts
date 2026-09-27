@@ -1,9 +1,14 @@
 import type { Message } from "../hooks/useLlama";
 import type { ModelSettings } from "../types/settings";
+import type { NativeToolResult } from "../types/nativeTools";
 import { useSettingsStore } from "../store/settingsStore";
 import { useGenerationStore } from "../store/generationStore";
 import { processMCPToolCalls, unrunToolCallsNote } from "./mcpMessageHandler";
 import { extractToolCalls } from "./mcpToolHandler";
+import {
+  hasUnsupportedNativeToolCall,
+  UNSUPPORTED_NATIVE_TOOL_CALL_MESSAGE,
+} from "./toolCallParsing";
 import {
   buildMCPRetryPrompt,
   isLikelyMCPToolIntent,
@@ -41,6 +46,7 @@ interface MessageHandlerProps {
       topP?: number;
       topK?: number;
       repeatPenalty?: number;
+      toolResults?: NativeToolResult[];
     }
   ) => Promise<string>;
   addMessage: (message: Message) => void;
@@ -142,10 +148,14 @@ export function createMessageHandler({
       // current Node.js release version for you by" - 57 of 212 characters,
       // without its tool call (2026-09-24).
       const finalContent = returnedResponse || streamingContentRef.current;
+      const unsupportedNativeCall = hasUnsupportedNativeToolCall(finalContent);
+      const safeFinalContent = unsupportedNativeCall
+        ? UNSUPPORTED_NATIVE_TOOL_CALL_MESSAGE
+        : finalContent;
 
       // Parse and extract thinking/reasoning content from various XML formats
       const { reasoning, thinking, processedContent } = parseAllThinking(
-        finalContent,
+        safeFinalContent,
         false,
         settings.webSearch.showReasoning
       );
@@ -153,6 +163,10 @@ export function createMessageHandler({
       let assistantProcessedContent = processedContent;
       let assistantReasoning = reasoning;
       let assistantThinking = thinking;
+      // A retry is still the same visible reply. Preserve a capsule written
+      // by the first attempt if the retry has enough room and writes none.
+      let replySummary = useGenerationStore.getState().lastSummary;
+      let replyCapsule = useGenerationStore.getState().lastCapsule;
 
       const hasToolCalls =
         extractToolCalls(processedContent, {
@@ -161,6 +175,7 @@ export function createMessageHandler({
         }).length > 0;
 
       const shouldRunMCPRetry =
+        !unsupportedNativeCall &&
         !hasToolCalls &&
         isMCPReady &&
         (settings.mcp.allowedTools?.length ?? 0) > 0 &&
@@ -186,8 +201,11 @@ export function createMessageHandler({
         );
 
         const retryFinalContent = retryResponse || streamingContentRef.current;
+        const safeRetryContent = hasUnsupportedNativeToolCall(retryFinalContent)
+          ? UNSUPPORTED_NATIVE_TOOL_CALL_MESSAGE
+          : retryFinalContent;
         const retryParsed = parseAllThinking(
-          retryFinalContent,
+          safeRetryContent,
           false,
           settings.webSearch.showReasoning
         );
@@ -195,12 +213,18 @@ export function createMessageHandler({
         assistantProcessedContent = retryParsed.processedContent;
         assistantReasoning = retryParsed.reasoning;
         assistantThinking = retryParsed.thinking;
+        replySummary =
+          useGenerationStore.getState().lastSummary ?? replySummary;
+        replyCapsule =
+          useGenerationStore.getState().lastCapsule ?? replyCapsule;
       }
 
       // Detect truncation
-      const wasTruncated = detectTruncation(finalContent, {
-        maxTokens: modelSettings.maxTokens,
-      });
+      const wasTruncated =
+        !unsupportedNativeCall &&
+        detectTruncation(finalContent, {
+          maxTokens: modelSettings.maxTokens,
+        });
 
       const assistantMessage: Message = {
         id: assistantMessageId,
@@ -211,7 +235,8 @@ export function createMessageHandler({
         reasoning: assistantReasoning,
         thinking: assistantThinking,
         stats: useGenerationStore.getState().lastStats ?? undefined,
-        summary: useGenerationStore.getState().lastSummary ?? undefined,
+        summary: replySummary ?? undefined,
+        capsule: replyCapsule ?? undefined,
       };
 
       setMessages((prev) => [...prev, assistantMessage]);
@@ -237,7 +262,7 @@ export function createMessageHandler({
               (useGenerationStore.getState().context?.size ?? 8192) * 0.35 * 3
             )
           ),
-          continueConversation: async (toolPrompt: string) => {
+          continueConversation: async (toolPrompt: string, toolResults) => {
             // Continue the conversation with tool results
             setIsGenerating(true);
             setStreamingContent("");
@@ -258,10 +283,14 @@ export function createMessageHandler({
                   topP: modelSettings.topP,
                   topK: modelSettings.topK,
                   repeatPenalty: modelSettings.repeatPenalty,
+                  ...(toolResults?.length ? { toolResults } : {}),
                 }
               );
 
-              const toolReply = returned || streamingContentRef.current;
+              const rawToolReply = returned || streamingContentRef.current;
+              const toolReply = hasUnsupportedNativeToolCall(rawToolReply)
+                ? UNSUPPORTED_NATIVE_TOOL_CALL_MESSAGE
+                : rawToolReply;
 
               const toolResponseMessage: Message = {
                 id: toolMessageId,
@@ -270,6 +299,7 @@ export function createMessageHandler({
                 timestamp: new Date(),
                 stats: useGenerationStore.getState().lastStats ?? undefined,
                 summary: useGenerationStore.getState().lastSummary ?? undefined,
+                capsule: useGenerationStore.getState().lastCapsule ?? undefined,
               };
 
               setMessages((prev) => [...prev, toolResponseMessage]);

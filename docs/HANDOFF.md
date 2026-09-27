@@ -1,9 +1,12 @@
 # SHIELD — Session Handoff
 
-**Last session:** 2026-09-25 (previous: 2026-09-22 → 2026-09-24)  
-**Branch:** `feat/model-library`, 65 commits ahead of `main`; it contains `chore/dependency-refresh` and `feat/mcp-permission-modes`. Nothing is merged to `main`.  
-**Tests:** 454 passing (`npx vitest run`) · `tsc`, ESLint and Prettier clean on changed files  
+**Last session:** 2026-09-25 (previous: 2026-09-22 → 2026-09-24)
+**Branch:** `feat/model-library`, 65 commits ahead of `main`; it contains `chore/dependency-refresh` and `feat/mcp-permission-modes`. Nothing is merged to `main`.
+**Tests:** 558 passing (`npx vitest run`) · `npm run build`, ESLint and Prettier clean on changed source files
+
 **Tested in the app with:** Qwen3-Coder-30B-A3B Q4_K_M on an RTX 4070 (12 GB), SHIELD-managed llama-server at 32K (and 8K to force summaries)
+
+**Gemma 4:** native tool support is implemented in the working tree. All eight live runtime checks pass on the installed 12B Q4_K_M at 8K; see the update and [benchmark evidence](./testing/AGENT_BENCHMARK.md#gemma-4-shipped-runtime-smoke-check-2026-09-25).
 
 Read this first, then [SHIELD_AGENT_ARCHITECTURE.md](./SHIELD_AGENT_ARCHITECTURE.md) (§13 priorities, §17 decision log, §20 evidence) and [testing/AGENT_BENCHMARK.md](./testing/AGENT_BENCHMARK.md).
 
@@ -13,11 +16,32 @@ Read this first, then [SHIELD_AGENT_ARCHITECTURE.md](./SHIELD_AGENT_ARCHITECTURE
 
 The user will pick these up in a new session. Suggested order; each stands on its own. Background for all of them is in the update below.
 
-- [ ] **Keep summaries on reload.** Save the capsule with the chat, so reopening or reloading does not summarise again (a 5–15 s pause on the next message today). Also the base for editing or pinning summaries later. Today `setChatHistory` in `LlamaServerProvider.ts` resets `capsule`, and the page restores the full chat (`useConversationSync.ts`); only the rendered text is saved (`Message.summary`). Save the `Capsule` itself and how many messages it replaced, and restore both.
+- [ ] **Finish Gemma desktop verification first.** Paused at the user's request on 2026-09-25. Runtime implementation, eight live filesystem checks, 558 tests, build, and source checks passed. Still run the isolated Electron check in `tmp/gemma-ui-check.mjs`: load Gemma, approve a read, deny a write, reload and reopen the saved chat, then verify a fresh follow-up answer. Fixtures/bootstrap/profile are under `tmp/gemma-ui`; the harness must inspect the new persisted assistant reply, not old sidebar text. No UI/model run is in progress. The regular dev app was stopped for the main-process edits and has not been restarted. After verification, reopen it with `npm run dev:electron`. All changes remain local and uncommitted; preserve the prior saved-capsule work.
+- [x] **Keep summaries on reload.** The reply saves the capsule, the exact model history it kept, and the cumulative count of model messages it replaced. A reopened chat uses its full history if it fits; when it needs room, it resumes from the saved capsule without writing the same note again. The full visible chat stays in local storage. Verified with fake llama-server requests and a JSON round trip; a live model reload has not been tried for this change. See the evening update below.
 - [ ] **Clear less often at 32K.** When clearing runs, clear further, so it runs less often: each clearing costs a ~10 s re-read (~12k tokens), and it hit twice in one turn on 2026-09-25. `makeRoom` in `LlamaServerProvider.ts` stops as soon as the estimate is under 60%; aim lower (say 40%) once it has started.
 - [ ] **Recall tool.** Let the model read back the original messages a summary replaced, from the saved chat. Summaries become an index instead of a loss, and the re-reading loops stop (at 8K, "review the whole repo" re-read cleared files until the 20-round limit). A SHIELD-owned tool like `delete_file` and `web_search` (`electron/services/webTools.ts` shows how one is registered); the design docs' "compaction does not delete history".
 - [ ] **Stop workspace detours.** The `[Current folder: …]` note added to every message (`src/handlers/messageHandler.ts`) makes Qwen3-Coder list and read files even for knowledge questions like "explain MCP". It was added because the model guessed the wrong folder for "what's in this folder?" — keep that case working (`npm run bench:agent`).
 - [ ] Later: fork a chat from a summary; edit or pin summaries (needs the first item); whether node-llama-cpp models need clearing and summarising too (today they fall back on node-llama-cpp's own context shift, which drops the oldest turns).
+
+---
+
+## Update — 2026-09-25 late evening: Gemma 4 native tools (working tree)
+
+Gemma 4 now receives native tool declarations, emits its own native argument syntax, and receives the real tool result in its native result slot. `Gemma4ToolChatWrapper`, `gemmaToolProtocol`, and `NativeChatSession` adapt the installed node-llama-cpp version without changing Qwen's XML flow. The bridge returns a structured call to the renderer; the existing permission callback still decides whether it runs. Tool results are matched by call ID. Stopped, incomplete, unknown, or stale calls cannot silently resume execution. Native syntax stays out of visible streaming, tool declarations follow Plan/Read-only filtering, and title generation preserves chat history.
+
+Gemma defaults to input lookup off: the read smoke fell from 26.8 s with lookup to 6.7 s, with observed decode around 46 tok/s. Explicit runtime overrides remain possible. The eight real filesystem cases all passed: read, list/read, write, edit, search, denied write, injected file instructions, and no-tool arithmetic. Two wrong paths were rejected and corrected by the model. These are small fixtures, not evidence of broad coding reliability. Reproduce with `npx tsx scripts/bench/gemma-smoke.ts --models-dir D:/AIMODELS`; full local traces are in `tmp/gemma-native-final.log` and `tmp/gemma-smoke-vKafoF/results.json`.
+
+**Verification:** 558 tests across 43 files pass; the production build, changed-source ESLint, and Prettier pass. E4B is not installed and was not downloaded. Vision and large-context Gemma are unverified. Existing saved-capsule changes below remain separate uncommitted work.
+
+**Paused for tomorrow:** the installed-model smoke is complete, but the Electron UI permission/reload check has not run. The user requested the pause before it launched. Independent source review found no blocking issues. Test/build/source-check logs are `tmp/gemma-final-tests.log`, `tmp/gemma-final-build.log`, `tmp/gemma-final-lint.log`, and `tmp/gemma-final-format.log`; the full final model run exited successfully and released GPU memory. Do not repeat those checks unless follow-up code changes warrant it.
+
+---
+
+## Update — 2026-09-25 evening: saved Task Capsules (working tree)
+
+The first item above is implemented but not yet committed. `SavedCapsule` is stored on the assistant reply that needed a summary and passes through IPC, the generation store, and conversation JSON. It includes the capsule, the exact kept model history (including any shortened reply), and a cumulative `replacedEntries` count. On restore, `LlamaServerProvider` keeps the full chat when it fits; otherwise it first clears old tool payloads, then uses the saved capsule with the live tail of the chat. New turns added after reopening are retained. A same-turn MCP retry keeps a capsule written by its first attempt when the retry writes no new one.
+
+**Verification:** 467 tests pass; `npm run build` passes for the renderer, main process and preload; ESLint and Prettier pass on changed source. Tests cover JSON serialization with the complete visible text, reopening without a second note, a larger context using the full chat, shortened replies, model-only retry turns, multiple summaries, and turns added after reload. The app was not reloaded with a live model for this change; the next live check should use an already loaded model rather than starting a heavy model solely for this test.
 
 ---
 

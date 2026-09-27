@@ -1,3 +1,5 @@
+import type { SavedCapsule } from "./electron";
+
 export interface Message {
   id: string;
   role: "user" | "assistant";
@@ -19,6 +21,8 @@ export interface Message {
    * step in the reply.
    */
   summary?: string;
+  /** That summary as data: a restored chat resumes from it */
+  capsule?: SavedCapsule;
   sources?: Array<{
     title: string;
     url: string;

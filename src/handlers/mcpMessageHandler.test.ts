@@ -7,6 +7,129 @@ import {
 import type { Message } from "../hooks/useLlama";
 
 describe("processMCPToolCalls", () => {
+  it("does not resume a native request when stopped during tool execution", async () => {
+    let stopped = false;
+    const addMessage = vi.fn();
+    const continueConversation = vi.fn();
+    await processMCPToolCalls(
+      {
+        id: "native-stop",
+        role: "assistant",
+        timestamp: new Date(),
+        content: JSON.stringify({
+          tool_calls: [
+            {
+              id: "native-stop",
+              type: "function",
+              function: {
+                name: "filesystem.read_text_file",
+                arguments: '{"path":"C:/fixture.txt"}',
+              },
+            },
+          ],
+        }),
+      },
+      {
+        onToolCallDetected: async () => {
+          stopped = true;
+          return { success: true, data: "done" };
+        },
+        isStopped: () => stopped,
+        addMessage,
+        continueConversation,
+      }
+    );
+    expect(addMessage).toHaveBeenCalledTimes(1);
+    expect(continueConversation).not.toHaveBeenCalled();
+  });
+
+  it("keeps ordinary OpenAI IDs on the legacy text continuation", async () => {
+    const continueConversation = vi.fn().mockResolvedValue("Done.");
+    await processMCPToolCalls(
+      {
+        id: "legacy",
+        role: "assistant",
+        timestamp: new Date(),
+        content: JSON.stringify({
+          tool_calls: [
+            {
+              id: "call_1",
+              type: "function",
+              function: {
+                name: "filesystem.read_text_file",
+                arguments: '{"path":"C:/fixture.txt"}',
+              },
+            },
+          ],
+        }),
+      },
+      {
+        onToolCallDetected: vi
+          .fn()
+          .mockResolvedValue({ success: true, data: "data" }),
+        addMessage: vi.fn(),
+        continueConversation,
+      }
+    );
+    expect(continueConversation.mock.calls[0]?.[0]).toContain("data");
+    expect(continueConversation.mock.calls[0]?.[1]).toBeUndefined();
+  });
+
+  it.each([true, false])(
+    "returns native call IDs with bounded permission results (allowed=%s)",
+    async (allowed) => {
+      const onToolCallDetected = vi.fn().mockResolvedValue(
+        allowed
+          ? {
+              success: true,
+              data: { content: [{ type: "text", text: "fixture value" }] },
+            }
+          : {
+              success: false,
+              blocked: true,
+              error: "Permission denied by user",
+            }
+      );
+      const continueConversation = vi.fn().mockResolvedValue("Finished.");
+      await processMCPToolCalls(
+        {
+          id: "native-request",
+          role: "assistant",
+          timestamp: new Date(),
+          content: JSON.stringify({
+            tool_calls: [
+              {
+                id: "native-1",
+                type: "function",
+                function: {
+                  name: "filesystem.read_text_file",
+                  arguments: JSON.stringify({ path: "C:/fixture.txt" }),
+                },
+              },
+            ],
+          }),
+        },
+        { onToolCallDetected, continueConversation, addMessage: vi.fn() }
+      );
+      expect(onToolCallDetected).toHaveBeenCalledWith(
+        expect.objectContaining({
+          callId: "native-1",
+          serverName: "filesystem",
+          tool: "read_text_file",
+          arguments: { path: "C:/fixture.txt" },
+        })
+      );
+      expect(continueConversation.mock.calls[0]?.[1]).toEqual([
+        {
+          callId: "native-1",
+          result: expect.stringContaining(
+            allowed ? "fixture value" : "Permission denied by user"
+          ),
+        },
+      ]);
+    }
+  );
+
   it("executes multiple tool calls and continues once", async () => {
     const assistantMessage: Message = {
       id: "assistant-1",

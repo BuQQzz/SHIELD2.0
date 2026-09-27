@@ -10,7 +10,9 @@ import {
   buildSystemPrompt,
   detectModelFamily,
   getCapabilitiesFromModel,
+  usesNativeToolCalling,
 } from "@/config/systemPrompts";
+import { isMutatingTool } from "@/config/toolClassification";
 import type { SystemPromptConfig, ToolDefinition } from "@/types/prompts";
 
 interface UseMCPSystemPromptProps {
@@ -18,7 +20,7 @@ interface UseMCPSystemPromptProps {
   isMCPReady: boolean;
   mcpEnabled: boolean;
   baseSystemPrompt: string;
-  setSystemPrompt: (prompt: string) => Promise<void>;
+  setSystemPrompt: (prompt: string, tools?: ToolDefinition[]) => Promise<void>;
   /** Optional: Model name for model-specific prompts */
   modelName?: string;
   /** Optional: Model capabilities for capability-based prompts */
@@ -36,7 +38,7 @@ interface UseMCPSystemPromptProps {
   toolsLoading?: boolean;
   /** Directories the MCP servers are permitted to touch */
   allowedPaths?: string[];
-  /** Plan mode - describe intended tool calls instead of making them */
+  /** Plan mode - read tools investigate; changes are described only */
   planOnly?: boolean;
 }
 
@@ -64,6 +66,7 @@ export function useMCPSystemPrompt({
     () => getCapabilitiesFromModel(modelCapabilities || {}),
     [modelCapabilities]
   );
+  const nativeTools = usesNativeToolCalling(modelName ?? "");
 
   useEffect(() => {
     console.log("[MCP] System prompt effect triggered", {
@@ -98,13 +101,18 @@ export function useMCPSystemPrompt({
     }
 
     if (isMCPReady && mcpEnabled) {
+      const offeredTools =
+        nativeTools && planOnly
+          ? (availableTools ?? []).filter((tool) => !isMutatingTool(tool))
+          : (availableTools ?? []);
       // Build prompt with MCP tools enabled
       const config: SystemPromptConfig = {
         modelFamily,
         capabilities,
         customPrompt: isCustomPrompt ? baseSystemPrompt : undefined,
         mcpEnabled: true,
-        availableTools,
+        nativeTools,
+        availableTools: offeredTools,
         allowedPaths,
         planOnly,
       };
@@ -119,10 +127,10 @@ export function useMCPSystemPrompt({
       console.log("[MCP] - Model family:", modelFamily);
       console.log("[MCP] - Included modules:", includedModules);
       console.log("[MCP] - Estimated tokens:", estimatedTokens);
-      console.log("[MCP] - Tool count:", availableTools?.length ?? 0);
+      console.log("[MCP] - Tool count:", offeredTools.length);
       console.log("[MCP] - Full prompt length:", builtPrompt.length);
 
-      setSystemPrompt(builtPrompt);
+      setSystemPrompt(builtPrompt, nativeTools ? offeredTools : []);
     } else {
       // Build prompt without MCP tools
       const config: SystemPromptConfig = {
@@ -143,7 +151,7 @@ export function useMCPSystemPrompt({
       console.log("[MCP] - Included modules:", includedModules);
       console.log("[MCP] - Estimated tokens:", estimatedTokens);
 
-      setSystemPrompt(builtPrompt);
+      setSystemPrompt(builtPrompt, []);
     }
   }, [
     isModelLoaded,
@@ -152,6 +160,7 @@ export function useMCPSystemPrompt({
     baseSystemPrompt,
     setSystemPrompt,
     modelFamily,
+    nativeTools,
     capabilities,
     availableTools,
     toolsLoading,

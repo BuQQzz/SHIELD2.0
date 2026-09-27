@@ -1,3 +1,9 @@
+import type { SavedCapsule } from "../services/taskCapsule";
+import type { NativeToolResult } from "./nativeTools";
+import type { ToolDefinition } from "./prompts";
+
+export type { SavedCapsule };
+
 export interface ModelConfig {
   /** Library model id (src/config/models.ts) */
   id: string;
@@ -14,6 +20,7 @@ export interface ChatOptions {
   topP?: number;
   topK?: number;
   repeatPenalty?: number;
+  toolResults?: NativeToolResult[];
 }
 
 export interface Message {
@@ -23,6 +30,8 @@ export interface Message {
   timestamp: Date;
   /** Older turns were summarised before this reply (see types/conversation) */
   summary?: string;
+  /** That summary, to restore the model's view from */
+  capsule?: SavedCapsule;
 }
 
 export interface Conversation {
@@ -110,6 +119,8 @@ export interface ChatResult {
    * replaced by this summary before the reply (llama-server only)
    */
   summary?: string | null;
+  /** The same summary for the chat to save, so a restore need not redo it */
+  capsule?: SavedCapsule | null;
 }
 
 /**
@@ -179,7 +190,8 @@ export interface LlamaAPI {
   ) => Promise<{ success: boolean; error?: string }>;
   stopGeneration: () => Promise<{ success: boolean; error?: string }>;
   setSystemPrompt: (
-    prompt: string
+    prompt: string,
+    tools?: ToolDefinition[]
   ) => Promise<{ success: boolean; error?: string }>;
   getSystemPrompt: () => Promise<{
     success: boolean;

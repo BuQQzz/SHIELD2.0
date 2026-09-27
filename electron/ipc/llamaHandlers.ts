@@ -1,5 +1,6 @@
 import { ipcMain, BrowserWindow } from "electron";
 import { getModelRuntime } from "../../src/services/ModelRuntime.js";
+import type { ToolDefinition } from "../../src/types/prompts.js";
 
 /**
  * Register all Llama.cpp related IPC handlers
@@ -49,6 +50,7 @@ export function registerLlamaHandlers(
         stats: llamaService.getLastStats(),
         context: await llamaService.getContextUsage(),
         summary: llamaService.getLastSummary(),
+        capsule: llamaService.getLastCapsule(),
       };
     } catch (error) {
       return {
@@ -102,6 +104,7 @@ export function registerLlamaHandlers(
         stats: llamaService.getLastStats(),
         context: await llamaService.getContextUsage(),
         summary: llamaService.getLastSummary(),
+        capsule: llamaService.getLastCapsule(),
       };
     } catch (error) {
       console.error("[IPC] chatStreaming error:", error);
@@ -213,17 +216,20 @@ export function registerLlamaHandlers(
   });
 
   // Set system prompt
-  ipcMain.handle("llama:setSystemPrompt", async (_event, prompt: string) => {
-    try {
-      await llamaService.applySystemPrompt(prompt);
-      return { success: true };
-    } catch (error) {
-      return {
-        success: false,
-        error: error instanceof Error ? error.message : "Unknown error",
-      };
+  ipcMain.handle(
+    "llama:setSystemPrompt",
+    async (_event, prompt: string, tools?: ToolDefinition[]) => {
+      try {
+        await llamaService.applySystemPrompt(prompt, tools);
+        return { success: true };
+      } catch (error) {
+        return {
+          success: false,
+          error: error instanceof Error ? error.message : "Unknown error",
+        };
+      }
     }
-  });
+  );
 
   // Get system prompt
   ipcMain.handle("llama:getSystemPrompt", async () => {

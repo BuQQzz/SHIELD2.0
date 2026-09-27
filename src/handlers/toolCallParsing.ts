@@ -21,6 +21,14 @@ export interface ToolCallRequest {
 /** Set on the stand-in for a call the reply ended in the middle of */
 export const CUT_OFF_ERROR_PREFIX = "The tool call was cut off";
 
+/** Gemma 4's native tool markers are not part of SHIELD's XML tool protocol. */
+export const UNSUPPORTED_NATIVE_TOOL_CALL_MESSAGE =
+  "SHIELD could not run this tool request because the model used an unsupported native tool-call format. No tool call from this reply was executed.";
+
+export function hasUnsupportedNativeToolCall(content: string): boolean {
+  return /<\|tool_call>|<tool_call\|>/.test(content);
+}
+
 export interface ExtractToolCallOptions {
   enableOpenAIToolCalls?: boolean;
   enableXmlToolCalls?: boolean;
@@ -664,6 +672,9 @@ export function extractToolCalls(
   content: string,
   options: ExtractToolCallOptions = {}
 ): ToolCallRequest[] {
+  // A reply that mixes native Gemma markers with XML must not run its XML
+  // calls while leaving the native request unhandled.
+  if (hasUnsupportedNativeToolCall(content)) return [];
   // No logging here: the UI calls this while rendering, i.e. on every
   // streamed token. processMCPToolCalls logs the calls it actually runs.
   const enableOpenAIToolCalls = options.enableOpenAIToolCalls ?? true;
@@ -688,6 +699,9 @@ export function extractToolCalls(
  * like a bug even though the call itself never ran.
  */
 export function stripToolCallMarkup(content: string): string {
+  if (hasUnsupportedNativeToolCall(content)) {
+    return UNSUPPORTED_NATIVE_TOOL_CALL_MESSAGE;
+  }
   return (
     content
       // Well-formed calls
@@ -711,6 +725,17 @@ export function stripToolCallMarkup(content: string): string {
 const CALL_START =
   /<tool_call|<server>|<tool>|<name>|```json\s*\{\s*"tool_calls"/;
 
+/** Completed JSON calls are not unfinished calls, even without an XML closer. */
+function withoutCompleteOpenAICalls(content: string): string {
+  return content.replace(
+    /```(?:json)?\s*([\s\S]*?)```/gi,
+    (block: string, payload: string) =>
+      extractOpenAIToolCallsFromPayload(parseJson(payload)).length > 0
+        ? ""
+        : block
+  );
+}
+
 /**
  * What to show while a reply is still streaming.
  *
@@ -726,6 +751,13 @@ export function streamingToolCallPreview(content: string): {
   /** The call's path once written, so the UI can say "Writing app.js" */
   pendingTarget?: string;
 } {
+  if (hasUnsupportedNativeToolCall(content)) {
+    return { text: UNSUPPORTED_NATIVE_TOOL_CALL_MESSAGE, pendingTool: null };
+  }
+  // Native calls arrive as complete JSON envelopes. Exclude only parsed
+  // blocks, so a later incomplete JSON or XML request remains visible here.
+  content = withoutCompleteOpenAICalls(content);
+
   const CLOSE = "</tool_call>";
   const lastClose = content.lastIndexOf(CLOSE);
   const searchFrom = lastClose === -1 ? 0 : lastClose + CLOSE.length;
@@ -735,6 +767,7 @@ export function streamingToolCallPreview(content: string): {
     return {
       // A tag still being typed at the very end, e.g. "<tool_ca"
       text: stripToolCallMarkup(content)
+        .replace(/<\|tool[\w|]*$/i, "")
         .replace(/<[a-z_]*$/i, "")
         .trimEnd(),
       pendingTool: null,
@@ -772,6 +805,8 @@ export function streamingToolCallPreview(content: string): {
  * mentions a tag is not mistaken for one.
  */
 export function cutOffToolCall(content: string): ToolCallRequest | null {
+  if (hasUnsupportedNativeToolCall(content)) return null;
+  content = withoutCompleteOpenAICalls(content);
   const { pendingTool } = streamingToolCallPreview(content);
   if (pendingTool === null) return null;
 

@@ -3,6 +3,8 @@ import {
   buildSystemPrompt,
   generateMCPToolPrompt,
   generatePlanModePrompt,
+  generateNativeToolPrompt,
+  usesNativeToolCalling,
 } from "./systemPrompts";
 import type { SystemPromptConfig, ToolDefinition } from "../types/prompts";
 
@@ -91,6 +93,92 @@ describe("buildSystemPrompt tool section", () => {
     const occurrences = prompt.split("## 🔧 Available Tools").length - 1;
     expect(occurrences).toBe(1);
   });
+});
+
+describe("native Gemma tool prompts", () => {
+  const write: ToolDefinition = {
+    name: "edit_file",
+    description: "Edit a file",
+    serverName: "filesystem",
+  };
+
+  it("uses native functions without teaching XML or duplicating schemas", () => {
+    const { prompt, includedModules } = buildSystemPrompt({
+      ...baseConfig,
+      modelFamily: "gemma",
+      nativeTools: true,
+      availableTools: [...tools, write],
+      allowedPaths: ["C:\\work"],
+    });
+
+    expect(includedModules).toContain("native-tools");
+    expect(includedModules).not.toContain("mcp-tools");
+    expect(prompt).toContain("native function call");
+    expect(prompt).not.toContain("<tool_call>");
+    expect(prompt).not.toContain("Tool Call Format");
+    expect(prompt).not.toContain("Parameters:");
+    expect(prompt).toContain("Current Folder");
+    expect(prompt).toContain("C:\\work");
+    expect(prompt).toContain('"here"');
+    expect(prompt).toContain("oldText");
+    expect(prompt).toContain("newText");
+    expect(prompt).toContain("Never invent a tool result");
+    expect(prompt).toContain("untrusted data");
+  });
+
+  it("native Plan mode keeps reads available and never encourages a write call", () => {
+    const { prompt, includedModules } = buildSystemPrompt({
+      ...baseConfig,
+      modelFamily: "gemma",
+      nativeTools: true,
+      planOnly: true,
+      availableTools: [...tools, write],
+    });
+
+    expect(includedModules).toContain("plan-mode");
+    expect(prompt).toContain("Only read functions are available");
+    expect(prompt).toContain(
+      "Investigate with the available read functions first"
+    );
+    expect(prompt).toContain("Nothing you plan has happened");
+    expect(prompt).toContain("Do not attempt to call a function that writes");
+    expect(prompt).not.toContain("edit_file");
+    expect(prompt).not.toContain("<tool_call>");
+  });
+
+  it("retains the Plan guard when no read functions are available", () => {
+    const { prompt } = buildSystemPrompt({
+      ...baseConfig,
+      nativeTools: true,
+      planOnly: true,
+      availableTools: [write],
+    });
+
+    expect(prompt).toContain("Plan Mode");
+    expect(prompt).toContain("No read functions are currently available");
+    expect(prompt).not.toContain("edit_file");
+  });
+
+  it("keeps the legacy Qwen call format and omits native instructions with no tools", () => {
+    const legacy = buildSystemPrompt({ ...baseConfig, availableTools: tools });
+    expect(legacy.prompt).toContain("<tool_call>");
+    expect(legacy.includedModules).not.toContain("native-tools");
+    expect(generateNativeToolPrompt([])).toBe("");
+  });
+
+  it.each([
+    "Gemma-4-12B-it",
+    "Gemma 4 12B Instruct",
+    "google/gemma-4-12b-it",
+    "gemma4",
+  ])("enables native tools for %s", (name) =>
+    expect(usesNativeToolCalling(name)).toBe(true)
+  );
+
+  it.each(["Gemma 3 12B", "gemma-40-it", "gemma-4b-it", "Qwen3-Coder", ""])(
+    "does not enable native tools for %s",
+    (name) => expect(usesNativeToolCalling(name)).toBe(false)
+  );
 });
 
 describe("generateMCPToolPrompt", () => {

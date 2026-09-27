@@ -16,7 +16,7 @@ import type { ToolDefinition, ToolParameter } from "@/types/prompts";
 interface MCPToolSchema {
   name?: string;
   description?: string;
-  inputSchema?: {
+  inputSchema?: Record<string, unknown> & {
     properties?: Record<string, unknown>;
     required?: string[];
   };
@@ -68,7 +68,7 @@ export function describeArrayItems(schema: Record<string, unknown>): string {
   return `Each item: {${fields.join(", ")}}`;
 }
 
-function toToolDefinition(
+export function toToolDefinition(
   serverName: string,
   tool: MCPToolSchema
 ): ToolDefinition | null {
@@ -103,6 +103,7 @@ function toToolDefinition(
     description: tool.description ?? "",
     serverName,
     parameters,
+    ...(tool.inputSchema ? { inputSchema: tool.inputSchema } : {}),
     // Carried through so the classifier can prefer the server's own claim
     // over our local list. No server supplies this yet.
     ...(typeof tool.annotations?.readOnlyHint === "boolean"

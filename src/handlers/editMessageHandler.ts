@@ -74,6 +74,7 @@ export function createEditMessageHandler(props: EditMessageHandlerProps) {
         content: finalContent,
         timestamp: new Date(),
         summary: useGenerationStore.getState().lastSummary ?? undefined,
+        capsule: useGenerationStore.getState().lastCapsule ?? undefined,
       };
 
       props.setMessages((prev) => [...prev, finalMessage]);
@@ -136,6 +137,7 @@ export function createRegenerateMessageHandler(props: EditMessageHandlerProps) {
         content: finalContent,
         timestamp: new Date(),
         summary: useGenerationStore.getState().lastSummary ?? undefined,
+        capsule: useGenerationStore.getState().lastCapsule ?? undefined,
       };
 
       props.setMessages((prev) => [...prev, finalMessage]);

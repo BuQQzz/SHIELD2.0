@@ -20,6 +20,11 @@ import {
 import { chooseInstalledFile, findGgufFiles } from "./modelFiles.js";
 import { planContext, type ContextPlan } from "./contextPlanner.js";
 import { generateConversationTitle } from "./titleGenerator.js";
+import { NativeChatSession } from "./NativeChatSession.js";
+import { Gemma4ToolChatWrapper } from "./Gemma4ToolChatWrapper.js";
+import type { ToolDefinition } from "../types/prompts.js";
+import type { NativeToolResult } from "../types/nativeTools.js";
+import { buildNativeTools } from "./nativeTools.js";
 import {
   breakDownContext,
   type ContextBreakdown,
@@ -59,6 +64,8 @@ export interface ChatOptions {
   /** What the engine is doing, as it happens: for the chat's live status */
   onProgress?: (progress: ChatProgress) => void;
   signal?: AbortSignal;
+  /** Results of native calls approved and executed by the renderer. */
+  toolResults?: NativeToolResult[];
 }
 
 /**
@@ -104,6 +111,8 @@ export class LlamaService {
   private model: LlamaModel | null = null;
   private context: LlamaContext | null = null;
   private session: LlamaChatSession | null = null;
+  private nativeSession: NativeChatSession | null = null;
+  private nativeTools: ToolDefinition[] = [];
   private currentModelConfig: ModelConfig | null = null;
   private currentAbortController: AbortController | null = null;
   private lastStats: GenerationStats | null = null;
@@ -159,36 +168,38 @@ export class LlamaService {
 
   /**
    * Set the system prompt for the AI assistant
-   * Applies immediately by recreating the session while preserving chat history
+   * Applies immediately while preserving chat history and its active sequence
    */
-  async setSystemPrompt(prompt: string): Promise<void> {
+  async setSystemPrompt(
+    prompt: string,
+    tools?: ToolDefinition[]
+  ): Promise<void> {
+    const toolsChanged =
+      tools !== undefined &&
+      JSON.stringify(tools) !== JSON.stringify(this.nativeTools);
+    if (prompt === this.systemPrompt && !toolsChanged) return;
     this.systemPrompt = prompt;
+    if (tools !== undefined) this.nativeTools = tools;
+    if (this.session?.chatWrapper instanceof Gemma4ToolChatWrapper) {
+      this.session.chatWrapper.setAvailableFunctions(
+        buildNativeTools(this.nativeTools).functions
+      );
+    }
 
     // Apply immediately if we have an active session
     if (this.context && this.session && this.model) {
+      this.nativeSession?.cancelPending();
       // Save current chat history, minus the old system message - restoring it
       // verbatim would immediately overwrite the prompt we are setting here.
       const currentHistory = this.session
         .getChatHistory()
         .filter((item) => item.type !== "system");
 
-      // Resolve chat wrapper from model to maintain correct template format
-      const chatWrapper = resolveChatWrapper(this.model);
-
-      // Recreate session with new system prompt
-      this.session = new LlamaChatSession({
-        contextSequence: this.context.getSequence(),
-        chatWrapper,
-        systemPrompt: this.systemPrompt,
-      });
-
       // Restore chat history re-anchored on the new system prompt
-      if (currentHistory.length > 0) {
-        this.session.setChatHistory([
-          { type: "system", text: this.systemPrompt },
-          ...currentHistory,
-        ]);
-      }
+      this.session.setChatHistory([
+        { type: "system", text: this.systemPrompt },
+        ...currentHistory,
+      ]);
     }
   }
 
@@ -310,12 +321,15 @@ export class LlamaService {
     // Create chat session with system prompt
     // Explicitly resolve chat wrapper from model's GGUF metadata to ensure
     // correct template format (Llama, Qwen, Mistral, etc.) is used
-    const chatWrapper = resolveChatWrapper(this.model);
+    const chatWrapper = config.id.startsWith("gemma-4-")
+      ? new Gemma4ToolChatWrapper()
+      : resolveChatWrapper(this.model);
 
     // Create context sequence with optional speculative decoding
-    // InputLookupTokenPredictor speeds up generation for input-grounded tasks
-    // (code modification, summarization, etc.) by predicting tokens from input
-    const useSpeculativeDecoding = config.speculativeDecoding ?? true;
+    // Input lookup helps some input-grounded tasks, but slows Gemma 4 down
+    // substantially on the supported CUDA runtime. Keep an explicit override.
+    const useSpeculativeDecoding =
+      config.speculativeDecoding ?? !config.id.startsWith("gemma-4-");
     const contextSequence = this.context.getSequence({
       tokenPredictor: useSpeculativeDecoding
         ? new InputLookupTokenPredictor({
@@ -429,42 +443,103 @@ export class LlamaService {
 
     // Create abort controller for this request
     this.currentAbortController = new AbortController();
-    const signal = options.signal || this.currentAbortController.signal;
+    const signal = options.signal
+      ? AbortSignal.any([options.signal, this.currentAbortController.signal])
+      : this.currentAbortController.signal;
 
     const sequence = this.session.sequence;
     const outputTokensBefore = sequence.tokenMeter.usedOutputTokens;
     const inputTokensBefore = sequence.tokenMeter.usedInputTokens;
     const startedAt = performance.now();
     let firstTokenAt: number | null = null;
+    let streamedVisible = "";
+    let unsupportedNativeCall = false;
 
     try {
       console.log("[LlamaService] Starting inference...");
-      const response = await this.session.prompt(message, {
+      const maxTokens = options.maxTokens ?? 512;
+      // Gemma 4's wrapper enables thought segments by default. Without a
+      // budget it can spend the whole reply in hidden thought, leaving the
+      // user with no answer after a long generation.
+      const isGemma4 = this.currentModelConfig?.id.startsWith("gemma-4-");
+      const useNativeTools = isGemma4 && this.nativeTools.length > 0;
+      if (options.toolResults !== undefined && !useNativeTools) {
+        throw new Error(
+          "Native tool results cannot be used by the current model."
+        );
+      }
+      const reportProgress = () => {
+        firstTokenAt ??= performance.now();
+        if (options.onProgress) {
+          const generated =
+            sequence.tokenMeter.usedOutputTokens - outputTokensBefore;
+          const seconds = (performance.now() - firstTokenAt) / 1000;
+          options.onProgress({
+            phase: "writing",
+            generated,
+            tokensPerSecond: seconds > 0 ? generated / seconds : 0,
+            contextUsed: sequence.nextTokenIndex,
+          });
+        }
+      };
+      const promptOptions = {
         temperature: options.temperature ?? 0.7,
-        maxTokens: options.maxTokens ?? 512,
+        maxTokens,
         topP: options.topP ?? 0.9,
         topK: options.topK ?? 40,
         repeatPenalty: options.repeatPenalty
           ? { penalty: options.repeatPenalty }
           : { penalty: 1.1 },
+        ...(isGemma4
+          ? {
+              budgets: {
+                thoughtTokens: Math.max(
+                  1,
+                  Math.min(512, Math.floor(maxTokens / 4))
+                ),
+              },
+            }
+          : {}),
         // No per-token logging: at 10-50 tokens/s it drowned the log
         onTextChunk: (chunk: string) => {
-          firstTokenAt ??= performance.now();
+          streamedVisible += chunk;
           options.onToken?.(chunk);
-          if (options.onProgress) {
-            const generated =
-              sequence.tokenMeter.usedOutputTokens - outputTokensBefore;
-            const seconds = (performance.now() - firstTokenAt) / 1000;
-            options.onProgress({
-              phase: "writing",
-              generated,
-              tokensPerSecond: seconds > 0 ? generated / seconds : 0,
-              contextUsed: sequence.nextTokenIndex,
-            });
+          reportProgress();
+          // A raw marker means the native bridge did not capture this call
+          // (for example, tools are disabled). Never pass it off as executed.
+          if (
+            isGemma4 &&
+            !useNativeTools &&
+            streamedVisible.includes("<|tool_call>")
+          ) {
+            unsupportedNativeCall = true;
+            this.currentAbortController?.abort();
           }
         },
+        // onTextChunk excludes Gemma thought segments. Keep the live token
+        // counter moving while thought is hidden from the visible reply.
+        onResponseChunk: reportProgress,
         signal,
-      });
+      };
+      let result: { responseText: string; stopReason: string };
+      if (useNativeTools) {
+        this.nativeSession ??= new NativeChatSession(this.session);
+        result = await this.nativeSession.prompt(
+          message,
+          this.nativeTools,
+          {
+            ...promptOptions,
+            budgets: {
+              ...promptOptions.budgets,
+              includeCurrentResponse: true,
+            },
+          },
+          options.toolResults
+        );
+      } else {
+        result = await this.session.promptWithMeta(message, promptOptions);
+      }
+      const response = result.responseText;
 
       const endedAt = performance.now();
       const outputTokens =
@@ -485,10 +560,18 @@ export class LlamaService {
           `${this.lastStats.tokensPerSecond.toFixed(1)} tok/s, ` +
           `first token after ${readingSeconds.toFixed(1)}s, ` +
           `input ${sequence.tokenMeter.usedInputTokens - inputTokensBefore} tokens, ` +
-          `context ${sequence.nextTokenIndex}/${sequence.contextSize}`
+          `context ${sequence.nextTokenIndex}/${sequence.contextSize}, ` +
+          `stop ${result.stopReason}, visible ${response.length} chars`
       );
       return response;
     } catch (error) {
+      if (unsupportedNativeCall) {
+        console.warn(
+          `[LlamaService] Stopped unsupported Gemma 4 native tool call after ` +
+            `${sequence.tokenMeter.usedOutputTokens - outputTokensBefore} output tokens`
+        );
+        return streamedVisible;
+      }
       console.error("[LlamaService] Chat error:", error);
       throw error;
     } finally {
@@ -524,6 +607,8 @@ export class LlamaService {
    * Preserves the current system prompt
    */
   setChatHistory(messages: ChatMessage[]): void {
+    this.nativeSession?.dispose();
+    this.nativeSession = null;
     if (this.session) {
       this.session.setChatHistory(this.buildSessionHistory(messages));
     }
@@ -561,6 +646,8 @@ export class LlamaService {
    * Clear chat history
    */
   clearHistory(): void {
+    this.nativeSession?.dispose();
+    this.nativeSession = null;
     if (this.session) {
       // Clear the conversation but keep the system prompt in place
       this.session.setChatHistory(this.buildSessionHistory([]));
@@ -569,28 +656,20 @@ export class LlamaService {
 
   /**
    * Apply updated system prompt to current session
-   * Recreates the chat session with new system prompt while preserving context
+   * Preserve the session and context while changing the prompt or native tools
    */
-  async applySystemPrompt(prompt: string): Promise<void> {
-    this.systemPrompt = prompt;
-
-    if (this.context && this.model) {
-      // Resolve chat wrapper from model to maintain correct template format
-      const chatWrapper = resolveChatWrapper(this.model);
-
-      // Recreate session with new system prompt
-      this.session = new LlamaChatSession({
-        contextSequence: this.context.getSequence(),
-        chatWrapper,
-        systemPrompt: this.systemPrompt,
-      });
-    }
+  async applySystemPrompt(
+    prompt: string,
+    tools?: ToolDefinition[]
+  ): Promise<void> {
+    await this.setSystemPrompt(prompt, tools);
   }
 
   /**
    * Stop the current generation
    */
   stopGeneration(): void {
+    this.nativeSession?.cancelPending();
     if (this.currentAbortController) {
       this.currentAbortController.abort();
       this.currentAbortController = null;
@@ -627,7 +706,13 @@ export class LlamaService {
 
     // Exactly what the next prompt would load, template tokens included
     const rendered = this.session.chatWrapper
-      .generateContextState({ chatHistory })
+      .generateContextState({
+        chatHistory,
+        ...(this.currentModelConfig?.id.startsWith("gemma-4-") &&
+        this.nativeTools.length > 0
+          ? { availableFunctions: buildNativeTools(this.nativeTools).functions }
+          : {}),
+      })
       .contextText.tokenize(model.tokenizer).length;
 
     const history: HistoryItem[] = chatHistory.map((item): HistoryItem => {
@@ -679,6 +764,8 @@ export class LlamaService {
    */
   async cleanup(): Promise<void> {
     const { context, model } = this;
+    this.nativeSession?.dispose();
+    this.nativeSession = null;
     this.session = null;
     this.context = null;
     this.model = null;
@@ -707,8 +794,24 @@ export class LlamaService {
     if (!this.session) {
       throw new Error("No active session");
     }
-
-    return generateConversationTitle(this.session, userMessage);
+    const session = this.session;
+    const history = session.getChatHistory();
+    const wrapper = session.chatWrapper;
+    if (wrapper instanceof Gemma4ToolChatWrapper) {
+      wrapper.setAvailableFunctions({});
+    }
+    try {
+      return await generateConversationTitle(session, userMessage);
+    } finally {
+      // Titles are metadata. Keep their extra prompt/reply out of the user's
+      // conversation and out of a pending native tool turn.
+      session.setChatHistory(history);
+      if (wrapper instanceof Gemma4ToolChatWrapper) {
+        wrapper.setAvailableFunctions(
+          buildNativeTools(this.nativeTools).functions
+        );
+      }
+    }
   }
 
   /**

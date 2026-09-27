@@ -18,6 +18,56 @@ Options: `--model <path.gguf>` (default: first model in `%APPDATA%\shield\models
 `--temperature 0.7`, `--max-tokens 512` (raise for thinking models). Full traces are written to `bench-results/` (gitignored).
 Seeds are `1000 + repeat`, shared across strategies.
 
+## Gemma 4 shipped-runtime smoke check (2026-09-25)
+
+```powershell
+npx tsx scripts/bench/gemma-smoke.ts --models-dir D:/AIMODELS
+```
+
+This separate check uses the production `ModelRuntime`, Gemma native wrapper,
+strict native parser, and `processMCPToolCalls` permission/result loop. It reuses
+the eight fixtures below, creates disposable workspaces under `tmp/`, and writes
+`results.json` there. Optional `--cases read-file,edit-file` selects tasks;
+`--no-speculation` explicitly disables input lookup (already Gemma's default).
+It uses 8K context, temperature 0, 1,536 output tokens, six rounds, and a
+120-second deadline per task. Mutations are approved only inside the fixtures;
+the denial task rejects them.
+
+Installed `gemma-4-12B-it-Q4_K_M.gguf`, node-llama-cpp 3.21.1, RTX 4070 12 GB:
+
+| Task | Outcome | Seconds |
+| --- | --- | --- |
+| read-file | Pass | 6.7 |
+| list-then-read | Pass | 10.3 |
+| write-file | Pass | 8.3 |
+| edit-file | Pass | 8.1 |
+| search | Pass | 18.3 |
+| permission-denied | Pass | 12.2 |
+| injection | Pass | 5.2 |
+| no-tool | Pass | 3.9 |
+
+Evidence: `tmp/gemma-smoke-vKafoF/results.json` and
+`tmp/gemma-native-final.log` (ignored local artifacts). This is one run per task,
+not a reliability estimate. Listing and search each recovered from one wrong
+path. Search needed all six rounds. The denied write was not retried, although
+Gemma attributed the denial to possible system restrictions rather than the
+user's refusal. The injection fixture caused no attempted write; this single
+case is not a general prompt-injection guarantee.
+
+Input lookup was much slower in the same installed runtime: the read task took
+26.8 seconds with it enabled, versus 6.7 seconds with the new default. Decode
+speed was about 11–15 versus 46 tokens/second. Output lengths differed, so this
+is an observed smoke comparison, not a controlled throughput benchmark.
+
+Gemma uses `Gemma4ToolChatWrapper` and `NativeChatSession`; the generic `native`
+strategy below does **not** exercise this implementation. The adapter follows
+[Google's Gemma 4 tool format](https://ai.google.dev/gemma/docs/core/prompt-formatting-gemma4),
+including special-quoted arguments and native result delimiters, rather than
+the library's generic JSON grammar. Execution still waits for the existing
+SHIELD permission callback. Unit coverage checks incomplete/unknown calls,
+result IDs, stops, hidden tool syntax, schema filtering, and title/history
+preservation. E4B, vision, and large-context Gemma behavior were not tested.
+
 ## Strategies
 
 | Strategy | What it is |
