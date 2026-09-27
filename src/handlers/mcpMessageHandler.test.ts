@@ -567,6 +567,32 @@ describe("repeated calls within a turn", () => {
     expect(second).toContain("a.md");
   });
 
+  it("ends the turn when the model keeps repeating a call", async () => {
+    // Gemma, thinking off: one mistyped listing, 20 times (2026-09-26)
+    const onToolCallDetected = vi
+      .fn()
+      .mockResolvedValue({ success: false, error: "Access denied" });
+    const continueConversation = vi.fn().mockResolvedValue(listing);
+    const added: { content: string }[] = [];
+
+    await processMCPToolCalls(
+      { id: "s", role: "assistant", content: listing, timestamp: new Date() },
+      {
+        onToolCallDetected,
+        addMessage: (message) => added.push(message),
+        continueConversation,
+      }
+    );
+
+    expect(onToolCallDetected).toHaveBeenCalledTimes(1);
+    // The first call, then three answers from memory: the model is not
+    // asked a fourth time
+    expect(continueConversation).toHaveBeenCalledTimes(3);
+    expect(added.at(-1)?.content).toContain(
+      "kept repeating the same step (list_directory C:/notes)"
+    );
+  });
+
   it("runs a read again after something changed", async () => {
     const read = call("read_file", '{"path":"C:/a.txt"}');
     const write = call("write_file", '{"path":"C:/a.txt","content":"new"}');

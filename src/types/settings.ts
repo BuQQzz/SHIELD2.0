@@ -18,6 +18,12 @@ export interface ModelSettings {
   lastModelId?: string;
   maxTokens: number;
   speculativeDecoding: boolean; // Use input lookup token prediction for faster inference
+  /**
+   * Use the sampling the loaded model recommends (its file, else SHIELD's
+   * catalog) instead of temperature/topP/topK/repeatPenalty above. Absent
+   * means on.
+   */
+  useModelSampling?: boolean;
 }
 
 export interface SystemSettings {

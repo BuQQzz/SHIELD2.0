@@ -15,7 +15,7 @@ vi.mock("node-llama-cpp", async (importOriginal) => ({
   },
 }));
 
-const { LlamaService } = await import("./LlamaService");
+const { LlamaService, gemmaThoughtBudget } = await import("./LlamaService");
 
 describe("LlamaService.cleanup", () => {
   it("frees the model even when freeing the context fails", async () => {
@@ -79,8 +79,10 @@ describe("LlamaService.chat", () => {
       })
     ).resolves.toBe("<|tool_call>call:");
 
+    // Per reply, and room to finish a thought (2026-09-26)
     expect(promptWithMeta.mock.calls[0]?.[1].budgets).toEqual({
-      thoughtTokens: 512,
+      thoughtTokens: 2048,
+      includeCurrentResponse: false,
     });
     expect(onProgress).toHaveBeenCalledWith(
       expect.objectContaining({ phase: "writing", generated: 10 })
@@ -134,9 +136,10 @@ describe("LlamaService.chat", () => {
     ]);
     native.generateResponse.mockImplementationOnce(
       async (currentHistory, options) => {
+        // Counted per reply: over a turn's rounds it ran out by the third
         expect(options.budgets).toEqual({
-          thoughtTokens: 128,
-          includeCurrentResponse: true,
+          thoughtTokens: 256,
+          includeCurrentResponse: false,
         });
         sequence.tokenMeter.usedOutputTokens = 20;
         options.onResponseChunk();
@@ -223,5 +226,13 @@ describe("LlamaService.chat", () => {
       "Reading project files"
     );
     expect(history).toEqual(original);
+  });
+});
+
+describe("gemmaThoughtBudget", () => {
+  it("leaves half the reply for the answer, up to 2,048 tokens of thought", () => {
+    expect(gemmaThoughtBudget(8192)).toBe(2048);
+    expect(gemmaThoughtBudget(2048)).toBe(1024);
+    expect(gemmaThoughtBudget(1)).toBe(1);
   });
 });

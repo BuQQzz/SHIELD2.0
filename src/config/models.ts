@@ -8,6 +8,8 @@
  * hand-arranged collection.
  */
 
+import type { SamplingValues } from "../services/modelSampling";
+
 /**
  * Model Capabilities
  * Defines what features each model supports
@@ -113,6 +115,11 @@ export interface ModelMetadata {
   files: ModelFile[];
   /** Requires HuggingFace authentication (gated model) */
   requiresAuth?: boolean;
+  /**
+   * Sampling its makers recommend, for a model whose file does not say
+   * (general.sampling in the GGUF comes first)
+   */
+  sampling?: Partial<SamplingValues>;
 }
 
 export interface ModelFamilyEntry {
@@ -200,6 +207,13 @@ export const MODEL_FAMILIES: ModelFamilyEntry[] = [
         chatTemplate: "qwen",
         roles: ["agent", "coding"],
         runtime: "llama-server",
+        // Qwen's model card; its GGUF carries no sampling
+        sampling: {
+          temperature: 0.7,
+          topP: 0.8,
+          topK: 20,
+          repeatPenalty: 1.05,
+        },
         files: [
           {
             name: "Qwen3-Coder-30B-A3B-Instruct-Q4_K_M.gguf",

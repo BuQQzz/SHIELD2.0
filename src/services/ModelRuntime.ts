@@ -13,7 +13,9 @@
 import { execFileSync } from "child_process";
 import fs from "fs";
 import path from "path";
+import { readGgufFileInfo } from "node-llama-cpp";
 import { getModelById } from "../config/models.js";
+import { samplingFromGguf, type RecommendedSampling } from "./modelSampling.js";
 import { planServerContext, type ContextPlan } from "./contextPlanner.js";
 import {
   assessMemory,
@@ -44,6 +46,7 @@ export class ModelRuntime {
   private serverModel: ModelConfig | null = null;
   private requestedServerContext: number | undefined;
   private serverPlans = new Map<string, Promise<ContextPlan>>();
+  private samplings = new Map<string, Promise<RecommendedSampling | null>>();
   private pidFile: string | undefined;
   /** Estimated memory of the loaded model; freed before the next load */
   private held: MemoryNeed | undefined;
@@ -174,6 +177,36 @@ export class ModelRuntime {
       this.serverPlans.set(modelPath, plan);
     }
     return plan;
+  }
+
+  /**
+   * The sampling a library model recommends: its GGUF's general.sampling,
+   * else the catalog's (Qwen3-Coder's file has none), else null.
+   */
+  getRecommendedSampling(modelId: string): Promise<RecommendedSampling | null> {
+    let found = this.samplings.get(modelId);
+    if (!found) {
+      found = this.node
+        .resolveModelPath(modelId)
+        .then((modelPath) =>
+          readGgufFileInfo(modelPath, { readTensorInfo: false })
+        )
+        // Read from the file, though node-llama-cpp's types leave it out
+        .then((info) =>
+          samplingFromGguf(
+            (info.metadata.general as { sampling?: unknown } | undefined)
+              ?.sampling
+          )
+        )
+        .catch(() => null)
+        .then((fromFile) => {
+          if (fromFile) return fromFile;
+          const catalog = getModelById(modelId)?.sampling;
+          return catalog ? { source: "catalog" as const, ...catalog } : null;
+        });
+      this.samplings.set(modelId, found);
+    }
+    return found;
   }
 
   chat(message: string, options: ChatOptions = {}): Promise<string> {

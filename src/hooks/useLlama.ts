@@ -9,6 +9,7 @@ import type {
   SearchResult,
 } from "../types/electron";
 import { useGenerationStore } from "../store/generationStore";
+import { LOOP_NOTE, LoopGuard } from "../utils/loopGuard";
 
 export interface Message {
   id: string;
@@ -269,9 +270,20 @@ export function useLlama() {
       console.log("[useLlama] Options:", JSON.stringify(options));
 
       setError(null);
+      // A reply that repeats itself is stopped like the Stop button, with a
+      // note: otherwise it runs to the token limit, minutes on a local model
+      const guard = new LoopGuard();
       try {
         // No per-token or full-response logging: both flooded the console
-        const unsubscribe = window.llama.onToken(onToken);
+        const unsubscribe = window.llama.onToken((token) => {
+          onToken(token);
+          if (guard.push(token)) {
+            console.warn("[useLlama] The reply is repeating itself; stopping");
+            onToken(LOOP_NOTE);
+            useGenerationStore.getState().setStopRequested(true);
+            void window.llama.stopGeneration();
+          }
+        });
         const { setProgress } = useGenerationStore.getState();
         const unsubscribeProgress = window.llama.onProgress(
           throttleProgress(setProgress)
@@ -294,7 +306,10 @@ export function useLlama() {
               result.summary,
               result.capsule
             );
-          return result.response;
+          // llama-server returns what it had when stopped, without the note
+          return guard.hasTripped
+            ? `${result.response}${LOOP_NOTE}`
+            : result.response;
         } else {
           console.error("[useLlama] Failed:", result.error);
           throw new Error(result.error || "Failed to get response");

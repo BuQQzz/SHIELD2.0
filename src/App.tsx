@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useEffect, Suspense } from "react";
+import { useState, useRef, useEffect, useMemo, Suspense } from "react";
 import { ChatLayout } from "./components/chat/ChatLayout";
 import { Sidebar } from "./components/chat/Sidebar";
 import { ChatHeader } from "./components/chat/ChatHeader";
@@ -24,6 +24,8 @@ import { useMCPSystemPrompt } from "./hooks/useMCPSystemPrompt";
 import { useMCPTools } from "./hooks/useMCPTools";
 import { useToolPolicy } from "./hooks/useToolPolicy";
 import { useInstalledModels } from "./hooks/useInstalledModels";
+import { useRecommendedSampling } from "./hooks/useRecommendedSampling";
+import { effectiveSampling } from "./services/modelSampling";
 import { useChatStore } from "./stores/chat-store";
 import { ModelLibraryPage } from "./components/library/ModelLibraryPage";
 import { PluginsPage } from "./components/plugins/PluginsPage";
@@ -199,6 +201,27 @@ function App() {
     installedModels,
   });
 
+  // The loaded model's own sampling, unless the user turned that off:
+  // SHIELD's one global setting did not suit every model (2026-09-26)
+  const recommendedSampling = useRecommendedSampling(
+    isModelLoaded ? currentModelId : null
+  );
+  // Tool calls copy paths exactly: a recommended temperature is capped then
+  const toolsAvailable =
+    settings.mcp.enabled && isMCPReady && toolPolicy.advertisedTools.length > 0;
+  const modelSettings = useMemo(
+    () =>
+      settings.model.useModelSampling === false
+        ? settings.model
+        : {
+            ...settings.model,
+            ...effectiveSampling(settings.model, recommendedSampling, {
+              toolsAvailable,
+            }),
+          },
+    [settings.model, recommendedSampling, toolsAvailable]
+  );
+
   // App handlers hook
   const {
     handleSendMessage,
@@ -214,7 +237,7 @@ function App() {
     currentConversation,
     messages,
     streamingContentRef,
-    modelSettings: settings.model,
+    modelSettings,
     inputRef,
     currentModelId,
     setMessages,

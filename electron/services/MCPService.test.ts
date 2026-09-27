@@ -150,6 +150,38 @@ describe("resolveToolPaths", () => {
     expect(out.pattern).toBe("*.md");
   });
 
+  // Gemma wrote "...\WiFi\diag.ps1" for the folder "wifi" (2026-09-26)
+  it("gives a path inside the workspace the workspace's own capitals", () => {
+    const upper = workspace.replace(/app$/, "APP");
+    const out = resolveToolPaths(
+      { path: path.join(upper, "diag.ps1"), paths: [upper] },
+      workspace,
+      true
+    );
+    expect(out.path).toBe(path.join(workspace, "diag.ps1"));
+    expect(out.paths).toEqual([workspace]);
+    expect(
+      validateFilesystemPath(out, {
+        ...OFFICIAL_MCP_SERVERS.filesystem!,
+        allowedPaths: [workspace],
+      }).success
+    ).toBe(true);
+  });
+
+  it("leaves capitals alone where names are case-sensitive", () => {
+    const upper = path.join(workspace.replace(/app$/, "APP"), "x.txt");
+    expect(resolveToolPaths({ path: upper }, workspace, false).path).toBe(
+      upper
+    );
+  });
+
+  it("does not respell a folder that only starts like the workspace", () => {
+    const sibling = `${workspace.replace(/app$/, "APP")}-old${path.sep}x.txt`;
+    expect(resolveToolPaths({ path: sibling }, workspace, true).path).toBe(
+      sibling
+    );
+  });
+
   it("still denies a relative path that climbs out of the workspace", () => {
     const resolved = resolveToolPaths({ path: "../../secret" }, workspace);
     const result = validateFilesystemPath(resolved, {

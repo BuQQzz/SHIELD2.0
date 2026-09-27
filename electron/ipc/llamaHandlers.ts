@@ -135,6 +135,24 @@ export function registerLlamaHandlers(
     }
   });
 
+  // The sampling a library model's file (or SHIELD's catalog) recommends
+  ipcMain.handle(
+    "llama:getRecommendedSampling",
+    async (_event, modelId: string) => {
+      try {
+        return {
+          success: true,
+          sampling: await llamaService.getRecommendedSampling(modelId),
+        };
+      } catch (error) {
+        return {
+          success: false,
+          error: error instanceof Error ? error.message : "Unknown error",
+        };
+      }
+    }
+  );
+
   // Context sizes for a library model and how much stays on the GPU
   ipcMain.handle("llama:getContextPlan", async (_event, modelId: string) => {
     try {

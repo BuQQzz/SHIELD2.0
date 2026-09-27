@@ -50,6 +50,9 @@ export interface MCPMessageHandlerProps {
   isStopped?: () => boolean;
 }
 
+/** Answers from memory to one call before the turn is ended */
+const MAX_REPEATS = 3;
+
 /** A repeat of a result this long is not sent again - see below */
 const REPEAT_RESEND_LIMIT = 1500;
 
@@ -200,6 +203,11 @@ export async function processMCPToolCalls(
   // Any change to the machine clears it, so reading a file again after
   // editing it still re-reads.
   const completedCalls = new Map<string, MCPToolResult>();
+  // How often each call was answered from there. Past MAX_REPEATS the
+  // model is stuck: Gemma sent one mistyped list_directory 20 times in a
+  // row, past every "you already made this call" (2026-09-26)
+  const repeats = new Map<string, number>();
+  let stuckOn: ToolCallRequest | null = null;
 
   // Complete calls, plus a stand-in for one the reply stopped in the middle
   // of, so a reply that hits the token limit mid-call does not end the turn
@@ -259,6 +267,9 @@ export async function processMCPToolCalls(
           `[MCP] Repeated call answered from this turn: ${signature}`
         );
         result = previous;
+        const count = (repeats.get(signature) ?? 0) + 1;
+        repeats.set(signature, count);
+        if (count >= MAX_REPEATS) stuckOn = toolCall;
       } else {
         result = await runToolCall(toolCall, onToolCallDetected);
         completedCalls.set(signature, result);
@@ -311,6 +322,19 @@ export async function processMCPToolCalls(
     // Stop may arrive while a permission dialog or tool is awaited. Keep
     // its result in the visible history, but never restart generation.
     if (isStopped?.()) break;
+
+    if (stuckOn) {
+      console.warn(
+        `[MCP] ${describeCall(stuckOn)} repeated ${MAX_REPEATS} times; ending the turn`
+      );
+      addMessage({
+        id: `${Date.now()}-tool-repeats`,
+        role: "assistant",
+        content: `Stopped: the model kept repeating the same step (${describeCall(stuckOn)}) instead of using its result. Try rephrasing the request or giving the exact file or folder.`,
+        timestamp: new Date(),
+      });
+      break;
+    }
 
     const isFinalRound = round === maxToolRounds;
     const nextStepInstruction = isFinalRound

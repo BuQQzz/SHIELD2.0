@@ -1,27 +1,89 @@
 # SHIELD — Session Handoff
 
-**Last session:** 2026-09-25 (previous: 2026-09-22 → 2026-09-24)
-**Branch:** `feat/model-library`, 65 commits ahead of `main`; it contains `chore/dependency-refresh` and `feat/mcp-permission-modes`. Nothing is merged to `main`.
-**Tests:** 558 passing (`npx vitest run`) · `npm run build`, ESLint and Prettier clean on changed source files
+**Last session:** 2026-09-26 → 27 (previous: 2026-09-22 → 2026-09-25)  
+**Branch:** `feat/model-library`, 68 commits ahead of `main`; it contains `chore/dependency-refresh` and `feat/mcp-permission-modes`. Nothing is merged to `main`. All work is committed (not pushed; the user pushes).  
+**Tests:** 589 passing (`npx vitest run`) · `npm run build`, ESLint and Prettier clean on changed source files
 
-**Tested in the app with:** Qwen3-Coder-30B-A3B Q4_K_M on an RTX 4070 (12 GB), SHIELD-managed llama-server at 32K (and 8K to force summaries)
+**Tested in the app with:** Qwen3-Coder-30B-A3B Q4_K_M on an RTX 4070 (12 GB), SHIELD-managed llama-server at 32K (and 8K to force summaries); Gemma 4 12B at 32K (2026-09-26)
 
-**Gemma 4:** native tool support is implemented in the working tree. All eight live runtime checks pass on the installed 12B Q4_K_M at 8K; see the update and [benchmark evidence](./testing/AGENT_BENCHMARK.md#gemma-4-shipped-runtime-smoke-check-2026-09-25).
+**Gemma 4:** native tools work in the app. Its thinking budget and sampling broke multi-step tool tasks; fixed and tried in the app, see the 2026-09-26 evening update. The user plans to keep Gemma to chat and simple tasks and Qwen3-Coder for coding.
 
 Read this first, then [SHIELD_AGENT_ARCHITECTURE.md](./SHIELD_AGENT_ARCHITECTURE.md) (§13 priorities, §17 decision log, §20 evidence) and [testing/AGENT_BENCHMARK.md](./testing/AGENT_BENCHMARK.md).
 
 ---
 
-## Next session — start here (todos from 2026-09-25)
+## Next session — start here (todos from 2026-09-25, updated 2026-09-27)
 
-The user will pick these up in a new session. Suggested order; each stands on its own. Background for all of them is in the update below.
+Order agreed with the user on 2026-09-26: the Code view, then the terminal, then the recall tool. Background is in the updates below.
 
-- [ ] **Finish Gemma desktop verification first.** Paused at the user's request on 2026-09-25. Runtime implementation, eight live filesystem checks, 558 tests, build, and source checks passed. Still run the isolated Electron check in `tmp/gemma-ui-check.mjs`: load Gemma, approve a read, deny a write, reload and reopen the saved chat, then verify a fresh follow-up answer. Fixtures/bootstrap/profile are under `tmp/gemma-ui`; the harness must inspect the new persisted assistant reply, not old sidebar text. No UI/model run is in progress. The regular dev app was stopped for the main-process edits and has not been restarted. After verification, reopen it with `npm run dev:electron`. All changes remain local and uncommitted; preserve the prior saved-capsule work.
+- [ ] **Code view, separate from Chat.** The sidebar already reserves "Code" (`Sidebar.tsx` NAV, `soon: true`; `AppView` has `"code"`). Code sessions get their own project folder (instead of the global `mcp.workspaceFolder`), the file tools and later the terminal and recall, permission modes, work groups, clearing and summaries, and a coding model (Qwen3-Coder) by default. Chat goes back to plain conversation — no file tools or folder note, the model's own sampling without the tool cap — the user has other plans for it. Conversations need a kind (chat or code) and separate lists.
+- [ ] **Terminal tool in Code** (`run_command`): PowerShell in the session's project folder, timeout, output capped (head and tail), exit code returned, output treated as untrusted like other results, Stop kills the process tree; no interactive or background processes at first. Permissions decided with the user: in Auto a short list of read-only commands runs unprompted (git status/diff/log, listing, reading and searching files), every other command asks and shows the exact command, as deletes do; Ask asks for everything, Plan records, Read-only runs only that list. Why: models cannot test what they write — Qwen's `lint-scripts.ps1` (evening update) crashed on the one path that mattered — and a filtered command (`Select-String -Context`, `git diff`, a test run) can replace reading whole files.
+- [ ] **Recall tool** (after the terminal). Let the model read back the original messages a summary replaced, from the saved chat. Summaries become an index instead of a loss, and the re-reading loops stop (at 8K, "review the whole repo" re-read cleared files until the 20-round limit). A SHIELD-owned tool like `delete_file` and `web_search` (`electron/services/webTools.ts` shows how one is registered); the design docs' "compaction does not delete history". Proposed shape in the 2026-09-26 update.
+- [ ] Later: keep Gemma out of coding sessions (e.g. suggest Qwen3-Coder when a chat turns to file edits); give the context planner real headroom for the desktop; fork a chat from a summary; edit or pin summaries; whether node-llama-cpp models need clearing and summarising too (today they fall back on node-llama-cpp's own context shift, which drops the oldest turns).
+- [x] **Commit the working tree.** Done 2026-09-27 as three commits, each tested on its own: `6069e14` Gemma native tools and saved summaries (the 2026-09-25 work; 558 tests), `c36cf10` clearing to 40%, folder note, work-group header (567), then the evening fixes (589).
+- [x] **Try the 2026-09-26 evening fixes in the app.** See the evening update.
+
+- [x] **Finish Gemma desktop verification.** Done 2026-09-26 in an isolated profile: load Gemma, approve a read, deny a write, reload, reopen the saved chat, fresh follow-up. See the update below.
 - [x] **Keep summaries on reload.** The reply saves the capsule, the exact model history it kept, and the cumulative count of model messages it replaced. A reopened chat uses its full history if it fits; when it needs room, it resumes from the saved capsule without writing the same note again. The full visible chat stays in local storage. Verified with fake llama-server requests and a JSON round trip; a live model reload has not been tried for this change. See the evening update below.
-- [ ] **Clear less often at 32K.** When clearing runs, clear further, so it runs less often: each clearing costs a ~10 s re-read (~12k tokens), and it hit twice in one turn on 2026-09-25. `makeRoom` in `LlamaServerProvider.ts` stops as soon as the estimate is under 60%; aim lower (say 40%) once it has started.
-- [ ] **Recall tool.** Let the model read back the original messages a summary replaced, from the saved chat. Summaries become an index instead of a loss, and the re-reading loops stop (at 8K, "review the whole repo" re-read cleared files until the 20-round limit). A SHIELD-owned tool like `delete_file` and `web_search` (`electron/services/webTools.ts` shows how one is registered); the design docs' "compaction does not delete history".
-- [ ] **Stop workspace detours.** The `[Current folder: …]` note added to every message (`src/handlers/messageHandler.ts`) makes Qwen3-Coder list and read files even for knowledge questions like "explain MCP". It was added because the model guessed the wrong folder for "what's in this folder?" — keep that case working (`npm run bench:agent`).
-- [ ] Later: fork a chat from a summary; edit or pin summaries (needs the first item); whether node-llama-cpp models need clearing and summarising too (today they fall back on node-llama-cpp's own context shift, which drops the oldest turns).
+- [x] **Clear less often at 32K.** Done 2026-09-26: once clearing starts it goes on, oldest exchange first, until the history is under 40%. Seen in the app with Qwen3-Coder (evening update).
+- [x] **Stop workspace detours.** Done 2026-09-26: the `[Current folder: …]` note goes only with requests about files. `npm run bench:agent` never covered this case — its prompts give full paths and it does not add the note — so "what's in this folder?" has to be checked in the app.
+
+---
+
+## Update — 2026-09-26 evening: Gemma on a real task — thinking budget, per-model sampling, loop guards (working tree)
+
+**What the user saw** (Gemma 4 12B, their wifi test project, Auto mode). Task 1: "Read all the .ps1 files and STATE.md, then write SCRIPTS.md with a table…". The reply ran to the 8,192-token limit: thoughts in the chat, file names mangled ("dialect.ps1", "Dg3"), the same lines looping. With Gemma's own sampling it wrote emoji, then a stray `<channel|>`. Earlier that day: at 128K Gemma decoded 18.8 tok/s, at 32K 43. The context planner filled the card on paper (9.9 of 11.0 GiB usable) and Windows moved part of it to shared memory; the user set 32K in the Library.
+
+**Causes, reproduced headless** with `tmp/gemma-think-repro.ts` (Task 1 through the app's runtime and tool loop, on a copy of the folder, 32K; logs and `result.json` per run in `tmp/gemma-think/`):
+
+| Thought budget                                           | Temperature | Result                                                                                  |
+| -------------------------------------------------------- | ----------- | --------------------------------------------------------------------------------------- |
+| 512 per turn (as shipped)                                | 1.0         | a raw `<\|channel>`, then garbage to 8,192 tokens                                       |
+| none                                                     | 1.0         | hidden thought for all 8,192 tokens, no answer                                          |
+| off (empty thought prefilled, as Google's template does) | 1.0         | one mistyped `list_directory`, 20 times                                                 |
+| 2,048 per reply                                          | 1.0         | clean · 15 rounds with 3 mistyped paths · malformed call after a thought hit the budget |
+| 2,048 per reply                                          | 0.5         | clean · clean (4 rounds, ~110 s each)                                                   |
+
+- **Thinking budget.** It counted every tool round of a turn (`includeCurrentResponse: true`), so 512 was spent by round 3. node-llama-cpp then stops watching for the thought channel's start, and a thought cut short leaves Gemma mid-thought outside the channel: the thinking streams into the chat and derails. Now `gemmaThoughtBudget` (`LlamaService.ts`): per reply, half of max tokens, at most 2,048.
+- **Sampling.** SHIELD sent one global setting to every model; the user's was temperature 0.21 with repeat penalty 1.1, and the penalty mangles names a table must repeat. GGUFs carry their makers' sampling (`general.sampling.*`): Gemma 4 temperature 1 / top-k 64 / top-p 0.95 and no repeat penalty; Qwen3.8 1 / 20 / 0.95. Qwen3-Coder's file has none; the catalog holds Qwen's model card values, 0.7 / 0.8 / 20 / 1.05.
+- **Temperature for tools.** At 1.0 Gemma mistyped a path in four of six runs ("tpc" for "tmp", "SHEILD", "WiFi"). Decided with the user: the model's values, but temperature at most 0.5 while tools are available.
+
+**Shipped in the working tree:**
+
+- **Per-model sampling** (`modelSampling.ts`, `ModelRuntime.getRecommendedSampling`, IPC `llama:getRecommendedSampling`, `useRecommendedSampling`, `App.tsx`): the model's file, else the catalog. A model that names its sampling but no repeat penalty gets none; `TOOL_TEMPERATURE_CAP` (0.5) with tools on. Settings › Model has "Use the model's recommended sampling" (on by default, `model.useModelSampling`): it says what the model recommends and locks the sliders to it. A template's sampling applies only with it off.
+- **Loop guard** (`utils/loopGuard.ts`, in `useLlama.sendStreamingMessage`): a reply whose recent lines mostly repeat, or that ends in one block five times, is stopped like the Stop button, with a note. On the day's failures it caught the garbage within 400 characters and the 24k-character reasoning loop at 22.4k (late: that loop varied a little each pass). No false alarm on the last 40 saved chats.
+- **Repeat-call stop** (`mcpMessageHandler.ts`): the third answer from memory to the same call ends the turn with a note. The thinking-off run spent 17 rounds on one.
+- **Path capitals** (`resolveToolPaths`): on Windows a path inside the workspace spelled with other capitals takes the workspace's own. SHIELD's check and the filesystem server compare exact text and refused "…\WiFi\…" for "wifi".
+- **Work-group header** (`WorkGroup.tsx`): with Gemma the live header was blank. Each progress update (every 150 ms) re-keyed the label, which waited for the old one to fade. Now keyed per kind of work, counts animate in place, no fade-out wait, and a tool's label stays at least 0.6 s. Hot-updated into the running app, where the user's next prompts ran with it; not specifically confirmed.
+
+**Found on the way, not done:**
+
+- The context planner counts total VRAM minus node-llama-cpp's 0.96 GiB padding. Leave room for the desktop instead (say 20% of VRAM) in `contextPlanner.ts`; measuring Gemma at 64K would place the threshold.
+- `eslint.config.js` spreads `reactHooks.configs.recommended.rules`, which is `undefined` in eslint-plugin-react-hooks 6.1: the hooks rules have never run.
+- Settings › Model "Speculative Decoding" reaches no load call (node-llama-cpp models use the per-model default; llama-server always uses ngram-mod).
+- `[LlamaService] Loading <id> from <path>` is also logged by path lookups (the Library's context plans), not only by loads; `[App] Model switched successfully` is logged even when the RAM check held the load back.
+- Editing any tracked file while the dev app runs reloads its window (Tailwind's plugin scans every file): a docs edit lost the user's first prompt mid-reply.
+- Speed: SHIELD's llama-server profile already matches a tweeted 50 tok/s setup (fit, flash attention, batch 2048); the gap on this machine is the RAM at 2133 MT/s. Unmeasured ideas: q8_0 KV again now that RAM is slower, what `--fit` places, a smaller Qwen3-Coder quant, and `empero-ai/Qwen3.8-35B-A3B-Distill` (a thinking model, `qwen35moe`, which the installed llama-server build supports).
+
+**Verification:** 589 tests across 46 files; `npm run build`, ESLint and Prettier clean. The sampling lookup was checked against the installed files (Gemma and Qwen3.8 from the file, Qwen3-Coder from the catalog, Bonsai none).
+
+**Tried in the app** (2026-09-26 night, the user testing). Gemma 4 at 32K ran Task 1 with the new defaults (sent: temperature 0.5, top-k 64, top-p 0.95, no repeat penalty): 5 rounds, ~2¼ minutes, 43 tok/s, ending on its own. Its SCRIPTS.md named all 13 scripts but misspelled two ("diag2_crnlf", "Diag3"), contradicted its own keep/delete list and dropped "pal" from wlansvcpal.dll — model quality, not mechanics. Qwen3-Coder at 32K (the RAM check held it back with ~11 GB free until the user chose Load anyway) ran Task 1, a lint-script task and four follow-up fix requests with no loop or repeat stop and no errors. Clearing fired four times in ~10 minutes (25k, 37k and 23k characters, then 19k + 1.2k in one two-step clearing), each a 5–8 s re-read, never a summary; decode 18–24 tok/s, edits 34–52 tok/s with n-gram drafts. Qwen's `lint-scripts.ps1` printed every script's syntax tree, printed ErrorId instead of line numbers, and crashed on the first file with a parse error by assigning to `$error`, which is read-only.
+
+---
+
+## Update — 2026-09-26: Gemma desktop check, clearing further, folder note only for files (working tree)
+
+**Gemma desktop check passes** (`tmp/gemma-ui-check.mjs`, isolated profile `tmp/gemma-ui/profile`, Gemma 4 12B Q4_K_M at 8K, Ask mode). Approved read → "The meeting is scheduled for 4:15 PM."; denied write → nothing ran, no file, "I was unable to create `report.txt`…"; Ctrl+R → the model was adopted; the saved chat reopened from the sidebar; the follow-up "Answer without tools" → "The Orchid meeting was scheduled for 4:15 PM." in the same saved chat, no tool call. Passed twice, once on a fresh profile; ~43 s per run, 43 tok/s. The chat shows a native call as a "Read notes.txt" step with no raw JSON; the saved reply keeps it as a `json {"tool_calls": …}` block. Every verdict comes from the saved conversation JSON, not page text. The harness now opens the collapsed sidebar and fails if a sent message does not appear.
+
+**Not explained: one lost first message.** On the first-ever run (cold start, 33 s to the Load button) the first message, typed the moment the model finished loading, never appeared: the input cleared, no user message, no reply, no error in the main log. The renderer console was not captured that time. Three later runs, one on a fresh profile, did not repeat it. A fresh profile saves its settings and runs `mcp:initialize` a second time around the first load (theme `system` → `dark`); on the cold run that landed just after the load, when the message was sent. Watch for a first message that vanishes right after a load.
+
+**Clearing goes on to 40%** (`LlamaServerProvider.makeRoomCheaply`, `historyCompaction.ts` `COMPACT_AT` / `CLEAR_TO`). Still triggered at 60%, but once it starts it clears one exchange at a time, oldest first, until the estimate is under 40%, never the latest exchange. Summarising still runs only if the history is over 60% after clearing. Worked through on paper (not measured) for 2026-09-25's five-file read at 32K: the fifth read would clear the first three files at once instead of one per read, with a re-read of ~7.5k tokens instead of ~15.6k, and the next clearing two or three reads later.
+
+**Folder note only for file requests** (`refersToFiles` in `messageHandler.ts`): words like folder, file, path, project, repo, "in here", a file name (`main.ts`, `notes.txt`), or a path (`C:\…`, `./src`); or `isLikelyMCPToolIntent`. "explain MCP", "What's the newest Node.js release?" and "Write a haiku" go without it.
+
+**Recall tool, proposed shape** (not started): a renderer-owned `recall` tool, advertised with the others, that searches the chat's saved messages (requests, replies without tool markup, tool results) and returns excerpts labelled with message numbers, or one whole earlier message by number; read-only, so it runs in every mode without asking. It can be tried with Gemma at 8K, which is light: node-llama-cpp's context shift drops old turns there too.
+
+**Verification:** 562 tests pass; ESLint and Prettier are clean on the changed files.
 
 ---
 

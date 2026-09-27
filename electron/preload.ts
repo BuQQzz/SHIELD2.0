@@ -32,6 +32,7 @@ import type {
   ContextUsage,
   MemoryCheck,
 } from "../src/types/electron";
+import type { RecommendedSampling } from "../src/services/modelSampling";
 
 export interface ModelConfig {
   /** Library model id (src/config/models.ts) */
@@ -68,6 +69,11 @@ export interface LlamaAPI {
   getContextBreakdown: () => Promise<{
     success: boolean;
     breakdown?: ContextBreakdown | null;
+    error?: string;
+  }>;
+  getRecommendedSampling: (modelId: string) => Promise<{
+    success: boolean;
+    sampling?: RecommendedSampling | null;
     error?: string;
   }>;
   getContextPlan: (modelId: string) => Promise<{
@@ -149,6 +155,8 @@ const llamaAPI: LlamaAPI = {
   },
   getContextUsage: () => ipcRenderer.invoke("llama:getContextUsage"),
   getContextBreakdown: () => ipcRenderer.invoke("llama:getContextBreakdown"),
+  getRecommendedSampling: (modelId) =>
+    ipcRenderer.invoke("llama:getRecommendedSampling", modelId),
   getContextPlan: (modelId) =>
     ipcRenderer.invoke("llama:getContextPlan", modelId),
   getModelInfo: () => ipcRenderer.invoke("llama:getModelInfo"),

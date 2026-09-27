@@ -1,4 +1,5 @@
 import type { SavedCapsule } from "../services/taskCapsule";
+import type { RecommendedSampling } from "../services/modelSampling";
 import type { NativeToolResult } from "./nativeTools";
 import type { ToolDefinition } from "./prompts";
 
@@ -164,6 +165,12 @@ export interface LlamaAPI {
   getContextBreakdown: () => Promise<{
     success: boolean;
     breakdown?: ContextBreakdown | null;
+    error?: string;
+  }>;
+  /** The sampling the model's file, else SHIELD's catalog, recommends */
+  getRecommendedSampling: (modelId: string) => Promise<{
+    success: boolean;
+    sampling?: RecommendedSampling | null;
     error?: string;
   }>;
   getContextPlan: (modelId: string) => Promise<{

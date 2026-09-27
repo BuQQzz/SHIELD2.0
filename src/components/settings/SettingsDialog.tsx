@@ -51,7 +51,10 @@ export function SettingsDialog({
           <TabsContent value="config" className="space-y-4 mt-4">
             <div className="space-y-3">
               <h3 className="text-sm font-semibold">Model</h3>
-              <ModelSettings settings={settings.model} />
+              <ModelSettings
+                settings={settings.model}
+                currentModel={currentModel}
+              />
             </div>
             <div className="space-y-3 pt-3 border-t">
               <h3 className="text-sm font-semibold">System Prompt</h3>

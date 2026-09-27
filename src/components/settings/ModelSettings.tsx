@@ -5,15 +5,65 @@ import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { useSettingsStore } from "@/store/settingsStore";
 import { ModelSettings as ModelSettingsType } from "@/types/settings";
-import { ChevronDown, ChevronUp, Play, Zap } from "lucide-react";
+import type { ModelOption } from "@/config/models";
+import { useRecommendedSampling } from "@/hooks/useRecommendedSampling";
+import {
+  describeSampling,
+  effectiveSampling,
+  TOOL_TEMPERATURE_CAP,
+  type RecommendedSampling,
+  type SamplingValues,
+} from "@/services/modelSampling";
+import {
+  ChevronDown,
+  ChevronUp,
+  Play,
+  SlidersHorizontal,
+  Zap,
+} from "lucide-react";
 
 interface ModelSettingsProps {
   settings: ModelSettingsType;
+  /** The selected model, whose recommended sampling is used */
+  currentModel?: Pick<ModelOption, "id" | "displayName"> | null;
 }
 
-export function ModelSettings({ settings }: ModelSettingsProps) {
+function samplingNote(
+  on: boolean,
+  model: ModelSettingsProps["currentModel"],
+  recommended: RecommendedSampling | null,
+  values: SamplingValues,
+  capped: boolean
+): string {
+  if (!model) return "Select a model to see what it recommends.";
+  if (!recommended) {
+    return `${model.displayName} does not recommend any; the values below apply.`;
+  }
+  const from =
+    recommended.source === "model"
+      ? `${model.displayName}'s file recommends`
+      : `SHIELD uses the published settings for ${model.displayName}:`;
+  const cap = capped
+    ? ` While tools are on, the temperature stays at ${TOOL_TEMPERATURE_CAP} so paths and names are copied exactly.`
+    : "";
+  return on
+    ? `${from} ${describeSampling(values)}.${cap}`
+    : `Off: the values below apply to every model. ${from} ${describeSampling(values)}.`;
+}
+
+export function ModelSettings({ settings, currentModel }: ModelSettingsProps) {
   const { updateSettings } = useSettingsStore();
+  const toolsOn = useSettingsStore((state) => state.settings.mcp.enabled);
   const [showAdvanced, setShowAdvanced] = useState(false);
+  const recommended = useRecommendedSampling(currentModel?.id);
+  const useModelSampling = settings.useModelSampling !== false;
+  const modelValues = effectiveSampling(settings, recommended);
+  const inUse = effectiveSampling(settings, recommended, {
+    toolsAvailable: toolsOn,
+  });
+  // While the model's values apply, the sliders show them and are locked
+  const locked = useModelSampling && recommended !== null;
+  const shown = locked ? inUse : settings;
 
   const handleTemperatureChange = (value: number[]) => {
     if (value[0] !== undefined) {
@@ -53,6 +103,10 @@ export function ModelSettings({ settings }: ModelSettingsProps) {
     updateSettings({ model: { ...settings, loadOnStartup: checked } });
   };
 
+  const handleModelSamplingChange = (checked: boolean) => {
+    updateSettings({ model: { ...settings, useModelSampling: checked } });
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between gap-4">
@@ -73,12 +127,37 @@ export function ModelSettings({ settings }: ModelSettingsProps) {
         />
       </div>
 
+      <div className="flex items-center justify-between gap-4">
+        <div className="space-y-0.5">
+          <div className="flex items-center gap-2">
+            <SlidersHorizontal className="h-4 w-4 text-muted-foreground" />
+            <Label htmlFor="model-sampling">
+              Use the model's recommended sampling
+            </Label>
+          </div>
+          <p className="text-xs text-muted-foreground">
+            {samplingNote(
+              useModelSampling,
+              currentModel,
+              recommended,
+              modelValues,
+              inUse.temperature < modelValues.temperature
+            )}
+          </p>
+        </div>
+        <Switch
+          id="model-sampling"
+          checked={useModelSampling}
+          onCheckedChange={handleModelSamplingChange}
+        />
+      </div>
+
       {/* Essential Settings */}
       <div>
         <div className="flex justify-between items-center mb-2">
           <Label htmlFor="temperature">Temperature</Label>
           <span className="text-sm text-muted-foreground">
-            {settings.temperature.toFixed(2)}
+            {shown.temperature.toFixed(2)}
           </span>
         </div>
         <Slider
@@ -86,8 +165,9 @@ export function ModelSettings({ settings }: ModelSettingsProps) {
           min={0}
           max={2}
           step={0.01}
-          value={[settings.temperature]}
+          value={[shown.temperature]}
           onValueChange={handleTemperatureChange}
+          disabled={locked}
         />
         <p className="text-xs text-muted-foreground mt-1">
           Lower = focused, Higher = creative
@@ -138,7 +218,7 @@ export function ModelSettings({ settings }: ModelSettingsProps) {
             <div className="flex justify-between items-center mb-2">
               <Label htmlFor="top-p">Top P</Label>
               <span className="text-sm text-muted-foreground">
-                {settings.topP.toFixed(2)}
+                {shown.topP.toFixed(2)}
               </span>
             </div>
             <Slider
@@ -146,8 +226,9 @@ export function ModelSettings({ settings }: ModelSettingsProps) {
               min={0}
               max={1}
               step={0.01}
-              value={[settings.topP]}
+              value={[shown.topP]}
               onValueChange={handleTopPChange}
+              disabled={locked}
             />
             <p className="text-xs text-muted-foreground mt-1">
               Nucleus sampling threshold
@@ -158,7 +239,7 @@ export function ModelSettings({ settings }: ModelSettingsProps) {
             <div className="flex justify-between items-center mb-2">
               <Label htmlFor="top-k">Top K</Label>
               <span className="text-sm text-muted-foreground">
-                {settings.topK}
+                {shown.topK}
               </span>
             </div>
             <Slider
@@ -166,8 +247,9 @@ export function ModelSettings({ settings }: ModelSettingsProps) {
               min={1}
               max={100}
               step={1}
-              value={[settings.topK]}
+              value={[shown.topK]}
               onValueChange={handleTopKChange}
+              disabled={locked}
             />
             <p className="text-xs text-muted-foreground mt-1">
               Limits vocabulary to top K tokens
@@ -178,7 +260,7 @@ export function ModelSettings({ settings }: ModelSettingsProps) {
             <div className="flex justify-between items-center mb-2">
               <Label htmlFor="repeat-penalty">Repeat Penalty</Label>
               <span className="text-sm text-muted-foreground">
-                {settings.repeatPenalty.toFixed(2)}
+                {shown.repeatPenalty.toFixed(2)}
               </span>
             </div>
             <Slider
@@ -186,8 +268,9 @@ export function ModelSettings({ settings }: ModelSettingsProps) {
               min={1}
               max={2}
               step={0.01}
-              value={[settings.repeatPenalty]}
+              value={[shown.repeatPenalty]}
               onValueChange={handleRepeatPenaltyChange}
+              disabled={locked}
             />
             <p className="text-xs text-muted-foreground mt-1">
               Higher = less repetition

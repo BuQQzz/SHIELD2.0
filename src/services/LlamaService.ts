@@ -34,6 +34,17 @@ import {
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const defaultModelsDir = path.join(__dirname, "..", "..", "models");
 
+/**
+ * Tokens Gemma 4 may think before each reply. Without a budget it thought
+ * through all 8,192 tokens and never answered; a thought cut short comes
+ * out broken, so there must be room to finish one. Replaying a 13-file
+ * read-and-write task (2026-09-26): 512 counted over the whole turn broke
+ * every time, 2,048 per reply finished it, leaving half for the reply.
+ */
+export function gemmaThoughtBudget(maxTokens: number): number {
+  return Math.max(1, Math.min(2048, Math.floor(maxTokens / 2)));
+}
+
 export interface ChatMessage {
   role: "user" | "assistant" | "system";
   content: string;
@@ -458,9 +469,8 @@ export class LlamaService {
     try {
       console.log("[LlamaService] Starting inference...");
       const maxTokens = options.maxTokens ?? 512;
-      // Gemma 4's wrapper enables thought segments by default. Without a
-      // budget it can spend the whole reply in hidden thought, leaving the
-      // user with no answer after a long generation.
+      // Gemma 4's wrapper enables thought segments; gemmaThoughtBudget
+      // keeps them from taking the whole reply
       const isGemma4 = this.currentModelConfig?.id.startsWith("gemma-4-");
       const useNativeTools = isGemma4 && this.nativeTools.length > 0;
       if (options.toolResults !== undefined && !useNativeTools) {
@@ -493,10 +503,11 @@ export class LlamaService {
         ...(isGemma4
           ? {
               budgets: {
-                thoughtTokens: Math.max(
-                  1,
-                  Math.min(512, Math.floor(maxTokens / 4))
-                ),
+                thoughtTokens: gemmaThoughtBudget(maxTokens),
+                // Per reply, not per turn: counted across a turn's tool
+                // rounds, the old 512 ran out by the third, and a thought
+                // cut short streamed into the chat as garbage (2026-09-26)
+                includeCurrentResponse: false,
               },
             }
           : {}),
@@ -527,13 +538,7 @@ export class LlamaService {
         result = await this.nativeSession.prompt(
           message,
           this.nativeTools,
-          {
-            ...promptOptions,
-            budgets: {
-              ...promptOptions.budgets,
-              includeCurrentResponse: true,
-            },
-          },
+          promptOptions,
           options.toolResults
         );
       } else {

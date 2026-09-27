@@ -63,16 +63,35 @@ const PATH_ARGUMENTS = ["path", "source", "destination"] as const;
  * Models say "." or "README.md" when they mean the user's current folder.
  * Resolved by Node, those land in the Electron process's own directory - the
  * SHIELD install - which was then denied, and the model apologised for a
- * path it had got right. Absolute paths are left untouched.
+ * path it had got right.
+ *
+ * Absolute paths are left as they are, except that where names ignore case
+ * (Windows) a path inside `baseDir` spelled with other capitals takes
+ * baseDir's own: SHIELD's check and the filesystem server compare exact
+ * text, and refused "...\WiFi\diag.ps1" for a folder named "wifi" (Gemma,
+ * 2026-09-26), though Windows sees one folder.
  */
 export function resolveToolPaths(
   args: Record<string, unknown>,
-  baseDir: string
+  baseDir: string,
+  ignoreCase = process.platform === "win32"
 ): Record<string, unknown> {
-  const resolveOne = (value: unknown) =>
-    typeof value === "string" && value.trim() !== "" && !path.isAbsolute(value)
-      ? path.resolve(baseDir, value)
+  const base = path.resolve(baseDir);
+  const inBaseSpelling = (value: string) => {
+    const full = path.resolve(value);
+    if (!ignoreCase || full.startsWith(base)) return value;
+    const lower = full.toLowerCase();
+    const lowerBase = base.toLowerCase();
+    return lower === lowerBase || lower.startsWith(lowerBase + path.sep)
+      ? base + full.slice(base.length)
       : value;
+  };
+  const resolveOne = (value: unknown) =>
+    typeof value !== "string" || value.trim() === ""
+      ? value
+      : path.isAbsolute(value)
+        ? inBaseSpelling(value)
+        : path.resolve(baseDir, value);
 
   const resolved: Record<string, unknown> = { ...args };
   for (const key of PATH_ARGUMENTS) {
