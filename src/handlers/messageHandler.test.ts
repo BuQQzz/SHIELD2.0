@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { createMessageHandler } from "./messageHandler";
+import { createMessageHandler, refersToFiles } from "./messageHandler";
 import { useGenerationStore } from "../store/generationStore";
 import { useSettingsStore } from "../store/settingsStore";
 import { DEFAULT_SETTINGS } from "../types/settings";
@@ -371,5 +371,71 @@ describe("messageHandler native tool result roundtrip", () => {
         result: expect.stringContaining("Successfully wrote note.txt"),
       },
     ]);
+  });
+});
+
+describe("the [Current folder] note", () => {
+  it("recognises requests about files", () => {
+    for (const request of [
+      "What's in this folder?",
+      "list the files",
+      "Read notes.txt and tell me the meeting time.",
+      "How is this project laid out?",
+      "fix the failing test in src/app.test.ts",
+      "summarise the README",
+      "open C:/Users/me/plan.md",
+      "look in ./docs",
+      "is there a package.json in here?",
+    ]) {
+      expect(refersToFiles(request), request).toBe(true);
+    }
+  });
+
+  it("leaves questions answered from knowledge alone", () => {
+    for (const request of [
+      "explain MCP",
+      "What is 17 multiplied by 23?",
+      "What's the newest Node.js release?",
+      "Write a haiku about autumn.",
+      "How do React hooks work?",
+    ]) {
+      expect(refersToFiles(request), request).toBe(false);
+    }
+  });
+
+  it("is sent with a file request and not with a knowledge question", async () => {
+    useSettingsStore.setState({
+      settings: {
+        ...DEFAULT_SETTINGS,
+        mcp: {
+          ...DEFAULT_SETTINGS.mcp,
+          enabled: true,
+          workspaceFolder: "C:/work",
+        },
+      },
+    });
+    const sendStreamingMessage = vi.fn().mockResolvedValue("Done.");
+    const handler = createMessageHandler({
+      isModelLoaded: true,
+      currentConversation: { id: "chat", messages: [] },
+      setMessages: vi.fn(),
+      setIsGenerating: vi.fn(),
+      setStreamingContent: vi.fn(),
+      streamingContentRef: { current: "" },
+      sendStreamingMessage,
+      addMessage: vi.fn(),
+      generateTitle: vi.fn().mockResolvedValue(null),
+      updateTitle: vi.fn(),
+      saveCurrentConversation: vi.fn().mockResolvedValue(undefined),
+      modelSettings: DEFAULT_SETTINGS.model,
+      isMCPReady: true,
+    });
+
+    await handler("What's in this folder?");
+    await handler("explain MCP");
+
+    const sent = sendStreamingMessage.mock.calls.map(([message]) => message);
+    expect(sent[0]).toBe("What's in this folder?\n\n[Current folder: C:/work]");
+    expect(sent[1]).toBe("explain MCP");
   });
 });

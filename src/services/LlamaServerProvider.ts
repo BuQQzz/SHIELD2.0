@@ -27,7 +27,12 @@ import {
   SseParser,
   type ChatStreamChunk,
 } from "./llamaServer/sse.js";
-import { compactHistory, shouldCompact } from "./historyCompaction.js";
+import {
+  CLEAR_TO,
+  COMPACT_AT,
+  compactHistory,
+  shouldCompact,
+} from "./historyCompaction.js";
 import {
   CAPSULE_SHARE,
   KEEP_SHARE,
@@ -439,13 +444,14 @@ export class LlamaServerProvider {
   }
 
   /**
-   * Make room before a request that would fill most of the window, in the
-   * cheapest way that is enough:
-   * 1. clear old tool payloads, keeping the last few exchanges whole
-   *    (historyCompaction);
-   * 2. clear them from all but the latest exchange - still no model call,
-   *    and what large tool results need: at 8K, going straight to step 4
-   *    summarised every tool round, 4-7 s each (2026-09-25);
+   * Make room before a request that would fill most of the window
+   * (COMPACT_AT), in the cheapest way that is enough:
+   * 1. clear old tool payloads, oldest first, keeping the last few
+   *    exchanges whole (historyCompaction);
+   * 2. clear the last few too, all but the latest exchange - still no model
+   *    call, and what large tool results need: at 8K, going straight to
+   *    step 4 summarised every tool round, 4-7 s each (2026-09-25).
+   *    Steps 1-2 go on to CLEAR_TO once they start;
    * 3. in a restored chat, go back to the capsule it saved;
    * 4. replace the oldest turns with a capsule (taskCapsule).
    * The prompt cache is reused only up to the first changed message, so
@@ -492,20 +498,26 @@ export class LlamaServerProvider {
    * leaves room for a message of `nextMessageChars`.
    */
   private makeRoomCheaply(nextMessageChars: number): boolean {
-    const fits = () =>
+    const under = (limit: number) =>
       !shouldCompact(
         this.lastContextTokens,
         nextMessageChars,
-        this.contextSize
+        this.contextSize,
+        limit
       );
-    if (fits()) return true;
+    if (under(COMPACT_AT)) return true;
 
-    // The last few exchanges are what the model is working from right now
-    this.clearPayloads(6);
-    if (fits()) return true;
-    this.clearPayloads(this.history.length - latestExchange(this.history));
-    if (fits()) return true;
-    return this.useSavedCapsule() && fits();
+    // Oldest exchanges first, one at a time, down to CLEAR_TO so that the
+    // next file read does not clear again. The last few exchanges are what
+    // the model is working from right now: they go only if the older ones
+    // were not enough, and the latest one never does
+    const latest = this.history.length - latestExchange(this.history);
+    for (let keep = Math.max(6, latest); ; keep = Math.max(keep - 2, latest)) {
+      this.clearPayloads(keep);
+      if (under(CLEAR_TO) || keep === latest) break;
+    }
+    if (under(COMPACT_AT)) return true;
+    return this.useSavedCapsule() && under(COMPACT_AT);
   }
 
   /**

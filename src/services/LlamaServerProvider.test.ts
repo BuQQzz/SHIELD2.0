@@ -264,3 +264,45 @@ describe("LlamaServerProvider restoring a summarised chat", () => {
     expect(reopened.provider.getLastCapsule()?.replacedEntries).toBe(6);
   });
 });
+
+describe("LlamaServerProvider making room", () => {
+  beforeEach(() => {
+    vi.spyOn(console, "log").mockImplementation(() => {});
+  });
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.restoreAllMocks();
+  });
+
+  const readCall = (file: string) =>
+    `<tool_call>\n<server>filesystem</server>\n<tool>read_text_file</tool>\n<arguments>{"path":"C:/p/${file}"}</arguments>\n</tool_call>`;
+  const readResult = (body: string) =>
+    `<tool_result trusted="false">\n<tool>read_text_file</tool>\n<result>\n${body}\n</result>\n</tool_result>`;
+
+  it("clears on past the trigger once it starts, oldest first", async () => {
+    // ~1,090 tokens in a 1,750-token window: over 60%. Clearing the first
+    // file alone gets under 60% but not 40%, so the second goes too; the
+    // third and the latest exchange stay whole
+    const { provider, sent } = connected(1750);
+    provider.setChatHistory([
+      user("read the four files"),
+      assistant(readCall("a.js")),
+      user(readResult("a".repeat(1000))),
+      assistant(readCall("b.js")),
+      user(readResult("b".repeat(450))),
+      assistant(readCall("c.js")),
+      user(readResult("c".repeat(450))),
+      assistant(readCall("d.js")),
+      user(readResult("d".repeat(450))),
+      assistant("Read them all."),
+    ]);
+    await provider.chat("thanks");
+
+    const turns = sent[0]!.messages.slice(1).map((m) => m.content);
+    expect(turns).toHaveLength(11);
+    expect(turns[2]).toContain("cleared to save space");
+    expect(turns[4]).toContain("cleared to save space");
+    expect(turns[6]).toContain("c".repeat(450));
+    expect(turns[8]).toContain("d".repeat(450));
+  });
+});

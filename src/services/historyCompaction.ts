@@ -117,6 +117,16 @@ export function compactHistory(
   return { history: compacted, savedChars };
 }
 
+/** Share of the window past which the next request makes room first */
+export const COMPACT_AT = 0.6;
+/**
+ * Once clearing runs, it goes on to this share. Each clearing makes the
+ * server re-read everything after the first message it changed (~10 s for
+ * 12k tokens at 32K), and clearing only just under COMPACT_AT ran again
+ * after the next file read, twice in one turn (2026-09-25).
+ */
+export const CLEAR_TO = 0.4;
+
 /**
  * Whether the next request should compact first: the prompt is estimated
  * to pass `limit` of the window, leaving the rest for the reply.
@@ -125,7 +135,7 @@ export function shouldCompact(
   lastContextTokens: number,
   nextMessageChars: number,
   contextSize: number,
-  limit = 0.6
+  limit = COMPACT_AT
 ): boolean {
   // ~3 characters per token for code-heavy text
   const estimate = lastContextTokens + nextMessageChars / 3;

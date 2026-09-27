@@ -9,7 +9,7 @@
  * what it did ("Read 12 files, listed wifi · summarised 3 times").
  */
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { ChevronRight, Layers, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -17,6 +17,7 @@ import { formatTokens } from "@/lib/format";
 import { stripToolCallMarkup } from "@/handlers/toolCallParsing";
 import { useGenerationStore } from "@/store/generationStore";
 import { useSummaryFocus } from "@/stores/summary-focus-store";
+import { AnimatedCount } from "./AnimatedCount";
 import { SummaryStep, ToolStep } from "./ToolStep";
 import { stepLabel, workLabel, type WorkItem } from "./turns";
 
@@ -27,25 +28,96 @@ export interface LiveWork {
   busy: boolean;
 }
 
-/** The header while the group is still at work; null once it is done */
-function useLiveLabel(live: LiveWork | null | undefined): string | null {
+type RunningTool = NonNullable<LiveWork["runningTool"]>;
+
+/**
+ * A tool's label stays up at least this long. A read in Auto mode takes
+ * ~30 ms, and between Gemma's calls the label flashed by unread
+ * (2026-09-26).
+ */
+export const TOOL_LABEL_MS = 600;
+
+const toolKey = (tool: RunningTool) =>
+  `${tool.serverName}:${tool.tool}:${tool.target ?? ""}`;
+
+/** The running tool, or the one that just finished until its time is up */
+function useHeldTool(tool: RunningTool | null | undefined) {
+  const [shown, setShown] = useState<{
+    tool: RunningTool;
+    since: number;
+  } | null>(null);
+
+  useEffect(() => {
+    if (!tool) return;
+    // The same tool again (a new object each render) keeps its start time
+    setShown((prev) =>
+      prev && toolKey(prev.tool) === toolKey(tool)
+        ? prev
+        : { tool, since: Date.now() }
+    );
+  }, [tool]);
+
+  useEffect(() => {
+    if (tool || !shown) return;
+    const timer = setTimeout(
+      () => setShown(null),
+      Math.max(0, shown.since + TOOL_LABEL_MS - Date.now())
+    );
+    return () => clearTimeout(timer);
+  }, [tool, shown]);
+
+  return tool ?? shown?.tool ?? null;
+}
+
+/**
+ * The header while the group is still at work, null once it is done. Its
+ * key changes only with the kind of work, so a count that changes several
+ * times a second updates in place: keyed by the whole text, each update
+ * began a new fade and Gemma's header stayed blank (2026-09-26).
+ */
+function useLiveLabel(
+  live: LiveWork | null | undefined
+): { key: string; text: ReactNode } | null {
   const progress = useGenerationStore((state) => state.progress);
+  const tool = useHeldTool(live?.runningTool);
   if (!live) return null;
-  if (live.runningTool) {
-    const { tool, serverName, target } = live.runningTool;
-    return `${stepLabel(tool, serverName, target, "running")}…`;
+  if (tool) {
+    return {
+      key: `tool:${toolKey(tool)}`,
+      text: `${stepLabel(tool.tool, tool.serverName, tool.target, "running")}…`,
+    };
   }
   if (!live.busy) return null;
-  if (progress?.phase === "summarising") return "Summarising earlier turns…";
+  if (progress?.phase === "summarising") {
+    return { key: "summarising", text: "Summarising earlier turns…" };
+  }
   if (progress?.phase === "writing" && progress.generated > 2) {
-    return `Thinking · ↓ ${formatTokens(progress.generated)} tokens…`;
+    return {
+      key: "thinking",
+      text: (
+        <>
+          Thinking · ↓{" "}
+          <AnimatedCount value={progress.generated} format={formatTokens} />{" "}
+          tokens…
+        </>
+      ),
+    };
   }
   if (progress?.phase === "reading" && progress.total > progress.cached) {
     const read = progress.done - progress.cached;
     const toRead = progress.total - progress.cached;
-    return `Reading the conversation · ${formatTokens(read)} / ${formatTokens(toRead)} tokens…`;
+    return {
+      key: "reading",
+      text: (
+        <>
+          Reading the conversation ·{" "}
+          <AnimatedCount value={read} format={formatTokens} /> /{" "}
+          {formatTokens(toRead)} tokens…
+        </>
+      ),
+    };
   }
-  return "Reading the conversation…";
+  return { key: "reading", text: "Reading the conversation…" };
 }
 
 function WorkItemView({ item }: { item: WorkItem }) {
@@ -114,18 +186,17 @@ export function WorkGroup({ items, live }: WorkGroupProps) {
         ) : (
           <Layers className="h-3.5 w-3.5 shrink-0" />
         )}
-        <AnimatePresence mode="wait" initial={false}>
-          <motion.span
-            key={liveLabel ?? "done"}
-            initial={{ opacity: 0, y: 3 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -3 }}
-            transition={{ duration: 0.15 }}
-            className="truncate"
-          >
-            {liveLabel ?? workLabel(items)}
-          </motion.span>
-        </AnimatePresence>
+        {/* Fades in on a new kind of work, with no wait for the old one to
+            fade out: work can change faster than a fade */}
+        <motion.span
+          key={liveLabel?.key ?? "done"}
+          initial={{ opacity: 0, y: 3 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.15 }}
+          className="truncate"
+        >
+          {liveLabel?.text ?? workLabel(items)}
+        </motion.span>
         {!liveLabel && failed > 0 && (
           <span className="shrink-0 text-destructive/80">
             · {failed} failed

@@ -19,6 +19,29 @@ import type { MCPToolResult } from "@/types";
 import { parseAllThinking } from "../utils/thinkingParser";
 import { detectTruncation } from "../utils/messageTruncation";
 
+const FILE_WORDS =
+  /\b(?:folders?|director(?:y|ies)|dirs?|workspace|files?|paths?|projects?|repos?|repositor(?:y|ies)|codebase|readme)\b|\bin here\b/i;
+/** main.ts, notes.txt, package.json */
+const FILE_NAME =
+  /\b[\w-]+\.(?:[cm]?[jt]sx?|json|md|txt|py|html?|css|scss|ya?ml|toml|xml|csv|log|ini|cfg|env|ps1|bat|cmd|sh|cs|java|go|rs|c|cpp|h|hpp|rb|php|sql)\b/i;
+/** Library names, not files: "the newest Node.js release" */
+const LIBRARY_NAMES = /\b(?:node|vue|next|nuxt|react|express|three|d3)\.js\b/gi;
+/** C:\Users\..., ./src, ../docs */
+const PATH = /\b[a-z]:[\\/]|(?:^|[\s"'`(])\.{1,2}[\\/]/i;
+
+/**
+ * Whether a message is about the user's files - "what's in this folder?",
+ * "read notes.txt", "how is this project laid out?" - rather than a
+ * question the model answers from what it knows.
+ */
+export function refersToFiles(content: string): boolean {
+  return (
+    FILE_WORDS.test(content) ||
+    FILE_NAME.test(content.replace(LIBRARY_NAMES, "")) ||
+    PATH.test(content)
+  );
+}
+
 /**
  * Generate a unique message ID
  */
@@ -114,10 +137,18 @@ export function createMessageHandler({
 
       // The system prompt names the folder, yet Qwen3-Coder still guessed
       // Documents and then its own project path for "what's in this folder?".
-      // Restated next to the request, where recency makes it hard to miss.
-      // Only the model sees this; the stored message is the user's text.
+      // Restated next to the request, where recency makes it hard to miss -
+      // for requests about files only: next to every message it sent the
+      // model listing and reading files for questions like "explain MCP"
+      // (2026-09-25). Only the model sees this; the stored message is the
+      // user's text.
       const workspace = settings.mcp.workspaceFolder;
-      if (workspace && settings.mcp.enabled && isMCPReady) {
+      if (
+        workspace &&
+        settings.mcp.enabled &&
+        isMCPReady &&
+        (refersToFiles(content) || isLikelyMCPToolIntent(content))
+      ) {
         messageWithContext += `\n\n[Current folder: ${workspace}]`;
       }
 
