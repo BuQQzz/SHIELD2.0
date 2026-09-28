@@ -55,6 +55,12 @@ export interface Message {
   };
 }
 
+/**
+ * Chat is plain conversation; code is a session on a project folder, with
+ * the file tools. Conversations from before the split have no kind: chat.
+ */
+export type ConversationKind = "chat" | "code";
+
 export interface Conversation {
   id: string;
   title: string;
@@ -63,6 +69,9 @@ export interface Conversation {
   updatedAt: Date;
   modelId?: string;
   tags?: string[];
+  kind?: ConversationKind;
+  /** A code session's project folder */
+  folder?: string;
 }
 
 export interface ConversationMetadata {
@@ -74,6 +83,8 @@ export interface ConversationMetadata {
   updatedAt: Date;
   modelId?: string;
   tags?: string[];
+  kind?: ConversationKind;
+  folder?: string;
 }
 
 export interface ConversationStorage {

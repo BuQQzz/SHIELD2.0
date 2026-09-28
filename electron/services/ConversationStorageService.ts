@@ -17,6 +17,8 @@ interface Conversation {
   updatedAt: Date;
   modelId?: string;
   tags?: string[];
+  kind?: "chat" | "code";
+  folder?: string;
 }
 
 interface ConversationMetadata {
@@ -28,6 +30,8 @@ interface ConversationMetadata {
   updatedAt: Date;
   modelId?: string;
   tags?: string[];
+  kind?: "chat" | "code";
+  folder?: string;
 }
 
 export class ConversationStorageService {
@@ -127,6 +131,9 @@ export class ConversationStorageService {
             updatedAt: new Date(conv.updatedAt),
             modelId: conv.modelId,
             tags: conv.tags || [],
+            // The sidebar lists chats and code sessions apart
+            kind: conv.kind,
+            folder: conv.folder,
           });
         } catch (error) {
           console.error(`Failed to read conversation file ${file}:`, error);

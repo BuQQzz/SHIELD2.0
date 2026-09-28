@@ -19,6 +19,8 @@ interface ChatInputProps {
   isGenerating?: boolean;
   onStop?: () => void;
   disabled?: boolean;
+  /** A Code session: show its project folder (chats have no file tools) */
+  showFolder?: boolean;
 }
 
 export interface ChatInputRef {
@@ -27,7 +29,7 @@ export interface ChatInputRef {
 
 export const ChatInput = forwardRef<ChatInputRef, ChatInputProps>(
   function ChatInput(
-    { onSend, isGenerating = false, onStop, disabled = false },
+    { onSend, isGenerating = false, onStop, disabled = false, showFolder },
     ref
   ) {
     const [input, setInput] = useState("");
@@ -137,7 +139,7 @@ export const ChatInput = forwardRef<ChatInputRef, ChatInputProps>(
               typing, out of the way of the send action. */}
           <div className="mt-1 flex min-w-0 items-center gap-1 px-1">
             <PermissionModeSelector />
-            <WorkspaceSelector />
+            {showFolder && <WorkspaceSelector />}
             <ContextRing />
           </div>
         </div>

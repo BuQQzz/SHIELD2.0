@@ -241,3 +241,37 @@ describe("web tools", () => {
     expect(policy("ask", true).decide({ name: "web_search" })).toBe("ask");
   });
 });
+
+describe("chat sessions", () => {
+  const web: ToolDefinition = {
+    name: "web_search",
+    description: "web_search",
+    serverName: "web",
+    parameters: [],
+    annotations: { readOnlyHint: true },
+  };
+
+  it("offer the web tools but not the file tools, which belong to Code", () => {
+    const p = resolveToolPolicy({
+      mode: "auto",
+      allowedTools: ALL_ALLOWED,
+      serverTools: [...SERVER_TOOLS, web],
+      webSearchEnabled: true,
+      fileTools: false,
+    });
+    expect(names(p.advertisedTools)).toEqual(["web_search"]);
+    expect(p.allows("read_file")).toBe(false);
+    expect(p.allows("web_search")).toBe(true);
+  });
+
+  it("offer nothing with web search off", () => {
+    const p = resolveToolPolicy({
+      mode: "auto",
+      allowedTools: ALL_ALLOWED,
+      serverTools: [...SERVER_TOOLS, web],
+      webSearchEnabled: false,
+      fileTools: false,
+    });
+    expect(p.advertisedTools).toEqual([]);
+  });
+});

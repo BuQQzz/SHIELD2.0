@@ -54,6 +54,7 @@ describe("messageHandler capsule persistence", () => {
       isModelLoaded: true,
       currentConversation: {
         id: "existing",
+        kind: "code",
         messages: [
           {
             id: "old",
@@ -114,7 +115,7 @@ describe("Gemma 4 native tool-call safety", () => {
       .mockResolvedValue({ success: true, data: { content: "wrote file" } });
     const handler = createMessageHandler({
       isModelLoaded: true,
-      currentConversation: { id: "existing", messages: [] },
+      currentConversation: { id: "existing", kind: "code", messages: [] },
       setMessages: vi.fn(),
       setIsGenerating: vi.fn(),
       setStreamingContent: vi.fn(),
@@ -206,7 +207,7 @@ describe("messageHandler native tool result roundtrip", () => {
     const saveCurrentConversation = vi.fn().mockResolvedValue(undefined);
     const handler = createMessageHandler({
       isModelLoaded: true,
-      currentConversation: { id: "existing", messages: [] },
+      currentConversation: { id: "existing", kind: "code", messages: [] },
       setMessages: vi.fn(),
       setIsGenerating: vi.fn(),
       setStreamingContent: vi.fn(),
@@ -417,7 +418,7 @@ describe("the [Current folder] note", () => {
     const sendStreamingMessage = vi.fn().mockResolvedValue("Done.");
     const handler = createMessageHandler({
       isModelLoaded: true,
-      currentConversation: { id: "chat", messages: [] },
+      currentConversation: { id: "session", kind: "code", messages: [] },
       setMessages: vi.fn(),
       setIsGenerating: vi.fn(),
       setStreamingContent: vi.fn(),
@@ -437,5 +438,40 @@ describe("the [Current folder] note", () => {
     const sent = sendStreamingMessage.mock.calls.map(([message]) => message);
     expect(sent[0]).toBe("What's in this folder?\n\n[Current folder: C:/work]");
     expect(sent[1]).toBe("explain MCP");
+  });
+
+  it("is never sent in a chat, which has no file tools", async () => {
+    useSettingsStore.setState({
+      settings: {
+        ...DEFAULT_SETTINGS,
+        mcp: {
+          ...DEFAULT_SETTINGS.mcp,
+          enabled: true,
+          workspaceFolder: "C:/work",
+        },
+      },
+    });
+    const sendStreamingMessage = vi.fn().mockResolvedValue("Done.");
+    const handler = createMessageHandler({
+      isModelLoaded: true,
+      currentConversation: { id: "chat", messages: [] },
+      setMessages: vi.fn(),
+      setIsGenerating: vi.fn(),
+      setStreamingContent: vi.fn(),
+      streamingContentRef: { current: "" },
+      sendStreamingMessage,
+      addMessage: vi.fn(),
+      generateTitle: vi.fn().mockResolvedValue(null),
+      updateTitle: vi.fn(),
+      saveCurrentConversation: vi.fn().mockResolvedValue(undefined),
+      modelSettings: DEFAULT_SETTINGS.model,
+      isMCPReady: true,
+    });
+
+    await handler("What's in this folder?");
+
+    expect(sendStreamingMessage.mock.calls[0]?.[0]).toBe(
+      "What's in this folder?"
+    );
   });
 });

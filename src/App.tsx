@@ -1,6 +1,13 @@
 "use client";
 
-import { useState, useRef, useEffect, useMemo, Suspense } from "react";
+import {
+  useState,
+  useRef,
+  useEffect,
+  useMemo,
+  useCallback,
+  Suspense,
+} from "react";
 import { ChatLayout } from "./components/chat/ChatLayout";
 import { Sidebar } from "./components/chat/Sidebar";
 import { ChatHeader } from "./components/chat/ChatHeader";
@@ -26,6 +33,9 @@ import { useToolPolicy } from "./hooks/useToolPolicy";
 import { useInstalledModels } from "./hooks/useInstalledModels";
 import { useRecommendedSampling } from "./hooks/useRecommendedSampling";
 import { effectiveSampling } from "./services/modelSampling";
+import { sameFolder, useApplyWorkspace } from "./hooks/useApplyWorkspace";
+import { kindOf, ofKind, viewKind } from "./lib/sessions";
+import { CodeModelHint } from "./components/chat/CodeModelHint";
 import { useChatStore } from "./stores/chat-store";
 import { ModelLibraryPage } from "./components/library/ModelLibraryPage";
 import { PluginsPage } from "./components/plugins/PluginsPage";
@@ -75,11 +85,19 @@ function App() {
 
   const {
     currentConversation,
+    conversations,
     createNewConversation,
+    loadConversation,
+    updateConversation,
     addMessage,
     updateTitle,
     saveCurrentConversation,
   } = useConversationStore();
+
+  // Chat is plain conversation; Code is a session on a project folder with
+  // the file tools. What the model is offered follows the open conversation,
+  // so a look at the library mid-session changes nothing.
+  const isCodeSession = kindOf(currentConversation) === "code";
 
   const { settings, loadSettings } = useSettingsStore();
   const {
@@ -103,6 +121,7 @@ function App() {
     allowedTools: settings.mcp?.allowedTools ?? [],
     serverTools: mcpServerTools,
     webSearchEnabled: settings.webSearch?.enabled ?? false,
+    fileTools: isCodeSession,
   });
 
   // MCP dialog management
@@ -157,13 +176,14 @@ function App() {
   useMCPSystemPrompt({
     isModelLoaded,
     isMCPReady,
-    mcpEnabled: true,
+    // A chat without web search has no tools at all
+    mcpEnabled: isCodeSession || toolPolicy.advertisedTools.length > 0,
     baseSystemPrompt: settings.system.systemPrompt,
     setSystemPrompt,
     modelName: currentModelConfig?.name,
     modelCapabilities: currentModelConfig?.capabilities,
     availableTools: toolPolicy.advertisedTools,
-    allowedPaths: mcpAllowedPaths,
+    allowedPaths: isCodeSession ? mcpAllowedPaths : [],
     planOnly: toolPolicy.isPlanning,
     toolsLoading: !mcpToolsSettled,
   });
@@ -174,6 +194,47 @@ function App() {
       createNewConversation("New Chat", currentModelId);
     }
   }, [currentConversation, createNewConversation, currentModelId]);
+
+  // Each view shows its own kind of session: opening Chat or Code goes to
+  // that kind's latest conversation, or starts one
+  const activeKind = viewKind(activeView);
+  useEffect(() => {
+    if (!activeKind || !currentConversation) return;
+    if (kindOf(currentConversation) === activeKind) return;
+    const latest = ofKind(conversations, activeKind)[0];
+    if (latest) {
+      void loadConversation(latest.id);
+    } else {
+      createNewConversation(
+        activeKind === "code" ? "New session" : "New Chat",
+        currentModelId,
+        { kind: activeKind }
+      );
+    }
+  }, [
+    activeKind,
+    currentConversation,
+    conversations,
+    loadConversation,
+    createNewConversation,
+    currentModelId,
+  ]);
+
+  // A Code session's file tools work in its project folder
+  const applyWorkspace = useApplyWorkspace();
+  const sessionFolder = isCodeSession ? currentConversation?.folder : undefined;
+  useEffect(() => {
+    if (!sessionFolder) return;
+    if (sameFolder(sessionFolder, settings.mcp?.workspaceFolder)) return;
+    void applyWorkspace(sessionFolder);
+  }, [sessionFolder, settings.mcp?.workspaceFolder, applyWorkspace]);
+  // Nothing is sent from a Code session until its folder is in effect: the
+  // file server restarts on a switch, and a message in that second would
+  // have run tools in the previous session's folder
+  const folderReady =
+    !isCodeSession ||
+    (!!sessionFolder &&
+      sameFolder(sessionFolder, settings.mcp?.workspaceFolder));
 
   // Sync messages and restore chat history
   useConversationSync({
@@ -257,12 +318,50 @@ function App() {
     isMCPReady,
   });
 
+  // A new Code session starts in a folder the user picks
+  const handleNewSession = useCallback(async () => {
+    const picked = await window.electronAPI.mcp.chooseWorkspace();
+    if (!picked) return;
+    const folder = await applyWorkspace(picked);
+    if (!folder) return;
+    if (currentConversation?.messages.length) await saveCurrentConversation();
+    createNewConversation("New session", currentModelId, {
+      kind: "code",
+      folder,
+    });
+    setMessages([]);
+    await clearHistory();
+  }, [
+    applyWorkspace,
+    currentConversation,
+    saveCurrentConversation,
+    createNewConversation,
+    currentModelId,
+    clearHistory,
+  ]);
+
+  // A Code session opened from the view itself has no folder yet
+  const handleChooseSessionFolder = useCallback(async () => {
+    const picked = await window.electronAPI.mcp.chooseWorkspace();
+    if (!picked) return;
+    const folder = await applyWorkspace(picked);
+    if (folder) updateConversation({ folder });
+  }, [applyWorkspace, updateConversation]);
+
+  const handleNew = useCallback(
+    (kind = activeKind ?? kindOf(currentConversation)) => {
+      if (kind === "code") void handleNewSession();
+      else handleNewChat();
+    },
+    [activeKind, currentConversation, handleNewSession, handleNewChat]
+  );
+
   // Keyboard shortcuts
   useKeyboardShortcuts(
     createAppShortcuts(
       isGenerating,
       settingsOpen,
-      handleNewChat,
+      () => handleNew(),
       handleStopGenerating,
       () => inputRef.current?.focus(),
       setSettingsOpen
@@ -273,7 +372,7 @@ function App() {
     <ChatLayout
       sidebar={
         <Sidebar
-          onNewChat={handleNewChat}
+          onNewChat={handleNew}
           onNewFromTemplate={() => setTemplateSelectorOpen(true)}
           onOpenSettings={() => setSettingsOpen(true)}
           models={installedModels}
@@ -327,7 +426,15 @@ function App() {
                 : undefined
             }
             onOpenLibrary={() => setActiveView("library")}
-            onPromptClick={handleSendMessage}
+            onPromptClick={folderReady ? handleSendMessage : undefined}
+            code={
+              isCodeSession
+                ? {
+                    folder: currentConversation?.folder,
+                    onChooseFolder: handleChooseSessionFolder,
+                  }
+                : undefined
+            }
           />
         ) : (
           <MessageList
@@ -345,12 +452,20 @@ function App() {
           onApprove={handleApprove}
           onDeny={handleDeny}
         />
+        {isCodeSession && isModelLoaded && (
+          <CodeModelHint
+            currentModelId={currentModelId}
+            models={installedModels}
+            onLoad={handleModelSelect}
+          />
+        )}
         <ChatInput
           ref={inputRef}
           onSend={handleSendMessage}
           isGenerating={isGenerating}
           onStop={handleStopGenerating}
-          disabled={!isModelLoaded}
+          disabled={!isModelLoaded || !folderReady}
+          showFolder={isCodeSession}
         />
       </div>
 

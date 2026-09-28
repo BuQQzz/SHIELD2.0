@@ -18,6 +18,8 @@ import type { ToolCallRequest } from "./mcpToolHandler";
 import type { MCPToolResult } from "@/types";
 import { parseAllThinking } from "../utils/thinkingParser";
 import { detectTruncation } from "../utils/messageTruncation";
+import { kindOf } from "../lib/sessions";
+import type { ConversationKind } from "../types/conversation";
 
 const FILE_WORDS =
   /\b(?:folders?|director(?:y|ies)|dirs?|workspace|files?|paths?|projects?|repos?|repositor(?:y|ies)|codebase|readme)\b|\bin here\b/i;
@@ -55,6 +57,8 @@ interface MessageHandlerProps {
   currentConversation: {
     id: string;
     messages: Message[];
+    /** Code sessions have the file tools; chats (and older chats) do not */
+    kind?: ConversationKind;
   } | null;
   setMessages: React.Dispatch<React.SetStateAction<Message[]>>;
   setIsGenerating: (value: boolean) => void;
@@ -127,9 +131,15 @@ export function createMessageHandler({
 
       let messageWithContext = content;
 
+      // File tools, and everything that pushes the model towards them,
+      // belong to Code sessions
+      const fileTools = kindOf(currentConversation) === "code";
       const allowedTools = settings.mcp.allowedTools ?? [];
       const shouldForceMCPFirstAttempt =
-        isMCPReady && allowedTools.length > 0 && isLikelyMCPToolIntent(content);
+        fileTools &&
+        isMCPReady &&
+        allowedTools.length > 0 &&
+        isLikelyMCPToolIntent(content);
 
       if (shouldForceMCPFirstAttempt) {
         messageWithContext = buildMCPRetryPrompt(content, allowedTools);
@@ -144,6 +154,7 @@ export function createMessageHandler({
       // user's text.
       const workspace = settings.mcp.workspaceFolder;
       if (
+        fileTools &&
         workspace &&
         settings.mcp.enabled &&
         isMCPReady &&
@@ -208,6 +219,7 @@ export function createMessageHandler({
       const shouldRunMCPRetry =
         !unsupportedNativeCall &&
         !hasToolCalls &&
+        fileTools &&
         isMCPReady &&
         (settings.mcp.allowedTools?.length ?? 0) > 0 &&
         shouldRetryWithMCP(content, processedContent);

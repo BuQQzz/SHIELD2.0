@@ -55,6 +55,11 @@ export interface ToolPolicyInput {
    * filesystem tools.
    */
   webSearchEnabled?: boolean;
+  /**
+   * The file tools belong to Code sessions. In a chat only the web tools
+   * are offered, and a file tool the model calls anyway is not permitted.
+   */
+  fileTools?: boolean;
 }
 
 /** SHIELD's own web tools come from this server (electron/services/webTools) */
@@ -68,13 +73,14 @@ export function resolveToolPolicy({
   allowedTools,
   serverTools,
   webSearchEnabled = false,
+  fileTools = true,
 }: ToolPolicyInput): ToolPolicy {
   // The allowlist applies in every mode - a mode can narrow what the user
   // permitted, never widen it.
   const allowlisted = serverTools.filter((tool) =>
     tool.serverName === WEB_SERVER_NAME
       ? webSearchEnabled
-      : allowedTools.includes(tool.name)
+      : fileTools && allowedTools.includes(tool.name)
   );
   const allowedNames = new Set(allowlisted.map((tool) => tool.name));
 
@@ -133,11 +139,18 @@ export function resolveToolPolicy({
  * React binding for {@link resolveToolPolicy}.
  */
 export function useToolPolicy(input: ToolPolicyInput): ToolPolicy {
-  const { mode, allowedTools, serverTools, webSearchEnabled } = input;
+  const { mode, allowedTools, serverTools, webSearchEnabled, fileTools } =
+    input;
 
   return useMemo(
     () =>
-      resolveToolPolicy({ mode, allowedTools, serverTools, webSearchEnabled }),
-    [mode, allowedTools, serverTools, webSearchEnabled]
+      resolveToolPolicy({
+        mode,
+        allowedTools,
+        serverTools,
+        webSearchEnabled,
+        fileTools,
+      }),
+    [mode, allowedTools, serverTools, webSearchEnabled, fileTools]
   );
 }

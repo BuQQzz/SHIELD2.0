@@ -1,11 +1,17 @@
 "use client";
 
 import { motion } from "framer-motion";
-import { Library, Loader2, Play } from "lucide-react";
+import { FolderOpen, Library, Loader2, Play } from "lucide-react";
+import { folderName } from "@/lib/sessions";
 
 const SUGGESTED_PROMPTS = [
   "What can you help me with?",
   "Explain how you work",
+];
+
+const CODE_PROMPTS = [
+  "What's in this project?",
+  "Look for bugs and list them by severity",
 ];
 
 interface ChatPlaceholderProps {
@@ -16,6 +22,8 @@ interface ChatPlaceholderProps {
   onLoadSelected?: () => void;
   onOpenLibrary?: () => void;
   onPromptClick?: (prompt: string) => void;
+  /** A Code session: it works in a project folder, chosen here if unset */
+  code?: { folder?: string; onChooseFolder: () => void };
 }
 
 /**
@@ -76,7 +84,9 @@ export function ChatPlaceholder({
   onLoadSelected,
   onOpenLibrary,
   onPromptClick,
+  code,
 }: ChatPlaceholderProps) {
+  const prompts = code ? CODE_PROMPTS : SUGGESTED_PROMPTS;
   return (
     <motion.div
       initial={{ opacity: 0, y: 20 }}
@@ -98,7 +108,11 @@ export function ChatPlaceholder({
         />
         <div className="text-center">
           <p className="text-muted-foreground">
-            Privacy-first AI Assistant for Windows
+            {!code
+              ? "Privacy-first AI Assistant for Windows"
+              : code.folder
+                ? `Working in ${folderName(code.folder)}`
+                : "A code session works in one project folder"}
           </p>
         </div>
       </motion.div>
@@ -118,6 +132,21 @@ export function ChatPlaceholder({
             onOpenLibrary={onOpenLibrary}
           />
         </motion.div>
+      ) : code && !code.folder ? (
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5, delay: 0.4 }}
+          className="mt-8 flex justify-center"
+        >
+          <button
+            onClick={code.onChooseFolder}
+            className="flex h-9 items-center gap-2 rounded-lg bg-primary px-4 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90"
+          >
+            <FolderOpen className="h-3.5 w-3.5" />
+            Choose a project folder
+          </button>
+        </motion.div>
       ) : (
         <motion.div
           initial={{ opacity: 0, y: 20 }}
@@ -126,7 +155,7 @@ export function ChatPlaceholder({
           className="mt-8 w-full max-w-2xl"
         >
           <div className="grid gap-3 sm:grid-cols-2">
-            {SUGGESTED_PROMPTS.map((prompt, index) => (
+            {prompts.map((prompt, index) => (
               <motion.button
                 key={index}
                 initial={{ opacity: 0, x: -10 }}

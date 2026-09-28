@@ -21,10 +21,13 @@ import { useConversationStore } from "@/stores/conversation-store";
 import { SidebarModelPicker } from "@/components/shell/SidebarModelPicker";
 import type { ModelOption } from "@/config/models";
 import { cn } from "@/lib/utils";
+import { kindOf, ofKind, viewKind } from "@/lib/sessions";
+import type { ConversationKind } from "@/types/conversation";
 import { ConversationList } from "./ConversationList";
 
 interface SidebarProps {
-  onNewChat?: () => void;
+  /** A new chat, or a new Code session (which asks for its folder) */
+  onNewChat?: (kind: ConversationKind) => void;
   onNewFromTemplate?: () => void;
   onOpenSettings?: () => void;
   models: ModelOption[];
@@ -43,7 +46,7 @@ interface NavItem {
 
 const NAV: NavItem[] = [
   { view: "chat", label: "Chat", icon: MessageSquare },
-  { view: "code", label: "Code", icon: Code2, soon: true },
+  { view: "code", label: "Code", icon: Code2 },
   { view: "library", label: "Model Library", icon: Library },
   { view: "plugins", label: "Plugins", icon: Blocks },
 ];
@@ -80,7 +83,6 @@ export function Sidebar({
     loadConversation,
     deleteConversation,
     searchConversations,
-    createNewConversation,
   } = useConversationStore();
 
   const [searchOpen, setSearchOpen] = useState(false);
@@ -110,15 +112,20 @@ export function Sidebar({
     if (searchInput) handleSearch("");
   };
 
+  // The kind of session the list shows: the view's, or from the library and
+  // plugins, the open conversation's
+  const sessionKind = viewKind(activeView) ?? kindOf(currentConversation);
+  const sessions = ofKind(conversations, sessionKind);
+  const code = sessionKind === "code";
+
   const handleNewChat = () => {
-    createNewConversation();
-    setActiveView("chat");
-    onNewChat?.();
+    if (!viewKind(activeView)) setActiveView(sessionKind);
+    onNewChat?.(sessionKind);
   };
 
   const handleSelectConversation = (conversationId: string) => {
     loadConversation(conversationId);
-    setActiveView("chat");
+    setActiveView(sessionKind);
   };
 
   if (!sidebarOpen) return null;
@@ -157,16 +164,16 @@ export function Sidebar({
         <div className={cn("flex gap-1.5 pb-4", collapsed ? "px-3" : "px-3")}>
           <button
             onClick={handleNewChat}
-            title="New chat"
+            title={code ? "New code session in a project folder" : "New chat"}
             className={cn(
               "flex h-9 flex-1 items-center justify-center gap-2 rounded-lg bg-primary text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90",
               collapsed && "px-0"
             )}
           >
             <Plus className="h-4 w-4" />
-            {!collapsed && "New chat"}
+            {!collapsed && (code ? "New session" : "New chat")}
           </button>
-          {!collapsed && onNewFromTemplate && (
+          {!collapsed && !code && onNewFromTemplate && (
             <button
               onClick={onNewFromTemplate}
               title="New chat from a template"
@@ -246,7 +253,7 @@ export function Sidebar({
             collapsed={collapsed}
             onSelect={(model) => {
               onModelSelect(model);
-              setActiveView("chat");
+              if (!viewKind(activeView)) setActiveView(sessionKind);
             }}
             onOpenLibrary={() => setActiveView("library")}
           />
@@ -263,7 +270,7 @@ export function Sidebar({
                 <input
                   ref={searchRef}
                   type="text"
-                  placeholder="Search chats"
+                  placeholder={code ? "Search sessions" : "Search chats"}
                   value={searchInput}
                   onChange={(e) => handleSearch(e.target.value)}
                   onKeyDown={(e) => e.key === "Escape" && closeSearch()}
@@ -272,15 +279,21 @@ export function Sidebar({
               </div>
             ) : (
               <span className="flex-1 text-[10px] font-medium uppercase tracking-[0.14em] text-muted-foreground/70">
-                Chats
+                {code ? "Sessions" : "Chats"}
                 <span className="ml-1.5 font-instrument normal-case tracking-normal text-muted-foreground/50">
-                  {conversations.length}
+                  {sessions.length}
                 </span>
               </span>
             )}
             <button
               onClick={() => (searchOpen ? closeSearch() : setSearchOpen(true))}
-              title={searchOpen ? "Close search" : "Search chats"}
+              title={
+                searchOpen
+                  ? "Close search"
+                  : code
+                    ? "Search sessions"
+                    : "Search chats"
+              }
               className="rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
             >
               {searchOpen ? (
@@ -294,7 +307,7 @@ export function Sidebar({
           {/* Scroll area; fades out at the top edge */}
           <div className="min-h-0 flex-1 overflow-y-auto px-3 [mask-image:linear-gradient(to_bottom,transparent,black_12px)]">
             <ConversationList
-              conversations={conversations}
+              conversations={sessions}
               currentConversationId={currentConversation?.id}
               onSelect={handleSelectConversation}
               onDelete={deleteConversation}
