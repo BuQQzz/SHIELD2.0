@@ -4,6 +4,57 @@ import type { NativeToolResult } from "../types/nativeTools";
 import { useSettingsStore } from "../store/settingsStore";
 import { useGenerationStore } from "../store/generationStore";
 import { processMCPToolCalls, unrunToolCallsNote } from "./mcpMessageHandler";
+import {
+  readFailedEditFiles,
+  recordNoteFor,
+  takeLedgerNote,
+} from "./workLedger";
+import { resultPayload } from "./mcpToolHandler";
+import { recallFor } from "./memoryRecall";
+import { useConversationStore } from "@/stores/conversation-store";
+
+/**
+ * A file's current contents for SHIELD's own checks, through the filesystem
+ * server (so only inside the allowed folder); null when it cannot be read.
+ */
+async function readProjectFile(path: string): Promise<string | null> {
+  const result = await window.electronAPI?.mcp?.callTool({
+    serverName: "filesystem",
+    tool: "read_text_file",
+    arguments: { path },
+  });
+  if (!result?.success || (result.data as { isError?: unknown })?.isError) {
+    return null;
+  }
+  return resultPayload(result.data);
+}
+
+/**
+ * After a turn in a code session: when the final reply talks about a change
+ * whose edit failed and is still not in the file, put SHIELD's record under
+ * the reply, for the user.
+ */
+async function noteUnappliedEdits(workspace?: string): Promise<void> {
+  const conversation = useConversationStore.getState().currentConversation;
+  const answer = conversation?.messages.at(-1);
+  if (!conversation || answer?.role !== "assistant") return;
+  const files = await readFailedEditFiles(
+    conversation.messages,
+    readProjectFile
+  );
+  const note = recordNoteFor(
+    answer.content,
+    conversation.messages,
+    files,
+    workspace
+  );
+  if (!note) return;
+  useConversationStore.getState().updateConversation({
+    messages: conversation.messages.map((message) =>
+      message.id === answer.id ? { ...message, recordNote: note } : message
+    ),
+  });
+}
 import { extractToolCalls } from "./mcpToolHandler";
 import {
   hasUnsupportedNativeToolCall,
@@ -167,6 +218,29 @@ export function createMessageHandler({
       const unrun = currentConversation?.messages.at(-1)?.unrunToolCalls;
       if (unrun?.length) {
         messageWithContext += `\n\n${unrunToolCallsNote(unrun)}`;
+      }
+
+      // What the model changed and ran, from the tools' results - sent after
+      // new work, so its own earlier claims are not its only record
+      if (fileTools && currentConversation) {
+        const files = await readFailedEditFiles(
+          currentConversation.messages,
+          readProjectFile
+        );
+        const record = takeLedgerNote(
+          currentConversation.id,
+          currentConversation.messages,
+          workspace,
+          files
+        );
+        if (record) messageWithContext += `\n\n${record}`;
+      }
+
+      // Earlier conversations that may bear on this message, found by
+      // SHIELD rather than left for the model to think of searching
+      if (currentConversation) {
+        const recall = await recallFor(content, currentConversation.id);
+        if (recall) messageWithContext += `\n\n${recall}`;
       }
 
       const returnedResponse = await sendStreamingMessage(
@@ -358,6 +432,8 @@ export function createMessageHandler({
           },
         });
       }
+
+      if (fileTools) await noteUnappliedEdits(workspace);
 
       // Generate title for first message in conversation
       if (currentConversation && currentConversation.messages.length === 0) {

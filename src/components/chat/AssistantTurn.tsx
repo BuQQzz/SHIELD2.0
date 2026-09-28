@@ -46,6 +46,7 @@ function TextPart({
       role="assistant"
       content={message.content}
       truncated={message.truncated}
+      recordNote={message.recordNote}
       sources={message.sources}
       thinking={message.thinking}
       isThinking={message.isThinking}

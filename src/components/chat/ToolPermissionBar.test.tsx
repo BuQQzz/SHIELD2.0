@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { ToolPermissionBar } from "./ToolPermissionBar";
 
 const base = {
@@ -27,6 +27,55 @@ describe("ToolPermissionBar", () => {
     );
     expect(screen.getByText(/awsome sauce\.md/)).toBeTruthy();
     expect(screen.queryByText("Allow for session")).toBeNull();
+  });
+
+  it("shows a command in full and asks for it alone", () => {
+    render(
+      <ToolPermissionBar
+        request={{
+          ...base,
+          serverName: "terminal",
+          toolName: "run_command",
+          arguments: { command: "npm test -- --run" },
+          command: "npm test -- --run",
+        }}
+        onApprove={vi.fn()}
+        onDeny={vi.fn()}
+      />
+    );
+    expect(screen.getByText("Run this command?")).toBeTruthy();
+    expect(screen.getByText("npm test -- --run")).toBeTruthy();
+    expect(screen.getByText("Run")).toBeTruthy();
+    expect(screen.queryByText("Allow for session")).toBeNull();
+  });
+
+  it("shows the model's reason, and a script it wrote on request", () => {
+    render(
+      <ToolPermissionBar
+        request={{
+          ...base,
+          serverName: "terminal",
+          toolName: "run_command",
+          arguments: {},
+          command: "pwsh -File integration-test.ps1",
+          commandReason: "Runs the integration test",
+          modelScripts: [
+            { path: "integration-test.ps1", content: ". .\\set-radio.ps1" },
+          ],
+        }}
+        onApprove={vi.fn()}
+        onDeny={vi.fn()}
+      />
+    );
+    expect(screen.getByText("Runs the integration test")).toBeTruthy();
+    expect(
+      screen.getByText(
+        "Runs integration-test.ps1, which the model wrote in this session."
+      )
+    ).toBeTruthy();
+    expect(screen.queryByText(". .\\set-radio.ps1")).toBeNull();
+    fireEvent.click(screen.getByText("Show script"));
+    expect(screen.getByText(". .\\set-radio.ps1")).toBeTruthy();
   });
 
   it("shows where a move goes", () => {

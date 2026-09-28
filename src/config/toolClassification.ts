@@ -37,6 +37,9 @@ const KNOWN_READ_ONLY_TOOLS = new Set([
   // internet but change nothing on this PC
   "web_search",
   "fetch_page",
+  // SHIELD's memory of past conversations (electron/services/memory)
+  "search_memory",
+  "open_memory",
 ]);
 
 /** A tool as the server described it, including optional MCP annotations */

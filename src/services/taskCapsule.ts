@@ -111,15 +111,19 @@ const VERBS: Record<string, string> = {
   list_allowed_directories: "listed the allowed folders",
   web_search: "searched the web for",
   fetch_page: "read the page",
+  run_command: "ran",
+  search_memory: "searched memory for",
+  open_memory: "opened memory",
 };
 
 /**
  * What the user typed, without what SHIELD adds for the model: the
- * [Current folder] and [Not run] notes, and the tool-retry wrapper.
+ * [Current folder], [Not run] and work-record notes, and the tool-retry
+ * wrapper.
  */
 export function requestText(content: string): string {
   let text = content.replace(
-    /\s*\[(?:Current folder|Not run): [\s\S]*?\]\s*$/,
+    /\s*\[(?:Current folder: |Not run: |SHIELD's record of |From SHIELD's memory )[\s\S]*?\]\s*$/,
     ""
   );
   if (text.startsWith("You have MCP filesystem tools available")) {
@@ -146,6 +150,7 @@ function stepTarget(args: Record<string, unknown>): string {
     (paths.length > 0 ? paths.join(", ") : undefined) ??
     (text(args.query) ? `"${args.query}"` : undefined) ??
     text(args.url) ??
+    (text(args.command) ? `\`${args.command}\`` : undefined) ??
     ""
   );
 }

@@ -311,3 +311,35 @@ describe("turnStats", () => {
     });
   });
 });
+
+describe("run_command steps", () => {
+  it("names the command, cut to fit", () => {
+    expect(stepLabel("run_command", "terminal", "npm test", "done")).toBe(
+      "Ran npm test"
+    );
+    expect(
+      stepLabel("run_command", "terminal", "git log --oneline", "running")
+    ).toBe("Running git log --oneline");
+    const long = `Select-String -Path *.ps1 -Pattern "${"x".repeat(60)}"`;
+    expect(stepLabel("run_command", "terminal", long, "done")).toBe(
+      `Ran ${long.slice(0, 45)}...`
+    );
+    expect(stepLabel("run_command", "terminal", "a\nb", "done")).toBe(
+      "Ran a ..."
+    );
+  });
+
+  it("shows the exit code and time", () => {
+    expect(
+      stepDetail("run_command", "Exit code 1 · 2.4 s\nFAIL app.test.js", true)
+    ).toBe("exit 1 · 2.4 s");
+  });
+
+  it("counts lines the terminal flagged as possible failures", () => {
+    const body =
+      "Exit code 0 · 2.2 s\n✗ Failed\n\n[Exit code 0, but 2 lines of the output look like failures. ...]";
+    expect(stepDetail("run_command", body, true)).toBe(
+      "exit 0 · 2.2 s · 2 possible failures"
+    );
+  });
+});

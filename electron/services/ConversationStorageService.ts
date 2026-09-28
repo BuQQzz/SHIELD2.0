@@ -19,6 +19,7 @@ interface Conversation {
   tags?: string[];
   kind?: "chat" | "code";
   folder?: string;
+  projectId?: string;
 }
 
 interface ConversationMetadata {
@@ -32,6 +33,7 @@ interface ConversationMetadata {
   tags?: string[];
   kind?: "chat" | "code";
   folder?: string;
+  projectId?: string;
 }
 
 export class ConversationStorageService {
@@ -134,6 +136,7 @@ export class ConversationStorageService {
             // The sidebar lists chats and code sessions apart
             kind: conv.kind,
             folder: conv.folder,
+            projectId: conv.projectId,
           });
         } catch (error) {
           console.error(`Failed to read conversation file ${file}:`, error);
@@ -151,6 +154,52 @@ export class ConversationStorageService {
       console.error("Failed to list conversations:", errorMsg);
       return { conversations: [], error: errorMsg };
     }
+  }
+
+  /**
+   * Puts a saved conversation under a project, or out of any (null). The
+   * file is changed as stored, without a round trip through the renderer.
+   */
+  async setProject(
+    conversationId: string,
+    projectId: string | null
+  ): Promise<{
+    success: boolean;
+    conversation?: Conversation;
+    error?: string;
+  }> {
+    try {
+      const filePath = path.join(
+        this.conversationsDir,
+        `${conversationId}.json`
+      );
+      const conversation = JSON.parse(
+        await fs.readFile(filePath, "utf-8")
+      ) as Conversation;
+      if (projectId) conversation.projectId = projectId;
+      else delete conversation.projectId;
+      await fs.writeFile(
+        filePath,
+        JSON.stringify(conversation, null, 2),
+        "utf-8"
+      );
+      return { success: true, conversation };
+    } catch (error) {
+      const errorMsg = error instanceof Error ? error.message : "Unknown error";
+      return { success: false, error: errorMsg };
+    }
+  }
+
+  /** Takes every conversation out of a project that is being deleted */
+  async clearProject(projectId: string): Promise<string[]> {
+    const { conversations } = await this.listConversations();
+    const moved: string[] = [];
+    for (const meta of conversations) {
+      if (meta.projectId !== projectId) continue;
+      const result = await this.setProject(meta.id, null);
+      if (result.success) moved.push(meta.id);
+    }
+    return moved;
   }
 
   async deleteConversation(

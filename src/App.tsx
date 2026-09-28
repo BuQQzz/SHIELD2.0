@@ -20,6 +20,7 @@ import { ThemeProvider } from "./components/theme/ThemeProvider";
 import { Toaster } from "./components/ui/sonner";
 import { useLlama, type Message } from "./hooks/useLlama";
 import { useConversationStore } from "./stores/conversation-store";
+import { useProjectStore } from "./stores/project-store";
 import { useConversationSync } from "./hooks/useConversationSync";
 import { useSettingsStore } from "./store/settingsStore";
 import { useKeyboardShortcuts } from "./hooks/useKeyboardShortcuts";
@@ -318,27 +319,40 @@ function App() {
     isMCPReady,
   });
 
-  // A new Code session starts in a folder the user picks
-  const handleNewSession = useCallback(async () => {
-    const picked = await window.electronAPI.mcp.chooseWorkspace();
-    if (!picked) return;
-    const folder = await applyWorkspace(picked);
-    if (!folder) return;
-    if (currentConversation?.messages.length) await saveCurrentConversation();
-    createNewConversation("New session", currentModelId, {
-      kind: "code",
-      folder,
-    });
-    setMessages([]);
-    await clearHistory();
-  }, [
-    applyWorkspace,
-    currentConversation,
-    saveCurrentConversation,
-    createNewConversation,
-    currentModelId,
-    clearHistory,
-  ]);
+  // A new Code session starts in a folder the user picks - or in its
+  // project's folder, without asking; a project without one takes the
+  // folder picked for its first session
+  const handleNewSession = useCallback(
+    async (projectId?: string) => {
+      const project = projectId
+        ? useProjectStore.getState().projects.find((p) => p.id === projectId)
+        : undefined;
+      const picked =
+        project?.folder ?? (await window.electronAPI.mcp.chooseWorkspace());
+      if (!picked) return;
+      const folder = await applyWorkspace(picked);
+      if (!folder) return;
+      if (project && !project.folder) {
+        await useProjectStore.getState().updateProject(project.id, { folder });
+      }
+      if (currentConversation?.messages.length) await saveCurrentConversation();
+      createNewConversation("New session", currentModelId, {
+        kind: "code",
+        folder,
+        projectId: project?.id,
+      });
+      setMessages([]);
+      await clearHistory();
+    },
+    [
+      applyWorkspace,
+      currentConversation,
+      saveCurrentConversation,
+      createNewConversation,
+      currentModelId,
+      clearHistory,
+    ]
+  );
 
   // A Code session opened from the view itself has no folder yet
   const handleChooseSessionFolder = useCallback(async () => {
@@ -349,9 +363,9 @@ function App() {
   }, [applyWorkspace, updateConversation]);
 
   const handleNew = useCallback(
-    (kind = activeKind ?? kindOf(currentConversation)) => {
-      if (kind === "code") void handleNewSession();
-      else handleNewChat();
+    (kind = activeKind ?? kindOf(currentConversation), projectId?: string) => {
+      if (kind === "code") void handleNewSession(projectId);
+      else handleNewChat(projectId);
     },
     [activeKind, currentConversation, handleNewSession, handleNewChat]
   );

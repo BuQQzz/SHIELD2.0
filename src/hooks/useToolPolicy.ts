@@ -14,6 +14,11 @@
 
 import { useMemo } from "react";
 import { isDeletionTool, isMutatingTool } from "@/config/toolClassification";
+import {
+  isReadOnlyCommand,
+  RUN_COMMAND_TOOL_NAME,
+  TERMINAL_SERVER_NAME,
+} from "@/config/commandSafety";
 import { FILESYSTEM_TOOLS } from "@/types/settings";
 import type { PermissionMode } from "@/types/settings";
 import type { ToolDefinition } from "@/types/prompts";
@@ -35,8 +40,10 @@ export interface ToolPolicy {
    * with web search on. A mode may still ask or block it (see decide).
    */
   allows: (toolName: string) => boolean;
-  /** What to do with a given tool call */
-  decide: (tool: ToolDefinition | { name: string }) => ToolDecision;
+  /** What to do with a given tool call (run_command needs its arguments) */
+  decide: (
+    tool: ToolDefinition | { name: string; arguments?: Record<string, unknown> }
+  ) => ToolDecision;
   /** True in plan mode, where changes are described rather than made */
   isPlanning: boolean;
   /** The mode this policy was derived from */
@@ -56,14 +63,20 @@ export interface ToolPolicyInput {
    */
   webSearchEnabled?: boolean;
   /**
-   * The file tools belong to Code sessions. In a chat only the web tools
-   * are offered, and a file tool the model calls anyway is not permitted.
+   * The file tools and the terminal belong to Code sessions. In a chat only
+   * the web tools are offered, and a file tool the model calls anyway is
+   * not permitted.
    */
   fileTools?: boolean;
 }
 
 /** SHIELD's own web tools come from this server (electron/services/webTools) */
 export const WEB_SERVER_NAME = "web";
+/**
+ * SHIELD's memory of past conversations (electron/services/memory): offered
+ * in chats and code sessions alike, and read-only, so it runs in every mode
+ */
+export const MEMORY_SERVER_NAME = "memory";
 
 /**
  * Pure policy resolution, exported for testing without React.
@@ -80,20 +93,34 @@ export function resolveToolPolicy({
   const allowlisted = serverTools.filter((tool) =>
     tool.serverName === WEB_SERVER_NAME
       ? webSearchEnabled
-      : fileTools && allowedTools.includes(tool.name)
+      : tool.serverName === MEMORY_SERVER_NAME
+        ? true
+        : tool.serverName === TERMINAL_SERVER_NAME
+          ? fileTools
+          : fileTools && allowedTools.includes(tool.name)
   );
   const allowedNames = new Set(allowlisted.map((tool) => tool.name));
 
   // In readonly the model is never told mutating tools exist, so it does not
   // propose them and the user never sees a refusal for something it could
   // not have known was off limits. Plan mode still advertises them, because
-  // a plan has to be able to say "then I would write this file".
+  // a plan has to be able to say "then I would write this file". The
+  // terminal stays: read-only commands still run there.
   const advertisedTools =
     mode === "readonly"
-      ? allowlisted.filter((tool) => !isMutatingTool(tool))
+      ? allowlisted.filter(
+          (tool) => !isMutatingTool(tool) || tool.name === RUN_COMMAND_TOOL_NAME
+        )
       : allowlisted;
 
-  const decide = (call: ToolDefinition | { name: string }): ToolDecision => {
+  const decide: ToolPolicy["decide"] = (call) => {
+    if (call.name === RUN_COMMAND_TOOL_NAME) {
+      const command =
+        "arguments" in call && typeof call.arguments?.command === "string"
+          ? call.arguments.command
+          : "";
+      return decideCommand(mode, command);
+    }
     // A call carries only a name; the server's definition has its
     // read-only hint (web_search and fetch_page declare one)
     const tool = serverTools.find((known) => known.name === call.name) ?? call;
@@ -133,6 +160,17 @@ export function resolveToolPolicy({
     isPlanning: mode === "plan",
     mode,
   };
+}
+
+/**
+ * run_command: a command that can only read runs like any read; anything
+ * else asks in Auto (every time - see useMCPDialogs), is recorded in Plan
+ * and refused in Read-only.
+ */
+function decideCommand(mode: PermissionMode, command: string): ToolDecision {
+  if (mode === "ask") return "ask";
+  if (isReadOnlyCommand(command)) return "run";
+  return mode === "auto" ? "ask" : "block";
 }
 
 /**

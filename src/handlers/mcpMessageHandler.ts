@@ -14,6 +14,7 @@ import {
 import { CUT_OFF_ERROR_PREFIX, cutOffToolCall } from "./toolCallParsing";
 import type { MCPToolResult } from "@/types/electron";
 import { isMutatingTool } from "../config/toolClassification";
+import { RUN_COMMAND_TOOL_NAME } from "../config/commandSafety";
 import type { NativeToolResult } from "../types/nativeTools";
 
 export interface MCPMessageHandlerProps {
@@ -90,7 +91,7 @@ function repeatNote(
 const PATH_KEYS = ["path", "source", "destination"];
 
 /** Absolute, lower-cased, backslashed - how Windows compares paths */
-function canonicalPath(value: string, base?: string): string {
+export function canonicalPath(value: string, base?: string): string {
   let p = value.trim().replace(/\//g, "\\");
   const isAbsolute = /^[a-z]:\\/i.test(p) || p.startsWith("\\\\");
   if (!isAbsolute && base) {
@@ -123,10 +124,10 @@ export function callSignature(
   return `${toolCall.serverName}:${toolCall.tool}:${JSON.stringify(args)}`;
 }
 
-/** What a call acts on: a file or folder, a search query or a web page */
+/** What a call acts on: a file or folder, a search query, a web page or a command */
 export function callTarget(toolCall: ToolCallRequest): string | undefined {
-  const { path, source, query, url } = toolCall.arguments;
-  return [path, source, query, url].find(
+  const { path, source, query, url, command } = toolCall.arguments;
+  return [path, source, query, url, command].find(
     (value): value is string => typeof value === "string"
   );
 }
@@ -304,8 +305,12 @@ export async function processMCPToolCalls(
       } else {
         result = await runToolCall(toolCall, onToolCallDetected);
         completedCalls.set(signature, result);
-        // Unknown tools count as mutating here too - clearing is the safe side
-        if (result.success && isMutatingTool({ name: toolCall.tool })) {
+        // Unknown tools count as mutating here too - clearing is the safe side.
+        // A command stopped or timed out may still have changed files.
+        const changedSomething =
+          result.success ||
+          (toolCall.tool === RUN_COMMAND_TOOL_NAME && !result.blocked);
+        if (changedSomething && isMutatingTool({ name: toolCall.tool })) {
           completedCalls.clear();
         }
       }

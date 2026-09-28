@@ -101,6 +101,17 @@ Response Style:
 // =============================================================================
 
 /**
+ * With a terminal (run_command, Code sessions). Models wrote scripts they
+ * never ran - Qwen's lint-scripts.ps1 crashed on the one path that mattered
+ * (2026-09-26) - and reported fixes as working without testing them. Given
+ * the terminal, Qwen3-Coder ran a test whose output said "✗ Failed to load
+ * set-radio.ps1" and answered "All Tests Passed Successfully" (2026-09-28).
+ * The last sentence follows Codex's prompt: mention failures you did not fix.
+ */
+const CHECK_YOUR_WORK =
+  "After changing code, run its tests or the script with run_command when the project has a way to, and fix what fails before you answer. Read the whole output, not just the exit code: a line that says something failed means it failed. Report what the command actually showed, and name every failure you did not fix; never say something passes or works without having run it.";
+
+/**
  * Web tools prompt - included when web_search is among the offered tools
  */
 export const WEB_SEARCH_PROMPT = `
@@ -198,6 +209,9 @@ Always use a full path beginning with one of these. Never guess a path such as "
     ? "\n- To change an existing file, use edit_file with only the lines that change. Copy oldText exactly from the file and supply the replacement in newText. Use write_file only to create a new file." +
       "\n- When asked to fix, change or add something, make the change with these functions. Do not show the code for the user to apply unless they ask to see it first."
     : "";
+  const commandRule = callableTools.some((tool) => tool.name === "run_command")
+    ? `\n- ${CHECK_YOUR_WORK}`
+    : "";
   const usage =
     callableTools.length > 0
       ? `
@@ -207,7 +221,7 @@ Always use a full path beginning with one of these. Never guess a path such as "
 - Use only functions provided to you, with arguments matching their schemas.
 - After a result arrives, either call the next function needed for the request or answer the user.
 - Do not repeat a call that already succeeded; use its result.
-- Once you can answer, answer without making another call.${editRule}`
+- Once you can answer, answer without making another call.${editRule}${commandRule}`
       : "\nNo read functions are currently available. Base the plan on the information already provided and identify anything that still needs inspection.";
   const planSection = planOnly
     ? `
@@ -301,6 +315,9 @@ export function generateMCPToolPrompt(
    Use write_file only to create a new file.
 7. **MAKE THE CHANGE** - When asked to fix, change or add something, do it with edit_file or write_file. Do not show the code for the user to paste unless they ask to see it first. Afterwards, say in a sentence or two what you changed.`
     : "";
+  const commandRule = tools.some((t) => t.name === "run_command")
+    ? `\n${editRule ? 8 : 6}. **CHECK YOUR WORK** - ${CHECK_YOUR_WORK}`
+    : "";
 
   // One folder means the user picked a workspace. Say so, or "what's in this
   // folder?" gets answered by guessing Documents (seen 2026-09-22).
@@ -330,7 +347,7 @@ ${toolDescriptions}
 ${accessSection}
 
 ## Tool Call Format
-Use this exact format. The arguments are a JSON object, and line breaks inside string values must be written as \\n.
+Use this exact format. The arguments are a JSON object: inside string values, write line breaks as \\n and quotes as \\" (never &quot;).
 
 <tool_call>
 <server>${exampleServer}</server>
@@ -353,7 +370,7 @@ Stop after </tool_call>. The result arrives in the next message; then summarise 
 2. **NEVER JUST EXPLAIN** - Don't tell users how to do it manually
 3. **ONLY USE LISTED TOOLS** - Never invent a tool that is not listed above
 4. **USE FULL PATHS** - Windows paths like C:\\Users\\...
-5. **ANSWER, THEN STOP** - Call only the tools the request needs. Once you can answer, answer without a tool call.${editRule}`;
+5. **ANSWER, THEN STOP** - Call only the tools the request needs. Once you can answer, answer without a tool call.${editRule}${commandRule}`;
 }
 
 /**

@@ -33,6 +33,8 @@ export interface Message {
   summary?: string;
   /** That summary, to restore the model's view from */
   capsule?: SavedCapsule;
+  /** SHIELD's record under a reply that claims a change never made (see types/conversation) */
+  recordNote?: string;
 }
 
 /**
@@ -52,6 +54,8 @@ export interface Conversation {
   kind?: ConversationKind;
   /** A code session's project folder */
   folder?: string;
+  /** The project this conversation runs under (see Project) */
+  projectId?: string;
 }
 
 export interface ConversationMetadata {
@@ -65,6 +69,19 @@ export interface ConversationMetadata {
   tags?: string[];
   kind?: ConversationKind;
   folder?: string;
+  projectId?: string;
+}
+
+/**
+ * A named group that chats and code sessions run under; with a folder,
+ * its code sessions start there (electron/services/ProjectStorageService)
+ */
+export interface Project {
+  id: string;
+  name: string;
+  folder?: string;
+  createdAt: string;
+  updatedAt: string;
 }
 
 /** How one reply was generated (mirrors LlamaService) */
@@ -238,6 +255,19 @@ export interface ConversationAPI {
   search: (
     query: string
   ) => Promise<{ conversations: ConversationMetadata[]; error?: string }>;
+  /** Put a saved conversation under a project, or out of any (null) */
+  setProject: (
+    conversationId: string,
+    projectId: string | null
+  ) => Promise<{ success: boolean; error?: string }>;
+  listProjects: () => Promise<{ projects: Project[] }>;
+  saveProject: (
+    project: Project
+  ) => Promise<{ success: boolean; project?: Project; error?: string }>;
+  /** The project goes; its conversations stay, outside any project */
+  deleteProject: (
+    projectId: string
+  ) => Promise<{ success: boolean; moved?: number; error?: string }>;
 }
 
 export interface AppSettings {
@@ -395,6 +425,25 @@ export interface MCPToolCall {
   arguments?: Record<string, unknown>;
 }
 
+/** A match from SHIELD's memory index (electron/services/memory) */
+export interface MemoryHit {
+  /** "<conversation id>#<message number>", what open_memory takes */
+  id: string;
+  conversationId: string;
+  messageIndex: number;
+  /** "record": SHIELD's record of what a session actually changed and ran */
+  role: "user" | "assistant" | "tool" | "record";
+  tool?: string;
+  title: string;
+  kind: "chat" | "code";
+  folder?: string;
+  projectId?: string;
+  createdAt: number;
+  snippet: string;
+  score: number;
+  matched: number;
+}
+
 export interface MCPToolResult {
   success: boolean;
   /** Plan mode declined to run the call - not a failure */
@@ -457,6 +506,24 @@ export interface MCPAPI {
   setWorkspace: (
     folder: string | null
   ) => Promise<{ success: boolean; folder?: string | null; error?: string }>;
+  /** Ends any command run_command is running, and what it started */
+  stopCommands: () => Promise<{ success: boolean; stopped?: number }>;
+  /** SHIELD's memory of past conversations: the best matches for a message */
+  searchMemory: (
+    query: string,
+    options?: {
+      limit?: number;
+      excludeConversation?: string;
+      minMatched?: number;
+      minShare?: number;
+    }
+  ) => Promise<{
+    success: boolean;
+    hits?: MemoryHit[];
+    /** By conversation: changes its record shows were never made */
+    notDone?: Record<string, string[]>;
+    error?: string;
+  }>;
   audit: {
     query: (
       options?: AuditLogQueryOptions

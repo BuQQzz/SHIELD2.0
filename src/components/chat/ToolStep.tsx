@@ -10,6 +10,8 @@
 import { useEffect, useRef, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
+  BookOpen,
+  Brain,
   ChevronRight,
   CircleAlert,
   FilePen,
@@ -23,6 +25,7 @@ import {
   Loader2,
   ScrollText,
   Search,
+  SquareTerminal,
   Trash2,
   Wrench,
   type LucideIcon,
@@ -49,6 +52,9 @@ const ICONS: Record<string, LucideIcon> = {
   delete_file: Trash2,
   web_search: Globe,
   fetch_page: Link,
+  run_command: SquareTerminal,
+  search_memory: Brain,
+  open_memory: BookOpen,
 };
 
 interface ToolStepProps {

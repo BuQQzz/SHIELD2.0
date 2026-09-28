@@ -141,6 +141,14 @@ export function shortUrl(value: string): string {
   }
 }
 
+/** A command's first line, cut to fit a label */
+export function shortCommand(value: string): string {
+  const lines = value.trim().split("\n");
+  const first = lines[0]!;
+  if (first.length > 48) return `${first.slice(0, 45)}...`;
+  return lines.length > 1 ? `${first} ...` : first;
+}
+
 const VERBS: Record<string, Verb> = {
   read_file: { done: "Read", running: "Reading", noun: ["file", "files"] },
   read_text_file: { done: "Read", running: "Reading", noun: ["file", "files"] },
@@ -191,6 +199,23 @@ const VERBS: Record<string, Verb> = {
     running: "Reading",
     noun: ["page", "pages"],
     target: shortUrl,
+  },
+  run_command: {
+    done: "Ran",
+    running: "Running",
+    noun: ["command", "commands"],
+    target: shortCommand,
+  },
+  search_memory: {
+    done: "Searched memory for",
+    running: "Searching memory for",
+    noun: ["memory search", "memory searches"],
+    target: (query) => `"${query}"`,
+  },
+  open_memory: {
+    done: "Opened a memory",
+    running: "Opening a memory",
+    noun: ["memory", "memories"],
   },
 };
 
@@ -312,15 +337,27 @@ export function stepDetail(
   const diff = tool === "edit_file" ? diffStat(body) : null;
   if (diff) return diff;
 
-  if (tool === "web_search") {
+  if (tool === "web_search" || tool === "search_memory") {
     const results = (body.match(/^\d+\. /gm) ?? []).length;
+    const noun = tool === "search_memory" ? "match" : "result";
     return results
-      ? `${results} result${results === 1 ? "" : "s"}`
-      : "no results";
+      ? `${results} ${noun}${results === 1 ? "" : noun === "match" ? "es" : "s"}`
+      : `no ${noun}${noun === "match" ? "es" : "s"}`;
   }
+  if (tool === "open_memory") return "";
   if (tool === "fetch_page") {
     const part = body.match(/\[Characters ([\d,]+)-([\d,]+) of ([\d,]+)/);
     return part ? `characters ${part[1]}-${part[2]} of ${part[3]}` : "";
+  }
+  if (tool === "run_command") {
+    const run = body.match(/^Exit code (\S+) · ([\d.]+ s)/);
+    if (!run) return "";
+    // terminalTool's note on an exit code 0 with failure-looking lines
+    const flagged = body.match(/\[Exit code 0, but (\d+) lines? of the output/);
+    const failures = flagged
+      ? ` · ${flagged[1]} possible failure${flagged[1] === "1" ? "" : "s"}`
+      : "";
+    return `exit ${run[1]} · ${run[2]}${failures}`;
   }
 
   const files = (body.match(/\[FILE\]/g) ?? []).length;

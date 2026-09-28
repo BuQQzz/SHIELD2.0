@@ -2,10 +2,13 @@ import path from "path";
 import { app, BrowserWindow } from "electron";
 import { SettingsStorageService } from "./services/SettingsStorageService.js";
 import { mcpService } from "./services/MCPService.js";
+import { stopRunningCommands } from "./services/terminalTool.js";
 import { createMainWindow } from "./setup/windowSetup.js";
 import { registerLlamaHandlers } from "./ipc/llamaHandlers.js";
 import { registerConversationHandlers } from "./ipc/conversationHandlers.js";
 import { registerMcpHandlers } from "./ipc/mcpHandlers.js";
+import { registerMemoryHandlers } from "./ipc/memoryHandlers.js";
+import { registerProjectHandlers } from "./ipc/projectHandlers.js";
 import { registerSearchHandlers } from "./ipc/searchHandlers.js";
 import { registerSettingsHandlers } from "./ipc/settingsHandlers.js";
 import { registerModelHandlers } from "./ipc/modelHandlers.js";
@@ -54,6 +57,8 @@ async function setupIpcHandlers() {
   // Pass a getter function for mainWindow so handlers can access it after it's created
   const llamaService = registerLlamaHandlers(() => mainWindow);
   registerConversationHandlers();
+  registerProjectHandlers();
+  registerMemoryHandlers();
   await registerMcpHandlers();
   const { webSearchService, getWebCacheService } = registerSearchHandlers();
   const modelDownloadService = registerModelHandlers();
@@ -133,6 +138,7 @@ app.on("window-all-closed", async () => {
       await webCacheService.dispose();
     }
   }
+  stopRunningCommands();
   await mcpService.shutdown();
   if (process.platform !== "darwin") {
     app.quit();

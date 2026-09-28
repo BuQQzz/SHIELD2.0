@@ -28,8 +28,13 @@ interface ConversationState {
   createNewConversation: (
     title?: string,
     modelId?: string,
-    session?: { kind: ConversationKind; folder?: string }
+    session?: { kind: ConversationKind; folder?: string; projectId?: string }
   ) => void;
+  /** Puts a conversation under a project, or out of any (null) */
+  moveToProject: (
+    conversationId: string,
+    projectId: string | null
+  ) => Promise<void>;
   addMessage: (message: Message) => void;
   updateConversation: (updates: Partial<Conversation>) => void;
   updateTitle: (title: string) => void;
@@ -66,8 +71,32 @@ export const useConversationStore = create<ConversationState>((set, get) => ({
       updatedAt: now,
       modelId,
       ...(session ? { kind: session.kind, folder: session.folder } : {}),
+      ...(session?.projectId ? { projectId: session.projectId } : {}),
     };
     set({ currentConversation: newConversation });
+  },
+
+  moveToProject: async (conversationId, projectId) => {
+    const { currentConversation } = get();
+    if (currentConversation?.id === conversationId) {
+      const { projectId: _old, ...rest } = currentConversation;
+      set({
+        currentConversation: projectId ? { ...rest, projectId } : rest,
+      });
+      // Not saved until it has a message; saving it now would list it empty
+      if (currentConversation.messages.length > 0) {
+        await get().saveCurrentConversation();
+      }
+      return;
+    }
+    const result = await window.conversations.setProject(
+      conversationId,
+      projectId
+    );
+    if (!result.success) {
+      console.error("Failed to move conversation:", result.error);
+    }
+    await get().loadConversationList();
   },
 
   addMessage: (message) => {

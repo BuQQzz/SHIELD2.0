@@ -46,6 +46,14 @@ describe("requestText", () => {
     ).toBe("add dark mode");
   });
 
+  it("drops the work record too, brackets in commands and all", () => {
+    expect(
+      requestText(
+        "run the tests\n\n[Current folder: C:/p]\n\n[SHIELD's record of the changes and commands in this conversation, from the tools' actual results:\n- ran `[Console]::Write(1)` - exit 0\n- edited a.ps1]"
+      )
+    ).toBe("run the tests");
+  });
+
   it("unwraps the tool retry prompt", () => {
     expect(
       requestText(

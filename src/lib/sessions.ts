@@ -32,6 +32,26 @@ export function ofKind<T extends { kind?: ConversationKind }>(
   return conversations.filter((conversation) => kindOf(conversation) === kind);
 }
 
+/** A project's conversations, keeping the list's order */
+export function inProject<T extends { projectId?: string }>(
+  conversations: T[],
+  projectId: string
+): T[] {
+  return conversations.filter((c) => c.projectId === projectId);
+}
+
+/**
+ * Conversations under no project - or under one that no longer exists -
+ * listed below the projects
+ */
+export function outsideProjects<T extends { projectId?: string }>(
+  conversations: T[],
+  projects: { id: string }[]
+): T[] {
+  const ids = new Set(projects.map((p) => p.id));
+  return conversations.filter((c) => !c.projectId || !ids.has(c.projectId));
+}
+
 /** Last path segment, for labels: "C:\\Continue\\wifi" is "wifi" */
 export function folderName(folder: string): string {
   const parts = folder.split(/[\\/]/).filter(Boolean);

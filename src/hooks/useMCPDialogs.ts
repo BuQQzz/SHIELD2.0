@@ -19,12 +19,70 @@ import { FILESYSTEM_TOOLS } from "@/types/settings";
 /** SHIELD's web tools; known, so a call with web search off says "turned off" */
 const WEB_TOOL_NAMES = ["web_search", "fetch_page"];
 import { useState, useCallback, useRef } from "react";
-import type { ToolCallRequest } from "@/handlers/mcpToolHandler";
-import { callTarget } from "@/handlers/mcpMessageHandler";
+import { resultPayload, type ToolCallRequest } from "@/handlers/mcpToolHandler";
+import { callTarget, canonicalPath } from "@/handlers/mcpMessageHandler";
 import type { MCPToolResult } from "@/types/electron";
 import { useSettingsStore } from "@/store/settingsStore";
 import { isMutatingTool } from "@/config/toolClassification";
+import {
+  RUN_COMMAND_TOOL_NAME,
+  scriptsInCommand,
+} from "@/config/commandSafety";
 import type { ToolPolicy } from "@/hooks/useToolPolicy";
+import { useConversationStore } from "@/stores/conversation-store";
+import { modelWrittenFiles } from "@/handlers/workLedger";
+
+/**
+ * A command that asks the user carries the model's reason, shown in the
+ * permission bar. Qwen3-Coder left it out and asked to run set-radio.ps1 -
+ * a script that switches the Wi-Fi radio - with nothing but the command
+ * (2026-09-28); bounced, the model sends the call again with one.
+ */
+const MISSING_REASON =
+  'Not run: a command that needs the user\'s approval must include "reason" - one plain sentence telling the user what it will do, including what any script it runs does. Send the same command again with a reason.';
+
+/** Longest script shown in the permission bar */
+const SCRIPT_PREVIEW_CHARS = 20_000;
+
+/** The file a successful call wrote, if it wrote one */
+function writtenPath(
+  tool: string,
+  args: Record<string, unknown>,
+  result: MCPToolResult
+): string | undefined {
+  if (!result.success || (result.data as { isError?: unknown })?.isError) {
+    return undefined;
+  }
+  const key =
+    tool === "write_file" || tool === "edit_file"
+      ? "path"
+      : tool === "move_file"
+        ? "destination"
+        : undefined;
+  const value = key ? args[key] : undefined;
+  return typeof value === "string" ? value : undefined;
+}
+
+/**
+ * Deletes and terminal commands are confirmed one by one, never "for the
+ * session": approving one command must not approve the next, which could
+ * be anything.
+ */
+function asksEveryTime(tool: string): boolean {
+  return isDeletionTool({ name: tool }) || tool === RUN_COMMAND_TOOL_NAME;
+}
+
+/** Why a call was not run in Plan or Read-only mode */
+function blockedMessage(tool: string, isPlanning: boolean): string {
+  if (tool === RUN_COMMAND_TOOL_NAME) {
+    return isPlanning
+      ? "Plan mode: this command was NOT run and has been recorded as a step in your plan. Commands that only read (git status, git diff, listing, reading and searching files) still run. Continue planning."
+      : "Read-only mode: only commands that only read (git status, git diff, listing, reading and searching files) run, so this command was NOT run.";
+  }
+  return isPlanning
+    ? `Plan mode: '${tool}' was NOT executed and has been recorded as a step in your plan. Continue planning - you may still read files.`
+    : `Read-only mode: '${tool}' changes files, so it was NOT executed.`;
+}
 
 /** A tool call waiting on the user */
 export interface PendingToolRequest {
@@ -43,6 +101,12 @@ export interface PendingToolRequest {
   destinationPath?: string;
   /** For the web tools: the search query or page address that leaves the PC */
   webTarget?: string;
+  /** For run_command: the exact command, shown in full; never "Allow for session" */
+  command?: string;
+  /** For run_command: the model's one-sentence account of what it does */
+  commandReason?: string;
+  /** Scripts the command runs that the model wrote or edited itself */
+  modelScripts?: { path: string; content?: string }[];
 }
 
 interface UseMCPDialogsProps {
@@ -71,7 +135,56 @@ export function useMCPDialogs({ callTool, policy }: UseMCPDialogsProps) {
    * closing SHIELD resets it; deletes are never added.
    */
   const sessionApproved = useRef<Set<string>>(new Set());
+  /** Files the model wrote, edited or moved since SHIELD started (canonical paths) */
+  const modelWritten = useRef<Set<string>>(new Set());
   const { settings, updateSettings } = useSettingsStore();
+  const workspaceFolder = settings.mcp.workspaceFolder;
+
+  const noteWrite = useCallback(
+    (tool: string, args: Record<string, unknown>, result: MCPToolResult) => {
+      const path = writtenPath(tool, args, result);
+      if (path) modelWritten.current.add(canonicalPath(path, workspaceFolder));
+    },
+    [workspaceFolder]
+  );
+
+  /**
+   * The scripts a command runs that the model wrote, with their contents:
+   * written since SHIELD started, or earlier in the open conversation
+   */
+  const modelScriptsIn = useCallback(
+    async (command: string) => {
+      const written = new Set(modelWritten.current);
+      const messages =
+        useConversationStore.getState().currentConversation?.messages ?? [];
+      for (const path of modelWrittenFiles(messages)) {
+        written.add(canonicalPath(path, workspaceFolder));
+      }
+      const scripts = scriptsInCommand(command).filter((script) =>
+        written.has(canonicalPath(script, workspaceFolder))
+      );
+      return Promise.all(
+        scripts.map(async (path) => {
+          try {
+            const read = await callTool({
+              serverName: "filesystem",
+              tool: "read_text_file",
+              arguments: { path },
+            });
+            return {
+              path,
+              content: read.success
+                ? resultPayload(read.data).slice(0, SCRIPT_PREVIEW_CHARS)
+                : undefined,
+            };
+          } catch {
+            return { path };
+          }
+        })
+      );
+    },
+    [callTool, workspaceFolder]
+  );
 
   /** Settle the open request and clear it */
   const settle = useCallback((result: MCPToolResult) => {
@@ -106,11 +219,14 @@ export function useMCPDialogs({ callTool, policy }: UseMCPDialogsProps) {
             ?.serverName ?? request.serverName,
       };
 
-      const policyDecision = policy.decide({ name: toolCall.tool });
+      const policyDecision = policy.decide({
+        name: toolCall.tool,
+        arguments: toolCall.arguments,
+      });
       const decision =
         policyDecision === "ask" &&
         sessionApproved.current.has(toolCall.tool) &&
-        !isDeletionTool({ name: toolCall.tool })
+        !asksEveryTime(toolCall.tool)
           ? "run"
           : policyDecision;
 
@@ -121,9 +237,7 @@ export function useMCPDialogs({ callTool, policy }: UseMCPDialogsProps) {
         return {
           success: false,
           blocked: true,
-          error: policy.isPlanning
-            ? `Plan mode: '${toolCall.tool}' was NOT executed and has been recorded as a step in your plan. Continue planning - you may still read files.`
-            : `Read-only mode: '${toolCall.tool}' changes files, so it was NOT executed.`,
+          error: blockedMessage(toolCall.tool, policy.isPlanning),
         };
       }
 
@@ -138,15 +252,31 @@ export function useMCPDialogs({ callTool, policy }: UseMCPDialogsProps) {
           target: callTarget(toolCall),
         });
         try {
-          return await callTool({
+          const result = await callTool({
             serverName: toolCall.serverName,
             tool: toolCall.tool,
             arguments: toolCall.arguments,
           });
+          noteWrite(toolCall.tool, toolCall.arguments, result);
+          return result;
         } finally {
           setRunningTool(null);
         }
       }
+
+      const command =
+        toolCall.tool === RUN_COMMAND_TOOL_NAME
+          ? String(toolCall.arguments.command ?? "")
+          : undefined;
+      const reason =
+        typeof toolCall.arguments.reason === "string"
+          ? toolCall.arguments.reason.trim()
+          : "";
+      if (command !== undefined && !reason) {
+        return { success: false, error: MISSING_REASON };
+      }
+      const modelScripts =
+        command !== undefined ? await modelScriptsIn(command) : undefined;
 
       // Only one request can be open at a time. Refuse rather than clobber.
       if (resolverRef.current) {
@@ -184,10 +314,13 @@ export function useMCPDialogs({ callTool, policy }: UseMCPDialogsProps) {
               : typeof toolCall.arguments.url === "string"
                 ? toolCall.arguments.url
                 : undefined,
+          command,
+          commandReason: command !== undefined ? reason : undefined,
+          modelScripts: modelScripts?.length ? modelScripts : undefined,
         });
       });
     },
-    [policy, callTool]
+    [policy, callTool, noteWrite, modelScriptsIn]
   );
 
   /**
@@ -200,15 +333,16 @@ export function useMCPDialogs({ callTool, policy }: UseMCPDialogsProps) {
 
       // "Allow for session": stop asking for this tool until SHIELD closes.
       // It used to widen the saved allowlist, which did nothing once every
-      // tool was allowed by default. Never for deletes - each is confirmed.
-      if (remember && !request.isDestructive) {
+      // tool was allowed by default. Never for deletes or commands - each
+      // is confirmed.
+      if (remember && !asksEveryTime(request.toolName)) {
         sessionApproved.current.add(request.toolName);
       }
 
       setRunningTool({
         tool: request.toolName,
         serverName: request.serverName,
-        target: request.targetPath ?? request.webTarget,
+        target: request.targetPath ?? request.webTarget ?? request.command,
       });
 
       try {
@@ -218,6 +352,7 @@ export function useMCPDialogs({ callTool, policy }: UseMCPDialogsProps) {
           arguments: request.arguments,
         });
         console.log("[MCP] Tool result:", result);
+        noteWrite(request.toolName, request.arguments, result);
         settle(result);
       } catch (error) {
         console.error("[MCP] Tool call failed:", error);
@@ -229,7 +364,7 @@ export function useMCPDialogs({ callTool, policy }: UseMCPDialogsProps) {
         setRunningTool(null);
       }
     },
-    [pendingRequest, callTool, settings.mcp, updateSettings, settle]
+    [pendingRequest, callTool, settings.mcp, updateSettings, settle, noteWrite]
   );
 
   /**

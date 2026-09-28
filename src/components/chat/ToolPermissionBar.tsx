@@ -7,6 +7,7 @@
  * one-word decision.
  */
 
+import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   ArrowRight,
@@ -15,6 +16,7 @@ import {
   Globe,
   Pencil,
   Shield,
+  SquareTerminal,
   Trash2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -34,6 +36,7 @@ function shortenPath(path: string, max = 52): string {
 
 function toolIcon(request: PendingToolRequest) {
   if (request.isDestructive) return Trash2;
+  if (request.command !== undefined) return SquareTerminal;
   if (request.webTarget !== undefined) return Globe;
   if (request.previewContent !== undefined) return Pencil;
   if (request.isMutating) return FileText;
@@ -45,12 +48,47 @@ function toolIcon(request: PendingToolRequest) {
   return Shield;
 }
 
+/**
+ * A script the command runs that the model wrote itself. Approving the
+ * command approves whatever is in it, so it can be read first.
+ */
+function ModelScript({
+  script,
+}: {
+  script: { path: string; content?: string };
+}) {
+  const [open, setOpen] = useState(false);
+  return (
+    <div className="mt-1 text-xs">
+      <div className="flex flex-wrap items-center gap-x-2 text-amber-600 dark:text-amber-400">
+        <span>Runs {script.path}, which the model wrote in this session.</span>
+        {script.content !== undefined && (
+          <button
+            type="button"
+            className="underline underline-offset-2 hover:text-foreground"
+            onClick={() => setOpen((value) => !value)}
+          >
+            {open ? "Hide script" : "Show script"}
+          </button>
+        )}
+      </div>
+      {open && script.content !== undefined && (
+        <pre className="mt-1 max-h-64 overflow-auto rounded bg-background/70 px-2 py-1 font-mono text-[11px] leading-snug">
+          {script.content}
+        </pre>
+      )}
+    </div>
+  );
+}
+
 export function ToolPermissionBar({
   request,
   onApprove,
   onDeny,
 }: ToolPermissionBarProps) {
   const Icon = request ? toolIcon(request) : Shield;
+  // Deletes and commands are confirmed one at a time (useMCPDialogs)
+  const oneAtATime = request?.isDestructive || request?.command !== undefined;
 
   return (
     <AnimatePresence>
@@ -62,7 +100,11 @@ export function ToolPermissionBar({
           transition={{ duration: 0.15 }}
           className="mx-auto mb-2 w-full max-w-3xl px-4"
         >
-          <div className="flex items-center gap-3 rounded-lg border border-border bg-muted/60 px-3 py-2 text-sm backdrop-blur">
+          <div
+            className={`flex gap-3 rounded-lg border border-border bg-muted/60 px-3 py-2 text-sm backdrop-blur ${
+              request.command !== undefined ? "items-start" : "items-center"
+            }`}
+          >
             <Icon
               className={`h-4 w-4 shrink-0 ${
                 request.isDestructive
@@ -77,8 +119,23 @@ export function ToolPermissionBar({
               <span className="font-medium">
                 {request.isDestructive
                   ? "Move to Recycle Bin"
-                  : request.toolName}
+                  : request.command !== undefined
+                    ? "Run this command?"
+                    : request.toolName}
               </span>
+              {request.commandReason && (
+                <p className="mt-0.5 text-xs text-muted-foreground">
+                  {request.commandReason}
+                </p>
+              )}
+              {request.command !== undefined && (
+                <code className="mt-1 block max-h-24 overflow-y-auto whitespace-pre-wrap break-all rounded bg-background/70 px-2 py-1 font-mono text-xs">
+                  {request.command}
+                </code>
+              )}
+              {request.modelScripts?.map((script) => (
+                <ModelScript key={script.path} script={script} />
+              ))}
               {request.targetPath && (
                 <span
                   className="ml-2 truncate text-xs text-muted-foreground"
@@ -120,7 +177,7 @@ export function ToolPermissionBar({
               >
                 Deny
               </Button>
-              {!request.isDestructive && (
+              {!oneAtATime && (
                 <Button
                   size="sm"
                   variant="ghost"
@@ -136,7 +193,11 @@ export function ToolPermissionBar({
                 className="h-7 px-3 text-xs"
                 onClick={() => onApprove(false)}
               >
-                {request.isDestructive ? "Move to Recycle Bin" : "Allow"}
+                {request.isDestructive
+                  ? "Move to Recycle Bin"
+                  : request.command !== undefined
+                    ? "Run"
+                    : "Allow"}
               </Button>
             </div>
           </div>

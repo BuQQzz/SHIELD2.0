@@ -1,5 +1,6 @@
 import { useCallback, type MutableRefObject } from "react";
 import type { Message } from "./useLlama";
+import type { ConversationKind } from "../types/conversation";
 import type { ModelSettings } from "../types/settings";
 import type { ChatInputRef } from "../components/chat/ChatInput";
 import type { ToolCallRequest } from "../handlers/mcpToolHandler";
@@ -51,7 +52,11 @@ interface UseAppHandlersProps {
   stopGeneration: () => Promise<void>;
   clearHistory: () => Promise<void>;
   setChatHistory: (messages: Message[]) => Promise<void>;
-  createNewConversation: (title: string, modelId: string) => void;
+  createNewConversation: (
+    title: string,
+    modelId: string,
+    session?: { kind: ConversationKind; projectId?: string }
+  ) => void;
   setSystemPrompt: (prompt: string) => Promise<void>;
   handleToolCallRequest?: (request: ToolCallRequest) => Promise<MCPToolResult>;
   isMCPReady?: boolean;
@@ -102,6 +107,8 @@ export function useAppHandlers({
     try {
       // Before aborting, so the tool loop sees it when the reply returns
       useGenerationStore.getState().setStopRequested(true);
+      // A command run_command is running would otherwise go on to its timeout
+      void window.electronAPI?.mcp?.stopCommands?.();
       await stopGeneration();
       setIsGenerating(false);
 
@@ -141,21 +148,28 @@ export function useAppHandlers({
     }
   }, [clearHistory, setMessages]);
 
-  const handleNewChat = useCallback(() => {
-    if (currentConversation && currentConversation.messages.length > 0) {
-      saveCurrentConversation();
-    }
-    createNewConversation("New Chat", currentModelId);
-    setMessages([]);
-    clearHistory();
-  }, [
-    currentConversation,
-    saveCurrentConversation,
-    createNewConversation,
-    currentModelId,
-    clearHistory,
-    setMessages,
-  ]);
+  const handleNewChat = useCallback(
+    (projectId?: string) => {
+      if (currentConversation && currentConversation.messages.length > 0) {
+        saveCurrentConversation();
+      }
+      createNewConversation(
+        "New Chat",
+        currentModelId,
+        projectId ? { kind: "chat", projectId } : undefined
+      );
+      setMessages([]);
+      clearHistory();
+    },
+    [
+      currentConversation,
+      saveCurrentConversation,
+      createNewConversation,
+      currentModelId,
+      clearHistory,
+      setMessages,
+    ]
+  );
 
   const handleContinue = createContinuationHandler({
     messages,

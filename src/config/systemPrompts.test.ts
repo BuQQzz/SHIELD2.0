@@ -449,6 +449,43 @@ describe("edit rule", () => {
   });
 });
 
+describe("check-your-work rule", () => {
+  const editFile: ToolDefinition = {
+    name: "edit_file",
+    description: "Edit a file",
+    serverName: "filesystem",
+    parameters: [],
+  };
+  const runCommand: ToolDefinition = {
+    name: "run_command",
+    description: "Run a command",
+    serverName: "terminal",
+    parameters: [],
+  };
+
+  it("comes with the terminal, numbered after the rules before it", () => {
+    expect(generateMCPToolPrompt([editFile, runCommand])).toContain(
+      "8. **CHECK YOUR WORK**"
+    );
+    expect(generateMCPToolPrompt([runCommand])).toContain(
+      "6. **CHECK YOUR WORK**"
+    );
+    expect(generateNativeToolPrompt([runCommand])).toContain(
+      "run its tests or the script with run_command"
+    );
+  });
+
+  it("is left out without the terminal", () => {
+    expect(generateMCPToolPrompt([editFile])).not.toContain("CHECK YOUR WORK");
+    expect(generateNativeToolPrompt([editFile])).not.toContain("run_command");
+  });
+
+  // Qwen3-Coder wrote the file's quotes as &quot; and its edit never matched
+  it("asks for quotes escaped the JSON way", () => {
+    expect(generateMCPToolPrompt([editFile])).toContain("never &quot;");
+  });
+});
+
 describe("web search section", () => {
   const webSearch: ToolDefinition = {
     name: "web_search",

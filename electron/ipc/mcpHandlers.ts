@@ -17,6 +17,20 @@ import {
   WEB_SERVER_NAME,
   WEB_TOOLS,
 } from "../services/webTools.js";
+import {
+  isTerminalTool,
+  runCommand,
+  runCommandTool,
+  stopRunningCommands,
+  TERMINAL_SERVER_NAME,
+} from "../services/terminalTool.js";
+import {
+  isMemoryTool,
+  MEMORY_SERVER_NAME,
+  MEMORY_TOOLS,
+  runMemoryTool,
+} from "../services/memory/memoryTools.js";
+import { getMemoryIndex } from "./memoryHandlers.js";
 import type { MCPToolCall, MCPToolResult } from "../services/MCPService.js";
 import { ensurePageCache, fetchPageCached } from "./searchHandlers.js";
 
@@ -69,12 +83,24 @@ export async function registerMcpHandlers() {
   // Call MCP tool
   ipcMain.handle("mcp:call-tool", async (_event, request) => {
     try {
-      // SHIELD's own web tools are routed by name as well: a model writes
-      // bare tool names, which the chat assumes are filesystem tools
+      // SHIELD's own web and terminal tools are routed by name as well: a
+      // model writes bare tool names, which the chat assumes are filesystem
+      // tools. Commands run in the open session's project folder.
       const result =
         request.serverName === WEB_SERVER_NAME || isWebTool(request.tool)
           ? await callWebTool(request)
-          : await mcpService.callTool(request);
+          : isTerminalTool(request.tool)
+            ? await runCommand(
+                request.arguments ?? {},
+                mcpService.getWorkspaceFolder()
+              )
+            : isMemoryTool(request.tool)
+              ? await runMemoryTool(
+                  request.tool,
+                  request.arguments ?? {},
+                  getMemoryIndex()
+                )
+              : await mcpService.callTool(request);
 
       // Log the tool call
       const logId = await auditLogService.logToolCall(
@@ -103,7 +129,11 @@ export async function registerMcpHandlers() {
       const tools =
         serverName === WEB_SERVER_NAME
           ? WEB_TOOLS
-          : await mcpService.listTools(serverName);
+          : serverName === TERMINAL_SERVER_NAME
+            ? [runCommandTool()]
+            : serverName === MEMORY_SERVER_NAME
+              ? MEMORY_TOOLS
+              : await mcpService.listTools(serverName);
       return { success: true, tools };
     } catch (error) {
       console.error("Failed to list MCP tools:", error);
@@ -117,11 +147,17 @@ export async function registerMcpHandlers() {
   // Get server configuration
   ipcMain.handle("mcp:list-servers", async () => {
     try {
-      // The web tools are always listed; Settings > Web Search decides
-      // whether the model is offered them (and runWebTool checks it too)
+      // The web and terminal tools are always listed; Settings > Web Search
+      // and the open conversation (code sessions only) decide whether the
+      // model is offered them (useToolPolicy)
       return {
         success: true,
-        servers: [...mcpService.getConnectedServers(), WEB_SERVER_NAME],
+        servers: [
+          ...mcpService.getConnectedServers(),
+          WEB_SERVER_NAME,
+          TERMINAL_SERVER_NAME,
+          MEMORY_SERVER_NAME,
+        ],
       };
     } catch (error) {
       console.error("Failed to list MCP servers:", error);
@@ -131,6 +167,12 @@ export async function registerMcpHandlers() {
       };
     }
   });
+
+  // Stop pressed: end any running command and what it started
+  ipcMain.handle("mcp:stop-commands", async () => ({
+    success: true,
+    stopped: stopRunningCommands(),
+  }));
 
   ipcMain.handle("mcp:get-server-config", async (_event, serverName) => {
     try {

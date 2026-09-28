@@ -37,6 +37,8 @@ export interface Message {
    * notice shown to the user; the next prompt tells the model about them.
    */
   unrunToolCalls?: string[];
+  /** SHIELD's record under a reply that claims a change never made */
+  recordNote?: string;
   /**
    * Set when this message is an MCP tool result rather than something the
    * user typed. It is stored with role "user" because that is how the model's

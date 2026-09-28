@@ -3,6 +3,7 @@
 import {
   Blocks,
   Code2,
+  FolderPlus,
   Library,
   MessageSquare,
   PanelLeftClose,
@@ -21,13 +22,18 @@ import { useConversationStore } from "@/stores/conversation-store";
 import { SidebarModelPicker } from "@/components/shell/SidebarModelPicker";
 import type { ModelOption } from "@/config/models";
 import { cn } from "@/lib/utils";
-import { kindOf, ofKind, viewKind } from "@/lib/sessions";
+import { kindOf, ofKind, outsideProjects, viewKind } from "@/lib/sessions";
 import type { ConversationKind } from "@/types/conversation";
+import { useProjectStore } from "@/stores/project-store";
 import { ConversationList } from "./ConversationList";
+import { ProjectList } from "./ProjectList";
 
 interface SidebarProps {
-  /** A new chat, or a new Code session (which asks for its folder) */
-  onNewChat?: (kind: ConversationKind) => void;
+  /**
+   * A new chat, or a new Code session (which asks for its folder unless its
+   * project has one), optionally in a project
+   */
+  onNewChat?: (kind: ConversationKind, projectId?: string) => void;
   onNewFromTemplate?: () => void;
   onOpenSettings?: () => void;
   models: ModelOption[];
@@ -83,16 +89,27 @@ export function Sidebar({
     loadConversation,
     deleteConversation,
     searchConversations,
+    moveToProject,
   } = useConversationStore();
+  const {
+    projects,
+    loadProjects,
+    createProject,
+    updateProject,
+    deleteProject,
+  } = useProjectStore();
 
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchInput, setSearchInput] = useState("");
   const searchRef = useRef<HTMLInputElement>(null);
+  /** Naming a new chat project inline */
+  const [naming, setNaming] = useState(false);
 
-  // Load conversations on mount
+  // Load conversations and projects on mount
   useEffect(() => {
     loadConversationList();
-  }, [loadConversationList]);
+    void loadProjects();
+  }, [loadConversationList, loadProjects]);
 
   useEffect(() => {
     if (searchOpen) searchRef.current?.focus();
@@ -127,6 +144,37 @@ export function Sidebar({
     loadConversation(conversationId);
     setActiveView(sessionKind);
   };
+
+  const handleNewInProject = (projectId: string) => {
+    if (!viewKind(activeView)) setActiveView(sessionKind);
+    onNewChat?.(sessionKind, projectId);
+  };
+
+  // A code project is a folder: pick it, and start a session there. A chat
+  // project is a name.
+  const handleNewProject = async () => {
+    if (!code) {
+      setNaming(true);
+      return;
+    }
+    const folder = await window.electronAPI.mcp.chooseWorkspace();
+    if (!folder) return;
+    const project = await createProject("", folder);
+    if (project) handleNewInProject(project.id);
+  };
+
+  const handleChooseProjectFolder = async (projectId: string) => {
+    const folder = await window.electronAPI.mcp.chooseWorkspace();
+    if (folder) await updateProject(projectId, { folder });
+  };
+
+  const finishNaming = async (value: string) => {
+    setNaming(false);
+    if (value.trim()) await createProject(value);
+  };
+
+  const searching = searchInput.trim().length > 0;
+  const loose = outsideProjects(sessions, projects);
 
   if (!sidebarOpen) return null;
 
@@ -285,6 +333,19 @@ export function Sidebar({
                 </span>
               </span>
             )}
+            {!searchOpen && (
+              <button
+                onClick={() => void handleNewProject()}
+                title={
+                  code
+                    ? "New project: pick its folder"
+                    : "New project for chats"
+                }
+                className="rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+              >
+                <FolderPlus className="h-3.5 w-3.5" />
+              </button>
+            )}
             <button
               onClick={() => (searchOpen ? closeSearch() : setSearchOpen(true))}
               title={
@@ -306,12 +367,59 @@ export function Sidebar({
 
           {/* Scroll area; fades out at the top edge */}
           <div className="min-h-0 flex-1 overflow-y-auto px-3 [mask-image:linear-gradient(to_bottom,transparent,black_12px)]">
-            <ConversationList
-              conversations={sessions}
-              currentConversationId={currentConversation?.id}
-              onSelect={handleSelectConversation}
-              onDelete={deleteConversation}
-            />
+            {naming && (
+              <input
+                autoFocus
+                placeholder="Project name"
+                onBlur={(e) => void finishNaming(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter")
+                    void finishNaming(e.currentTarget.value);
+                  if (e.key === "Escape") setNaming(false);
+                }}
+                className="mb-1 h-8 w-full rounded-md bg-accent/60 px-2 text-[13px] outline-none placeholder:text-muted-foreground focus-visible:ring-1 focus-visible:ring-signal/60"
+              />
+            )}
+            {searching || projects.length === 0 ? (
+              <ConversationList
+                conversations={sessions}
+                currentConversationId={currentConversation?.id}
+                onSelect={handleSelectConversation}
+                onDelete={deleteConversation}
+                projects={projects.length ? projects : undefined}
+                onMove={moveToProject}
+              />
+            ) : (
+              <>
+                <ProjectList
+                  projects={projects}
+                  conversations={sessions}
+                  kind={sessionKind}
+                  currentConversationId={currentConversation?.id}
+                  onSelect={handleSelectConversation}
+                  onDelete={deleteConversation}
+                  onMove={moveToProject}
+                  onNewInProject={handleNewInProject}
+                  onRename={(id, name) => void updateProject(id, { name })}
+                  onChooseFolder={(id) => void handleChooseProjectFolder(id)}
+                  onDeleteProject={(id) =>
+                    void deleteProject(id).then(() => loadConversationList())
+                  }
+                />
+                <h3 className="px-2 pb-1 pt-2 text-[10px] font-medium uppercase tracking-[0.12em] text-muted-foreground/70">
+                  Not in a project
+                </h3>
+                <ConversationList
+                  conversations={loose}
+                  currentConversationId={currentConversation?.id}
+                  onSelect={handleSelectConversation}
+                  onDelete={deleteConversation}
+                  projects={projects}
+                  onMove={moveToProject}
+                  emptyText={code ? "No other sessions" : "No other chats"}
+                />
+              </>
+            )}
           </div>
 
           {onOpenSettings && (

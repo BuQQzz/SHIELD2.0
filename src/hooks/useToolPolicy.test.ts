@@ -264,6 +264,29 @@ describe("chat sessions", () => {
     expect(p.allows("web_search")).toBe(true);
   });
 
+  it("offer SHIELD's memory, in every mode, even with web search off", () => {
+    const memory: ToolDefinition = {
+      name: "search_memory",
+      description: "search_memory",
+      serverName: "memory",
+      parameters: [],
+      annotations: { readOnlyHint: true },
+    };
+    for (const mode of ["ask", "auto", "plan", "readonly"] as const) {
+      const p = resolveToolPolicy({
+        mode,
+        allowedTools: [],
+        serverTools: [...SERVER_TOOLS, web, memory],
+        webSearchEnabled: false,
+        fileTools: false,
+      });
+      expect(names(p.advertisedTools)).toEqual(["search_memory"]);
+      expect(p.decide({ name: "search_memory" })).toBe(
+        mode === "ask" ? "ask" : "run"
+      );
+    }
+  });
+
   it("offer nothing with web search off", () => {
     const p = resolveToolPolicy({
       mode: "auto",
@@ -273,5 +296,63 @@ describe("chat sessions", () => {
       fileTools: false,
     });
     expect(p.advertisedTools).toEqual([]);
+  });
+});
+
+describe("the terminal (run_command)", () => {
+  const terminal: ToolDefinition = {
+    name: "run_command",
+    description: "run_command",
+    serverName: "terminal",
+    parameters: [],
+    annotations: { readOnlyHint: false },
+  };
+  const policy = (
+    mode: "ask" | "auto" | "plan" | "readonly",
+    fileTools = true
+  ) =>
+    resolveToolPolicy({
+      mode,
+      allowedTools: ALL_ALLOWED,
+      serverTools: [...SERVER_TOOLS, terminal],
+      fileTools,
+    });
+  const run = (command: string) => ({
+    name: "run_command",
+    arguments: { command },
+  });
+
+  it("is offered in a code session only", () => {
+    expect(names(policy("auto").advertisedTools)).toContain("run_command");
+    expect(policy("auto").allows("run_command")).toBe(true);
+    expect(names(policy("auto", false).advertisedTools)).not.toContain(
+      "run_command"
+    );
+    expect(policy("auto", false).allows("run_command")).toBe(false);
+  });
+
+  it("is offered in read-only mode, where read-only commands still run", () => {
+    expect(names(policy("readonly").advertisedTools)).toContain("run_command");
+    expect(names(policy("readonly").advertisedTools)).not.toContain(
+      "write_file"
+    );
+  });
+
+  it("runs a read-only command in Auto and asks for any other", () => {
+    expect(policy("auto").decide(run("git status"))).toBe("run");
+    expect(policy("auto").decide(run("npm test"))).toBe("ask");
+    // A call without its arguments is never taken as read-only
+    expect(policy("auto").decide({ name: "run_command" })).toBe("ask");
+  });
+
+  it("asks for every command in Ask", () => {
+    expect(policy("ask").decide(run("git status"))).toBe("ask");
+  });
+
+  it("runs read-only commands in Plan and Read-only and refuses the rest", () => {
+    for (const mode of ["plan", "readonly"] as const) {
+      expect(policy(mode).decide(run("git diff"))).toBe("run");
+      expect(policy(mode).decide(run("npm test"))).toBe("block");
+    }
   });
 });

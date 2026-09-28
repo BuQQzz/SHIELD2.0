@@ -36,6 +36,12 @@ export interface Message {
    */
   unrunToolCalls?: string[];
   /**
+   * On a reply that talks about a change whose edit failed and is still not
+   * in the file: SHIELD's record, shown to the user under the reply
+   * (workLedger.recordNoteFor).
+   */
+  recordNote?: string;
+  /**
    * Set when this message is an MCP tool result rather than something the
    * user typed. It is stored with role "user" because that is how the model's
    * chat template expects tool output, but it must not be rendered as if the
@@ -72,6 +78,8 @@ export interface Conversation {
   kind?: ConversationKind;
   /** A code session's project folder */
   folder?: string;
+  /** The project this conversation runs under */
+  projectId?: string;
 }
 
 export interface ConversationMetadata {
@@ -85,6 +93,7 @@ export interface ConversationMetadata {
   tags?: string[];
   kind?: ConversationKind;
   folder?: string;
+  projectId?: string;
 }
 
 export interface ConversationStorage {

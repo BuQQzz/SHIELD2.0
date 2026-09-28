@@ -14,6 +14,7 @@ import {
   ChevronDown,
   ChevronUp,
   Loader2,
+  ShieldAlert,
   Zap,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
@@ -40,6 +41,8 @@ interface MessageProps {
   isThinking?: boolean; // True while streaming thinking content
   /** Tokens and speed of this reply */
   stats?: GenerationStats;
+  /** SHIELD's record, when this reply claims a change that was never made */
+  recordNote?: string;
   onContinue?: () => void;
   onEdit?: (newContent: string) => void;
   onRegenerate?: () => void;
@@ -59,6 +62,7 @@ export const ChatMessage = memo(function ChatMessage({
   thinking,
   isThinking,
   stats,
+  recordNote,
   onContinue,
   onEdit,
   onRegenerate,
@@ -252,6 +256,12 @@ export const ChatMessage = memo(function ChatMessage({
 
   const extras = (
     <>
+      {recordNote && !isStreaming && (
+        <div className="mt-2 flex items-start gap-1.5 rounded-md border border-amber-500/30 bg-amber-500/5 px-2.5 py-1.5 text-xs text-amber-700 dark:text-amber-300">
+          <ShieldAlert className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+          <span>{recordNote}</span>
+        </div>
+      )}
       {truncated && !isStreaming && (
         <Button
           onClick={onContinue}

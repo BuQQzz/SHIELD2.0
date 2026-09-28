@@ -129,6 +129,27 @@ export interface ConversationAPI {
   search: (
     query: string
   ) => Promise<{ conversations: ConversationMetadata[]; error?: string }>;
+  /** Put a saved conversation under a project, or out of any (null) */
+  setProject: (
+    conversationId: string,
+    projectId: string | null
+  ) => Promise<{ success: boolean; error?: string }>;
+  listProjects: () => Promise<{ projects: Project[] }>;
+  saveProject: (
+    project: Project
+  ) => Promise<{ success: boolean; project?: Project; error?: string }>;
+  /** The project goes; its conversations stay, outside any project */
+  deleteProject: (
+    projectId: string
+  ) => Promise<{ success: boolean; moved?: number; error?: string }>;
+}
+
+interface Project {
+  id: string;
+  name: string;
+  folder?: string;
+  createdAt: string;
+  updatedAt: string;
 }
 
 // Expose protected methods to renderer process
@@ -183,6 +204,12 @@ const conversationAPI: ConversationAPI = {
   delete: (conversationId) =>
     ipcRenderer.invoke("conversations:delete", conversationId),
   search: (query) => ipcRenderer.invoke("conversations:search", query),
+  setProject: (conversationId, projectId) =>
+    ipcRenderer.invoke("conversations:set-project", conversationId, projectId),
+  listProjects: () => ipcRenderer.invoke("projects:list"),
+  saveProject: (project) => ipcRenderer.invoke("projects:save", project),
+  deleteProject: (projectId) =>
+    ipcRenderer.invoke("projects:delete", projectId),
 };
 
 contextBridge.exposeInMainWorld("conversations", conversationAPI);
@@ -300,6 +327,23 @@ interface MCPAPI {
   setWorkspace: (
     folder: string | null
   ) => Promise<{ success: boolean; folder?: string | null; error?: string }>;
+  /** Ends any command run_command is running, and what it started */
+  stopCommands: () => Promise<{ success: boolean; stopped?: number }>;
+  /** SHIELD's memory of past conversations: the best matches for a message */
+  searchMemory: (
+    query: string,
+    options?: {
+      limit?: number;
+      excludeConversation?: string;
+      minMatched?: number;
+      minShare?: number;
+    }
+  ) => Promise<{
+    success: boolean;
+    hits?: unknown[];
+    notDone?: Record<string, string[]>;
+    error?: string;
+  }>;
   audit: {
     query: (
       options?: AuditLogQueryOptions
@@ -370,6 +414,9 @@ const mcpAPI: MCPAPI = {
   isReady: () => ipcRenderer.invoke("mcp:is-ready"),
   chooseWorkspace: () => ipcRenderer.invoke("mcp:choose-workspace"),
   setWorkspace: (folder) => ipcRenderer.invoke("mcp:set-workspace", folder),
+  stopCommands: () => ipcRenderer.invoke("mcp:stop-commands"),
+  searchMemory: (query, options) =>
+    ipcRenderer.invoke("memory:search", query, options),
   audit: {
     query: (options) => ipcRenderer.invoke("mcp:audit-query", options),
     stats: () => ipcRenderer.invoke("mcp:audit-stats"),
