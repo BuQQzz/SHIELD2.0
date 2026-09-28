@@ -25,6 +25,11 @@ import {
   DELETE_TOOL_NAME,
   moveToRecycleBin,
 } from "./recycleBin.js";
+import {
+  DECODED_EDIT_NOTE,
+  decodeEditArguments,
+  missedEdit,
+} from "./editEntities.js";
 
 /**
  * Expand tilde (~) in paths to actual home directory
@@ -228,6 +233,33 @@ class MCPService {
         name: tool,
         arguments: expandedArgs,
       });
+
+      // An edit whose oldText came XML-escaped (&quot;) - see editEntities
+      if (
+        serverName === "filesystem" &&
+        tool === "edit_file" &&
+        missedEdit(result)
+      ) {
+        const decoded = decodeEditArguments(expandedArgs);
+        const retry = decoded
+          ? await client.callTool({ name: tool, arguments: decoded })
+          : null;
+        if (retry && !retry.isError && Array.isArray(retry.content)) {
+          console.log(
+            "[MCPService] edit_file matched once XML codes were decoded"
+          );
+          return {
+            success: true,
+            data: {
+              ...retry,
+              content: [
+                ...retry.content,
+                { type: "text", text: DECODED_EDIT_NOTE },
+              ],
+            },
+          };
+        }
+      }
 
       return {
         success: true,
