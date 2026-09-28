@@ -630,6 +630,60 @@ describe("repeated calls within a turn", () => {
     );
 
     expect(onToolCallDetected).toHaveBeenCalledTimes(1);
+    const repeat = continueConversation.mock.calls[1]?.[0] as string;
+    expect(repeat).toContain("already refused");
+    expect(repeat).toContain("denied");
+    expect(repeat).not.toContain("result you already have");
+  });
+
+  // Seen in the app, 2026-09-27: told to "use the result you already have"
+  // after a failed edit, Qwen3-Coder reported the fix as applied.
+  it("reports a repeated failed call as failed", async () => {
+    const edit = call(
+      "edit_file",
+      '{"path":"C:/set-radio.ps1","edits":[{"oldText":"a","newText":"b"}]}'
+    );
+    const onToolCallDetected = vi.fn().mockResolvedValue({
+      success: false,
+      error: "Could not find exact match for edit",
+    });
+    const continueConversation = vi
+      .fn()
+      .mockResolvedValueOnce(edit)
+      .mockResolvedValueOnce("The change was not made.");
+
+    await processMCPToolCalls(
+      { id: "d", role: "assistant", content: edit, timestamp: new Date() },
+      { onToolCallDetected, addMessage: vi.fn(), continueConversation }
+    );
+
+    expect(onToolCallDetected).toHaveBeenCalledTimes(1);
+    const repeat = continueConversation.mock.calls[1]?.[0] as string;
+    expect(repeat).toContain("already failed");
+    expect(repeat).toContain("Could not find exact match");
+    expect(repeat).toContain("tell the user this change was not made");
+    expect(repeat).not.toContain("result you already have");
+  });
+
+  it("does not ask again for a call the user declined", async () => {
+    const write = call("write_file", '{"path":"C:/r.txt","content":"x"}');
+    const onToolCallDetected = vi
+      .fn()
+      .mockResolvedValue({ success: false, error: "User denied permission" });
+    const continueConversation = vi
+      .fn()
+      .mockResolvedValueOnce(write)
+      .mockResolvedValueOnce("I did not create it.");
+
+    await processMCPToolCalls(
+      { id: "e", role: "assistant", content: write, timestamp: new Date() },
+      { onToolCallDetected, addMessage: vi.fn(), continueConversation }
+    );
+
+    expect(onToolCallDetected).toHaveBeenCalledTimes(1);
+    const repeat = continueConversation.mock.calls[1]?.[0] as string;
+    expect(repeat).toContain("already declined");
+    expect(repeat).toContain("tell the user it was not done");
   });
 });
 

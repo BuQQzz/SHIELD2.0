@@ -195,7 +195,8 @@ ${allowedPaths.map((path) => `- ${path}`).join("\n")}
 Always use a full path beginning with one of these. Never guess a path such as "/" or "C:\\".`
         : "";
   const editRule = callableTools.some((tool) => tool.name === "edit_file")
-    ? "\n- To change an existing file, use edit_file with only the lines that change. Copy oldText exactly from the file and supply the replacement in newText. Use write_file only to create a new file."
+    ? "\n- To change an existing file, use edit_file with only the lines that change. Copy oldText exactly from the file and supply the replacement in newText. Use write_file only to create a new file." +
+      "\n- When asked to fix, change or add something, make the change with these functions. Do not show the code for the user to apply unless they ask to see it first."
     : "";
   const usage =
     callableTools.length > 0
@@ -289,11 +290,16 @@ export function generateMCPToolPrompt(
   // Without this Qwen3-Coder rewrote a whole file with write_file for every
   // change (index.html, styles.css, app.js - 2026-09-24): slow, and each
   // copy fills the context window.
+  //
+  // Rule 7: asked to "do the quickest fixes first" after a bug report,
+  // Qwen3-Coder answered with 2,700 characters of code blocks for the user
+  // to paste and changed nothing (2026-09-27); rules 1-2 were too general.
   const editRule = tools.some((t) => t.name === "edit_file")
     ? `
 6. **EDIT, DON'T REWRITE** - To change an existing file, use edit_file with only the lines that change, copied exactly from the file:
    {"path": "...", "edits": [{"oldText": "<current lines>", "newText": "<replacement>"}]}
-   Use write_file only to create a new file.`
+   Use write_file only to create a new file.
+7. **MAKE THE CHANGE** - When asked to fix, change or add something, do it with edit_file or write_file. Do not show the code for the user to paste unless they ask to see it first. Afterwards, say in a sentence or two what you changed.`
     : "";
 
   // One folder means the user picked a workspace. Say so, or "what's in this

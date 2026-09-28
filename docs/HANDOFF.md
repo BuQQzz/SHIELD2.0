@@ -16,7 +16,7 @@ Read this first, then [SHIELD_AGENT_ARCHITECTURE.md](./SHIELD_AGENT_ARCHITECTURE
 
 Order agreed with the user on 2026-09-26: the Code view, then the terminal, then the recall tool. Background is in the updates below.
 
-- [ ] **Code view, separate from Chat.** The sidebar already reserves "Code" (`Sidebar.tsx` NAV, `soon: true`; `AppView` has `"code"`). Code sessions get their own project folder (instead of the global `mcp.workspaceFolder`), the file tools and later the terminal and recall, permission modes, work groups, clearing and summaries, and a coding model (Qwen3-Coder) by default. Chat goes back to plain conversation — no file tools or folder note, the model's own sampling without the tool cap — the user has other plans for it. Conversations need a kind (chat or code) and separate lists.
+- [x] **Code view, separate from Chat.** Built and used in the app 2026-09-27, with fixes from that test (see "Code view" below). Not committed yet.
 - [ ] **Terminal tool in Code** (`run_command`): PowerShell in the session's project folder, timeout, output capped (head and tail), exit code returned, output treated as untrusted like other results, Stop kills the process tree; no interactive or background processes at first. Permissions decided with the user: in Auto a short list of read-only commands runs unprompted (git status/diff/log, listing, reading and searching files), every other command asks and shows the exact command, as deletes do; Ask asks for everything, Plan records, Read-only runs only that list. Why: models cannot test what they write — Qwen's `lint-scripts.ps1` (evening update) crashed on the one path that mattered — and a filtered command (`Select-String -Context`, `git diff`, a test run) can replace reading whole files.
 - [ ] **Recall tool** (after the terminal). Let the model read back the original messages a summary replaced, from the saved chat. Summaries become an index instead of a loss, and the re-reading loops stop (at 8K, "review the whole repo" re-read cleared files until the 20-round limit). A SHIELD-owned tool like `delete_file` and `web_search` (`electron/services/webTools.ts` shows how one is registered); the design docs' "compaction does not delete history". Proposed shape in the 2026-09-26 update.
 - [ ] Later: keep Gemma out of coding sessions (e.g. suggest Qwen3-Coder when a chat turns to file edits); give the context planner real headroom for the desktop; fork a chat from a summary; edit or pin summaries; whether node-llama-cpp models need clearing and summarising too (today they fall back on node-llama-cpp's own context shift, which drops the oldest turns).
@@ -30,7 +30,29 @@ Order agreed with the user on 2026-09-26: the Code view, then the terminal, then
 
 ---
 
-## Update — 2026-09-26 evening: Gemma on a real task — thinking budget, per-model sampling, loop guards (working tree)
+## Update — 2026-09-27: Code view, separate from Chat (working tree)
+
+The sidebar's **Code** entry is live. Chat stays plain conversation for the user's other plans; Code is where the agent work lives. Decided with the user: switching views never loads a model (Code shows a hint instead), and existing conversations stay in Chat.
+
+- **Sessions.** A conversation has a `kind` (`"chat" | "code"`; none means chat) and a code session its `folder` (`types/conversation.ts`, `electron.d.ts`, saved as-is; the list metadata carries both, `ConversationStorageService`). `lib/sessions.ts`: `viewKind`, `kindOf`, `ofKind`, `folderName`, `isCodingModel`. Each view lists only its kind ("Chats" / "Sessions"); opening Chat or Code goes to that kind's latest conversation or starts one (`App.tsx` effect). "New session" asks for a folder first (`handleNewSession`); a session opened without one shows "Choose a project folder".
+- **Tool scope follows the open conversation**, not the view (a look at the library mid-session changes nothing): `resolveToolPolicy({ fileTools })` — a chat offers only the web tools, and calls a file tool as not permitted; the system prompt gets no allowed paths and, without web search, no tool section; the `[Current folder]` note and the "use your file tools" first attempt and refusal retry happen only in code sessions (`messageHandler.ts`).
+- **The folder.** Opening a code session applies its folder (`useApplyWorkspace`: restart the filesystem server, then save `mcp.workspaceFolder`), so the global setting now follows the open session. Sending (and the empty-state prompts) waits until the folder is in effect — in the second the server restarts, a message could have run tools in the previous session's folder. The input's folder chip (`WorkspaceSelector`) shows the session's folder and can move the session to another; Chat has no chip.
+- **Model hint** (`CodeModelHint`): a chat model in a code session gets "… is made for chat; Qwen3 Coder 30B is better at code" with a Load button (catalog roles `coding`/`agent`).
+- Templates are chat personas: the template button shows in Chat only.
+
+**Verification:** 599 tests across 48 files (new: tool scope, folder note never in a chat, session helpers, model hint); `npm run build`, ESLint and Prettier clean. Used by the user the same evening: a Code session on a test project (`Continue\wifi`, PowerShell scripts) with Qwen3-Coder, "look for bugs", then "apply these fixes".
+
+Also in the working tree, from that test:
+
+- **Colours** (`ChatMessage.tsx`): the model's answer in the foreground colour, the user's own messages muted; thinking and tool work were already muted.
+- **Rule 7, "make the change"** (`systemPrompts.ts`, both the XML and the native prompt): asked for the quickest fixes, Qwen answered with 2,700 characters of code blocks to paste and changed nothing. With the rule it edited the files.
+- **A repeated failed call is reported as failed** (`repeatNote` in `mcpMessageHandler.ts`). Qwen's second `edit_file` found no exact match; it sent the identical call again, was told "use the result you already have", and told the user both fixes were applied. The next turn it wrote that false fix into the project's `FIXES.md`. Now a repeat of a failed call quotes the error and says to change the call or tell the user the change was not made; a declined call says not to try again; a Plan/Read-only refusal repeats the refusal. Successful repeats are unchanged. Not yet seen live (no repeat came up after it went in). 602 tests.
+- **Why that edit failed:** Qwen wrote the file's `"` as `&quot;` in `oldText` (it treats `<arguments>` as XML), so the text could not match; its first edit, written with `\"`, worked. Not fixed. A safe fix: when `edit_file` finds no match and `oldText` holds XML entities, retry once with them decoded (never decode up front, since HTML files really contain `&quot;`).
+- `npm run lint` also lints the git-ignored `tmp/` folder, where old debugging scripts fail `no-explicit-any`; the source itself is clean (`--ignore-pattern "tmp/**"`).
+
+---
+
+## Update — 2026-09-26 evening: Gemma on a real task — thinking budget, per-model sampling, loop guards (`7526bad`)
 
 **What the user saw** (Gemma 4 12B, their wifi test project, Auto mode). Task 1: "Read all the .ps1 files and STATE.md, then write SCRIPTS.md with a table…". The reply ran to the 8,192-token limit: thoughts in the chat, file names mangled ("dialect.ps1", "Dg3"), the same lines looping. With Gemma's own sampling it wrote emoji, then a stray `<channel|>`. Earlier that day: at 128K Gemma decoded 18.8 tok/s, at 32K 43. The context planner filled the card on paper (9.9 of 11.0 GiB usable) and Windows moved part of it to shared memory; the user set 32K in the Library.
 
@@ -71,7 +93,7 @@ Order agreed with the user on 2026-09-26: the Code view, then the terminal, then
 
 ---
 
-## Update — 2026-09-26: Gemma desktop check, clearing further, folder note only for files (working tree)
+## Update — 2026-09-26: Gemma desktop check, clearing further, folder note only for files (`c36cf10`)
 
 **Gemma desktop check passes** (`tmp/gemma-ui-check.mjs`, isolated profile `tmp/gemma-ui/profile`, Gemma 4 12B Q4_K_M at 8K, Ask mode). Approved read → "The meeting is scheduled for 4:15 PM."; denied write → nothing ran, no file, "I was unable to create `report.txt`…"; Ctrl+R → the model was adopted; the saved chat reopened from the sidebar; the follow-up "Answer without tools" → "The Orchid meeting was scheduled for 4:15 PM." in the same saved chat, no tool call. Passed twice, once on a fresh profile; ~43 s per run, 43 tok/s. The chat shows a native call as a "Read notes.txt" step with no raw JSON; the saved reply keeps it as a `json {"tool_calls": …}` block. Every verdict comes from the saved conversation JSON, not page text. The harness now opens the collapsed sidebar and fails if a sent message does not appear.
 
@@ -87,7 +109,7 @@ Order agreed with the user on 2026-09-26: the Code view, then the terminal, then
 
 ---
 
-## Update — 2026-09-25 late evening: Gemma 4 native tools (working tree)
+## Update — 2026-09-25 late evening: Gemma 4 native tools (`6069e14`)
 
 Gemma 4 now receives native tool declarations, emits its own native argument syntax, and receives the real tool result in its native result slot. `Gemma4ToolChatWrapper`, `gemmaToolProtocol`, and `NativeChatSession` adapt the installed node-llama-cpp version without changing Qwen's XML flow. The bridge returns a structured call to the renderer; the existing permission callback still decides whether it runs. Tool results are matched by call ID. Stopped, incomplete, unknown, or stale calls cannot silently resume execution. Native syntax stays out of visible streaming, tool declarations follow Plan/Read-only filtering, and title generation preserves chat history.
 
@@ -99,7 +121,7 @@ Gemma defaults to input lookup off: the read smoke fell from 26.8 s with lookup 
 
 ---
 
-## Update — 2026-09-25 evening: saved Task Capsules (working tree)
+## Update — 2026-09-25 evening: saved Task Capsules (`6069e14`)
 
 The first item above is implemented but not yet committed. `SavedCapsule` is stored on the assistant reply that needed a summary and passes through IPC, the generation store, and conversation JSON. It includes the capsule, the exact kept model history (including any shortened reply), and a cumulative `replacedEntries` count. On restore, `LlamaServerProvider` keeps the full chat when it fits; otherwise it first clears old tool payloads, then uses the saved capsule with the live tail of the chat. New turns added after reopening are retained. A same-turn MCP retry keeps a capsule written by its first attempt when the retry writes no new one.
 

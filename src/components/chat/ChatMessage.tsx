@@ -211,7 +211,13 @@ export const ChatMessage = memo(function ChatMessage({
             />
           )}
 
-          <div className="text-sm text-muted-foreground prose prose-sm max-w-none dark:prose-invert">
+          {/* The answer reads in full white; thinking and tool work stay grey */}
+          <div
+            className={cn(
+              "text-sm prose prose-sm max-w-none dark:prose-invert",
+              isUser ? "text-muted-foreground" : "text-foreground"
+            )}
+          >
             <Suspense
               fallback={<div className="animate-pulse">Loading...</div>}
             >

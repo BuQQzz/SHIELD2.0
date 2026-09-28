@@ -55,6 +55,37 @@ const MAX_REPEATS = 3;
 
 /** A repeat of a result this long is not sent again - see below */
 const REPEAT_RESEND_LIMIT = 1500;
+/** How much of a failed call's error its repeat quotes */
+const REPEAT_ERROR_CHARS = 800;
+
+/**
+ * What the model is told when it repeats a call from this turn.
+ *
+ * Resending a large result every time the model repeats a call is what
+ * kept an 8k window overflowing, so a long one is only pointed back to. A
+ * failed call is never "a result you already have": told that about an
+ * edit_file that found no exact match, Qwen3-Coder sent the same call again
+ * and then told the user the fix was applied (2026-09-27).
+ */
+function repeatNote(
+  toolCall: ToolCallRequest,
+  result: MCPToolResult,
+  formatted: string
+): string {
+  if (result.blocked) {
+    return `This exact call (${toolCall.tool}) was already refused in this turn, so it was not run again: ${result.error ?? ""} Do not send it again.`;
+  }
+  if (!result.success) {
+    if (result.error === "User denied permission") {
+      return `The user already declined this exact call (${toolCall.tool}) in this turn, so it was not asked again. Do not try it again; tell the user it was not done.`;
+    }
+    const error = (result.error ?? formatted).slice(0, REPEAT_ERROR_CHARS);
+    return `This exact call (${toolCall.tool}) already failed in this turn and would fail the same way, so it was not run again. The error was:\n${error}\nChange the call - for edit_file, copy oldText exactly from the file as it is now - or tell the user this change was not made.`;
+  }
+  return formatted.length > REPEAT_RESEND_LIMIT
+    ? `You already made this exact call (${toolCall.tool}) in this turn, so it was not run again and its result is not repeated. Use the result you already have, or answer the user now.`
+    : `You already made this exact call in this turn, so it was not run again. Its result is repeated below; use it instead of calling again.\n${formatted}`;
+}
 
 const PATH_KEYS = ["path", "source", "destination"];
 
@@ -280,13 +311,9 @@ export async function processMCPToolCalls(
       }
 
       const formatted = formatToolResult(toolCall, result, maxResultChars);
-      // Resending a large result every time the model repeats a call is what
-      // kept an 8k window overflowing; point back to it instead.
       const toolResultFormatted =
         previous && !toolCall.argumentsError
-          ? formatted.length > REPEAT_RESEND_LIMIT
-            ? `You already made this exact call (${toolCall.tool}) in this turn, so it was not run again and its result is not repeated. Use the result you already have, or answer the user now.`
-            : `You already made this exact call in this turn, so it was not run again. Its result is repeated below; use it instead of calling again.\n${formatted}`
+          ? repeatNote(toolCall, result, formatted)
           : formatted;
       formattedResults.push(toolResultFormatted);
       // Ordinary OpenAI-style calls still use the textual continuation.

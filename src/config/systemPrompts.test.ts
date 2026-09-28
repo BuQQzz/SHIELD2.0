@@ -428,6 +428,15 @@ describe("edit rule", () => {
 
   it("says nothing about edits without edit_file", () => {
     expect(generateMCPToolPrompt(tools)).not.toContain("EDIT, DON'T REWRITE");
+    expect(generateMCPToolPrompt(tools)).not.toContain("MAKE THE CHANGE");
+  });
+
+  // Qwen3-Coder answered "do the quickest fixes first" with code blocks to
+  // paste and changed nothing (2026-09-27)
+  it("tells the model to make a fix rather than show it", () => {
+    expect(generateMCPToolPrompt([editFile])).toContain(
+      "7. **MAKE THE CHANGE**"
+    );
   });
 
   // Qwen3-Coder ended a finished web answer with list_allowed_directories
