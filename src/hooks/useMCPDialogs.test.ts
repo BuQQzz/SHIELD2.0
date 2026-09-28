@@ -302,3 +302,41 @@ describe("useMCPDialogs - writes", () => {
     }
   });
 });
+
+describe("useMCPDialogs - AGENTS.md", () => {
+  afterEach(cleanup);
+
+  // AGENTS.md is read into every later session: the user sees each change
+  it("asks before writing it even in Auto, with the text to read", async () => {
+    const callTool = vi.fn(async (call: { tool: string }) =>
+      call.tool === "get_file_info"
+        ? ({ success: false, error: "ENOENT" } as MCPToolResult)
+        : text("Successfully wrote")
+    );
+    const { result } = renderHook(() => useMCPDialogs({ callTool, policy }));
+    act(() => {
+      void result.current.handleToolCallRequest(
+        request("write_file", {
+          path: "AGENTS.md",
+          content: "# Repository Guidelines",
+        })
+      );
+    });
+    await waitFor(() => expect(result.current.pendingRequest).not.toBeNull());
+    expect(result.current.pendingRequest).toMatchObject({
+      instructionsFile: true,
+      proposed: "# Repository Guidelines",
+    });
+    // "Allow for session" does not carry over to later writes
+    await act(async () => {
+      await result.current.handleApprove(true);
+    });
+    act(() => {
+      void result.current.handleToolCallRequest(
+        request("write_file", { path: "AGENTS.md", content: "v2" })
+      );
+    });
+    await waitFor(() => expect(result.current.pendingRequest).not.toBeNull());
+    act(() => result.current.handleDeny());
+  });
+});

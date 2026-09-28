@@ -31,6 +31,7 @@ import {
 import type { ToolPolicy } from "@/hooks/useToolPolicy";
 import { useConversationStore } from "@/stores/conversation-store";
 import { isRemovalNote } from "@/services/historyCompaction";
+import { isAgentsMd } from "@/config/agentsMd";
 import { modelWrittenFiles } from "@/handlers/workLedger";
 
 /**
@@ -67,6 +68,32 @@ function writesRemovalNote(
     );
   }
   return false;
+}
+
+/** A write or edit of a project's AGENTS.md */
+function writesAgentsMd(tool: string, args: Record<string, unknown>): boolean {
+  return (
+    (tool === "write_file" || tool === "edit_file") &&
+    typeof args.path === "string" &&
+    isAgentsMd(args.path)
+  );
+}
+
+/** What a write or edit would put in the file, to read before approving */
+function proposedText(
+  tool: string,
+  args: Record<string, unknown>
+): string | undefined {
+  if (tool === "write_file" && typeof args.content === "string") {
+    return args.content;
+  }
+  if (tool === "edit_file" && Array.isArray(args.edits)) {
+    return args.edits
+      .map((edit) => (edit as { newText?: unknown })?.newText)
+      .filter((text): text is string => typeof text === "string")
+      .join("\n\n---\n\n");
+  }
+  return undefined;
 }
 
 /** Existing files larger than this are not rewritten without a second try */
@@ -143,6 +170,10 @@ export interface PendingToolRequest {
   commandReason?: string;
   /** Scripts the command runs that the model wrote or edited itself */
   modelScripts?: { path: string; content?: string }[];
+  /** A write or edit of AGENTS.md: asked every time, never "for session" */
+  instructionsFile?: boolean;
+  /** The text a write or edit would put in the file, to read first */
+  proposed?: string;
 }
 
 interface UseMCPDialogsProps {
@@ -305,12 +336,21 @@ export function useMCPDialogs({ callTool, policy }: UseMCPDialogsProps) {
         name: toolCall.tool,
         arguments: toolCall.arguments,
       });
+      const writesInstructions = writesAgentsMd(
+        toolCall.tool,
+        toolCall.arguments
+      );
       const decision =
         policyDecision === "ask" &&
         sessionApproved.current.has(toolCall.tool) &&
-        !asksEveryTime(toolCall.tool)
+        !asksEveryTime(toolCall.tool) &&
+        !writesInstructions
           ? "run"
-          : policyDecision;
+          : // AGENTS.md is read into every future session: the user sees
+            // and approves each change, even in Auto
+            policyDecision === "run" && writesInstructions
+            ? "ask"
+            : policyDecision;
 
       // Recorded as an intended step rather than performed. In plan mode this
       // is only ever a mutating tool - reads still run, so the plan can be
@@ -403,6 +443,10 @@ export function useMCPDialogs({ callTool, policy }: UseMCPDialogsProps) {
           command,
           commandReason: command !== undefined ? reason : undefined,
           modelScripts: modelScripts?.length ? modelScripts : undefined,
+          instructionsFile: writesInstructions || undefined,
+          proposed: writesInstructions
+            ? proposedText(toolCall.tool, toolCall.arguments)
+            : undefined,
         });
       });
     },
@@ -425,7 +469,11 @@ export function useMCPDialogs({ callTool, policy }: UseMCPDialogsProps) {
       // It used to widen the saved allowlist, which did nothing once every
       // tool was allowed by default. Never for deletes or commands - each
       // is confirmed.
-      if (remember && !asksEveryTime(request.toolName)) {
+      if (
+        remember &&
+        !asksEveryTime(request.toolName) &&
+        !request.instructionsFile
+      ) {
         sessionApproved.current.add(request.toolName);
       }
 

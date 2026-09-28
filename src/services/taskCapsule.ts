@@ -123,7 +123,7 @@ const VERBS: Record<string, string> = {
  */
 export function requestText(content: string): string {
   let text = content.replace(
-    /\s*\[(?:Current folder: |Not run: |SHIELD's record of |From SHIELD's memory )[\s\S]*?\]\s*$/,
+    /\s*\[(?:Current folder: |Not run: |SHIELD's record of |From SHIELD's memory |SHIELD: )[\s\S]*?\]\s*$/,
     ""
   );
   if (text.startsWith("You have MCP filesystem tools available")) {

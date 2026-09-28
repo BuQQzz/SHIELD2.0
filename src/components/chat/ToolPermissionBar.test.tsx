@@ -78,6 +78,28 @@ describe("ToolPermissionBar", () => {
     expect(screen.getByText(". .\\set-radio.ps1")).toBeTruthy();
   });
 
+  it("shows a change to AGENTS.md on request, asked on its own", () => {
+    render(
+      <ToolPermissionBar
+        request={{
+          ...base,
+          toolName: "write_file",
+          targetPath: "AGENTS.md",
+          previewContent: "# Repository Guidelines",
+          instructionsFile: true,
+          proposed: "# Repository Guidelines",
+        }}
+        onApprove={vi.fn()}
+        onDeny={vi.fn()}
+      />
+    );
+    expect(screen.getByText("Write AGENTS.md?")).toBeTruthy();
+    expect(screen.queryByText("Allow for session")).toBeNull();
+    expect(screen.queryByText("# Repository Guidelines")).toBeNull();
+    fireEvent.click(screen.getByText("Show the new text"));
+    expect(screen.getByText("# Repository Guidelines")).toBeTruthy();
+  });
+
   it("shows where a move goes", () => {
     render(
       <ToolPermissionBar

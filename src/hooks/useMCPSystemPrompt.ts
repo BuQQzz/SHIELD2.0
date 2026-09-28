@@ -13,6 +13,7 @@ import {
   usesNativeToolCalling,
 } from "@/config/systemPrompts";
 import { isMutatingTool } from "@/config/toolClassification";
+import { instructionsSection } from "@/config/agentsMd";
 import type { SystemPromptConfig, ToolDefinition } from "@/types/prompts";
 
 interface UseMCPSystemPromptProps {
@@ -40,6 +41,8 @@ interface UseMCPSystemPromptProps {
   allowedPaths?: string[];
   /** Plan mode - read tools investigate; changes are described only */
   planOnly?: boolean;
+  /** The code session's project instructions (AGENTS.md), if any */
+  projectInstructions?: string;
 }
 
 export function useMCPSystemPrompt({
@@ -54,6 +57,7 @@ export function useMCPSystemPrompt({
   toolsLoading = false,
   allowedPaths,
   planOnly = false,
+  projectInstructions = "",
 }: UseMCPSystemPromptProps) {
   // Detect model family from name
   const modelFamily = useMemo(
@@ -130,7 +134,10 @@ export function useMCPSystemPrompt({
       console.log("[MCP] - Tool count:", offeredTools.length);
       console.log("[MCP] - Full prompt length:", builtPrompt.length);
 
-      setSystemPrompt(builtPrompt, nativeTools ? offeredTools : []);
+      setSystemPrompt(
+        builtPrompt + instructionsSection(projectInstructions),
+        nativeTools ? offeredTools : []
+      );
     } else {
       // Build prompt without MCP tools
       const config: SystemPromptConfig = {
@@ -151,7 +158,10 @@ export function useMCPSystemPrompt({
       console.log("[MCP] - Included modules:", includedModules);
       console.log("[MCP] - Estimated tokens:", estimatedTokens);
 
-      setSystemPrompt(builtPrompt, []);
+      setSystemPrompt(
+        builtPrompt + instructionsSection(projectInstructions),
+        []
+      );
     }
   }, [
     isModelLoaded,
@@ -166,5 +176,6 @@ export function useMCPSystemPrompt({
     toolsLoading,
     allowedPaths,
     planOnly,
+    projectInstructions,
   ]);
 }

@@ -37,6 +37,9 @@ import { effectiveSampling } from "./services/modelSampling";
 import { sameFolder, useApplyWorkspace } from "./hooks/useApplyWorkspace";
 import { kindOf, ofKind, viewKind } from "./lib/sessions";
 import { CodeModelHint } from "./components/chat/CodeModelHint";
+import { AgentsMdHint } from "./components/chat/AgentsMdHint";
+import { useInstructionsStore } from "./stores/instructions-store";
+import { DRAFT_REQUEST, draftNote } from "./config/agentsMd";
 import { useChatStore } from "./stores/chat-store";
 import { ModelLibraryPage } from "./components/library/ModelLibraryPage";
 import { PluginsPage } from "./components/plugins/PluginsPage";
@@ -173,6 +176,8 @@ function App() {
   const currentModelConfig = installedModels.find(
     (m) => m.id === currentModelId
   );
+  // The open code session's AGENTS.md, read into its prompt
+  const projectInstructions = useInstructionsStore((state) => state.text);
   // Real tool list from the connected MCP servers
   useMCPSystemPrompt({
     isModelLoaded,
@@ -187,6 +192,7 @@ function App() {
     allowedPaths: isCodeSession ? mcpAllowedPaths : [],
     planOnly: toolPolicy.isPlanning,
     toolsLoading: !mcpToolsSettled,
+    projectInstructions: isCodeSession ? projectInstructions : "",
   });
 
   // Initialize a new conversation if none exists
@@ -236,6 +242,16 @@ function App() {
     !isCodeSession ||
     (!!sessionFolder &&
       sameFolder(sessionFolder, settings.mcp?.workspaceFolder));
+
+  // Its AGENTS.md: read when the folder is in effect, and again after each
+  // message, so one the model just wrote is picked up
+  const messageCount = currentConversation?.messages.length ?? 0;
+  const instructions = useInstructionsStore();
+  useEffect(() => {
+    void useInstructionsStore
+      .getState()
+      .load(folderReady ? sessionFolder : undefined);
+  }, [sessionFolder, folderReady, messageCount]);
 
   // Sync messages and restore chat history
   useConversationSync({
@@ -364,6 +380,14 @@ function App() {
     if (folder) updateConversation({ folder });
   }, [applyWorkspace, updateConversation]);
 
+  // "Draft one": the model writes AGENTS.md from facts SHIELD gathered;
+  // the facts go to the model only, the chat shows the short request
+  const handleDraftAgentsMd = useCallback(async () => {
+    if (!sessionFolder) return;
+    const facts = await window.conversations.projectFacts(sessionFolder);
+    await handleSendMessage(DRAFT_REQUEST, { modelNote: draftNote(facts) });
+  }, [sessionFolder, handleSendMessage]);
+
   const handleNew = useCallback(
     (kind = activeKind ?? kindOf(currentConversation), projectId?: string) => {
       if (kind === "code") void handleNewSession(projectId);
@@ -468,6 +492,20 @@ function App() {
           onApprove={handleApprove}
           onDeny={handleDeny}
         />
+        {isCodeSession &&
+          isModelLoaded &&
+          folderReady &&
+          sessionFolder &&
+          !isGenerating &&
+          instructions.loaded &&
+          sameFolder(instructions.folder ?? undefined, sessionFolder) &&
+          instructions.files.length === 0 && (
+            <AgentsMdHint
+              key={sessionFolder}
+              folder={sessionFolder}
+              onDraft={() => void handleDraftAgentsMd()}
+            />
+          )}
         {isCodeSession && isModelLoaded && (
           <CodeModelHint
             currentModelId={currentModelId}

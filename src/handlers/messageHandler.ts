@@ -154,7 +154,9 @@ export function createMessageHandler({
 }: MessageHandlerProps) {
   // Web search is a tool the model calls (web_search, fetch_page) rather
   // than a search run before the message
-  return async (content: string) => {
+  // `modelNote` goes to the model with the message but is not shown or
+  // saved as what the user typed (the facts behind "Draft AGENTS.md")
+  return async (content: string, options?: { modelNote?: string }) => {
     if (!isModelLoaded) {
       return;
     }
@@ -242,6 +244,8 @@ export function createMessageHandler({
         const recall = await recallFor(content, currentConversation.id);
         if (recall) messageWithContext += `\n\n${recall}`;
       }
+
+      if (options?.modelNote) messageWithContext += `\n\n${options.modelNote}`;
 
       const returnedResponse = await sendStreamingMessage(
         messageWithContext,

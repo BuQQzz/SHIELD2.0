@@ -130,6 +130,22 @@ describe("useMCPSystemPrompt native tools", () => {
     ]);
   });
 
+  it("adds the project's AGENTS.md after the rest of the prompt", () => {
+    const setSystemPrompt = vi.fn().mockResolvedValue(undefined);
+    renderHook(() =>
+      useMCPSystemPrompt({
+        ...baseProps,
+        availableTools: [read],
+        projectInstructions: "Run the tests with node test.js",
+        setSystemPrompt,
+      })
+    );
+    const prompt = setSystemPrompt.mock.calls.at(-1)?.[0] as string;
+    expect(prompt).toMatch(
+      /## Project instructions \(the project's AGENTS\.md\)[\s\S]*Run the tests with node test\.js$/
+    );
+  });
+
   it("waits for the model and tool list before publishing a native prompt", () => {
     const setSystemPrompt = vi.fn().mockResolvedValue(undefined);
     const { rerender } = renderHook(

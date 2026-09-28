@@ -81,14 +81,45 @@ function ModelScript({
   );
 }
 
+/**
+ * The text a change to AGENTS.md would write: it is read into every future
+ * session in this project, so it can be read before it is approved.
+ */
+function ProposedText({ text }: { text: string }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <div className="mt-1 text-xs">
+      <div className="flex flex-wrap items-center gap-x-2 text-amber-600 dark:text-amber-400">
+        <span>SHIELD reads this file into every session in this project.</span>
+        <button
+          type="button"
+          className="underline underline-offset-2 hover:text-foreground"
+          onClick={() => setOpen((value) => !value)}
+        >
+          {open ? "Hide the new text" : "Show the new text"}
+        </button>
+      </div>
+      {open && (
+        <pre className="mt-1 max-h-64 overflow-auto whitespace-pre-wrap rounded bg-background/70 px-2 py-1 font-mono text-[11px] leading-snug">
+          {text}
+        </pre>
+      )}
+    </div>
+  );
+}
+
 export function ToolPermissionBar({
   request,
   onApprove,
   onDeny,
 }: ToolPermissionBarProps) {
   const Icon = request ? toolIcon(request) : Shield;
-  // Deletes and commands are confirmed one at a time (useMCPDialogs)
-  const oneAtATime = request?.isDestructive || request?.command !== undefined;
+  // Deletes, commands and AGENTS.md changes are confirmed one at a time
+  // (useMCPDialogs)
+  const oneAtATime =
+    request?.isDestructive ||
+    request?.command !== undefined ||
+    request?.instructionsFile;
 
   return (
     <AnimatePresence>
@@ -102,7 +133,9 @@ export function ToolPermissionBar({
         >
           <div
             className={`flex gap-3 rounded-lg border border-border bg-muted/60 px-3 py-2 text-sm backdrop-blur ${
-              request.command !== undefined ? "items-start" : "items-center"
+              request.command !== undefined || request.instructionsFile
+                ? "items-start"
+                : "items-center"
             }`}
           >
             <Icon
@@ -121,8 +154,15 @@ export function ToolPermissionBar({
                   ? "Move to Recycle Bin"
                   : request.command !== undefined
                     ? "Run this command?"
-                    : request.toolName}
+                    : request.instructionsFile
+                      ? request.toolName === "write_file"
+                        ? "Write AGENTS.md?"
+                        : "Change AGENTS.md?"
+                      : request.toolName}
               </span>
+              {request.instructionsFile && request.proposed !== undefined && (
+                <ProposedText text={request.proposed} />
+              )}
               {request.commandReason && (
                 <p className="mt-0.5 text-xs text-muted-foreground">
                   {request.commandReason}

@@ -142,6 +142,12 @@ export interface ConversationAPI {
   deleteProject: (
     projectId: string
   ) => Promise<{ success: boolean; moved?: number; error?: string }>;
+  /** A project folder's AGENTS.md, from the repository root down to it */
+  projectInstructions: (
+    folder: string
+  ) => Promise<{ files: string[]; text: string; truncated: boolean }>;
+  /** What SHIELD sees of a project, for drafting AGENTS.md */
+  projectFacts: (folder: string) => Promise<string>;
 }
 
 interface Project {
@@ -210,6 +216,9 @@ const conversationAPI: ConversationAPI = {
   saveProject: (project) => ipcRenderer.invoke("projects:save", project),
   deleteProject: (projectId) =>
     ipcRenderer.invoke("projects:delete", projectId),
+  projectInstructions: (folder) =>
+    ipcRenderer.invoke("project:instructions", folder),
+  projectFacts: (folder) => ipcRenderer.invoke("project:facts", folder),
 };
 
 contextBridge.exposeInMainWorld("conversations", conversationAPI);
