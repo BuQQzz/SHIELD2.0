@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { compactHistory, shouldCompact } from "./historyCompaction";
+import {
+  compactHistory,
+  isRemovalNote,
+  shouldCompact,
+} from "./historyCompaction";
 
 const bigFile = "const x = 1;\n".repeat(400); // ~5k characters
 
@@ -24,8 +28,15 @@ describe("compactHistory", () => {
     // The step is still there, with its path, minus the content
     expect(out[1]!.content).toContain("Now let me write server.js");
     expect(out[1]!.content).toContain("<tool>write_file</tool>");
-    expect(out[1]!.content).toContain('"path":"server.js"');
-    expect(out[1]!.content).toContain("cleared to save space");
+    // The content is dropped from the call itself; a note after it says so.
+    // A placeholder inside the call was copied by Qwen3-Coder into
+    // write_file as if it were content (2026-09-28).
+    expect(out[1]!.content).toContain(
+      '<arguments>{"path":"server.js"}</arguments>'
+    );
+    expect(out[1]!.content).toMatch(
+      /<\/tool_call>\n\[SHIELD removed from your context to save space: 5,200 characters of the call above\. .*not file content/
+    );
     expect(out[1]!.content).not.toContain("const x = 1;");
     // The read result keeps its envelope
     expect(out[2]!.content).toContain("<tool>read_text_file</tool>");
@@ -65,6 +76,33 @@ describe("compactHistory", () => {
     expect(out[0]!.content).toContain("Writing it:");
     expect(out[0]!.content).toContain("never ran");
     expect(out[0]!.content.length).toBeLessThan(200);
+  });
+
+  it("drops long edit texts but keeps the call's shape", () => {
+    const edit = `<tool_call>\n<server>filesystem</server>\n<tool>edit_file</tool>\n<arguments>${JSON.stringify({ path: "a.js", edits: [{ oldText: bigFile, newText: bigFile }] })}</arguments>\n</tool_call>`;
+    const { history: out } = compactHistory(
+      [
+        { role: "assistant", content: edit },
+        { role: "user", content: "next" },
+      ],
+      1
+    );
+    expect(out[0]!.content).toContain(
+      '<arguments>{"path":"a.js","edits":[{}]}</arguments>'
+    );
+    expect(isRemovalNote(out[0]!.content)).toBe(true);
+  });
+
+  it("recognises its notes, this version's and older ones", () => {
+    expect(isRemovalNote("[2,450 characters, cleared to save space]")).toBe(
+      true
+    );
+    expect(
+      isRemovalNote(
+        "[SHIELD removed from your context to save space: 12 characters]"
+      )
+    ).toBe(true);
+    expect(isRemovalNote("const cleared = true; // save space")).toBe(false);
   });
 
   it("does nothing more the second time", () => {

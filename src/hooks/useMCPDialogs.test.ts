@@ -215,3 +215,90 @@ describe("useMCPDialogs - commands", () => {
     act(() => result.current.handleDeny());
   });
 });
+
+describe("useMCPDialogs - writes", () => {
+  beforeEach(() => {
+    useSettingsStore.setState({
+      settings: {
+        ...DEFAULT_SETTINGS,
+        mcp: { ...DEFAULT_SETTINGS.mcp, workspaceFolder: WORKSPACE },
+      },
+    });
+  });
+  afterEach(cleanup);
+
+  const write = (path: string, content: string) =>
+    request("write_file", { path, content });
+
+  // 2026-09-28: Qwen3-Coder copied a removal note from its trimmed history
+  // into write_file and replaced a working script.js, then PLAN.md, with it
+  it("refuses to write one of SHIELD's removal notes into a file", async () => {
+    const callTool = vi.fn(async () => text("Successfully wrote"));
+    const { result } = renderHook(() => useMCPDialogs({ callTool, policy }));
+    let outcome: MCPToolResult | undefined;
+    await act(async () => {
+      outcome = await result.current.handleToolCallRequest(
+        write("PLAN.md", "[2,450 characters, cleared to save space]")
+      );
+    });
+    expect(outcome?.success).toBe(false);
+    expect(outcome?.error).toMatch(
+      /^Not run: the text you sent is SHIELD's note/
+    );
+    expect(callTool).not.toHaveBeenCalled();
+  });
+
+  it("sends a rewrite of a sizeable existing file back once", async () => {
+    const callTool = vi.fn(async (call: { tool: string }) =>
+      call.tool === "get_file_info"
+        ? text("size: 10388\nisFile: true")
+        : text("Successfully wrote")
+    );
+    const { result } = renderHook(() => useMCPDialogs({ callTool, policy }));
+
+    let first: MCPToolResult | undefined;
+    await act(async () => {
+      first = await result.current.handleToolCallRequest(
+        write("script.js", "// new")
+      );
+    });
+    expect(first?.success).toBe(false);
+    expect(first?.error).toMatch(
+      /^Not run: script\.js already exists \(10,388 characters\)\. Change it with edit_file/
+    );
+    expect(callTool.mock.calls.map((c) => c[0].tool)).toEqual([
+      "get_file_info",
+    ]);
+
+    let second: MCPToolResult | undefined;
+    await act(async () => {
+      second = await result.current.handleToolCallRequest(
+        write("script.js", "// new")
+      );
+    });
+    expect(second?.success).toBe(true);
+    expect(callTool.mock.calls.at(-1)?.[0].tool).toBe("write_file");
+  });
+
+  it("writes a new or small file at once", async () => {
+    const callTool = vi.fn(
+      async (call: { tool: string; arguments: { path?: string } }) =>
+        call.tool === "get_file_info"
+          ? call.arguments.path === "small.js"
+            ? text("size: 800")
+            : ({
+                success: false,
+                error: "ENOENT: no such file",
+              } as MCPToolResult)
+          : text("Successfully wrote")
+    );
+    const { result } = renderHook(() => useMCPDialogs({ callTool, policy }));
+    for (const path of ["new.js", "small.js"]) {
+      let outcome: MCPToolResult | undefined;
+      await act(async () => {
+        outcome = await result.current.handleToolCallRequest(write(path, "x"));
+      });
+      expect(outcome?.success).toBe(true);
+    }
+  });
+});

@@ -266,6 +266,14 @@ describe("accessible directories", () => {
     expect(prompt).toContain('"this folder"');
     expect(prompt).not.toContain("Accessible Directories");
   });
+
+  // "What's in this project?" was answered from file names alone
+  it("says to read files before describing them, in both prompt styles", () => {
+    const folder = ["C:\\Users\\me\\Projects\\app"];
+    const rule = "Never describe what a file contains without reading it.";
+    expect(generateMCPToolPrompt(tools, folder)).toContain(rule);
+    expect(generateNativeToolPrompt(tools, folder)).toContain(rule);
+  });
 });
 
 describe("plan mode prompt", () => {
@@ -501,6 +509,8 @@ describe("web search section", () => {
     });
     expect(includedModules).toContain("web-search");
     expect(prompt).toContain("fetch_page");
+    // "Newest" was answered from the first release article found
+    expect(prompt).toContain("check a page that lists the releases");
   });
 
   it("is left out when web search is off (no web tools offered)", () => {

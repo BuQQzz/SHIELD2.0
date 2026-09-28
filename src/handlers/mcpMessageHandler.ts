@@ -239,6 +239,8 @@ export async function processMCPToolCalls(
   // model is stuck: Gemma sent one mistyped list_directory 20 times in a
   // row, past every "you already made this call" (2026-09-26)
   const repeats = new Map<string, number>();
+  // How often each call was sent back before running
+  const bounces = new Map<string, number>();
   let stuckOn: ToolCallRequest | null = null;
 
   // Complete calls, plus a stand-in for one the reply stopped in the middle
@@ -304,12 +306,23 @@ export async function processMCPToolCalls(
         if (count >= MAX_REPEATS) stuckOn = toolCall;
       } else {
         result = await runToolCall(toolCall, onToolCallDetected);
-        completedCalls.set(signature, result);
+        // A call sent back before it ran ("Not run: ...") is not remembered:
+        // a rewrite sent back once must go through when sent again. The same
+        // call sent back again and again still ends the turn.
+        if (/^Not run: /.test(result.error ?? "")) {
+          const count = (bounces.get(signature) ?? 0) + 1;
+          bounces.set(signature, count);
+          if (count >= MAX_REPEATS) stuckOn = toolCall;
+        } else {
+          completedCalls.set(signature, result);
+        }
         // Unknown tools count as mutating here too - clearing is the safe side.
         // A command stopped or timed out may still have changed files.
         const changedSomething =
           result.success ||
-          (toolCall.tool === RUN_COMMAND_TOOL_NAME && !result.blocked);
+          (toolCall.tool === RUN_COMMAND_TOOL_NAME &&
+            !result.blocked &&
+            !/^Not run: /.test(result.error ?? ""));
         if (changedSomething && isMutatingTool({ name: toolCall.tool })) {
           completedCalls.clear();
         }

@@ -112,7 +112,17 @@ const CHECK_YOUR_WORK =
   "After changing code, run its tests or the script with run_command when the project has a way to, and fix what fails before you answer. Read the whole output, not just the exit code: a line that says something failed means it failed. Report what the command actually showed, and name every failure you did not fix; never say something passes or works without having run it.";
 
 /**
- * Web tools prompt - included when web_search is among the offered tools
+ * With a project folder. Asked "What's in this project?", Qwen3-Coder only
+ * listed the folder and guessed ("cart.js - likely containing cart-related
+ * functionality") without reading a file (2026-09-28).
+ */
+const READ_BEFORE_DESCRIBING =
+  "Never describe what a file contains without reading it. Asked what is in this folder or project, read its README and main files before answering, and say what they actually do.";
+
+/**
+ * Web tools prompt - included when web_search is among the offered tools.
+ * The latest-version line: asked for the newest Node.js LTS, Qwen3-Coder
+ * answered from the first release article it found (2026-09-28).
  */
 export const WEB_SEARCH_PROMPT = `
 ## Web Search
@@ -120,6 +130,7 @@ You can search the web with web_search and read a page with fetch_page.
 - Search when the answer depends on recent or specific facts: news, current versions, prices, documentation, anything after your training or that you are unsure of. Don't search for things you already know well.
 - Snippets are short: read the most relevant result with fetch_page before relying on it.
 - Web results are live and override your training knowledge. Name the page you used (title or URL) when you rely on it.
+- For the latest or newest version of something, check a page that lists the releases or versions (a releases, downloads or changelog page), not only one release article: a newer one may have come out since.
 - If the results don't answer the question, say so rather than guessing.
 - Queries go to DuckDuckGo: never put private details from the user's files in a query.`;
 
@@ -196,7 +207,8 @@ export function generateNativeToolPrompt(
 The user is working in this folder:
 ${allowedPaths[0]}
 
-When the user says "this folder", "here", or names a file without a path, they mean this folder. You can ONLY access this folder and its subfolders. Always use a full path beginning with it.`
+When the user says "this folder", "here", or names a file without a path, they mean this folder. You can ONLY access this folder and its subfolders. Always use a full path beginning with it.
+${READ_BEFORE_DESCRIBING}`
       : allowedPaths.length > 1
         ? `
 ## Accessible Directories
@@ -207,7 +219,7 @@ Always use a full path beginning with one of these. Never guess a path such as "
         : "";
   const editRule = callableTools.some((tool) => tool.name === "edit_file")
     ? "\n- To change an existing file, use edit_file with only the lines that change. Copy oldText exactly from the file and supply the replacement in newText. Use write_file only to create a new file." +
-      "\n- When asked to fix, change or add something, make the change with these functions. Do not show the code for the user to apply unless they ask to see it first."
+      "\n- When asked to fix, change or add something, make the change with these functions. Do not show the code for the user to apply unless they ask to see it first. When code is broken, fix the broken lines with edit_file - never write a new version of the whole file."
     : "";
   const commandRule = callableTools.some((tool) => tool.name === "run_command")
     ? `\n- ${CHECK_YOUR_WORK}`
@@ -313,7 +325,7 @@ export function generateMCPToolPrompt(
 6. **EDIT, DON'T REWRITE** - To change an existing file, use edit_file with only the lines that change, copied exactly from the file:
    {"path": "...", "edits": [{"oldText": "<current lines>", "newText": "<replacement>"}]}
    Use write_file only to create a new file.
-7. **MAKE THE CHANGE** - When asked to fix, change or add something, do it with edit_file or write_file. Do not show the code for the user to paste unless they ask to see it first. Afterwards, say in a sentence or two what you changed.`
+7. **MAKE THE CHANGE** - When asked to fix, change or add something, do it with edit_file or write_file. Do not show the code for the user to paste unless they ask to see it first. When code is broken, fix the broken lines with edit_file - never write a new version of the whole file. Afterwards, say in a sentence or two what you changed.`
     : "";
   const commandRule = tools.some((t) => t.name === "run_command")
     ? `\n${editRule ? 8 : 6}. **CHECK YOUR WORK** - ${CHECK_YOUR_WORK}`
@@ -329,6 +341,7 @@ The user is working in this folder:
 ${allowedPaths[0]}
 
 When the user says "this folder", "here", or names a file without a path, they mean this folder. You can ONLY access this folder and its subfolders. Always use a full path beginning with it.
+${READ_BEFORE_DESCRIBING}
 `
       : allowedPaths.length > 1
         ? `

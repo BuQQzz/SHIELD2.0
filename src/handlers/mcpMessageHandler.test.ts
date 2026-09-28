@@ -593,6 +593,51 @@ describe("repeated calls within a turn", () => {
     );
   });
 
+  // A rewrite SHIELD sends back once has to go through when sent again
+  it("does not answer a call sent back before it ran from memory", async () => {
+    const write = call("write_file", '{"path":"C:/a.js","content":"x"}');
+    const onToolCallDetected = vi
+      .fn()
+      .mockResolvedValueOnce({
+        success: false,
+        error: "Not run: C:/a.js already exists (9,000 characters).",
+      })
+      .mockResolvedValueOnce({ success: true, data: "Successfully wrote" });
+    const continueConversation = vi
+      .fn()
+      .mockResolvedValueOnce(write)
+      .mockResolvedValueOnce("Rewrote a.js.");
+
+    await processMCPToolCalls(
+      { id: "b1", role: "assistant", content: write, timestamp: new Date() },
+      { onToolCallDetected, addMessage: vi.fn(), continueConversation }
+    );
+
+    expect(onToolCallDetected).toHaveBeenCalledTimes(2);
+  });
+
+  it("still ends the turn when the same call keeps being sent back", async () => {
+    const write = call("write_file", '{"path":"C:/a.js","content":"x"}');
+    const onToolCallDetected = vi.fn().mockResolvedValue({
+      success: false,
+      error: "Not run: the text you sent is SHIELD's note",
+    });
+    const continueConversation = vi.fn().mockResolvedValue(write);
+    const added: { content: string }[] = [];
+
+    await processMCPToolCalls(
+      { id: "b2", role: "assistant", content: write, timestamp: new Date() },
+      {
+        onToolCallDetected,
+        addMessage: (message) => added.push(message),
+        continueConversation,
+      }
+    );
+
+    expect(onToolCallDetected).toHaveBeenCalledTimes(3);
+    expect(added.at(-1)?.content).toContain("kept repeating the same step");
+  });
+
   it("runs a read again after something changed", async () => {
     const read = call("read_file", '{"path":"C:/a.txt"}');
     const write = call("write_file", '{"path":"C:/a.txt","content":"new"}');

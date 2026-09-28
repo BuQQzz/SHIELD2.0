@@ -30,6 +30,7 @@ import {
 } from "@/config/commandSafety";
 import type { ToolPolicy } from "@/hooks/useToolPolicy";
 import { useConversationStore } from "@/stores/conversation-store";
+import { isRemovalNote } from "@/services/historyCompaction";
 import { modelWrittenFiles } from "@/handlers/workLedger";
 
 /**
@@ -40,6 +41,41 @@ import { modelWrittenFiles } from "@/handlers/workLedger";
  */
 const MISSING_REASON =
   'Not run: a command that needs the user\'s approval must include "reason" - one plain sentence telling the user what it will do, including what any script it runs does. Send the same command again with a reason.';
+
+/**
+ * Sent back when a write carries one of SHIELD's removal notes as content.
+ * Qwen3-Coder copied "[7,253 characters, cleared to save space]" from its
+ * trimmed history into write_file, replacing a working script.js - and
+ * later PLAN.md - with that one line (2026-09-28).
+ */
+const REMOVAL_NOTE_WRITE =
+  "Not run: the text you sent is SHIELD's note that something was removed from your context, not file content - writing it would replace the file with that note. Read the file to see what it contains now, then send the real content.";
+
+/** True when a write or edit would put a removal note into a file */
+function writesRemovalNote(
+  tool: string,
+  args: Record<string, unknown>
+): boolean {
+  if (tool === "write_file") {
+    return typeof args.content === "string" && isRemovalNote(args.content);
+  }
+  if (tool === "edit_file" && Array.isArray(args.edits)) {
+    return args.edits.some(
+      (edit) =>
+        typeof (edit as { newText?: unknown })?.newText === "string" &&
+        isRemovalNote((edit as { newText: string }).newText)
+    );
+  }
+  return false;
+}
+
+/** Existing files larger than this are not rewritten without a second try */
+const REWRITE_MIN_BYTES = 2500;
+/** How long a sent-back rewrite of a file stays allowed */
+const REWRITE_WARNING_MS = 10 * 60_000;
+
+const rewriteMessage = (path: string, size: number) =>
+  `Not run: ${path} already exists (${size.toLocaleString("en-US")} characters). Change it with edit_file, replacing only the lines that need to change: rewriting resends the whole file into your context and can drop code that works. If most of the file really has to change, tell the user why, then send the same write_file again.`;
 
 /** Longest script shown in the permission bar */
 const SCRIPT_PREVIEW_CHARS = 20_000;
@@ -150,6 +186,45 @@ export function useMCPDialogs({ callTool, policy }: UseMCPDialogsProps) {
     [workspaceFolder]
   );
 
+  /** When each file was last sent back as a rewrite (canonical path) */
+  const rewriteWarned = useRef<Map<string, number>>(new Map());
+
+  /**
+   * The reason to send back a write_file that would replace a sizeable
+   * existing file, or null. Rewriting resends the whole file into the
+   * model's context and has dropped working code ("a clean, working
+   * version" that became a "simpler version"); the fix is usually a few
+   * lines of edit_file. Sent back once: the same write within the next
+   * minutes goes through, for a file that really changes throughout.
+   */
+  const rewriteWarning = useCallback(
+    async (tool: string, args: Record<string, unknown>) => {
+      if (tool !== "write_file" || typeof args.path !== "string") return null;
+      const key = canonicalPath(args.path, workspaceFolder);
+      const warnedAt = rewriteWarned.current.get(key);
+      if (warnedAt && Date.now() - warnedAt < REWRITE_WARNING_MS) return null;
+      try {
+        const info = await callTool({
+          serverName: "filesystem",
+          tool: "get_file_info",
+          arguments: { path: args.path },
+        });
+        if (!info.success || (info.data as { isError?: unknown })?.isError) {
+          return null; // A new file
+        }
+        const size = Number(
+          resultPayload(info.data).match(/\bsize:\s*(\d+)/i)?.[1]
+        );
+        if (!(size > REWRITE_MIN_BYTES)) return null;
+        rewriteWarned.current.set(key, Date.now());
+        return rewriteMessage(args.path, size);
+      } catch {
+        return null;
+      }
+    },
+    [callTool, workspaceFolder]
+  );
+
   /**
    * The scripts a command runs that the model wrote, with their contents:
    * written since SHIELD started, or earlier in the open conversation
@@ -221,6 +296,11 @@ export function useMCPDialogs({ callTool, policy }: UseMCPDialogsProps) {
             ?.serverName ?? request.serverName,
       };
 
+      // A removal note is never file content
+      if (writesRemovalNote(toolCall.tool, toolCall.arguments)) {
+        return { success: false, error: REMOVAL_NOTE_WRITE };
+      }
+
       const policyDecision = policy.decide({
         name: toolCall.tool,
         arguments: toolCall.arguments,
@@ -242,6 +322,10 @@ export function useMCPDialogs({ callTool, policy }: UseMCPDialogsProps) {
           error: blockedMessage(toolCall.tool, policy.isPlanning),
         };
       }
+
+      // A whole existing file rewritten is sent back once
+      const rewrite = await rewriteWarning(toolCall.tool, toolCall.arguments);
+      if (rewrite) return { success: false, error: rewrite };
 
       // Reads in auto/plan/readonly run without interrupting the user
       if (decision === "run") {
@@ -322,7 +406,7 @@ export function useMCPDialogs({ callTool, policy }: UseMCPDialogsProps) {
         });
       });
     },
-    [policy, callTool, noteWrite, modelScriptsIn]
+    [policy, callTool, noteWrite, modelScriptsIn, rewriteWarning]
   );
 
   /**

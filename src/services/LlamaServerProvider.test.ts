@@ -171,7 +171,9 @@ describe("LlamaServerProvider restoring a summarised chat", () => {
     const [system, ...turns] = sent[0]!.messages;
     expect(system!.content).not.toContain("Earlier in this conversation");
     expect(turns[0]!.content).toBe("build a search page");
-    expect(turns[4]!.content).toContain("cleared to save space");
+    expect(turns[4]!.content).toContain(
+      "removed from your context to save space"
+    );
   });
 
   it("keeps a shortened model reply short after JSON restore", async () => {
@@ -280,29 +282,29 @@ describe("LlamaServerProvider making room", () => {
     `<tool_result trusted="false">\n<tool>read_text_file</tool>\n<result>\n${body}\n</result>\n</tool_result>`;
 
   it("clears on past the trigger once it starts, oldest first", async () => {
-    // ~1,090 tokens in a 1,750-token window: over 60%. Clearing the first
-    // file alone gets under 60% but not 40%, so the second goes too; the
-    // third and the latest exchange stay whole
-    const { provider, sent } = connected(1750);
+    // Over 60% of a 2,200-token window. Clearing the first file alone gets
+    // under 60% but not 40%, so the second goes too; the third and the
+    // latest exchange stay whole. (Sizes fit the removal notes' length.)
+    const { provider, sent } = connected(2200);
     provider.setChatHistory([
       user("read the four files"),
       assistant(readCall("a.js")),
       user(readResult("a".repeat(1000))),
       assistant(readCall("b.js")),
-      user(readResult("b".repeat(450))),
+      user(readResult("b".repeat(700))),
       assistant(readCall("c.js")),
-      user(readResult("c".repeat(450))),
+      user(readResult("c".repeat(700))),
       assistant(readCall("d.js")),
-      user(readResult("d".repeat(450))),
+      user(readResult("d".repeat(700))),
       assistant("Read them all."),
     ]);
     await provider.chat("thanks");
 
     const turns = sent[0]!.messages.slice(1).map((m) => m.content);
     expect(turns).toHaveLength(11);
-    expect(turns[2]).toContain("cleared to save space");
-    expect(turns[4]).toContain("cleared to save space");
-    expect(turns[6]).toContain("c".repeat(450));
-    expect(turns[8]).toContain("d".repeat(450));
+    expect(turns[2]).toContain("removed from your context to save space");
+    expect(turns[4]).toContain("removed from your context to save space");
+    expect(turns[6]).toContain("c".repeat(700));
+    expect(turns[8]).toContain("d".repeat(700));
   });
 });
