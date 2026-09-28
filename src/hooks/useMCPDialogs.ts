@@ -33,6 +33,7 @@ import { useConversationStore } from "@/stores/conversation-store";
 import { isRemovalNote } from "@/services/historyCompaction";
 import { isAgentsMd } from "@/config/agentsMd";
 import { modelWrittenFiles } from "@/handlers/workLedger";
+import { savePlanFromCall } from "@/handlers/sessionPlan";
 
 /**
  * A command that asks the user carries the model's reason, shown in the
@@ -384,6 +385,7 @@ export function useMCPDialogs({ callTool, policy }: UseMCPDialogsProps) {
             arguments: toolCall.arguments,
           });
           noteWrite(toolCall.tool, toolCall.arguments, result);
+          savePlanFromCall(toolCall.tool, toolCall.arguments, result);
           return result;
         } finally {
           setRunningTool(null);

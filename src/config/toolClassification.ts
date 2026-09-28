@@ -40,6 +40,9 @@ const KNOWN_READ_ONLY_TOOLS = new Set([
   // SHIELD's memory of past conversations (electron/services/memory)
   "search_memory",
   "open_memory",
+  // Keeps the session's checklist (src/config/plan.ts); changes nothing on
+  // the computer
+  "update_plan",
 ]);
 
 /** A tool as the server described it, including optional MCP annotations */

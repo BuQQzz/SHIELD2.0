@@ -31,6 +31,12 @@ import {
   runMemoryTool,
 } from "../services/memory/memoryTools.js";
 import { getMemoryIndex } from "./memoryHandlers.js";
+import {
+  isPlanTool,
+  PLAN_SERVER_NAME,
+  runPlanTool,
+  UPDATE_PLAN_TOOL,
+} from "../../src/config/plan.js";
 import type { MCPToolCall, MCPToolResult } from "../services/MCPService.js";
 import { ensurePageCache, fetchPageCached } from "./searchHandlers.js";
 
@@ -100,7 +106,9 @@ export async function registerMcpHandlers() {
                   request.arguments ?? {},
                   getMemoryIndex()
                 )
-              : await mcpService.callTool(request);
+              : isPlanTool(request.tool)
+                ? runPlanTool(request.arguments ?? {})
+                : await mcpService.callTool(request);
 
       // Log the tool call
       const logId = await auditLogService.logToolCall(
@@ -133,7 +141,9 @@ export async function registerMcpHandlers() {
             ? [runCommandTool()]
             : serverName === MEMORY_SERVER_NAME
               ? MEMORY_TOOLS
-              : await mcpService.listTools(serverName);
+              : serverName === PLAN_SERVER_NAME
+                ? [UPDATE_PLAN_TOOL]
+                : await mcpService.listTools(serverName);
       return { success: true, tools };
     } catch (error) {
       console.error("Failed to list MCP tools:", error);
@@ -157,6 +167,7 @@ export async function registerMcpHandlers() {
           WEB_SERVER_NAME,
           TERMINAL_SERVER_NAME,
           MEMORY_SERVER_NAME,
+          PLAN_SERVER_NAME,
         ],
       };
     } catch (error) {

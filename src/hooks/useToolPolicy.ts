@@ -19,6 +19,7 @@ import {
   RUN_COMMAND_TOOL_NAME,
   TERMINAL_SERVER_NAME,
 } from "@/config/commandSafety";
+import { PLAN_SERVER_NAME, UPDATE_PLAN_TOOL_NAME } from "@/config/plan";
 import { FILESYSTEM_TOOLS } from "@/types/settings";
 import type { PermissionMode } from "@/types/settings";
 import type { ToolDefinition } from "@/types/prompts";
@@ -95,7 +96,8 @@ export function resolveToolPolicy({
       ? webSearchEnabled
       : tool.serverName === MEMORY_SERVER_NAME
         ? true
-        : tool.serverName === TERMINAL_SERVER_NAME
+        : tool.serverName === TERMINAL_SERVER_NAME ||
+            tool.serverName === PLAN_SERVER_NAME
           ? fileTools
           : fileTools && allowedTools.includes(tool.name)
   );
@@ -114,6 +116,9 @@ export function resolveToolPolicy({
       : allowlisted;
 
   const decide: ToolPolicy["decide"] = (call) => {
+    // The session's checklist changes nothing on the computer: it runs in
+    // every mode, Ask included, and a plan is what Plan mode is for
+    if (call.name === UPDATE_PLAN_TOOL_NAME) return "run";
     if (call.name === RUN_COMMAND_TOOL_NAME) {
       const command =
         "arguments" in call && typeof call.arguments?.command === "string"

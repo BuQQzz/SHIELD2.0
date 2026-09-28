@@ -105,11 +105,11 @@ const SCHEMA = [
 
 /**
  * What the index holds and how. Raised when that changes (2: each code
- * session's record; 3: memory tools' own results left out), so the index
- * is rebuilt once instead of keeping entries made the old way until their
- * conversation changes.
+ * session's record; 3: memory tools' own results left out; 4: each
+ * session's plan), so the index is rebuilt once instead of keeping entries
+ * made the old way until their conversation changes.
  */
-export const INDEX_VERSION = "3";
+export const INDEX_VERSION = "4";
 
 export class MemoryIndex {
   private db: Db | null = null;
@@ -304,7 +304,7 @@ export class MemoryIndex {
       createdAt: Number(row.created_at),
       text: row.text,
     };
-    if (row.role === "record") return record;
+    if (row.role === "record" || row.role === "plan") return record;
     const lines = await this.recordOf(row.conversation_id);
     const relevant = recordLinesFor(lines, row.text);
     if (relevant.length) record.record = relevant;

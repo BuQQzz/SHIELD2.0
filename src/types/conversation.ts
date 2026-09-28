@@ -1,4 +1,5 @@
 import type { SavedCapsule } from "./electron";
+import type { Plan } from "../config/plan";
 
 export interface Message {
   id: string;
@@ -80,6 +81,8 @@ export interface Conversation {
   folder?: string;
   /** The project this conversation runs under */
   projectId?: string;
+  /** A code session's live checklist (update_plan, or edited by the user) */
+  plan?: Plan;
 }
 
 export interface ConversationMetadata {

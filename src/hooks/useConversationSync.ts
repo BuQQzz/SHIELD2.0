@@ -2,6 +2,7 @@ import { useEffect, useRef } from "react";
 import type { Message } from "../hooks/useLlama";
 import { stripToolCallMarkup } from "@/handlers/mcpToolHandler";
 import { forgetLedgerSent } from "@/handlers/workLedger";
+import { forgetPlanSeen } from "@/handlers/sessionPlan";
 
 interface UseConversationSyncProps {
   currentConversation: {
@@ -61,6 +62,7 @@ export function useConversationSync({
     // The rebuilt history holds only what the user typed: the work record
     // it was sent is gone, so send it again with the next message
     forgetLedgerSent(currentConversation.id);
+    forgetPlanSeen(currentConversation.id);
 
     if (currentConversation.messages.length > 0) {
       console.log(

@@ -2,6 +2,7 @@ import type { SavedCapsule } from "../services/taskCapsule";
 import type { RecommendedSampling } from "../services/modelSampling";
 import type { NativeToolResult } from "./nativeTools";
 import type { ToolDefinition } from "./prompts";
+import type { Plan } from "../config/plan";
 
 export type { SavedCapsule };
 
@@ -56,6 +57,8 @@ export interface Conversation {
   folder?: string;
   /** The project this conversation runs under (see Project) */
   projectId?: string;
+  /** A code session's live checklist (update_plan, or edited by the user) */
+  plan?: Plan;
 }
 
 export interface ConversationMetadata {

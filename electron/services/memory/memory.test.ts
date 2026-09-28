@@ -90,6 +90,29 @@ describe("entriesOf", () => {
   });
 });
 
+describe("the session's plan", () => {
+  it("is indexed as it was left, open steps and all", () => {
+    const entries = entriesOf({
+      ...wifi,
+      plan: {
+        steps: [
+          { step: "Fix the GUID section", status: "completed" },
+          { step: "Test on the laptop", status: "pending" },
+        ],
+        note: "Waiting on the laptop",
+        updatedAt: "2026-09-28T10:00:00Z",
+        by: "model",
+      },
+    });
+    const plan = entries.at(-1)!;
+    expect([plan.id, plan.role]).toEqual(["conv-wifi#plan", "plan"]);
+    expect(plan.text).toBe(
+      "The session's plan, as it was left (1 of 2 steps still open):\n[x] Fix the GUID section\n[ ] Test on the laptop\nNote: Waiting on the laptop"
+    );
+    expect(plan.createdAt).toBe(Date.parse("2026-09-28T10:00:00Z"));
+  });
+});
+
 describe("what is not indexed", () => {
   it("leaves out memory's own results, which only copy other entries", () => {
     const entries = entriesOf({
@@ -178,6 +201,24 @@ describe("MemoryIndex", () => {
     });
     expect(record?.text).toContain("hardcoded netsh GUID");
     expect(await index.read("conv-wifi#99")).toBeNull();
+  });
+
+  it("finds a session's plan and reads it back whole", async () => {
+    await index.indexConversation({
+      ...wifi,
+      plan: {
+        steps: [
+          { step: "Test the radio switch on the laptop", status: "pending" },
+        ],
+        updatedAt: "2026-09-28T10:00:00Z",
+        by: "model",
+      },
+    });
+    const hits = await index.search("laptop radio switch");
+    expect(hits[0]).toMatchObject({ id: "conv-wifi#plan", role: "plan" });
+    const plan = await index.read("conv-wifi#plan");
+    expect(plan?.text).toContain("[ ] Test the radio switch on the laptop");
+    expect(plan).not.toHaveProperty("request");
   });
 
   it("starts over when the index was made by an older version", async () => {

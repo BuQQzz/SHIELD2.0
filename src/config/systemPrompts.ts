@@ -112,6 +112,16 @@ const CHECK_YOUR_WORK =
   "After changing code, run its tests or the script with run_command when the project has a way to, and fix what fails before you answer. Read the whole output, not just the exit code: a line that says something failed means it failed. Report what the command actually showed, and name every failure you did not fix; never say something passes or works without having run it.";
 
 /**
+ * With update_plan (Code sessions). The user found themselves asking cloud
+ * models for a live plan document, and to keep it updated; the plan tool
+ * does that without a file, and SHIELD sends the plan back to the model
+ * (src/config/plan.ts). Codex's prompt asks the same: a plan for
+ * non-trivial work, one step in progress, none for simple requests.
+ */
+const PLAN_RULE =
+  "For a task with several steps (building a feature, fixing several problems), first call update_plan with 3-7 short steps, then keep it current as you work: one step in_progress at a time, each marked completed once it is done and checked. When the user has changed the plan, follow their version. Skip the plan for questions and one-step changes.";
+
+/**
  * With a project folder. Asked "What's in this project?", Qwen3-Coder only
  * listed the folder and guessed ("cart.js - likely containing cart-related
  * functionality") without reading a file (2026-09-28).
@@ -224,6 +234,9 @@ Always use a full path beginning with one of these. Never guess a path such as "
   const commandRule = callableTools.some((tool) => tool.name === "run_command")
     ? `\n- ${CHECK_YOUR_WORK}`
     : "";
+  const planRule = callableTools.some((tool) => tool.name === "update_plan")
+    ? `\n- ${PLAN_RULE}`
+    : "";
   const usage =
     callableTools.length > 0
       ? `
@@ -233,7 +246,7 @@ Always use a full path beginning with one of these. Never guess a path such as "
 - Use only functions provided to you, with arguments matching their schemas.
 - After a result arrives, either call the next function needed for the request or answer the user.
 - Do not repeat a call that already succeeded; use its result.
-- Once you can answer, answer without making another call.${editRule}${commandRule}`
+- Once you can answer, answer without making another call.${editRule}${commandRule}${planRule}`
       : "\nNo read functions are currently available. Base the plan on the information already provided and identify anything that still needs inspection.";
   const planSection = planOnly
     ? `
@@ -330,6 +343,10 @@ export function generateMCPToolPrompt(
   const commandRule = tools.some((t) => t.name === "run_command")
     ? `\n${editRule ? 8 : 6}. **CHECK YOUR WORK** - ${CHECK_YOUR_WORK}`
     : "";
+  const planNumber = 6 + (editRule ? 2 : 0) + (commandRule ? 1 : 0);
+  const planRule = tools.some((t) => t.name === "update_plan")
+    ? `\n${planNumber}. **KEEP A PLAN** - ${PLAN_RULE}`
+    : "";
 
   // One folder means the user picked a workspace. Say so, or "what's in this
   // folder?" gets answered by guessing Documents (seen 2026-09-22).
@@ -383,7 +400,7 @@ Stop after </tool_call>. The result arrives in the next message; then summarise 
 2. **NEVER JUST EXPLAIN** - Don't tell users how to do it manually
 3. **ONLY USE LISTED TOOLS** - Never invent a tool that is not listed above
 4. **USE FULL PATHS** - Windows paths like C:\\Users\\...
-5. **ANSWER, THEN STOP** - Call only the tools the request needs. Once you can answer, answer without a tool call.${editRule}${commandRule}`;
+5. **ANSWER, THEN STOP** - Call only the tools the request needs. Once you can answer, answer without a tool call.${editRule}${commandRule}${planRule}`;
 }
 
 /**

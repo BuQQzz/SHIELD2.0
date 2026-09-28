@@ -55,6 +55,7 @@ const ICONS: Record<string, LucideIcon> = {
   run_command: SquareTerminal,
   search_memory: Brain,
   open_memory: BookOpen,
+  update_plan: ListChecks,
 };
 
 interface ToolStepProps {

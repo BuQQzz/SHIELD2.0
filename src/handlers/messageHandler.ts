@@ -11,6 +11,7 @@ import {
 } from "./workLedger";
 import { resultPayload } from "./mcpToolHandler";
 import { recallFor } from "./memoryRecall";
+import { checkPlan, planRemarks, takePlanNote } from "./sessionPlan";
 import { useConversationStore } from "@/stores/conversation-store";
 
 /**
@@ -32,7 +33,7 @@ async function readProjectFile(path: string): Promise<string | null> {
 /**
  * After a turn in a code session: when the final reply talks about a change
  * whose edit failed and is still not in the file, put SHIELD's record under
- * the reply, for the user.
+ * the reply, for the user; and check the plan's completed steps the same way.
  */
 async function noteUnappliedEdits(workspace?: string): Promise<void> {
   const conversation = useConversationStore.getState().currentConversation;
@@ -42,6 +43,7 @@ async function noteUnappliedEdits(workspace?: string): Promise<void> {
     conversation.messages,
     readProjectFile
   );
+  checkPlan(conversation.messages, files);
   const note = recordNoteFor(
     answer.content,
     conversation.messages,
@@ -223,7 +225,9 @@ export function createMessageHandler({
       }
 
       // What the model changed and ran, from the tools' results - sent after
-      // new work, so its own earlier claims are not its only record
+      // new work, so its own earlier claims are not its only record. Then the
+      // session's plan while steps are open: it lives on the conversation,
+      // so clearing the model's history never loses it
       if (fileTools && currentConversation) {
         const files = await readFailedEditFiles(
           currentConversation.messages,
@@ -236,6 +240,14 @@ export function createMessageHandler({
           files
         );
         if (record) messageWithContext += `\n\n${record}`;
+        const plan = useConversationStore.getState().currentConversation?.plan;
+        const planText = takePlanNote(
+          currentConversation.id,
+          currentConversation.messages,
+          plan,
+          planRemarks(plan?.steps ?? [], currentConversation.messages, files)
+        );
+        if (planText) messageWithContext += `\n\n${planText}`;
       }
 
       // Earlier conversations that may bear on this message, found by

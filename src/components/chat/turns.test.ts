@@ -312,6 +312,18 @@ describe("turnStats", () => {
   });
 });
 
+describe("update_plan steps", () => {
+  it("says the plan was updated, and how far along it is", () => {
+    expect(stepLabel("update_plan", "plan", undefined, "done")).toBe(
+      "Updated the plan"
+    );
+    const saved =
+      "Plan saved; the user sees it:\n[x] Read cart.js\n[>] Fix the total\n[ ] Run the tests";
+    expect(stepDetail("update_plan", saved, true)).toBe("1 of 3 done");
+    expect(stepDetail("update_plan", "Plan cleared.", true)).toBe("");
+  });
+});
+
 describe("run_command steps", () => {
   it("names the command, cut to fit", () => {
     expect(stepLabel("run_command", "terminal", "npm test", "done")).toBe(

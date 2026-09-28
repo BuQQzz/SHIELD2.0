@@ -217,6 +217,11 @@ const VERBS: Record<string, Verb> = {
     running: "Opening a memory",
     noun: ["memory", "memories"],
   },
+  update_plan: {
+    done: "Updated the plan",
+    running: "Updating the plan",
+    noun: ["plan update", "plan updates"],
+  },
 };
 
 /** Group headings use a noun where the one-step verb names the thing */
@@ -345,6 +350,12 @@ export function stepDetail(
       : `no ${noun}${noun === "match" ? "es" : "s"}`;
   }
   if (tool === "open_memory") return "";
+  if (tool === "update_plan") {
+    // "[x] Read cart.js" lines in planSavedText's answer
+    const done = (body.match(/^\[x\] /gm) ?? []).length;
+    const steps = (body.match(/^\[[x> ]\] /gm) ?? []).length;
+    return steps ? `${done} of ${steps} done` : "";
+  }
   if (tool === "fetch_page") {
     const part = body.match(/\[Characters ([\d,]+)-([\d,]+) of ([\d,]+)/);
     return part ? `characters ${part[1]}-${part[2]} of ${part[3]}` : "";

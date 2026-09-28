@@ -488,6 +488,23 @@ describe("check-your-work rule", () => {
     expect(generateNativeToolPrompt([editFile])).not.toContain("run_command");
   });
 
+  it("asks for a plan when update_plan is offered, numbered last", () => {
+    const updatePlan: ToolDefinition = {
+      name: "update_plan",
+      description: "Keep the plan",
+      serverName: "plan",
+      parameters: [],
+    };
+    expect(generateMCPToolPrompt([editFile, runCommand, updatePlan])).toContain(
+      "9. **KEEP A PLAN** - For a task with several steps"
+    );
+    expect(generateMCPToolPrompt([updatePlan])).toContain("6. **KEEP A PLAN**");
+    expect(generateNativeToolPrompt([updatePlan])).toContain(
+      "first call update_plan with 3-7 short steps"
+    );
+    expect(generateMCPToolPrompt([editFile])).not.toContain("KEEP A PLAN");
+  });
+
   // Qwen3-Coder wrote the file's quotes as &quot; and its edit never matched
   it("asks for quotes escaped the JSON way", () => {
     expect(generateMCPToolPrompt([editFile])).toContain("never &quot;");

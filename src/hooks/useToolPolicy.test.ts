@@ -287,6 +287,33 @@ describe("chat sessions", () => {
     }
   });
 
+  it("offer the plan in code sessions only, running in every mode", () => {
+    const plan: ToolDefinition = {
+      name: "update_plan",
+      description: "update_plan",
+      serverName: "plan",
+      parameters: [],
+      annotations: { readOnlyHint: true },
+    };
+    for (const mode of ["ask", "auto", "plan", "readonly"] as const) {
+      const code = resolveToolPolicy({
+        mode,
+        allowedTools: [],
+        serverTools: [...SERVER_TOOLS, plan],
+        fileTools: true,
+      });
+      expect(names(code.advertisedTools)).toEqual(["update_plan"]);
+      expect(code.decide({ name: "update_plan" })).toBe("run");
+      const chat = resolveToolPolicy({
+        mode,
+        allowedTools: [],
+        serverTools: [...SERVER_TOOLS, plan],
+        fileTools: false,
+      });
+      expect(chat.allows("update_plan")).toBe(false);
+    }
+  });
+
   it("offer nothing with web search off", () => {
     const p = resolveToolPolicy({
       mode: "auto",

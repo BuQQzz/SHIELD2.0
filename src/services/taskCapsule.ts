@@ -114,6 +114,7 @@ const VERBS: Record<string, string> = {
   run_command: "ran",
   search_memory: "searched memory for",
   open_memory: "opened memory",
+  update_plan: "updated the plan",
 };
 
 /**

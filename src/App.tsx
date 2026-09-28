@@ -38,6 +38,8 @@ import { sameFolder, useApplyWorkspace } from "./hooks/useApplyWorkspace";
 import { kindOf, ofKind, viewKind } from "./lib/sessions";
 import { CodeModelHint } from "./components/chat/CodeModelHint";
 import { AgentsMdHint } from "./components/chat/AgentsMdHint";
+import { PlanPanel } from "./components/chat/PlanPanel";
+import { editPlan } from "./handlers/sessionPlan";
 import { useInstructionsStore } from "./stores/instructions-store";
 import { DRAFT_REQUEST, draftNote } from "./config/agentsMd";
 import { useChatStore } from "./stores/chat-store";
@@ -485,6 +487,12 @@ function App() {
             onEditMessage={handleEditMessage}
             onRegenerateMessage={handleRegenerateMessage}
             runningTool={runningTool}
+          />
+        )}
+        {isCodeSession && currentConversation?.plan && (
+          <PlanPanel
+            plan={currentConversation.plan}
+            onChange={(steps) => void editPlan(steps)}
           />
         )}
         <ToolPermissionBar

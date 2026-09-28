@@ -16,6 +16,7 @@ import {
 } from "../../../src/handlers/toolCallParsing.js";
 import { ledgerEntries } from "../../../src/handlers/workLedger.js";
 import type { Message } from "../../../src/types/conversation.js";
+import { planLines, type Plan } from "../../../src/config/plan.js";
 
 export interface MemoryMessage {
   role: "user" | "assistant";
@@ -33,6 +34,8 @@ export interface MemoryConversation {
   kind?: "chat" | "code";
   folder?: string;
   projectId?: string;
+  /** The session's checklist (src/config/plan.ts) */
+  plan?: Plan;
 }
 
 export interface MemoryEntry {
@@ -40,8 +43,11 @@ export interface MemoryEntry {
   id: string;
   conversationId: string;
   messageIndex: number;
-  /** "record": SHIELD's record of what the session actually changed and ran */
-  role: "user" | "assistant" | "tool" | "record";
+  /**
+   * "record": SHIELD's record of what the session actually changed and ran;
+   * "plan": the session's checklist as it was left
+   */
+  role: "user" | "assistant" | "tool" | "record" | "plan";
   tool?: string;
   text: string;
   title: string;
@@ -153,8 +159,38 @@ export function entriesOf(conversation: MemoryConversation): MemoryEntry[] {
       createdAt: time(conversation.updatedAt, created),
     });
   }
+
+  // The plan, so "where did we leave the visualizer?" finds the steps
+  // still open as well as the finished ones
+  const plan = conversation.plan;
+  if (plan?.steps.length) {
+    const open = plan.steps.filter((s) => s.status !== "completed").length;
+    const state = open
+      ? `${open} of ${plan.steps.length} steps still open`
+      : "all steps done";
+    const lines = [
+      `The session's plan, as it was left (${state}):`,
+      ...planLines(plan.steps),
+      ...(plan.note ? [`Note: ${plan.note}`] : []),
+    ];
+    entries.push({
+      id: `${conversation.id}${PLAN_ID}`,
+      conversationId: conversation.id,
+      messageIndex: conversation.messages.length + 1,
+      role: "plan",
+      text: cap(lines.join("\n")),
+      title: conversation.title,
+      kind,
+      folder: conversation.folder,
+      projectId: conversation.projectId,
+      createdAt: time(plan.updatedAt, time(conversation.updatedAt, created)),
+    });
+  }
   return entries;
 }
+
+/** The plan entry's id, after the conversation's */
+export const PLAN_ID = "#plan";
 
 /** The record entry's id, after the conversation's */
 export const RECORD_ID = "#record";
@@ -272,6 +308,7 @@ function who(hit: MemoryHit): string {
   if (hit.role === "user") return "the user wrote";
   if (hit.role === "assistant") return "the reply";
   if (hit.role === "record") return "SHIELD's record of what was done";
+  if (hit.role === "plan") return "the session's plan";
   return `${hit.tool ?? "tool"} result`;
 }
 
