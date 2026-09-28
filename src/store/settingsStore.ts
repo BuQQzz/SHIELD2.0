@@ -13,39 +13,51 @@ interface SettingsStore {
   importSettings: () => Promise<void>;
 }
 
+/** The load in progress, so a save can wait for it */
+let loading: Promise<void> | null = null;
+
 export const useSettingsStore = create<SettingsStore>((set, get) => ({
   settings: DEFAULT_SETTINGS,
   isLoading: false,
   hasLoaded: false,
 
-  loadSettings: async () => {
-    set({ isLoading: true });
-    try {
-      const savedSettings = await window.electronAPI.settingsPersistence.load();
-      if (savedSettings) {
-        // Merge saved settings with defaults to handle missing properties
-        const mergedSettings: AppSettings = {
-          ...DEFAULT_SETTINGS,
-          ...savedSettings,
-          model: { ...DEFAULT_SETTINGS.model, ...savedSettings.model },
-          system: { ...DEFAULT_SETTINGS.system, ...savedSettings.system },
-          privacy: { ...DEFAULT_SETTINGS.privacy, ...savedSettings.privacy },
-          webSearch: {
-            ...DEFAULT_SETTINGS.webSearch,
-            ...savedSettings.webSearch,
-          },
-          mcp: { ...DEFAULT_SETTINGS.mcp, ...(savedSettings.mcp || {}) },
-        };
-        set({ settings: mergedSettings });
+  loadSettings: () => {
+    loading = (async () => {
+      set({ isLoading: true });
+      try {
+        const savedSettings =
+          await window.electronAPI.settingsPersistence.load();
+        if (savedSettings) {
+          // Merge saved settings with defaults to handle missing properties
+          const mergedSettings: AppSettings = {
+            ...DEFAULT_SETTINGS,
+            ...savedSettings,
+            model: { ...DEFAULT_SETTINGS.model, ...savedSettings.model },
+            system: { ...DEFAULT_SETTINGS.system, ...savedSettings.system },
+            privacy: { ...DEFAULT_SETTINGS.privacy, ...savedSettings.privacy },
+            webSearch: {
+              ...DEFAULT_SETTINGS.webSearch,
+              ...savedSettings.webSearch,
+            },
+            mcp: { ...DEFAULT_SETTINGS.mcp, ...(savedSettings.mcp || {}) },
+          };
+          set({ settings: mergedSettings });
+        }
+      } catch (error) {
+        console.error("Failed to load settings:", error);
+      } finally {
+        set({ isLoading: false, hasLoaded: true });
       }
-    } catch (error) {
-      console.error("Failed to load settings:", error);
-    } finally {
-      set({ isLoading: false, hasLoaded: true });
-    }
+    })();
+    return loading;
   },
 
   updateSettings: async (newSettings: Partial<AppSettings>) => {
+    // Merged into the defaults and saved before the user's settings had
+    // loaded, a change wiped them: opening a code session at start-up saved
+    // its folder over a reply length of 8192, web search on and the user's
+    // system prompt (2026-09-28). A save now waits for the load.
+    if (!get().hasLoaded) await (loading ?? get().loadSettings());
     const currentSettings = get().settings;
     const updatedSettings = {
       ...currentSettings,

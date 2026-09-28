@@ -174,6 +174,26 @@ describe("useMCPDialogs - commands", () => {
     expect(callTool).not.toHaveBeenCalled();
   });
 
+  it("runs an approved call once, however often Allow is clicked", async () => {
+    const callTool = vi.fn(async () => text("Exit code 0 · 0.1 s\nok"));
+    const { result } = renderHook(() => useMCPDialogs({ callTool, policy }));
+    let pending: Promise<MCPToolResult> | undefined;
+    act(() => {
+      pending = result.current.handleToolCallRequest(
+        request("run_command", { command: "npm test", reason: "Runs tests" })
+      );
+    });
+    await waitFor(() => expect(result.current.pendingRequest).not.toBeNull());
+    await act(async () => {
+      await Promise.all([
+        result.current.handleApprove(false),
+        result.current.handleApprove(false),
+      ]);
+    });
+    await expect(pending).resolves.toMatchObject({ success: true });
+    expect(callTool).toHaveBeenCalledTimes(1);
+  });
+
   it("never offers a command for the session", async () => {
     const callTool = vi.fn(async () => text("Exit code 0 · 0.1 s\nok"));
     const { result } = renderHook(() => useMCPDialogs({ callTool, policy }));

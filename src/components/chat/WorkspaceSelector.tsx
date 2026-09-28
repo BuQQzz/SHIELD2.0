@@ -18,7 +18,6 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { useApplyWorkspace } from "@/hooks/useApplyWorkspace";
 import { folderName } from "@/lib/sessions";
 import { useConversationStore } from "@/stores/conversation-store";
 
@@ -26,7 +25,6 @@ export function WorkspaceSelector() {
   const folder = useConversationStore(
     (state) => state.currentConversation?.folder
   );
-  const applyWorkspace = useApplyWorkspace();
   const [busy, setBusy] = useState(false);
 
   const choose = async () => {
@@ -34,14 +32,14 @@ export function WorkspaceSelector() {
     if (!picked) return;
     setBusy(true);
     try {
-      const applied = await applyWorkspace(picked);
-      if (!applied) return;
+      // The session's folder first; App applies it to the file tools.
+      // Applied first, App switched back to the old folder in between.
       const store = useConversationStore.getState();
-      store.updateConversation({ folder: applied });
+      store.updateConversation({ folder: picked });
       if (store.currentConversation?.messages.length) {
         await store.saveCurrentConversation();
       }
-      toast.success(`This session now works in ${folderName(applied)}`);
+      toast.success(`This session now works in ${folderName(picked)}`);
     } finally {
       setBusy(false);
     }

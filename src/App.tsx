@@ -327,15 +327,18 @@ function App() {
       const project = projectId
         ? useProjectStore.getState().projects.find((p) => p.id === projectId)
         : undefined;
-      const picked =
+      const folder =
         project?.folder ?? (await window.electronAPI.mcp.chooseWorkspace());
-      if (!picked) return;
-      const folder = await applyWorkspace(picked);
       if (!folder) return;
       if (project && !project.folder) {
         await useProjectStore.getState().updateProject(project.id, { folder });
       }
       if (currentConversation?.messages.length) await saveCurrentConversation();
+      // The new session first; the effect above then applies its folder.
+      // Applied here first, while the previous session was still open, the
+      // effect switched back to that session's folder and then forward
+      // again: two file-server restarts, and a tool list read in between
+      // with no file tools (2026-09-28).
       createNewConversation("New session", currentModelId, {
         kind: "code",
         folder,
@@ -345,7 +348,6 @@ function App() {
       await clearHistory();
     },
     [
-      applyWorkspace,
       currentConversation,
       saveCurrentConversation,
       createNewConversation,

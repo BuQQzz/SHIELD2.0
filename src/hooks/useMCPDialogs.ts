@@ -130,6 +130,8 @@ export function useMCPDialogs({ callTool, policy }: UseMCPDialogsProps) {
     target?: string;
   } | null>(null);
   const resolverRef = useRef<((result: MCPToolResult) => void) | null>(null);
+  /** An approved call is running; further clicks do nothing */
+  const approvalInFlight = useRef(false);
   /**
    * Tools the user chose "Allow for session" on. Kept in memory only, so
    * closing SHIELD resets it; deletes are never added.
@@ -329,7 +331,11 @@ export function useMCPDialogs({ callTool, policy }: UseMCPDialogsProps) {
   const handleApprove = useCallback(
     async (remember: boolean) => {
       const request = pendingRequest;
-      if (!request) return;
+      // One click, one run: a second click on Allow while the first is
+      // running would call the tool twice (a write, a command)
+      if (!request || !resolverRef.current || approvalInFlight.current) return;
+      approvalInFlight.current = true;
+      setPendingRequest(null);
 
       // "Allow for session": stop asking for this tool until SHIELD closes.
       // It used to widen the saved allowlist, which did nothing once every
@@ -362,15 +368,17 @@ export function useMCPDialogs({ callTool, policy }: UseMCPDialogsProps) {
         });
       } finally {
         setRunningTool(null);
+        approvalInFlight.current = false;
       }
     },
     [pendingRequest, callTool, settings.mcp, updateSettings, settle, noteWrite]
   );
 
   /**
-   * User declined.
+   * User declined. Too late once the approved call is running.
    */
   const handleDeny = useCallback(() => {
+    if (approvalInFlight.current) return;
     console.log("[MCP] User denied tool request");
     settle({ success: false, error: "User denied permission" });
   }, [settle]);

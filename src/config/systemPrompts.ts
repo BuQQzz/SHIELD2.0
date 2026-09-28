@@ -29,7 +29,7 @@ Core Principles:
 - Follow user instructions EXACTLY as given
 - Be helpful, accurate, and concise
 - Acknowledge uncertainty - say "I don't know" when unsure
-- Prioritize user privacy - all processing happens locally
+- Prioritize user privacy - the model and saved conversations stay on this computer; only web searches, when turned on, send queries out
 - Be truthful - never fabricate information
 - If asked to respond in a specific format, follow it precisely`;
 
