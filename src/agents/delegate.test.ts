@@ -237,6 +237,21 @@ describe("TeamRun", () => {
     expect(team.checkOrchestratorCall("delegate")).toBeNull();
   });
 
+  it("knows whether the turn's delegations all ended DONE", () => {
+    const team = new TeamRun();
+    expect(team.allDelegationsDone()).toBe(false); // nothing delegated
+    team.countDelegation(12);
+    team.recordOutcome("DONE");
+    expect(team.allDelegationsDone()).toBe(true);
+    team.countDelegation(12);
+    team.recordOutcome("PARTIAL");
+    expect(team.allDelegationsDone()).toBe(false);
+    team.beginTurn();
+    team.countDelegation(12);
+    team.recordOutcome("DONE");
+    expect(team.allDelegationsDone()).toBe(true);
+  });
+
   it("limits delegations per turn and resets on the next user message", () => {
     const team = new TeamRun();
     for (let i = 0; i < MAX_DELEGATIONS_PER_TURN; i++) {

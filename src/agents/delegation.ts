@@ -55,6 +55,7 @@ export async function handleDelegate(
     { role, task, continueFrom: earlier, team },
     deps
   );
+  team.recordOutcome(report.status);
   if (earlier) team.markContinued(earlier.id);
   if (attached && earlier && report.status !== "FAILED") {
     report.reason = [

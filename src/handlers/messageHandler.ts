@@ -3,6 +3,7 @@ import type { ModelSettings } from "../types/settings";
 import type { NativeToolResult } from "../types/nativeTools";
 import { useSettingsStore } from "../store/settingsStore";
 import { orchestratorRounds } from "../agents/delegate";
+import { teamFor } from "../agents/team";
 import { useGenerationStore } from "../store/generationStore";
 import { processMCPToolCalls, unrunToolCallsNote } from "./mcpMessageHandler";
 import {
@@ -12,7 +13,12 @@ import {
 } from "./workLedger";
 import { resultPayload } from "./mcpToolHandler";
 import { recallFor } from "./memoryRecall";
-import { checkPlan, planRemarks, takePlanNote } from "./sessionPlan";
+import {
+  checkPlan,
+  finishOpenPlanSteps,
+  planRemarks,
+  takePlanNote,
+} from "./sessionPlan";
 import { useConversationStore } from "@/stores/conversation-store";
 
 /**
@@ -457,6 +463,26 @@ export function createMessageHandler({
             }
           },
         });
+
+        // A team turn that ended in an answer with every delegation DONE:
+        // the step left in progress is finished
+        const last = useConversationStore
+          .getState()
+          .currentConversation?.messages.at(-1);
+        if (
+          teamMode &&
+          currentConversation &&
+          last?.role === "assistant" &&
+          !(last as { unrunToolCalls?: string[] }).unrunToolCalls?.length &&
+          extractToolCalls(last.content, {
+            enableOpenAIToolCalls: true,
+            enableXmlToolCalls: true,
+          }).length === 0 &&
+          !useGenerationStore.getState().stopRequested &&
+          teamFor(currentConversation.id).allDelegationsDone()
+        ) {
+          finishOpenPlanSteps();
+        }
       }
 
       if (fileTools) await noteUnappliedEdits(workspace);

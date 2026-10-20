@@ -14,6 +14,8 @@ export class TeamRun {
   private handoffs = new Map<string, StoredHandoff>();
   private counter = 0;
   private delegations = 0;
+  /** Delegations this turn that did not end DONE (PARTIAL, BLOCKED, FAILED) */
+  private problems = 0;
   /** The orchestrator's last tool call this turn, to catch a plan-saving loop */
   private lastOrchestratorTool: string | null = null;
   /** PARTIAL hand-offs of this turn that no later run has continued, newest last */
@@ -82,6 +84,17 @@ export class TeamRun {
     this.delegations = 0;
     this.openPartials = [];
     this.lastOrchestratorTool = null;
+    this.problems = 0;
+  }
+
+  /** How a delegation ended, for deciding whether the turn's work is finished */
+  recordOutcome(status: string): void {
+    if (status !== "DONE") this.problems += 1;
+  }
+
+  /** At least one delegation this turn, and every one ended DONE */
+  allDelegationsDone(): boolean {
+    return this.delegations > 0 && this.problems === 0;
   }
 
   /**
