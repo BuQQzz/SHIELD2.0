@@ -12,6 +12,7 @@ import { Send, Square } from "lucide-react";
 import { motion } from "framer-motion";
 import { PermissionModeSelector } from "./PermissionModeSelector";
 import { WorkspaceSelector } from "./WorkspaceSelector";
+import { TeamToggle } from "./TeamToggle";
 import { ContextRing } from "./ContextRing";
 
 interface ChatInputProps {
@@ -140,6 +141,7 @@ export const ChatInput = forwardRef<ChatInputRef, ChatInputProps>(
           <div className="mt-1 flex min-w-0 items-center gap-1 px-1">
             <PermissionModeSelector />
             {showFolder && <WorkspaceSelector />}
+            {showFolder && <TeamToggle />}
             <ContextRing />
           </div>
         </div>

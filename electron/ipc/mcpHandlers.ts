@@ -37,6 +37,11 @@ import {
   runPlanTool,
   UPDATE_PLAN_TOOL,
 } from "../../src/config/plan.js";
+import {
+  AGENTS_SERVER_NAME,
+  DELEGATE_TOOL,
+  isDelegateTool,
+} from "../../src/agents/delegate.js";
 import type { MCPToolCall, MCPToolResult } from "../services/MCPService.js";
 import { ensurePageCache, fetchPageCached } from "./searchHandlers.js";
 
@@ -108,7 +113,15 @@ export async function registerMcpHandlers() {
                 )
               : isPlanTool(request.tool)
                 ? runPlanTool(request.arguments ?? {})
-                : await mcpService.callTool(request);
+                : isDelegateTool(request.tool)
+                  ? // Runs in the renderer, where the model sessions, the
+                    // permission dialogs and the tools meet (useAgentTeam)
+                    {
+                      success: false,
+                      error:
+                        "delegate is handled by the app, not the tool server",
+                    }
+                  : await mcpService.callTool(request);
 
       // Log the tool call
       const logId = await auditLogService.logToolCall(
@@ -143,7 +156,9 @@ export async function registerMcpHandlers() {
               ? MEMORY_TOOLS
               : serverName === PLAN_SERVER_NAME
                 ? [UPDATE_PLAN_TOOL]
-                : await mcpService.listTools(serverName);
+                : serverName === AGENTS_SERVER_NAME
+                  ? [DELEGATE_TOOL]
+                  : await mcpService.listTools(serverName);
       return { success: true, tools };
     } catch (error) {
       console.error("Failed to list MCP tools:", error);
@@ -168,6 +183,7 @@ export async function registerMcpHandlers() {
           TERMINAL_SERVER_NAME,
           MEMORY_SERVER_NAME,
           PLAN_SERVER_NAME,
+          AGENTS_SERVER_NAME,
         ],
       };
     } catch (error) {

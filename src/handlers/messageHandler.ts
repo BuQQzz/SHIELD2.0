@@ -112,6 +112,8 @@ interface MessageHandlerProps {
     messages: Message[];
     /** Code sessions have the file tools; chats (and older chats) do not */
     kind?: ConversationKind;
+    /** Led by an orchestrator that delegates; it has no file tools itself */
+    team?: boolean;
   } | null;
   setMessages: React.Dispatch<React.SetStateAction<Message[]>>;
   setIsGenerating: (value: boolean) => void;
@@ -189,9 +191,13 @@ export function createMessageHandler({
       // File tools, and everything that pushes the model towards them,
       // belong to Code sessions
       const fileTools = kindOf(currentConversation) === "code";
+      // The orchestrator of an agent team has no file tools: nudging it to
+      // use them would only make it ask for what it cannot have
+      const teamMode = !!currentConversation?.team;
       const allowedTools = settings.mcp.allowedTools ?? [];
       const shouldForceMCPFirstAttempt =
         fileTools &&
+        !teamMode &&
         isMCPReady &&
         allowedTools.length > 0 &&
         isLikelyMCPToolIntent(content);
@@ -310,6 +316,7 @@ export function createMessageHandler({
         !unsupportedNativeCall &&
         !hasToolCalls &&
         fileTools &&
+        !teamMode &&
         isMCPReady &&
         (settings.mcp.allowedTools?.length ?? 0) > 0 &&
         shouldRetryWithMCP(content, processedContent);

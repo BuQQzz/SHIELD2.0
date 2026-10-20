@@ -20,6 +20,8 @@ import {
   TERMINAL_SERVER_NAME,
 } from "@/config/commandSafety";
 import { PLAN_SERVER_NAME, UPDATE_PLAN_TOOL_NAME } from "@/config/plan";
+import { AGENTS_SERVER_NAME } from "@/agents/delegate";
+import { DELEGATE_TOOL_NAME } from "@/agents/roles";
 import { FILESYSTEM_TOOLS } from "@/types/settings";
 import type { PermissionMode } from "@/types/settings";
 import type { ToolDefinition } from "@/types/prompts";
@@ -69,6 +71,12 @@ export interface ToolPolicyInput {
    * not permitted.
    */
   fileTools?: boolean;
+  /**
+   * The orchestrator of an agent team: it plans and delegates, and is
+   * offered nothing else - no file tool, no terminal, no web. The sub-agents
+   * work under the same policy resolved with this off.
+   */
+  teamMode?: boolean;
 }
 
 /** SHIELD's own web tools come from this server (electron/services/webTools) */
@@ -88,18 +96,23 @@ export function resolveToolPolicy({
   serverTools,
   webSearchEnabled = false,
   fileTools = true,
+  teamMode = false,
 }: ToolPolicyInput): ToolPolicy {
   // The allowlist applies in every mode - a mode can narrow what the user
   // permitted, never widen it.
   const allowlisted = serverTools.filter((tool) =>
-    tool.serverName === WEB_SERVER_NAME
-      ? webSearchEnabled
-      : tool.serverName === MEMORY_SERVER_NAME
-        ? true
-        : tool.serverName === TERMINAL_SERVER_NAME ||
-            tool.serverName === PLAN_SERVER_NAME
-          ? fileTools
-          : fileTools && allowedTools.includes(tool.name)
+    tool.serverName === AGENTS_SERVER_NAME
+      ? teamMode && fileTools
+      : teamMode
+        ? tool.serverName === PLAN_SERVER_NAME && fileTools
+        : tool.serverName === WEB_SERVER_NAME
+          ? webSearchEnabled
+          : tool.serverName === MEMORY_SERVER_NAME
+            ? true
+            : tool.serverName === TERMINAL_SERVER_NAME ||
+                tool.serverName === PLAN_SERVER_NAME
+              ? fileTools
+              : fileTools && allowedTools.includes(tool.name)
   );
   const allowedNames = new Set(allowlisted.map((tool) => tool.name));
 
@@ -119,6 +132,9 @@ export function resolveToolPolicy({
     // The session's checklist changes nothing on the computer: it runs in
     // every mode, Ask included, and a plan is what Plan mode is for
     if (call.name === UPDATE_PLAN_TOOL_NAME) return "run";
+    // Handing work over changes nothing itself: the agent's own calls are
+    // decided by the policy it works under
+    if (call.name === DELEGATE_TOOL_NAME) return "run";
     if (call.name === RUN_COMMAND_TOOL_NAME) {
       const command =
         "arguments" in call && typeof call.arguments?.command === "string"
@@ -182,8 +198,14 @@ function decideCommand(mode: PermissionMode, command: string): ToolDecision {
  * React binding for {@link resolveToolPolicy}.
  */
 export function useToolPolicy(input: ToolPolicyInput): ToolPolicy {
-  const { mode, allowedTools, serverTools, webSearchEnabled, fileTools } =
-    input;
+  const {
+    mode,
+    allowedTools,
+    serverTools,
+    webSearchEnabled,
+    fileTools,
+    teamMode,
+  } = input;
 
   return useMemo(
     () =>
@@ -193,7 +215,8 @@ export function useToolPolicy(input: ToolPolicyInput): ToolPolicy {
         serverTools,
         webSearchEnabled,
         fileTools,
+        teamMode,
       }),
-    [mode, allowedTools, serverTools, webSearchEnabled, fileTools]
+    [mode, allowedTools, serverTools, webSearchEnabled, fileTools, teamMode]
   );
 }

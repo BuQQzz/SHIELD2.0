@@ -324,6 +324,28 @@ describe("update_plan steps", () => {
   });
 });
 
+describe("delegate steps", () => {
+  it("names the role, and shows how the agent's run ended", () => {
+    expect(stepLabel("delegate", "agents", "coder", "done")).toBe(
+      "Delegated to coder"
+    );
+    expect(stepLabel("delegate", "agents", "tester", "running")).toBe(
+      "Delegating to tester"
+    );
+    const report =
+      "[coder · DONE · 3 steps · context 41%] handoff h2\nAGENT'S SUMMARY: fixed";
+    expect(stepDetail("delegate", report, true)).toBe("done · 3 steps");
+    expect(
+      stepDetail(
+        "delegate",
+        "[tester · PARTIAL · 1 step · context 72%] handoff h3",
+        true
+      )
+    ).toBe("partial · 1 step");
+    expect(stepDetail("delegate", "something else", true)).toBe("");
+  });
+});
+
 describe("run_command steps", () => {
   it("names the command, cut to fit", () => {
     expect(stepLabel("run_command", "terminal", "npm test", "done")).toBe(

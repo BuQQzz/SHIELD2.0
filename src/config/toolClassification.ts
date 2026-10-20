@@ -43,6 +43,11 @@ const KNOWN_READ_ONLY_TOOLS = new Set([
   // Keeps the session's checklist (src/config/plan.ts); changes nothing on
   // the computer
   "update_plan",
+  // The orchestrator's hand-off to a sub-agent and the agents' team notes
+  // (src/agents): they change nothing themselves; what a sub-agent then does
+  // goes through the usual permission policy
+  "delegate",
+  "add_team_note",
 ]);
 
 /** A tool as the server described it, including optional MCP annotations */

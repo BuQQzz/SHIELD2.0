@@ -222,6 +222,12 @@ const VERBS: Record<string, Verb> = {
     running: "Updating the plan",
     noun: ["plan update", "plan updates"],
   },
+  delegate: {
+    done: "Delegated to",
+    running: "Delegating to",
+    noun: ["delegation", "delegations"],
+    target: (role) => role,
+  },
 };
 
 /** Group headings use a noun where the one-step verb names the thing */
@@ -350,6 +356,13 @@ export function stepDetail(
       : `no ${noun}${noun === "match" ? "es" : "s"}`;
   }
   if (tool === "open_memory") return "";
+  if (tool === "delegate") {
+    // formatReport's first line: "[coder · DONE · 3 steps · context 41%] handoff h2"
+    const report = body.match(/^\[\w+ · (\w+) · (\d+) steps?/);
+    return report
+      ? `${report[1]!.toLowerCase()} · ${report[2]} step${report[2] === "1" ? "" : "s"}`
+      : "";
+  }
   if (tool === "update_plan") {
     // "[x] Read cart.js" lines in planSavedText's answer
     const done = (body.match(/^\[x\] /gm) ?? []).length;

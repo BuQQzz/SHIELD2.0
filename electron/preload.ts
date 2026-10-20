@@ -97,6 +97,34 @@ export interface LlamaAPI {
   setChatHistory: (
     messages: Message[]
   ) => Promise<{ success: boolean; error?: string }>;
+  /** Sub-agent sessions (agent teams): a chat of their own on the loaded model */
+  /** Text a sub-agent's model is writing, as it streams (the Team panel) */
+  onAgentToken: (
+    callback: (event: { sessionId: string; token: string }) => void
+  ) => () => void;
+  agentOpen: (
+    systemPrompt: string
+  ) => Promise<{ success: boolean; sessionId?: string; error?: string }>;
+  agentChat: (
+    sessionId: string,
+    message: string,
+    options?: {
+      temperature?: number;
+      maxTokens?: number;
+      topP?: number;
+      topK?: number;
+      repeatPenalty?: number;
+    }
+  ) => Promise<{ success: boolean; response?: string; error?: string }>;
+  agentContext: (sessionId: string) => Promise<{
+    success: boolean;
+    used?: number;
+    size?: number;
+    error?: string;
+  }>;
+  agentClose: (
+    sessionId: string
+  ) => Promise<{ success: boolean; error?: string }>;
   stopGeneration: () => Promise<{ success: boolean; error?: string }>;
   setSystemPrompt: (
     prompt: string,
@@ -191,6 +219,21 @@ const llamaAPI: LlamaAPI = {
   clearHistory: () => ipcRenderer.invoke("llama:clearHistory"),
   setChatHistory: (messages) =>
     ipcRenderer.invoke("llama:setChatHistory", messages),
+  onAgentToken: (callback) => {
+    const subscription = (
+      _event: Electron.IpcRendererEvent,
+      payload: { sessionId: string; token: string }
+    ) => callback(payload);
+    ipcRenderer.on("llama:agentToken", subscription);
+    return () => ipcRenderer.removeListener("llama:agentToken", subscription);
+  },
+  agentOpen: (systemPrompt) =>
+    ipcRenderer.invoke("llama:agentOpen", systemPrompt),
+  agentChat: (sessionId, message, options) =>
+    ipcRenderer.invoke("llama:agentChat", sessionId, message, options),
+  agentContext: (sessionId) =>
+    ipcRenderer.invoke("llama:agentContext", sessionId),
+  agentClose: (sessionId) => ipcRenderer.invoke("llama:agentClose", sessionId),
   stopGeneration: () => ipcRenderer.invoke("llama:stopGeneration"),
   setSystemPrompt: (prompt, tools) =>
     ipcRenderer.invoke("llama:setSystemPrompt", prompt, tools),

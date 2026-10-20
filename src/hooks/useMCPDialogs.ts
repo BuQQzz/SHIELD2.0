@@ -187,7 +187,10 @@ interface UseMCPDialogsProps {
   policy: ToolPolicy;
 }
 
-export function useMCPDialogs({ callTool, policy }: UseMCPDialogsProps) {
+export function useMCPDialogs({
+  callTool,
+  policy: defaultPolicy,
+}: UseMCPDialogsProps) {
   const [pendingRequest, setPendingRequest] =
     useState<PendingToolRequest | null>(null);
   /** The tool currently executing, so the UI can show it in flight */
@@ -307,7 +310,13 @@ export function useMCPDialogs({ callTool, policy }: UseMCPDialogsProps) {
    * Entry point for every tool call the model makes.
    */
   const handleToolCallRequest = useCallback(
-    async (request: ToolCallRequest): Promise<MCPToolResult> => {
+    async (
+      request: ToolCallRequest,
+      // A sub-agent's calls are decided by the worker policy, not the
+      // orchestrator's; the same prompts and permission bar serve both
+      options: { policy?: ToolPolicy } = {}
+    ): Promise<MCPToolResult> => {
+      const policy = options.policy ?? defaultPolicy;
       if (!policy.allows(request.tool)) {
         return {
           success: false,
@@ -452,7 +461,7 @@ export function useMCPDialogs({ callTool, policy }: UseMCPDialogsProps) {
         });
       });
     },
-    [policy, callTool, noteWrite, modelScriptsIn, rewriteWarning]
+    [defaultPolicy, callTool, noteWrite, modelScriptsIn, rewriteWarning]
   );
 
   /**

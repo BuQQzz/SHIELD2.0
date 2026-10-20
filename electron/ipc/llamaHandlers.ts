@@ -233,6 +233,64 @@ export function registerLlamaHandlers(
     }
   });
 
+  // Sub-agent sessions: a chat of their own on the loaded llama-server model
+  const failure = (error: unknown) => ({
+    success: false,
+    error: error instanceof Error ? error.message : "Unknown error",
+  });
+
+  ipcMain.handle("llama:agentOpen", async (_event, systemPrompt: string) => {
+    try {
+      return {
+        success: true,
+        sessionId: llamaService.createAgentSession(systemPrompt),
+      };
+    } catch (error) {
+      return failure(error);
+    }
+  });
+
+  ipcMain.handle(
+    "llama:agentChat",
+    async (_event, sessionId: string, message: string, options) => {
+      try {
+        const response = await llamaService.agentChat(sessionId, message, {
+          ...options,
+          // Streamed to the Team panel, tagged with the session it belongs to
+          onToken: (token: string) => {
+            const mainWindow = getMainWindow();
+            if (mainWindow && !mainWindow.isDestroyed()) {
+              mainWindow.webContents.send("llama:agentToken", {
+                sessionId,
+                token,
+              });
+            }
+          },
+        });
+        return { success: true, response };
+      } catch (error) {
+        return failure(error);
+      }
+    }
+  );
+
+  ipcMain.handle("llama:agentContext", async (_event, sessionId: string) => {
+    try {
+      return { success: true, ...llamaService.getAgentContext(sessionId) };
+    } catch (error) {
+      return failure(error);
+    }
+  });
+
+  ipcMain.handle("llama:agentClose", async (_event, sessionId: string) => {
+    try {
+      llamaService.closeAgentSession(sessionId);
+      return { success: true };
+    } catch (error) {
+      return failure(error);
+    }
+  });
+
   // Set system prompt
   ipcMain.handle(
     "llama:setSystemPrompt",

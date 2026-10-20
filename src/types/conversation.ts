@@ -83,6 +83,8 @@ export interface Conversation {
   projectId?: string;
   /** A code session's live checklist (update_plan, or edited by the user) */
   plan?: Plan;
+  /** A code session led by an orchestrator that delegates to sub-agents (src/agents) */
+  team?: boolean;
 }
 
 export interface ConversationMetadata {

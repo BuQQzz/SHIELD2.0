@@ -27,6 +27,7 @@ import {
   Search,
   SquareTerminal,
   Trash2,
+  Users,
   Wrench,
   type LucideIcon,
 } from "lucide-react";
@@ -56,6 +57,7 @@ const ICONS: Record<string, LucideIcon> = {
   search_memory: Brain,
   open_memory: BookOpen,
   update_plan: ListChecks,
+  delegate: Users,
 };
 
 interface ToolStepProps {

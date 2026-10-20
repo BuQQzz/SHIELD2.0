@@ -383,3 +383,74 @@ describe("the terminal (run_command)", () => {
     }
   });
 });
+
+describe("agent teams", () => {
+  const withServer = (serverName: string, name: string): ToolDefinition => ({
+    ...tool(name),
+    serverName,
+  });
+  const TEAM_TOOLS = [
+    ...SERVER_TOOLS,
+    withServer("terminal", "run_command"),
+    withServer("web", "web_search"),
+    withServer("memory", "search_memory"),
+    withServer("plan", "update_plan"),
+    withServer("agents", "delegate"),
+  ];
+  const resolve = (
+    teamMode: boolean,
+    mode: "ask" | "auto" | "plan" | "readonly" = "auto"
+  ) =>
+    resolveToolPolicy({
+      mode,
+      allowedTools: ALL_ALLOWED,
+      serverTools: TEAM_TOOLS,
+      webSearchEnabled: true,
+      teamMode,
+    });
+
+  it("offers the orchestrator delegate and update_plan, and nothing else", () => {
+    const policy = resolve(true);
+    expect(names(policy.advertisedTools).sort()).toEqual([
+      "delegate",
+      "update_plan",
+    ]);
+    for (const blocked of [
+      "read_file",
+      "write_file",
+      "edit_file",
+      "run_command",
+      "web_search",
+      "search_memory",
+    ]) {
+      expect(policy.allows(blocked)).toBe(false);
+    }
+    expect(policy.allows("delegate")).toBe(true);
+  });
+
+  it("runs delegate without asking in every mode: what the agent then does is decided by the worker policy", () => {
+    for (const mode of ["ask", "auto", "plan", "readonly"] as const) {
+      expect(resolve(true, mode).decide({ name: "delegate" })).toBe("run");
+    }
+  });
+
+  it("never offers delegate outside team mode", () => {
+    const policy = resolve(false);
+    expect(names(policy.advertisedTools)).not.toContain("delegate");
+    expect(policy.allows("delegate")).toBe(false);
+    // and the worker policy keeps every tool the orchestrator lost
+    expect(policy.allows("write_file")).toBe(true);
+    expect(policy.allows("run_command")).toBe(true);
+  });
+
+  it("is not offered to a chat, which has no file tools", () => {
+    const policy = resolveToolPolicy({
+      mode: "auto",
+      allowedTools: ALL_ALLOWED,
+      serverTools: TEAM_TOOLS,
+      fileTools: false,
+      teamMode: true,
+    });
+    expect(names(policy.advertisedTools)).toEqual([]);
+  });
+});

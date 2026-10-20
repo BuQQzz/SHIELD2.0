@@ -31,6 +31,10 @@ import { useMCPDialogs } from "./hooks/useMCPDialogs";
 import { useMCPSystemPrompt } from "./hooks/useMCPSystemPrompt";
 import { useMCPTools } from "./hooks/useMCPTools";
 import { useToolPolicy } from "./hooks/useToolPolicy";
+import { useAgentTeam } from "./hooks/useAgentTeam";
+import { TeamPanel } from "./components/team/TeamPanel";
+import { ORCHESTRATOR_PROMPT } from "./agents/roles";
+import { teamFor } from "./agents/team";
 import { useInstalledModels } from "./hooks/useInstalledModels";
 import { useRecommendedSampling } from "./hooks/useRecommendedSampling";
 import { effectiveSampling } from "./services/modelSampling";
@@ -122,13 +126,19 @@ function App() {
 
   // The single place the permission mode turns into behaviour: what the model
   // is told exists, what stops for a prompt, and whether anything runs.
-  const toolPolicy = useToolPolicy({
+  // A Code session can be led by an orchestrator that delegates (Team): it
+  // is offered delegate and the plan only, and its sub-agents work under the
+  // session's normal policy.
+  const teamMode = isCodeSession && !!currentConversation?.team;
+  const policyInput = {
     mode: settings.mcp?.mode ?? "ask",
     allowedTools: settings.mcp?.allowedTools ?? [],
     serverTools: mcpServerTools,
     webSearchEnabled: settings.webSearch?.enabled ?? false,
     fileTools: isCodeSession,
-  });
+  };
+  const workerPolicy = useToolPolicy(policyInput);
+  const toolPolicy = useToolPolicy({ ...policyInput, teamMode });
 
   // MCP dialog management
   const {
@@ -186,12 +196,14 @@ function App() {
     isMCPReady,
     // A chat without web search has no tools at all
     mcpEnabled: isCodeSession || toolPolicy.advertisedTools.length > 0,
-    baseSystemPrompt: settings.system.systemPrompt,
+    baseSystemPrompt: teamMode
+      ? ORCHESTRATOR_PROMPT
+      : settings.system.systemPrompt,
     setSystemPrompt,
     modelName: currentModelConfig?.name,
     modelCapabilities: currentModelConfig?.capabilities,
     availableTools: toolPolicy.advertisedTools,
-    allowedPaths: isCodeSession ? mcpAllowedPaths : [],
+    allowedPaths: isCodeSession && !teamMode ? mcpAllowedPaths : [],
     planOnly: toolPolicy.isPlanning,
     toolsLoading: !mcpToolsSettled,
     projectInstructions: isCodeSession ? projectInstructions : "",
@@ -302,9 +314,22 @@ function App() {
     [settings.model, recommendedSampling, toolsAvailable]
   );
 
+  // The orchestrator's delegate calls run sub-agents; every other call goes
+  // to the usual handler
+  const { handleToolCall, activity: teamActivity } = useAgentTeam({
+    conversationId: currentConversation?.id,
+    teamMode,
+    handleToolCallRequest,
+    workerPolicy,
+    allowedPaths: mcpAllowedPaths,
+    workspaceFolder: settings.mcp?.workspaceFolder,
+    modelName: currentModelConfig?.name,
+    sampling: modelSettings,
+  });
+
   // App handlers hook
   const {
-    handleSendMessage,
+    handleSendMessage: sendMessage,
     handleStopGenerating,
     handleClearHistory,
     handleNewChat,
@@ -333,9 +358,18 @@ function App() {
     setChatHistory,
     createNewConversation,
     setSystemPrompt,
-    handleToolCallRequest, // Pass MCP handler
+    handleToolCallRequest: handleToolCall, // Pass MCP handler
     isMCPReady,
   });
+
+  // A new user message lets the orchestrator delegate again
+  const handleSendMessage = useCallback(
+    (...args: Parameters<typeof sendMessage>) => {
+      if (currentConversation) teamFor(currentConversation.id).beginTurn();
+      return sendMessage(...args);
+    },
+    [sendMessage, currentConversation]
+  );
 
   // A new Code session starts in a folder the user picks - or in its
   // project's folder, without asking; a project without one takes the
@@ -440,95 +474,112 @@ function App() {
       <div
         className={
           activeView === "chat" || activeView === "code"
-            ? "flex h-full flex-col"
+            ? "flex h-full"
             : "hidden"
         }
       >
-        <ChatHeader
-          modelName={currentModel?.name}
-          isLoading={isLoading || isLoadingModels}
-          error={error}
-          warning={warning}
-          availableModels={installedModels}
-          currentModelId={currentModelId}
-          onClearHistory={handleClearHistory}
-        />
-        {messages.length === 0 && !streamingContent ? (
-          <ChatPlaceholder
-            modelLoaded={isModelLoaded}
-            isLoading={isLoading}
-            selectedModelName={
-              currentModelConfig && isRuntimeAvailable(currentModelConfig)
-                ? currentModelConfig.displayName
-                : undefined
-            }
-            onLoadSelected={
-              currentModelConfig
-                ? () => handleModelSelect(currentModelConfig)
-                : undefined
-            }
-            onOpenLibrary={() => setActiveView("library")}
-            onPromptClick={folderReady ? handleSendMessage : undefined}
-            code={
-              isCodeSession
-                ? {
-                    folder: currentConversation?.folder,
-                    onChooseFolder: handleChooseSessionFolder,
-                  }
-                : undefined
-            }
+        <div className="flex h-full min-w-0 flex-1 flex-col">
+          <ChatHeader
+            modelName={currentModel?.name}
+            isLoading={isLoading || isLoadingModels}
+            error={error}
+            warning={warning}
+            availableModels={installedModels}
+            currentModelId={currentModelId}
+            onClearHistory={handleClearHistory}
           />
-        ) : (
-          <MessageList
-            messages={messages}
-            streamingContent={streamingContent}
-            isGenerating={isGenerating}
-            onContinue={handleContinue}
-            onEditMessage={handleEditMessage}
-            onRegenerateMessage={handleRegenerateMessage}
-            runningTool={runningTool}
-          />
-        )}
-        {isCodeSession && currentConversation?.plan && (
-          <PlanPanel
-            plan={currentConversation.plan}
-            onChange={(steps) => void editPlan(steps)}
-          />
-        )}
-        <ToolPermissionBar
-          request={pendingRequest}
-          onApprove={handleApprove}
-          onDeny={handleDeny}
-        />
-        {isCodeSession &&
-          isModelLoaded &&
-          folderReady &&
-          sessionFolder &&
-          !isGenerating &&
-          instructions.loaded &&
-          sameFolder(instructions.folder ?? undefined, sessionFolder) &&
-          instructions.files.length === 0 && (
-            <AgentsMdHint
-              key={sessionFolder}
-              folder={sessionFolder}
-              onDraft={() => void handleDraftAgentsMd()}
+          {messages.length === 0 && !streamingContent ? (
+            <ChatPlaceholder
+              modelLoaded={isModelLoaded}
+              isLoading={isLoading}
+              selectedModelName={
+                currentModelConfig && isRuntimeAvailable(currentModelConfig)
+                  ? currentModelConfig.displayName
+                  : undefined
+              }
+              onLoadSelected={
+                currentModelConfig
+                  ? () => handleModelSelect(currentModelConfig)
+                  : undefined
+              }
+              onOpenLibrary={() => setActiveView("library")}
+              onPromptClick={folderReady ? handleSendMessage : undefined}
+              code={
+                isCodeSession
+                  ? {
+                      folder: currentConversation?.folder,
+                      onChooseFolder: handleChooseSessionFolder,
+                    }
+                  : undefined
+              }
+            />
+          ) : (
+            <MessageList
+              messages={messages}
+              streamingContent={streamingContent}
+              isGenerating={isGenerating}
+              onContinue={handleContinue}
+              onEditMessage={handleEditMessage}
+              onRegenerateMessage={handleRegenerateMessage}
+              runningTool={
+                runningTool ??
+                (teamActivity
+                  ? {
+                      tool: "delegate",
+                      serverName: "agents",
+                      target: teamActivity,
+                    }
+                  : null)
+              }
             />
           )}
-        {isCodeSession && isModelLoaded && (
-          <CodeModelHint
-            currentModelId={currentModelId}
-            models={installedModels}
-            onLoad={handleModelSelect}
+          {isCodeSession && currentConversation?.plan && (
+            <PlanPanel
+              plan={currentConversation.plan}
+              onChange={(steps) => void editPlan(steps)}
+            />
+          )}
+          <ToolPermissionBar
+            request={pendingRequest}
+            onApprove={handleApprove}
+            onDeny={handleDeny}
+          />
+          {isCodeSession &&
+            isModelLoaded &&
+            folderReady &&
+            sessionFolder &&
+            !isGenerating &&
+            instructions.loaded &&
+            sameFolder(instructions.folder ?? undefined, sessionFolder) &&
+            instructions.files.length === 0 && (
+              <AgentsMdHint
+                key={sessionFolder}
+                folder={sessionFolder}
+                onDraft={() => void handleDraftAgentsMd()}
+              />
+            )}
+          {isCodeSession && isModelLoaded && (
+            <CodeModelHint
+              currentModelId={currentModelId}
+              models={installedModels}
+              onLoad={handleModelSelect}
+            />
+          )}
+          <ChatInput
+            ref={inputRef}
+            onSend={handleSendMessage}
+            isGenerating={isGenerating}
+            onStop={handleStopGenerating}
+            disabled={!isModelLoaded || !folderReady}
+            showFolder={isCodeSession}
+          />
+        </div>
+        {isCodeSession && (
+          <TeamPanel
+            conversationId={currentConversation?.id}
+            teamMode={teamMode}
           />
         )}
-        <ChatInput
-          ref={inputRef}
-          onSend={handleSendMessage}
-          isGenerating={isGenerating}
-          onStop={handleStopGenerating}
-          disabled={!isModelLoaded || !folderReady}
-          showFolder={isCodeSession}
-        />
       </div>
 
       <Suspense fallback={null}>

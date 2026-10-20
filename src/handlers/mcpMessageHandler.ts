@@ -153,6 +153,11 @@ export function callSignature(
 
 /** What a call acts on: a file or folder, a search query, a web page or a command */
 export function callTarget(toolCall: ToolCallRequest): string | undefined {
+  // delegate: the role it hands the work to
+  if (toolCall.tool === "delegate") {
+    const { role } = toolCall.arguments;
+    return typeof role === "string" ? role.trim().toLowerCase() : undefined;
+  }
   const { path, source, query, url, command } = toolCall.arguments;
   return [path, source, query, url, command].find(
     (value): value is string => typeof value === "string"

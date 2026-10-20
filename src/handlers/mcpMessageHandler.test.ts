@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import {
   callSignature,
+  callTarget,
   canonicalPath,
   processMCPToolCalls,
   unrunToolCallsNote,
@@ -805,6 +806,41 @@ describe("callSignature on Windows paths", () => {
 
     expect(onToolCallDetected).toHaveBeenCalledTimes(1);
     vi.unstubAllGlobals();
+  });
+});
+
+describe("callTarget", () => {
+  it("is the role for a delegation", () => {
+    expect(
+      callTarget({
+        serverName: "agents",
+        tool: "delegate",
+        arguments: { role: " Coder ", task: "x" },
+      })
+    ).toBe("coder");
+    expect(
+      callTarget({
+        serverName: "agents",
+        tool: "delegate",
+        arguments: { task: "x" },
+      })
+    ).toBeUndefined();
+  });
+  it("is still the path, query, url or command for other tools", () => {
+    expect(
+      callTarget({
+        serverName: "filesystem",
+        tool: "read_text_file",
+        arguments: { path: "/a" },
+      })
+    ).toBe("/a");
+    expect(
+      callTarget({
+        serverName: "terminal",
+        tool: "run_command",
+        arguments: { command: "ls" },
+      })
+    ).toBe("ls");
   });
 });
 

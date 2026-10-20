@@ -59,6 +59,8 @@ export interface Conversation {
   projectId?: string;
   /** A code session's live checklist (update_plan, or edited by the user) */
   plan?: Plan;
+  /** A code session led by an orchestrator that delegates to sub-agents (src/agents) */
+  team?: boolean;
 }
 
 export interface ConversationMetadata {
@@ -225,6 +227,34 @@ export interface LlamaAPI {
   clearHistory: () => Promise<{ success: boolean; error?: string }>;
   setChatHistory: (
     messages: Message[]
+  ) => Promise<{ success: boolean; error?: string }>;
+  /** Sub-agent sessions (agent teams): a chat of their own on the loaded model */
+  /** Text a sub-agent's model is writing, as it streams (the Team panel) */
+  onAgentToken: (
+    callback: (event: { sessionId: string; token: string }) => void
+  ) => () => void;
+  agentOpen: (
+    systemPrompt: string
+  ) => Promise<{ success: boolean; sessionId?: string; error?: string }>;
+  agentChat: (
+    sessionId: string,
+    message: string,
+    options?: {
+      temperature?: number;
+      maxTokens?: number;
+      topP?: number;
+      topK?: number;
+      repeatPenalty?: number;
+    }
+  ) => Promise<{ success: boolean; response?: string; error?: string }>;
+  agentContext: (sessionId: string) => Promise<{
+    success: boolean;
+    used?: number;
+    size?: number;
+    error?: string;
+  }>;
+  agentClose: (
+    sessionId: string
   ) => Promise<{ success: boolean; error?: string }>;
   stopGeneration: () => Promise<{ success: boolean; error?: string }>;
   setSystemPrompt: (
