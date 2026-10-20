@@ -3,6 +3,7 @@
 import { motion } from "framer-motion";
 import { FolderOpen, Library, Loader2, Play } from "lucide-react";
 import { folderName } from "@/lib/sessions";
+import { osName } from "@/utils/platform";
 
 const SUGGESTED_PROMPTS = [
   "What can you help me with?",
@@ -109,7 +110,7 @@ export function ChatPlaceholder({
         <div className="text-center">
           <p className="text-muted-foreground">
             {!code
-              ? "Privacy-first AI Assistant for Windows"
+              ? `Privacy-first AI Assistant for ${osName()}`
               : code.folder
                 ? `Working in ${folderName(code.folder)}`
                 : "A code session works in one project folder"}

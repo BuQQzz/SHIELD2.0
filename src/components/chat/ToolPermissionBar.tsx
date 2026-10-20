@@ -21,6 +21,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import type { PendingToolRequest } from "@/hooks/useMCPDialogs";
+import { trashName } from "@/utils/platform";
 
 interface ToolPermissionBarProps {
   request: PendingToolRequest | null;
@@ -151,7 +152,7 @@ export function ToolPermissionBar({
             <div className="min-w-0 flex-1">
               <span className="font-medium">
                 {request.isDestructive
-                  ? "Move to Recycle Bin"
+                  ? `Move to ${trashName()}`
                   : request.command !== undefined
                     ? "Run this command?"
                     : request.instructionsFile
@@ -234,7 +235,7 @@ export function ToolPermissionBar({
                 onClick={() => onApprove(false)}
               >
                 {request.isDestructive
-                  ? "Move to Recycle Bin"
+                  ? `Move to ${trashName()}`
                   : request.command !== undefined
                     ? "Run"
                     : "Allow"}

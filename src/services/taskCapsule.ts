@@ -25,6 +25,7 @@ import {
 } from "../handlers/toolCallParsing.js";
 import { isToolResultTurn } from "./contextBreakdown.js";
 import type { HistoryEntry } from "./historyCompaction.js";
+import { trashName } from "../utils/platform.js";
 
 export interface CapsuleStep {
   /** "wrote", "read", "searched the web for" */
@@ -107,7 +108,7 @@ const VERBS: Record<string, string> = {
   move_file: "moved",
   search_files: "searched",
   get_file_info: "checked",
-  delete_file: "moved to the Recycle Bin",
+  delete_file: `moved to the ${trashName()}`,
   list_allowed_directories: "listed the allowed folders",
   web_search: "searched the web for",
   fetch_page: "read the page",

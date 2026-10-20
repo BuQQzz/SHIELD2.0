@@ -11,6 +11,7 @@
 import { execFile } from "child_process";
 import os from "os";
 import { formatGB } from "../lib/format.js";
+import { osName } from "../utils/platform.js";
 
 export interface MemoryNeed {
   /** System RAM the model keeps resident while running */
@@ -115,11 +116,11 @@ export function assessMemory(
   const ram = `Needs ~${formatGB(need.ramBytes)} of RAM, ${formatGB(free.ramFreeBytes)} free`;
   if (need.ramBytes > free.ramFreeBytes) {
     problems.push(
-      `${ram}. Windows will move memory to disk, so the model and other apps can slow to a crawl.`
+      `${ram}. ${osName()} will move memory to disk, so the model and other apps can slow to a crawl.`
     );
   } else if (need.ramBytes + RAM_MARGIN_BYTES > free.ramFreeBytes) {
     problems.push(
-      `${ram}: under ${formatGB(RAM_MARGIN_BYTES)} would be left for Windows and your other apps, so they can slow to a crawl.`
+      `${ram}: under ${formatGB(RAM_MARGIN_BYTES)} would be left for ${osName()} and your other apps, so they can slow to a crawl.`
     );
   }
   if (free.commitFreeBytes !== undefined) {

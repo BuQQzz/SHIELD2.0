@@ -10,14 +10,14 @@
 
 import path from "path";
 import type { MCPToolResult } from "./MCPServerConfig.js";
+import { trashName } from "../../src/utils/platform.js";
 
 export const DELETE_TOOL_NAME = "delete_file";
 
 /** Listed alongside the filesystem server's own tools */
 export const DELETE_TOOL = {
   name: DELETE_TOOL_NAME,
-  description:
-    "Delete a file or folder by moving it to the Recycle Bin, where the user can restore it. Use this whenever the user asks to delete or remove something; never imitate deleting by renaming, moving or emptying a file.",
+  description: `Delete a file or folder by moving it to the ${trashName()}, where the user can restore it. Use this whenever the user asks to delete or remove something; never imitate deleting by renaming, moving or emptying a file.`,
   inputSchema: {
     type: "object",
     properties: {
@@ -85,7 +85,7 @@ export async function moveToRecycleBin(
   } catch (error) {
     return {
       success: false,
-      error: `Could not move ${resolved} to the Recycle Bin: ${
+      error: `Could not move ${resolved} to the ${trashName()}: ${
         error instanceof Error ? error.message : String(error)
       }`,
     };
@@ -94,7 +94,7 @@ export async function moveToRecycleBin(
   return {
     success: true,
     data: text(
-      `Moved ${resolved} to the Recycle Bin. The user can restore it from there.`
+      `Moved ${resolved} to the ${trashName()}. The user can restore it from there.`
     ),
   };
 }

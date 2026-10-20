@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import path from "path";
 import os from "os";
 import { DELETE_TOOL, moveToRecycleBin } from "./recycleBin";
+import { trashName } from "../../src/utils/platform";
 
 const workspace = path.join(os.homedir(), "Projects", "EXPERIMENT");
 const file = path.join(workspace, "awsome sauce.md");
@@ -12,13 +13,13 @@ const deps = (exists = true) => ({
 });
 
 describe("moveToRecycleBin", () => {
-  it("moves the file to the Recycle Bin and says it can be restored", async () => {
+  it("moves the file to the Recycle Bin or Trash and says it can be restored", async () => {
     const d = deps();
     const result = await moveToRecycleBin(file, [workspace], d);
 
     expect(d.trash).toHaveBeenCalledWith(file);
     expect(result.success).toBe(true);
-    expect(JSON.stringify(result.data)).toContain("Recycle Bin");
+    expect(JSON.stringify(result.data)).toContain(trashName());
   });
 
   it("never bins the allowed folder itself", async () => {

@@ -12,6 +12,7 @@ import type { DownloadProgress } from "@/types/electron";
 import { cn } from "@/lib/utils";
 import { ContextPicker } from "./ContextPicker";
 import { RamNotice } from "./RamNotice";
+import { trashName } from "@/utils/platform";
 
 const ROLE_LABELS: Record<ModelRole, string> = {
   agent: "Agent",
@@ -179,7 +180,7 @@ export function LibraryModelRow({
           title={
             isCurrent
               ? "Switch to another model before removing this one"
-              : "Remove (moves files to the Recycle Bin)"
+              : `Remove (moves files to the ${trashName()})`
           }
           className="flex h-8 w-8 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive disabled:pointer-events-none disabled:opacity-30"
         >

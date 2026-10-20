@@ -17,6 +17,7 @@
 // Relative, not "@/": the main process's memory index uses this module too
 import type { Message } from "../types/conversation";
 import { extractToolCalls, type ToolCallRequest } from "./toolCallParsing";
+import { trashName } from "../utils/platform";
 
 /** Longest record sent; older entries are counted, not listed */
 export const MAX_LEDGER_ENTRIES = 15;
@@ -34,7 +35,7 @@ const VERBS: Record<string, string> = {
   edit_file: "edited",
   create_directory: "created folder",
   move_file: "moved",
-  delete_file: "moved to the Recycle Bin",
+  delete_file: `moved to the ${trashName()}`,
 };
 
 function isLedgerTool(tool: string): boolean {

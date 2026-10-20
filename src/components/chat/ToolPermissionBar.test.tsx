@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { fireEvent, render, screen } from "@testing-library/react";
 import { ToolPermissionBar } from "./ToolPermissionBar";
+import { trashName } from "@/utils/platform";
 
 const base = {
   serverName: "filesystem",
@@ -22,9 +23,9 @@ describe("ToolPermissionBar", () => {
         onDeny={vi.fn()}
       />
     );
-    expect(screen.getAllByText("Move to Recycle Bin").length).toBeGreaterThan(
-      0
-    );
+    expect(
+      screen.getAllByText(`Move to ${trashName()}`).length
+    ).toBeGreaterThan(0);
     expect(screen.getByText(/awsome sauce\.md/)).toBeTruthy();
     expect(screen.queryByText("Allow for session")).toBeNull();
   });

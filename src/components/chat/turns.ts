@@ -11,6 +11,7 @@
 
 import type { Message } from "@/types/conversation";
 import { stripToolCallMarkup } from "@/handlers/toolCallParsing";
+import { trashName } from "@/utils/platform";
 
 /** One step of a stretch of work */
 export type WorkItem =
@@ -180,8 +181,8 @@ const VERBS: Record<string, Verb> = {
   search_files: { done: "Searched", running: "Searching" },
   get_file_info: { done: "Checked", running: "Checking" },
   delete_file: {
-    done: "Moved to Recycle Bin",
-    running: "Moving to Recycle Bin",
+    done: `Moved to ${trashName()}`,
+    running: `Moving to ${trashName()}`,
     noun: ["item", "items"],
   },
   list_allowed_directories: {
@@ -233,7 +234,7 @@ const VERBS: Record<string, Verb> = {
 /** Group headings use a noun where the one-step verb names the thing */
 const GROUP_VERB: Record<string, string> = {
   create_directory: "Created",
-  delete_file: "Moved to Recycle Bin:",
+  delete_file: `Moved to ${trashName()}:`,
   web_search: "Ran",
 };
 

@@ -13,6 +13,7 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import type { ModelMetadata } from "@/config/models";
+import { trashName } from "@/utils/platform";
 
 interface DeleteModelDialogProps {
   open: boolean;
@@ -42,7 +43,7 @@ export function DeleteModelDialog({
             <div>
               <DialogTitle>Delete Model</DialogTitle>
               <DialogDescription className="mt-1">
-                The files go to the Recycle Bin
+                The files go to the {trashName()}
               </DialogDescription>
             </div>
           </div>
@@ -57,9 +58,9 @@ export function DeleteModelDialog({
           </div>
 
           <p className="text-sm text-muted-foreground">
-            Delete this model? Its files are moved to the Recycle Bin, where you
-            can restore them. Other apps that share your models folder will lose
-            them too until they are restored.
+            Delete this model? Its files are moved to the {trashName()}, where
+            you can restore them. Other apps that share your models folder will
+            lose them too until they are restored.
           </p>
         </div>
 
