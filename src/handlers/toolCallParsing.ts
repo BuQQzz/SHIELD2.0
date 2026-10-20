@@ -186,6 +186,54 @@ export function dropTrailingClosers(input: string): string | null {
   return null;
 }
 
+/**
+ * Close what was left open, outside string literals: a `]` or `}` that does
+ * not match the innermost open bracket first closes that one, and whatever
+ * is still open at the end is closed.
+ *
+ * Bonsai 27B wrote edit_file as `"edits":[{"oldText":"...","newText":"..."]}`
+ * - the edit object never closed - three times in a row, and each time was
+ * told "not valid JSON" and sent the same shape again (2026-10-20).
+ */
+export function closeOpenBrackets(input: string): string | null {
+  const stack: string[] = [];
+  let out = "";
+  let inString = false;
+  for (let i = 0; i < input.length; i++) {
+    const ch = input[i]!;
+    if (inString) {
+      out += ch;
+      if (ch === "\\") {
+        out += input[i + 1] ?? "";
+        i++;
+      } else if (ch === '"') {
+        inString = false;
+      }
+      continue;
+    }
+    if (ch === '"') {
+      inString = true;
+      out += ch;
+    } else if (ch === "{" || ch === "[") {
+      stack.push(ch === "{" ? "}" : "]");
+      out += ch;
+    } else if (ch === "}" || ch === "]") {
+      // close the brackets that are still open inside this one
+      while (stack.length > 0 && stack[stack.length - 1] !== ch) {
+        if (!stack.includes(ch)) return null; // a closer with nothing to close
+        out += stack.pop();
+      }
+      if (stack.length === 0) return null;
+      stack.pop();
+      out += ch;
+    } else {
+      out += ch;
+    }
+  }
+  if (inString) return null;
+  return out + stack.reverse().join("");
+}
+
 function parseJson(input: string): unknown | null {
   const repaired = repairJsonStrings(input);
   const candidates = [input, repaired, escapeStrayQuotes(repaired)];
@@ -193,6 +241,15 @@ function parseJson(input: string): unknown | null {
   for (const candidate of candidates) {
     try {
       return JSON.parse(candidate);
+    } catch {
+      // try the next repair
+    }
+  }
+  for (const candidate of candidates) {
+    const closed = closeOpenBrackets(candidate);
+    if (closed === null || closed === candidate) continue;
+    try {
+      return JSON.parse(closed);
     } catch {
       // try the next repair
     }

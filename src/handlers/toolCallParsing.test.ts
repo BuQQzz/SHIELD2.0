@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   cutOffToolCall,
+  closeOpenBrackets,
   dropTrailingClosers,
   escapeStrayQuotes,
   extractToolCalls,
@@ -455,5 +456,49 @@ describe("stray closing brackets after the arguments", () => {
   it("does not drop real content after the object", () => {
     expect(dropTrailingClosers('{"a":1} trailing')).toBeNull();
     expect(dropTrailingClosers('{"a":1}}]')).toBe('{"a":1}');
+  });
+});
+
+describe("closeOpenBrackets", () => {
+  it("closes an object that never closed before the array's ]", () => {
+    expect(closeOpenBrackets('{"edits":[{"oldText":"a","newText":"b"]}')).toBe(
+      '{"edits":[{"oldText":"a","newText":"b"}]}'
+    );
+    expect(JSON.parse(closeOpenBrackets('{"a":[1,2}')!)).toEqual({ a: [1, 2] });
+  });
+
+  it("closes what is still open at the end", () => {
+    expect(closeOpenBrackets('{"a":[{"b":1')).toBe('{"a":[{"b":1}]}');
+  });
+
+  it("does not touch brackets inside strings", () => {
+    const text = '{"content":"for x in [1,2]: { print(x) ]"}';
+    expect(closeOpenBrackets(text)).toBe(text);
+  });
+
+  it("gives up on what it cannot mend: extra closers and an open string", () => {
+    expect(closeOpenBrackets('{"a":1}}')).toBeNull();
+    expect(closeOpenBrackets('{"a":"never closed')).toBeNull();
+  });
+});
+
+describe("a call whose edit object never closes (Bonsai 27B, 2026-10-20)", () => {
+  it("runs the edit instead of reporting invalid JSON", () => {
+    const content = `<tool_call>
+<server>filesystem</server>
+<tool>edit_file</tool>
+<arguments>{"path":"/p/add.sh","edits":[{"oldText":"echo $(( $1 - $2 ))","newText":"echo $(( $1 + $2 ))"]}</arguments>
+</tool_call>`;
+    const [call] = extractToolCalls(content, {
+      enableOpenAIToolCalls: false,
+      enableXmlToolCalls: true,
+    });
+    expect(call?.argumentsError).toBeUndefined();
+    expect(call?.arguments).toEqual({
+      path: "/p/add.sh",
+      edits: [
+        { oldText: "echo $(( $1 - $2 ))", newText: "echo $(( $1 + $2 ))" },
+      ],
+    });
   });
 });
