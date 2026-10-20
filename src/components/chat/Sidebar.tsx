@@ -181,7 +181,15 @@ export function Sidebar({
   return (
     <div className="flex h-full flex-col border-r border-border/60 bg-sidebar/40">
       {/* ── Top half: brand, actions, navigation, model ── */}
-      <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">
+      {/* Natural height, so the model card is never cut off in a short window
+          (it was, at 650 px: this half got exactly half the height); capped so
+          the chat list always keeps room, and scrolling only below that */}
+      <div
+        className={cn(
+          "flex min-h-0 flex-col overflow-y-auto",
+          collapsed ? "flex-1" : "max-h-[70%] flex-none"
+        )}
+      >
         <div
           className={cn(
             "flex h-14 shrink-0 items-center",
@@ -310,7 +318,7 @@ export function Sidebar({
 
       {/* ── Bottom half: chats ── */}
       {!collapsed ? (
-        <div className="flex h-1/2 min-h-0 shrink-0 flex-col border-t border-border/60">
+        <div className="flex min-h-[6rem] flex-1 flex-col border-t border-border/60">
           <div className="flex h-10 shrink-0 items-center gap-1 pl-5 pr-3">
             {searchOpen ? (
               <div className="relative flex-1">
