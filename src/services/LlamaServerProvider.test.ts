@@ -308,3 +308,71 @@ describe("LlamaServerProvider making room", () => {
     expect(turns[8]).toContain("d".repeat(700));
   });
 });
+
+describe("LlamaServerProvider context count", () => {
+  beforeEach(() => {
+    vi.spyOn(console, "warn").mockImplementation(() => {});
+  });
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.restoreAllMocks();
+  });
+
+  it("still counts a new chat when the template refuses one with no user message", async () => {
+    const provider = new LlamaServerProvider();
+    Object.assign(provider, {
+      process: { exitCode: null },
+      baseUrl: "http://server",
+      contextSize: 4096,
+      systemPrompt: "You are a helpful assistant.",
+    });
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: string) => {
+        if (url.endsWith("/apply-template")) {
+          return Response.json(
+            {
+              error: {
+                code: 500,
+                message: "raise_exception('No user query found in messages.')",
+              },
+            },
+            { status: 500 }
+          );
+        }
+        // /tokenize: one token per word
+        return Response.json({ tokens: [1, 2, 3, 4, 5] });
+      })
+    );
+
+    const usage = await provider.getContextUsage();
+
+    expect(usage).not.toBeNull();
+    expect(usage?.size).toBe(4096);
+    expect(usage?.used).toBeGreaterThan(0);
+  });
+
+  it("asks for a title with thinking off, so a thinking model has tokens left to answer", async () => {
+    const provider = new LlamaServerProvider();
+    Object.assign(provider, {
+      process: { exitCode: null },
+      baseUrl: "http://server",
+      contextSize: 4096,
+    });
+    const bodies: Record<string, unknown>[] = [];
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (_url: string, init: RequestInit) => {
+        bodies.push(JSON.parse(init.body as string));
+        return Response.json({
+          choices: [{ message: { content: "Capital of France" } }],
+        });
+      })
+    );
+
+    expect(await provider.generateTitle("What is the capital of France?")).toBe(
+      "Capital of France"
+    );
+    expect(bodies[0]?.chat_template_kwargs).toEqual({ enable_thinking: false });
+  });
+});

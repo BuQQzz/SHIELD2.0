@@ -133,8 +133,8 @@ export class LlamaServerProvider {
     const binary = findLlamaServer();
     if (!binary) {
       throw new Error(
-        "llama-server.exe was not found. Set SHIELD_LLAMA_SERVER to its path " +
-          "(a llama.cpp build with --fit and --n-cpu-moe)."
+        `${process.platform === "win32" ? "llama-server.exe" : "llama-server"} was not found. ` +
+          "Set SHIELD_LLAMA_SERVER to its path (a llama.cpp build with --fit and --n-cpu-moe)."
       );
     }
 
@@ -629,9 +629,20 @@ export class LlamaServerProvider {
       ),
     ];
 
-    const { prompt } = (await this.post("/apply-template", {
-      messages: this.messages(),
-    })) as { prompt: string };
+    // Some templates refuse a chat without a user message (Bonsai's, built on
+    // Qwen3.5's, raises "No user query found"), which is what a new chat is.
+    // The pieces counted below stand in for the rendered total then.
+    let prompt = "";
+    try {
+      ({ prompt } = (await this.post("/apply-template", {
+        messages: this.messages(),
+      })) as { prompt: string });
+    } catch (error) {
+      console.warn(
+        "[LlamaServer] Chat template could not render the chat; counting its parts:",
+        error instanceof Error ? error.message.slice(0, 120) : error
+      );
+    }
 
     const pieces: string[] = [prompt];
     const window = {
@@ -665,6 +676,9 @@ export class LlamaServerProvider {
       temperature: 0.3,
       max_tokens: 20,
       cache_prompt: false,
+      // A thinking model spends all 20 tokens on thought and returns an empty
+      // title; templates without the switch ignore it
+      chat_template_kwargs: { enable_thinking: false },
     })) as { choices?: { message?: { content?: string } }[] };
     return cleanTitle(result.choices?.[0]?.message?.content ?? "");
   }
