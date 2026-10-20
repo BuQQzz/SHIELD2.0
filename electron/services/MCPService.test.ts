@@ -2,12 +2,13 @@
  * MCPService Tests
  */
 
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, afterEach } from "vitest";
 import {
   resolveToolPaths,
   validateFilesystemPath,
   OFFICIAL_MCP_SERVERS,
 } from "./MCPServerConfig";
+import fs from "fs";
 import path from "path";
 import os from "os";
 
@@ -76,6 +77,97 @@ describe("MCPServerConfig", () => {
       ).toBe(false);
     });
 
+    // The tests run inside ~/Desktop, an allowed folder: a relative path
+    // resolved against the process directory used to pass for that reason.
+    it("never judges a relative path by the process directory", () => {
+      for (const relative of ["README.md", "./src/x.ts", "../etc/passwd"]) {
+        const result = validateFilesystemPath(
+          { path: relative },
+          {
+            ...config,
+            allowedPaths: [process.cwd()],
+          }
+        );
+        expect(result.success).toBe(false);
+        expect(result.error).toContain("not an absolute path");
+      }
+    });
+
+    describe("symlinks", () => {
+      const made: string[] = [];
+      const tmp = () => {
+        const dir = fs.realpathSync(
+          fs.mkdtempSync(path.join(os.tmpdir(), "shield-paths-"))
+        );
+        made.push(dir);
+        return dir;
+      };
+      afterEach(() => {
+        for (const dir of made.splice(0)) {
+          fs.rmSync(dir, { recursive: true, force: true });
+        }
+      });
+      const it_ = process.platform === "win32" ? it.skip : it;
+
+      it_("refuses a link inside the folder that leads outside it", () => {
+        const allowed = tmp();
+        const secret = tmp();
+        fs.writeFileSync(path.join(secret, "key.txt"), "secret");
+        fs.symlinkSync(secret, path.join(allowed, "link"));
+        const cfg = { ...config, allowedPaths: [allowed] };
+
+        for (const target of [
+          path.join(allowed, "link", "key.txt"),
+          path.join(allowed, "link", "new-file.txt"), // not written yet
+        ]) {
+          const result = validateFilesystemPath({ path: target }, cfg);
+          expect(result.success).toBe(false);
+          expect(result.error).toContain("Access denied");
+        }
+      });
+
+      it_("allows a link that stays inside the folder", () => {
+        const allowed = tmp();
+        fs.mkdirSync(path.join(allowed, "real"));
+        fs.symlinkSync(path.join(allowed, "real"), path.join(allowed, "alias"));
+        const cfg = { ...config, allowedPaths: [allowed] };
+
+        expect(
+          validateFilesystemPath(
+            { path: path.join(allowed, "alias", "a.txt") },
+            cfg
+          ).success
+        ).toBe(true);
+      });
+
+      it_("allows paths below an allowed folder that is itself a link", () => {
+        const real = tmp();
+        const holder = tmp();
+        const linked = path.join(holder, "Desktop");
+        fs.symlinkSync(real, linked);
+        const cfg = { ...config, allowedPaths: [linked] };
+
+        expect(
+          validateFilesystemPath({ path: path.join(linked, "a.txt") }, cfg)
+            .success
+        ).toBe(true);
+      });
+
+      it_("is not fooled by a sibling folder with the same prefix", () => {
+        const base = tmp();
+        fs.mkdirSync(path.join(base, "work"));
+        fs.mkdirSync(path.join(base, "work-secrets"));
+        const cfg = { ...config, allowedPaths: [path.join(base, "work")] };
+
+        expect(
+          validateFilesystemPath(
+            { path: path.join(base, "work-secrets", "a.txt") },
+            cfg
+          ).success
+        ).toBe(false);
+      });
+    });
+
     it("should normalize paths before validation", () => {
       const unnormalizedPath = path.join(
         os.homedir(),
@@ -126,6 +218,21 @@ describe("resolveToolPaths", () => {
   it("resolves '.' to the workspace, not the process directory", () => {
     expect(resolveToolPaths({ path: "." }, workspace).path).toBe(workspace);
   });
+
+  it.skipIf(process.platform === "win32")(
+    "leaves a Windows drive or UNC path alone off Windows, so it is refused",
+    () => {
+      for (const foreign of [
+        "C:\\Windows\\System32\\x.txt",
+        "c:/Windows/x.txt",
+        "\\\\server\\share\\x.txt",
+      ]) {
+        expect(resolveToolPaths({ path: foreign }, workspace).path).toBe(
+          foreign
+        );
+      }
+    }
+  );
 
   it("resolves bare file names inside the workspace", () => {
     expect(resolveToolPaths({ path: "README.md" }, workspace).path).toBe(

@@ -5,6 +5,7 @@
  * and type definitions for MCP operations.
  */
 
+import fs from "fs";
 import path from "path";
 import os from "os";
 
@@ -54,6 +55,16 @@ export const OFFICIAL_MCP_SERVERS: Record<string, MCPServerConfig> = {
   },
 };
 
+/**
+ * A Windows drive or UNC path on a system that is not Windows. `path` reads
+ * "C:\\Windows\\x" as a relative name there, so it would be resolved into the
+ * workspace as a file called "C:\\Windows\\x". It names nothing on this
+ * system, so it is left as written for the check to refuse.
+ */
+function isForeignAbsolute(value: string, platform = process.platform) {
+  return platform !== "win32" && /^(?:[A-Za-z]:[\\/]|\\\\)/.test(value);
+}
+
 /** Filesystem tool arguments that hold a single path */
 const PATH_ARGUMENTS = ["path", "source", "destination"] as const;
 
@@ -87,7 +98,7 @@ export function resolveToolPaths(
       : value;
   };
   const resolveOne = (value: unknown) =>
-    typeof value !== "string" || value.trim() === ""
+    typeof value !== "string" || value.trim() === "" || isForeignAbsolute(value)
       ? value
       : path.isAbsolute(value)
         ? inBaseSpelling(value)
@@ -121,32 +132,72 @@ export function validateFilesystemPath(
     ...(Array.isArray(args.paths) ? args.paths : []),
   ];
 
+  const allowedRoots = config.allowedPaths.flatMap((allowedPath) => {
+    const lexical = path.resolve(allowedPath);
+    const real = realPathOf(lexical);
+    return real === lexical ? [lexical] : [lexical, real];
+  });
+
   for (const target of targets) {
     if (typeof target !== "string" || target.trim() === "") {
       return { success: false, error: "No path provided" };
     }
 
+    // Never resolve against the process's own directory: a relative path
+    // there would be judged by where SHIELD happens to run (callers make
+    // paths absolute against the workspace first - see resolveToolPaths).
+    if (!path.isAbsolute(target)) {
+      console.log("[MCPServerConfig] Denied non-absolute path:", target);
+      return {
+        success: false,
+        error: `Access denied - not an absolute path on this system: ${target}`,
+      };
+    }
+
+    // Both the path as written and where it really leads (symlinks) must be
+    // inside an allowed directory; a link inside the folder cannot lead out
     const normalizedPath = path.resolve(path.normalize(target));
-    const isAllowed = config.allowedPaths.some((allowedPath) => {
-      const normalized = path.resolve(path.normalize(allowedPath));
-      return (
-        normalizedPath.startsWith(normalized + path.sep) ||
-        normalizedPath === normalized
-      );
-    });
+    const realPath = realPathOf(normalizedPath);
+    const isAllowed = [normalizedPath, realPath].every((candidate) =>
+      allowedRoots.some((root) => isInside(candidate, root))
+    );
 
     if (!isAllowed) {
       console.log("[MCPServerConfig] Denied path:", {
         original: target,
         normalized: normalizedPath,
+        resolved: realPath,
         allowedPaths: config.allowedPaths,
       });
       return {
         success: false,
-        error: `Access denied - path outside allowed directories: ${normalizedPath} not in [${config.allowedPaths.join(", ")}]`,
+        error: `Access denied - path outside allowed directories: ${realPath} not in [${config.allowedPaths.join(", ")}]`,
       };
     }
   }
 
   return { success: true };
+}
+
+function isInside(candidate: string, root: string): boolean {
+  return candidate === root || candidate.startsWith(root + path.sep);
+}
+
+/**
+ * `target` with symlinks resolved. A path that does not exist yet (a file
+ * about to be written) is resolved through its nearest existing parent.
+ */
+function realPathOf(target: string): string {
+  const missing: string[] = [];
+  let current = target;
+  for (;;) {
+    try {
+      return path.join(fs.realpathSync(current), ...missing.reverse());
+    } catch {
+      const parent = path.dirname(current);
+      if (parent === current) return target;
+      missing.push(path.basename(current));
+      current = parent;
+    }
+  }
 }
