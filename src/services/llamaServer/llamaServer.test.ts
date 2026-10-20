@@ -26,6 +26,20 @@ describe("buildServerArgs", () => {
     expect(value("--threads")).toBe("8");
   });
 
+  // llama-server cuts a thought off at the budget and the model carries on
+  // thinking in the visible answer, so it is not on unless asked for
+  it("does not cap thinking by default, and passes a budget only when given one", () => {
+    expect(args).not.toContain("--reasoning-budget");
+    const custom = buildServerArgs({
+      modelPath: "m.gguf",
+      contextSize: 8192,
+      port: 1,
+      threads: 4,
+      reasoningBudget: 256,
+    });
+    expect(custom[custom.indexOf("--reasoning-budget") + 1]).toBe("256");
+  });
+
   it("never fixes a layer placement that could spill out of VRAM", () => {
     expect(args).not.toContain("--n-gpu-layers");
     expect(args).not.toContain("--n-cpu-moe");

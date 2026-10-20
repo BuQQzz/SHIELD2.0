@@ -16,6 +16,16 @@ export interface LaunchOptions {
   port: number;
   /** CPU threads for the parts that run in system RAM */
   threads: number;
+  /**
+   * Tokens a thinking model may spend thinking per reply. Off unless set,
+   * on purpose: llama-server cuts the thought off at the budget and the
+   * model carries on thinking in the visible answer (2026-10-20: a long
+   * reasoning list continued in the content, and an orchestrator's chat
+   * filled with its own deliberation ending in a literal </think>). A
+   * thinking model that spends a whole reply thinking now gets an
+   * explanation instead (src/utils/emptyReply.ts).
+   */
+  reasoningBudget?: number;
 }
 
 /**
@@ -62,6 +72,9 @@ export function buildServerArgs(options: LaunchOptions): string[] {
     "--load-mode",
     "none",
     "--jinja",
+    ...(options.reasoningBudget === undefined
+      ? []
+      : ["--reasoning-budget", String(options.reasoningBudget)]),
     "--no-webui",
   ];
 }

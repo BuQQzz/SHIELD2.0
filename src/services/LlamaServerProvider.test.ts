@@ -376,3 +376,106 @@ describe("LlamaServerProvider context count", () => {
     expect(bodies[0]?.chat_template_kwargs).toEqual({ enable_thinking: false });
   });
 });
+
+describe("LlamaServerProvider forked sessions", () => {
+  beforeEach(() => {
+    vi.spyOn(console, "log").mockImplementation(() => {});
+  });
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.restoreAllMocks();
+  });
+
+  it("gives a session its own prompt and history, and leaves the main chat alone", async () => {
+    const { provider, sent } = connected(4000, "", "done");
+    provider.applySystemPrompt("You are the orchestrator.");
+    await provider.chat("plan the work");
+
+    const session = provider.fork("You are the coder.");
+    await session.chat("write add.sh");
+    await session.chat("now the tests");
+    await provider.chat("and then?");
+
+    const sessionRequests = sent.filter((r) =>
+      r.messages[0]?.content.includes("coder")
+    );
+    expect(sessionRequests).toHaveLength(2);
+    // the second coder request carries the coder's first turn, nothing of the orchestrator's
+    expect(sessionRequests[1]?.messages.map((m) => m.content)).toEqual([
+      "You are the coder.",
+      "write add.sh",
+      "done",
+      "now the tests",
+    ]);
+    const mainRequests = sent.filter((r) =>
+      r.messages[0]?.content.includes("orchestrator")
+    );
+    expect(mainRequests.at(-1)?.messages.map((m) => m.content)).toEqual([
+      "You are the orchestrator.",
+      "plan the work",
+      "done",
+      "and then?",
+    ]);
+  });
+
+  it("measures how full the window is from the server's own count", async () => {
+    const { provider } = connected(4000, "", "ok");
+    const session = provider.fork("You are the tester.");
+    expect(session.getMeasuredContext()).toEqual({ used: 0, size: 4000 });
+    await session.chat("run the tests");
+    // the fake server reports 100 prompt + 5 reply tokens
+    expect(session.getMeasuredContext()).toEqual({ used: 105, size: 4000 });
+    expect(provider.getMeasuredContext().used).toBe(0);
+  });
+
+  it("follows the server it was forked from, and cannot start or stop it", async () => {
+    const { provider } = connected(4000);
+    const session = provider.fork("x");
+    expect(session.isRunning()).toBe(true);
+
+    await session.stop();
+    expect(provider.isRunning()).toBe(true);
+    await expect(
+      session.load({ modelPath: "m.gguf", contextSize: 1, systemPrompt: "x" })
+    ).rejects.toThrow("cannot start a server");
+
+    Object.assign(provider, { process: { exitCode: 1 } });
+    expect(session.isRunning()).toBe(false);
+    expect(() => provider.fork("y")).toThrow("No model loaded");
+  });
+
+  it("keeps a sub-agent's whole history instead of clearing or summarising it", async () => {
+    const call = (file: string) =>
+      `<tool_call>\n<server>filesystem</server>\n<tool>read_text_file</tool>\n<arguments>{"path":"/p/${file}"}</arguments>\n</tool_call>`;
+    const result = (body: string) =>
+      `<tool_result trusted="false">\n<tool>read_text_file</tool>\n<result>\n${body}\n</result>\n</tool_result>`;
+    const history = [
+      user("read the four files"),
+      assistant(call("a.js")),
+      user(result("a".repeat(1000))),
+      assistant(call("b.js")),
+      user(result("b".repeat(700))),
+      assistant(call("c.js")),
+      user(result("c".repeat(700))),
+      assistant(call("d.js")),
+      user(result("d".repeat(700))),
+      assistant("Read them all."),
+    ];
+    const { provider, sent } = connected(2200);
+
+    const plain = provider.fork("You are the coder.");
+    plain.setChatHistory(history);
+    await plain.chat("thanks");
+    const keeping = provider.fork("You are the coder.", {
+      keepWholeHistory: true,
+    });
+    keeping.setChatHistory(history);
+    await keeping.chat("thanks");
+
+    const turnsOf = (request: SentRequest | undefined) =>
+      request?.messages.slice(1).map((m) => m.content) ?? [];
+    expect(turnsOf(sent[0])[2]).toContain("removed from your context");
+    expect(turnsOf(sent[1])[2]).toContain("a".repeat(1000));
+    expect(turnsOf(sent[1])[4]).toContain("b".repeat(700));
+  });
+});

@@ -114,9 +114,53 @@ export class LlamaServerProvider {
   private lastStats: GenerationStats | null = null;
   private logTail: string[] = [];
   private pidFile: string | undefined;
+  /** Set on a session forked from a running server; it never owns the process */
+  private parent: LlamaServerProvider | null = null;
+  /**
+   * A sub-agent's session never clears or summarises its history: that is
+   * lossy, and it keeps the window under the checkpoint where the agent
+   * would hand its work over instead. The agent checkpoints before the
+   * window fills (src/agents).
+   */
+  private keepWholeHistory = false;
 
   isRunning(): boolean {
+    if (this.parent) return this.parent.isRunning();
     return this.process !== null && this.process.exitCode === null;
+  }
+
+  /**
+   * A chat of its own on this server: its own system prompt, history and
+   * summaries, the same process and window. Sub-agents each work in one, so
+   * a coder's reading never fills the orchestrator's context. The server has
+   * one slot, so requests of different sessions take turns, and a session
+   * that comes back re-reads its prompt. A session cannot start or stop the
+   * server.
+   */
+  fork(
+    systemPrompt: string,
+    options: { keepWholeHistory?: boolean } = {}
+  ): LlamaServerProvider {
+    if (!this.isRunning()) {
+      throw new Error("No model loaded. Call loadModel() first");
+    }
+    const session = new LlamaServerProvider();
+    session.parent = this;
+    session.baseUrl = this.baseUrl;
+    session.contextSize = this.contextSize;
+    session.trainContextSize = this.trainContextSize;
+    session.systemPrompt = systemPrompt;
+    session.keepWholeHistory = options.keepWholeHistory ?? false;
+    return session;
+  }
+
+  /**
+   * Tokens the last request used (prompt and reply, as the server counted
+   * them) against the window. Free, unlike getContextUsage, which asks the
+   * server to render and tokenise the chat.
+   */
+  getMeasuredContext(): { used: number; size: number } {
+    return { used: this.lastContextTokens, size: this.contextSize };
   }
 
   getContextSize(): number {
@@ -128,6 +172,7 @@ export class LlamaServerProvider {
    * Stops any server this provider already runs.
    */
   async load(options: ServerLoadOptions): Promise<void> {
+    if (this.parent) throw new Error("A forked session cannot start a server");
     await this.stop();
 
     const binary = findLlamaServer();
@@ -220,6 +265,7 @@ export class LlamaServerProvider {
   /** Stop the server and free its VRAM and RAM */
   async stop(): Promise<void> {
     this.abortController?.abort();
+    if (this.parent) return;
     const child = this.process;
     this.process = null;
     this.contextSize = 0;
@@ -239,6 +285,7 @@ export class LlamaServerProvider {
 
   /** Synchronous last resort for process exit, when awaiting is impossible */
   killNow(): void {
+    if (this.parent) return;
     if (this.process && this.process.exitCode === null) this.process.kill();
     if (this.pidFile) fs.rmSync(this.pidFile, { force: true });
   }
@@ -498,6 +545,7 @@ export class LlamaServerProvider {
    * leaves room for a message of `nextMessageChars`.
    */
   private makeRoomCheaply(nextMessageChars: number): boolean {
+    if (this.keepWholeHistory) return true;
     const under = (limit: number) =>
       !shouldCompact(
         this.lastContextTokens,

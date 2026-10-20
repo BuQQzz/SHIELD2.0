@@ -48,6 +48,9 @@ export class ModelRuntime {
   private serverPlans = new Map<string, Promise<ContextPlan>>();
   private samplings = new Map<string, Promise<RecommendedSampling | null>>();
   private pidFile: string | undefined;
+  /** Chats of sub-agents on the running server (see createAgentSession) */
+  private agentSessions = new Map<string, LlamaServerProvider>();
+  private nextAgentSession = 1;
   /** Estimated memory of the loaded model; freed before the next load */
   private held: MemoryNeed | undefined;
 
@@ -125,6 +128,7 @@ export class ModelRuntime {
   }
 
   private async loadEngine(config: ModelConfig): Promise<{ warning?: string }> {
+    this.closeAgentSessions();
     const model = getModelById(config.id);
     if (!usesLlamaServer(model?.runtime)) {
       if (this.server.isRunning()) await this.server.stop();
@@ -277,6 +281,58 @@ export class ModelRuntime {
   stopGeneration(): void {
     if (this.engine === "server") this.server.stopGeneration();
     else this.node.stopGeneration();
+    for (const session of this.agentSessions.values()) {
+      session.stopGeneration();
+    }
+  }
+
+  /**
+   * A chat for a sub-agent: own system prompt and history, on the model that
+   * is loaded. Only models run by llama-server can host one; the in-process
+   * engine has a single chat session.
+   */
+  createAgentSession(systemPrompt: string): string {
+    if (this.engine !== "server" || !this.server.isRunning()) {
+      throw new Error(
+        "Agent teams need a model that runs on llama-server (Bonsai, Qwen3-Coder). The loaded model does not, or none is loaded."
+      );
+    }
+    const id = `agent-${this.nextAgentSession++}`;
+    this.agentSessions.set(
+      id,
+      this.server.fork(systemPrompt, { keepWholeHistory: true })
+    );
+    return id;
+  }
+
+  private agentSession(id: string): LlamaServerProvider {
+    const session = this.agentSessions.get(id);
+    if (!session) throw new Error(`Unknown agent session ${id}`);
+    return session;
+  }
+
+  agentChat(
+    id: string,
+    message: string,
+    options: ChatOptions = {}
+  ): Promise<string> {
+    return this.agentSession(id).chat(message, options);
+  }
+
+  /** Tokens the session's last request used, against the window */
+  getAgentContext(id: string): { used: number; size: number } {
+    return this.agentSession(id).getMeasuredContext();
+  }
+
+  closeAgentSession(id: string): void {
+    this.agentSessions.get(id)?.stopGeneration();
+    this.agentSessions.delete(id);
+  }
+
+  private closeAgentSessions(): void {
+    for (const id of [...this.agentSessions.keys()]) {
+      this.closeAgentSession(id);
+    }
   }
 
   /** Both engines keep it, so a model switch starts with the right prompt */
@@ -300,6 +356,7 @@ export class ModelRuntime {
   }
 
   async dispose(): Promise<void> {
+    this.closeAgentSessions();
     await this.server.stop();
     await this.node.dispose();
   }
