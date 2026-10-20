@@ -23,6 +23,7 @@ Order agreed with the user on 2026-09-26: the Code view, then the terminal, then
 - [x] **Memory step 1 and projects** (2026-09-28, working tree, not yet tried in the app): see "Memory step 1, projects" below. Try: "what did we do with the GUID fix?" in a new chat (automatic recall and search_memory); a project in Chat and one in Code (folder picked once, later sessions start there); moving a chat into a project.
 - [x] **AGENTS.md and Plan** (2026-09-28 evening, see the updates below; neither tried in the app yet).
 - [ ] **SHIELD learns and remembers** — the user's goal (2026-09-28): notes survive restarts, SHIELD learns from the user, its work and its chats, "as powerful as the Claude and Codex harnesses but offline and local". Plan in "Memory: where this is going" below; the recall tool is its first step.
+- [x] **Agent teams (v1)** — 2026-10-20, see the update at the top of the updates below.
 - [ ] **Recall tool** (after the terminal). Let the model read back the original messages a summary replaced, from the saved chat. Summaries become an index instead of a loss, and the re-reading loops stop (at 8K, "review the whole repo" re-read cleared files until the 20-round limit). A SHIELD-owned tool like `delete_file` and `web_search` (`electron/services/webTools.ts` shows how one is registered); the design docs' "compaction does not delete history". Proposed shape in the 2026-09-26 update.
 - [ ] Later: keep Gemma out of coding sessions (e.g. suggest Qwen3-Coder when a chat turns to file edits); give the context planner real headroom for the desktop; fork a chat from a summary; edit or pin summaries; whether node-llama-cpp models need clearing and summarising too (today they fall back on node-llama-cpp's own context shift, which drops the oldest turns).
 - [x] **Commit the working tree.** Done 2026-09-27 as three commits, each tested on its own: `6069e14` Gemma native tools and saved summaries (the 2026-09-25 work; 558 tests), `c36cf10` clearing to 40%, folder note, work-group header (567), then the evening fixes (589).
@@ -34,6 +35,16 @@ Order agreed with the user on 2026-09-26: the Code view, then the terminal, then
 - [x] **Stop workspace detours.** Done 2026-09-26: the `[Current folder: …]` note goes only with requests about files. `npm run bench:agent` never covered this case — its prompts give full paths and it does not add the note — so "what's in this folder?" has to be checked in the app.
 
 ---
+
+## Update — 2026-10-20: Linux + Bonsai, and agent teams (feat/model-library, commits `d351752`..`3d340de`, then uncommitted)
+
+**Linux / Bonsai** (committed): Bonsai 27B / 2 9B / 8B run through the llama-server engine with the PrismML fork (`SHIELD_LLAMA_SERVER=<path to llama-server>`; the fork accepts every flag SHIELD passes); filesystem path validation refuses relative, foreign and symlinked paths; the context meter and chat titles work with Bonsai's template; `run_command` runs in bash with POSIX read-only rules (a backslash bypass fixed); prompts and path matching are platform-aware. Details and the Linux checklist: `HANDOFF-linux-bonsai.md` (if kept) and the commit messages.
+
+**Agent teams**: a **Team** toggle in Code sessions, and a **Team panel** on the right (role icons, agent list, live timeline of what each agent says and does, collapses to a rail of icons). An orchestrator that can only `delegate` and `update_plan` hands work to a coder, tester and reviewer, each in its own model session on the same llama-server. See `SHIELD_AGENT_ARCHITECTURE.md` §21 for the design, the rules and the live evidence. Code: `src/agents/`, `src/components/team/`, `src/stores/team-store.ts`, `src/hooks/useAgentTeam.ts`, `scripts/bench/agent-team.ts`.
+
+- Try it: load Bonsai 27B (or Qwen3-Coder), open a Code session, press **Team**, choose Auto, and ask for a change plus a review. Each sub-agent call goes through the usual permission prompts. Needs a llama-server model.
+- Headless: `SHIELD_LLAMA_SERVER=... npx tsx scripts/bench/agent-team.ts --models-dir <dir> --model bonsai-27b --scenario bug [--checkpoint 0.12]` (`0.12` cuts agents off early on purpose). Evidence goes to `tmp/agent-team-*`.
+- Open: notes and hand-offs live in memory only; sub-agent steps are not saved as chat messages; one agent at a time; Bonsai's invalid-JSON writes (see §21); no repeated-run pass rates yet.
 
 ## Update — 2026-09-28: a terminal for Code sessions, and edits written with `&quot;` (working tree)
 
