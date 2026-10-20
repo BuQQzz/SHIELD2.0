@@ -14,7 +14,7 @@ import { execFileSync } from "child_process";
 import fs from "fs";
 import path from "path";
 import { readGgufFileInfo } from "node-llama-cpp";
-import { getModelById } from "../config/models.js";
+import { getModelById, usesLlamaServer } from "../config/models.js";
 import { samplingFromGguf, type RecommendedSampling } from "./modelSampling.js";
 import { planServerContext, type ContextPlan } from "./contextPlanner.js";
 import {
@@ -126,7 +126,7 @@ export class ModelRuntime {
 
   private async loadEngine(config: ModelConfig): Promise<{ warning?: string }> {
     const model = getModelById(config.id);
-    if (model?.runtime !== "llama-server") {
+    if (!usesLlamaServer(model?.runtime)) {
       if (this.server.isRunning()) await this.server.stop();
       this.serverModel = null;
       this.engine = "node";
@@ -162,7 +162,7 @@ export class ModelRuntime {
 
   async getContextPlan(modelId: string): Promise<ContextPlan> {
     const model = getModelById(modelId);
-    if (model?.runtime !== "llama-server") {
+    if (!model || !usesLlamaServer(model.runtime)) {
       return this.node.getContextPlan(modelId);
     }
 

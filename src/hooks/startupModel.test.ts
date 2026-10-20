@@ -6,7 +6,7 @@ const model = (id: string, runnable = true) =>
   ({
     id,
     displayName: id,
-    runtime: runnable ? "node-llama-cpp" : "prism-llama-server",
+    runtime: runnable ? "node-llama-cpp" : "future-engine",
   }) as unknown as ModelOption;
 
 describe("pickStartupModel", () => {

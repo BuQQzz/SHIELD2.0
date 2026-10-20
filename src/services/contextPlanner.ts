@@ -7,7 +7,12 @@
  * GGUF metadata alone, without loading the model - and recommends a size.
  */
 
-import { GgufInsights, readGgufFileInfo, type Llama } from "node-llama-cpp";
+import {
+  GgufInsights,
+  readGgufFileInfo,
+  type GgufFileInfo,
+  type Llama,
+} from "node-llama-cpp";
 import {
   nodeMemoryNeed,
   serverMemoryNeed,
@@ -162,10 +167,19 @@ export async function planServerContext(
   vramTotalBytes: number,
   preferred: number
 ): Promise<ContextPlan> {
-  const insights = await GgufInsights.from(
-    await readGgufFileInfo(modelPath),
-    llama
-  );
+  const fileInfo = await readGgufFileInfo(modelPath);
+  let insights: GgufInsights;
+  try {
+    insights = await GgufInsights.from(fileInfo, llama);
+  } catch (error) {
+    // node-llama-cpp cannot size a format it does not know (Bonsai's PQ2_0);
+    // llama-server's --fit places the model, so offer sizes without an estimate
+    console.warn(
+      `[contextPlanner] Cannot size ${modelPath}, offering unchecked sizes:`,
+      error instanceof Error ? error.message : error
+    );
+    return planUnsizedServerContext(fileInfo, preferred);
+  }
   const trainContextSize = insights.trainContextSize ?? FALLBACK_MAX_CONTEXT;
   const totalLayers = insights.totalLayers;
 
@@ -207,5 +221,50 @@ export async function planServerContext(
       offered.at(-1) ??
       CONTEXT_STEPS[0],
     placement: "experts",
+  };
+}
+
+/** Largest context offered for a model whose memory use cannot be estimated */
+const UNSIZED_MAX_CONTEXT = 65536;
+
+/**
+ * A plan for a model node-llama-cpp cannot size. The sizes carry no memory
+ * estimate, so the load goes ahead unchecked and llama-server's own `--fit`
+ * decides what fits.
+ */
+export function planUnsizedServerContext(
+  fileInfo: Pick<GgufFileInfo, "metadata">,
+  preferred: number
+): ContextPlan {
+  const general = fileInfo.metadata.general as { architecture?: string };
+  const arch = general?.architecture;
+  const fromFile = arch
+    ? (
+        fileInfo.metadata as unknown as Record<
+          string,
+          { context_length?: number }
+        >
+      )[arch]?.context_length
+    : undefined;
+  const trainContextSize = fromFile ?? FALLBACK_MAX_CONTEXT;
+  const totalLayers =
+    (fileInfo.metadata as unknown as Record<string, { block_count?: number }>)[
+      arch ?? ""
+    ]?.block_count ?? 0;
+
+  const options: ContextOption[] = CONTEXT_STEPS.filter(
+    (size) => size <= Math.min(trainContextSize, UNSIZED_MAX_CONTEXT)
+  ).map((contextSize) => ({ contextSize, gpuLayers: totalLayers }));
+  const offered = options.map((o) => o.contextSize);
+
+  return {
+    trainContextSize,
+    totalLayers,
+    options,
+    recommended:
+      offered.find((size) => size === preferred) ??
+      offered.at(-1) ??
+      CONTEXT_STEPS[0],
+    placement: "layers",
   };
 }

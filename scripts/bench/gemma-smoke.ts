@@ -1,5 +1,9 @@
 /** Exercise the shipped Gemma runtime and SHIELD tool loop on disposable files.
  * npx tsx scripts/bench/gemma-smoke.ts --models-dir D:/AIMODELS
+ *
+ * Other library models: `--model <catalog id>` (e.g. bonsai-27b, which needs
+ * SHIELD_LLAMA_SERVER), `--family qwen|gemma` for the prompt style (default
+ * gemma for gemma models, qwen otherwise), `--context 8192`, `--max-tokens 1536`.
  */
 import fs from "node:fs";
 import path from "node:path";
@@ -19,7 +23,15 @@ const modelsDir = args[args.indexOf("--models-dir") + 1];
 if (!args.includes("--models-dir") || !modelsDir) {
   throw new Error("Supply --models-dir with your installed Gemma model folder");
 }
-const model = getModelById("gemma-4-12b")!;
+const option = (name: string) =>
+  args.includes(name) ? args[args.indexOf(name) + 1] : undefined;
+const model = getModelById(option("--model") ?? "gemma-4-12b");
+if (!model) throw new Error(`Unknown model "${option("--model")}"`);
+const isGemma = model.familyId === "gemma";
+const family = (option("--family") ?? (isGemma ? "gemma" : "qwen")) as
+  "gemma" | "qwen";
+const contextSize = Number(option("--context") ?? 8192);
+const maxTokens = Number(option("--max-tokens") ?? 1536);
 const runtime = new ModelRuntime();
 runtime.setCustomModelsDir(modelsDir);
 const root = path.resolve("tmp");
@@ -35,7 +47,7 @@ try {
   await runtime.initialize();
   const loaded = await runtime.loadModel({
     ...model,
-    contextSize: 8192,
+    contextSize,
     ...(args.includes("--no-speculation")
       ? { speculativeDecoding: false }
       : {}),
@@ -59,10 +71,10 @@ try {
       }));
       await runtime.applySystemPrompt(
         buildSystemPrompt({
-          modelFamily: "gemma",
+          modelFamily: family,
           capabilities: getCapabilitiesFromModel(model.capabilities),
           mcpEnabled: true,
-          nativeTools: true,
+          nativeTools: isGemma,
           availableTools: tools,
           allowedPaths: [dir],
         }).prompt,
@@ -74,7 +86,7 @@ try {
       let lastProgress = 0;
       const options = {
         temperature: 0,
-        maxTokens: 1536,
+        maxTokens,
         signal: AbortSignal.timeout(120_000),
         onToken: (text: string) => process.stdout.write(text),
         onProgress: (progress: {
@@ -154,6 +166,6 @@ try {
   }
 } finally {
   await runtime.dispose();
-  console.log(`Gemma smoke evidence: ${runDir}`);
+  console.log(`${model.displayName} smoke evidence: ${runDir}`);
 }
 if (failed) process.exitCode = 1;

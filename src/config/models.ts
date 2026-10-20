@@ -60,7 +60,9 @@ export type ModelRole =
  * - node-llama-cpp: in-process
  * - llama-server: a SHIELD-managed llama.cpp server, for models that need
  *   placement node-llama-cpp cannot do (MoE experts in system RAM)
- * - prism-llama-server: needs PrismML's fork (not wired up yet)
+ * - prism-llama-server: PrismML's llama.cpp fork, for the Bonsai low-bit
+ *   formats (Q1_0, PQ2_0). SHIELD runs it like llama-server; the fork is a
+ *   superset of upstream, so `SHIELD_LLAMA_SERVER` may point at either.
  */
 export type ModelRuntime =
   "node-llama-cpp" | "llama-server" | "prism-llama-server";
@@ -373,11 +375,119 @@ export const MODEL_FAMILIES: ModelFamilyEntry[] = [
       "Ternary-weight models: a 27B model in 6 GB, with a long context window on a mid-range GPU.",
     variants: variants("bonsai", [
       {
+        id: "bonsai-27b",
+        name: "Bonsai-27B",
+        displayName: "Bonsai 27B",
+        description:
+          "27B model at 1 bit per weight: 3.8 GB on disk, about 6 GB of VRAM with a 32k window. Thinks before it answers and handles tools well.",
+        contextSize: 32768,
+        provider: "PrismML",
+        chatTemplate: "generic",
+        roles: ["agent", "long-context", "chat"],
+        runtime: "prism-llama-server",
+        files: [
+          {
+            name: "Bonsai-27B-Q1_0.gguf",
+            hfRepo: "prism-ml/Bonsai-27B-gguf",
+            sizeBytes: 3_803_452_480,
+            minVRAM: 0,
+          },
+        ],
+        capabilities: {
+          toolCalling: true,
+          complexReasoning: true,
+          webSearch: true,
+          structuredOutput: true,
+          longContext: true,
+          codeGeneration: true,
+          multilingual: "good",
+          temperatureRange: { min: 0.1, max: 1.0, default: 0.5 },
+        },
+        hardware: {
+          minVRAM: 6,
+          recommendedVRAM: 8,
+          minRAM: 8,
+          recommendedRAM: 16,
+        },
+      },
+      {
+        id: "bonsai-2-9b",
+        name: "Ternary-Bonsai-2-9B",
+        displayName: "Bonsai 2 9B",
+        description:
+          "9B model at 2 bits per weight: 2.4 GB on disk, about twice as fast as the 27B.",
+        contextSize: 32768,
+        provider: "PrismML",
+        chatTemplate: "generic",
+        roles: ["small", "chat"],
+        runtime: "prism-llama-server",
+        files: [
+          {
+            name: "Ternary-Bonsai-2-9B-PQ2_0.gguf",
+            hfRepo: "prism-ml/Ternary-Bonsai-2-9B-gguf",
+            sizeBytes: 2_416_851_840,
+            minVRAM: 0,
+          },
+        ],
+        capabilities: {
+          toolCalling: true,
+          complexReasoning: true,
+          webSearch: true,
+          structuredOutput: true,
+          longContext: true,
+          codeGeneration: false,
+          multilingual: "good",
+          temperatureRange: { min: 0.1, max: 1.0, default: 0.7 },
+        },
+        hardware: {
+          minVRAM: 4,
+          recommendedVRAM: 6,
+          minRAM: 8,
+          recommendedRAM: 16,
+        },
+      },
+      {
+        id: "bonsai-8b",
+        name: "Bonsai-8B",
+        displayName: "Bonsai 8B",
+        description:
+          "8B model at 1 bit per weight: 1.2 GB on disk and very fast. Fine for chat, too weak for multi-step tool work.",
+        contextSize: 32768,
+        provider: "PrismML",
+        chatTemplate: "generic",
+        roles: ["small", "chat"],
+        runtime: "prism-llama-server",
+        files: [
+          {
+            name: "Bonsai-8B-Q1_0.gguf",
+            hfRepo: "prism-ml/Bonsai-8B-gguf",
+            sizeBytes: 1_158_654_496,
+            minVRAM: 0,
+          },
+        ],
+        capabilities: {
+          toolCalling: false,
+          complexReasoning: false,
+          webSearch: true,
+          structuredOutput: false,
+          longContext: false,
+          codeGeneration: false,
+          multilingual: "basic",
+          temperatureRange: { min: 0.1, max: 1.0, default: 0.5 },
+        },
+        hardware: {
+          minVRAM: 2,
+          recommendedVRAM: 4,
+          minRAM: 4,
+          recommendedRAM: 8,
+        },
+      },
+      {
         id: "bonsai-2-27b",
         name: "Ternary-Bonsai-2-27B",
         displayName: "Bonsai 2 27B",
         description:
-          "27B model at 1.58 bits per weight. Runs fully on a 12 GB GPU with a 64k context window. Needs PrismML's runtime, which SHIELD does not run yet.",
+          "27B model at 1.58 bits per weight. Runs fully on a 12 GB GPU with a 64k context window.",
         contextSize: 65536,
         provider: "PrismML",
         chatTemplate: "generic",
@@ -429,7 +539,12 @@ export function getModelById(id: string): ModelMetadata | undefined {
 
 /** True for variants SHIELD can run today */
 export function isRuntimeAvailable(model: Pick<ModelMetadata, "runtime">) {
-  return model.runtime !== "prism-llama-server";
+  return model.runtime === "node-llama-cpp" || usesLlamaServer(model.runtime);
+}
+
+/** Whether a runtime is served by a SHIELD-managed llama-server process */
+export function usesLlamaServer(runtime: ModelRuntime | undefined): boolean {
+  return runtime === "llama-server" || runtime === "prism-llama-server";
 }
 
 // ---------------------------------------------------------------------------
