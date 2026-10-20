@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
+  MAX_ORCHESTRATOR_ROUNDS,
+  orchestratorRounds,
   DELEGATE_NEXT_NOTE,
   withDelegateNudge,
   DELEGATE_TOOL,
@@ -266,5 +268,15 @@ describe("withDelegateNudge", () => {
     expect(withDelegateNudge({ success: true })).toMatchObject({
       data: { content: [{ text: DELEGATE_NEXT_NOTE }] },
     });
+  });
+});
+
+describe("orchestratorRounds", () => {
+  it("caps the orchestrator below the general limit, never raising a lower one", () => {
+    expect(MAX_ORCHESTRATOR_ROUNDS).toBe(12);
+    expect(orchestratorRounds(20)).toBe(12);
+    expect(orchestratorRounds(50)).toBe(12);
+    expect(orchestratorRounds(8)).toBe(8);
+    expect(orchestratorRounds(undefined)).toBe(12);
   });
 });

@@ -14,6 +14,16 @@ import { DELEGATE_TOOL_NAME, TEAM_NOTE_TOOL_NAME } from "./roles";
 
 export const AGENTS_SERVER_NAME = "agents";
 export const MAX_TASK_CHARS = 6000;
+/**
+ * Tool rounds the orchestrator gets per message. Each round can be minutes
+ * (a delegation runs a whole agent), so a stuck orchestrator on the general
+ * limit of 20 ran for a very long time. A plan plus a few delegations fits.
+ */
+export const MAX_ORCHESTRATOR_ROUNDS = 12;
+
+export const orchestratorRounds = (configured?: number) =>
+  Math.min(configured ?? MAX_ORCHESTRATOR_ROUNDS, MAX_ORCHESTRATOR_ROUNDS);
+
 /** Delegations in one user turn: a loop of re-delegating stops here */
 export const MAX_DELEGATIONS_PER_TURN = 12;
 

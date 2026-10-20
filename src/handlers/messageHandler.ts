@@ -2,6 +2,7 @@ import type { Message } from "../hooks/useLlama";
 import type { ModelSettings } from "../types/settings";
 import type { NativeToolResult } from "../types/nativeTools";
 import { useSettingsStore } from "../store/settingsStore";
+import { orchestratorRounds } from "../agents/delegate";
 import { useGenerationStore } from "../store/generationStore";
 import { processMCPToolCalls, unrunToolCallsNote } from "./mcpMessageHandler";
 import {
@@ -391,7 +392,9 @@ export function createMessageHandler({
           addMessage,
           enableHybridParser: true,
           maxToolCallsPerTurn: settings.mcp.maxToolCallsPerTurn,
-          maxToolRounds: settings.mcp.maxToolRounds,
+          maxToolRounds: teamMode
+            ? orchestratorRounds(settings.mcp.maxToolRounds)
+            : settings.mcp.maxToolRounds,
           workspaceFolder: settings.mcp.workspaceFolder,
           isStopped: () => useGenerationStore.getState().stopRequested,
           // About a third of the context window for any one result (~3 chars
