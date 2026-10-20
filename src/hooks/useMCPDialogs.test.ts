@@ -9,6 +9,15 @@ import type { MCPToolResult } from "@/types/electron";
 
 const WORKSPACE = String.raw`C:\Users\me\wifi`;
 
+// These tests use Windows paths and PowerShell commands, so the renderer is
+// Windows here whatever the test machine is
+beforeEach(() => {
+  vi.stubGlobal("navigator", { platform: "Win32", userAgent: "" });
+});
+afterEach(() => {
+  vi.unstubAllGlobals();
+});
+
 /** Auto-mode-like policy: everything runs except commands, which ask */
 const policy: ToolPolicy = {
   advertisedTools: [

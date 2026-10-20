@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import {
   callSignature,
+  canonicalPath,
   processMCPToolCalls,
   unrunToolCallsNote,
 } from "./mcpMessageHandler";
@@ -735,7 +736,7 @@ describe("repeated calls within a turn", () => {
 // Seen in the app, 2026-09-22: "read the index and find bugs" read
 // {"path":"index.html"} and then {"path":"C:\...\EXPERIMENT\index.html"},
 // and the repeat check treated them as different calls.
-describe("callSignature", () => {
+describe("callSignature on Windows paths", () => {
   const ws = String.raw`C:\Users\me\Projects\EXPERIMENT`;
   const call = (path: string) => ({
     serverName: "filesystem",
@@ -744,15 +745,15 @@ describe("callSignature", () => {
   });
 
   it("treats relative and absolute paths to the same file as one call", () => {
-    const relative = callSignature(call("index.html"), ws);
-    expect(callSignature(call(String.raw`${ws}\index.html`), ws)).toBe(
-      relative
-    );
-    expect(callSignature(call("./index.html"), ws)).toBe(relative);
+    const relative = callSignature(call("index.html"), ws, "windows");
+    expect(
+      callSignature(call(String.raw`${ws}\index.html`), ws, "windows")
+    ).toBe(relative);
+    expect(callSignature(call("./index.html"), ws, "windows")).toBe(relative);
     const forwardSlashes = ws.split("\\").join("/");
-    expect(callSignature(call(`${forwardSlashes}/INDEX.html`), ws)).toBe(
-      relative
-    );
+    expect(
+      callSignature(call(`${forwardSlashes}/INDEX.html`), ws, "windows")
+    ).toBe(relative);
   });
 
   it("treats '.' as the workspace itself", () => {
@@ -761,21 +762,22 @@ describe("callSignature", () => {
       tool: "list_directory",
       arguments: { path },
     });
-    expect(callSignature(listing("."), ws)).toBe(
-      callSignature(listing(ws), ws)
+    expect(callSignature(listing("."), ws, "windows")).toBe(
+      callSignature(listing(ws), ws, "windows")
     );
   });
 
   it("keeps different files and different tools apart", () => {
-    expect(callSignature(call("a.md"), ws)).not.toBe(
-      callSignature(call("b.md"), ws)
+    expect(callSignature(call("a.md"), ws, "windows")).not.toBe(
+      callSignature(call("b.md"), ws, "windows")
     );
-    expect(callSignature(call("a.md"), ws)).not.toBe(
-      callSignature({ ...call("a.md"), tool: "get_file_info" }, ws)
+    expect(callSignature(call("a.md"), ws, "windows")).not.toBe(
+      callSignature({ ...call("a.md"), tool: "get_file_info" }, ws, "windows")
     );
   });
 
   it("answers the relative-then-absolute reread from memory", async () => {
+    vi.stubGlobal("navigator", { platform: "Win32", userAgent: "" });
     const read = (path: string) =>
       `<tool_call>\n<server>filesystem</server>\n<tool>read_text_file</tool>\n<arguments>${JSON.stringify({ path })}</arguments>\n</tool_call>`;
     const onToolCallDetected = vi
@@ -802,6 +804,44 @@ describe("callSignature", () => {
     );
 
     expect(onToolCallDetected).toHaveBeenCalledTimes(1);
+    vi.unstubAllGlobals();
+  });
+});
+
+describe("callSignature on Linux and macOS paths", () => {
+  const ws = "/home/me/projects/app";
+  const call = (path: string, tool = "read_text_file") => ({
+    serverName: "filesystem",
+    tool,
+    arguments: { path },
+  });
+  const sig = (path: string, tool?: string) =>
+    callSignature(call(path, tool), ws, "linux");
+
+  it("treats relative and absolute paths to the same file as one call", () => {
+    const relative = sig("index.html");
+    expect(sig(`${ws}/index.html`)).toBe(relative);
+    expect(sig("./index.html")).toBe(relative);
+    expect(sig("src/../index.html")).toBe(relative);
+    expect(sig(`${ws}//index.html`)).toBe(relative);
+  });
+
+  it("treats '.' as the workspace itself", () => {
+    expect(sig(".", "list_directory")).toBe(sig(ws, "list_directory"));
+    expect(sig(`${ws}/`, "list_directory")).toBe(sig(ws, "list_directory"));
+  });
+
+  it("keeps files whose names differ only in case apart", () => {
+    expect(sig("README.md")).not.toBe(sig("readme.md"));
+  });
+
+  it("keeps different files and different tools apart", () => {
+    expect(sig("a.md")).not.toBe(sig("b.md"));
+    expect(sig("a.md")).not.toBe(sig("a.md", "get_file_info"));
+  });
+
+  it("does not let '..' climb out of the root", () => {
+    expect(canonicalPath("/../../etc/passwd", ws, "linux")).toBe("/etc/passwd");
   });
 });
 

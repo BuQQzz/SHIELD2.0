@@ -16,6 +16,7 @@ import type { MCPToolResult } from "@/types/electron";
 import { isMutatingTool } from "../config/toolClassification";
 import { RUN_COMMAND_TOOL_NAME } from "../config/commandSafety";
 import type { NativeToolResult } from "../types/nativeTools";
+import { hostOs, type HostOs } from "../utils/platform";
 
 export interface MCPMessageHandlerProps {
   onToolCallDetected: (toolCall: ToolCallRequest) => Promise<MCPToolResult>;
@@ -90,8 +91,18 @@ function repeatNote(
 
 const PATH_KEYS = ["path", "source", "destination"];
 
-/** Absolute, lower-cased, backslashed - how Windows compares paths */
-export function canonicalPath(value: string, base?: string): string {
+/**
+ * Absolute and normalised, the way the host compares paths: on Windows
+ * lower-cased and backslashed; on Linux and macOS case-sensitive with "/"
+ * ("README.md" and "readme.md" are two files there, and treating them as one
+ * answered a real second read from the turn's memory).
+ */
+export function canonicalPath(
+  value: string,
+  base?: string,
+  os: HostOs = hostOs()
+): string {
+  if (os !== "windows") return canonicalPosixPath(value, base);
   let p = value.trim().replace(/\//g, "\\");
   const isAbsolute = /^[a-z]:\\/i.test(p) || p.startsWith("\\\\");
   if (!isAbsolute && base) {
@@ -101,6 +112,21 @@ export function canonicalPath(value: string, base?: string): string {
   return p.replace(/\\+$/, "").toLowerCase();
 }
 
+function canonicalPosixPath(value: string, base?: string): string {
+  const text = value.trim();
+  const full =
+    text.startsWith("/") || !base
+      ? text
+      : `${base.replace(/\/+$/, "")}/${text}`;
+  const parts: string[] = [];
+  for (const segment of full.split("/")) {
+    if (segment === "" || segment === ".") continue;
+    if (segment === "..") parts.pop();
+    else parts.push(segment);
+  }
+  return (full.startsWith("/") ? "/" : "") + parts.join("/");
+}
+
 /**
  * Identity of a call for the repeat check. "index.html" and
  * "C:\...\EXPERIMENT\index.html" are the same read; comparing raw
@@ -108,17 +134,18 @@ export function canonicalPath(value: string, base?: string): string {
  */
 export function callSignature(
   toolCall: ToolCallRequest,
-  workspaceFolder?: string
+  workspaceFolder?: string,
+  os: HostOs = hostOs()
 ): string {
   const args: Record<string, unknown> = { ...toolCall.arguments };
   for (const key of PATH_KEYS) {
     if (typeof args[key] === "string") {
-      args[key] = canonicalPath(args[key] as string, workspaceFolder);
+      args[key] = canonicalPath(args[key] as string, workspaceFolder, os);
     }
   }
   if (Array.isArray(args.paths)) {
     args.paths = args.paths.map((p) =>
-      typeof p === "string" ? canonicalPath(p, workspaceFolder) : p
+      typeof p === "string" ? canonicalPath(p, workspaceFolder, os) : p
     );
   }
   return `${toolCall.serverName}:${toolCall.tool}:${JSON.stringify(args)}`;

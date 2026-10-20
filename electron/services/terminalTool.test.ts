@@ -69,6 +69,16 @@ describe("shellInvocation", () => {
     expect(script).toContain("exit $LASTEXITCODE");
   });
 
+  it("uses bash when it exists and sh when it does not", async () => {
+    const { findPosixShell } = await import("./terminalTool");
+    expect(findPosixShell(() => true)).toBe("/bin/bash");
+    expect(findPosixShell(() => false)).toBe("/bin/sh");
+    expect(shellInvocation("ls", "linux", "pwsh.exe", "/bin/bash")).toEqual({
+      file: "/bin/bash",
+      args: ["-c", "ls"],
+    });
+  });
+
   it("uses sh elsewhere", () => {
     expect(shellInvocation("ls", "linux", "pwsh.exe")).toEqual({
       file: "/bin/sh",
@@ -264,3 +274,136 @@ describe.runIf(process.platform === "win32")("runCommand on Windows", () => {
     expect(text(result)).toContain("Stopped by the user");
   }, 30_000);
 });
+
+// Real runs in sh/bash: Linux and macOS
+describe.runIf(process.platform !== "win32")(
+  "runCommand on Linux and macOS",
+  () => {
+    let dir = "";
+    beforeAll(async () => {
+      dir = await fs.realpath(
+        await fs.mkdtemp(path.join(os.tmpdir(), "shield-run-"))
+      );
+    });
+    afterAll(async () => {
+      await fs.rm(dir, { recursive: true, force: true });
+    });
+
+    it("runs in the project folder and returns the output", async () => {
+      const result = await runCommand(
+        { command: "pwd && echo 'héllo ✓'" },
+        dir
+      );
+      expect(result.success).toBe(true);
+      const out = text(result);
+      expect(out).toMatch(/^Exit code 0 · /);
+      expect(out).toContain(dir);
+      expect(out).toContain("héllo ✓");
+    });
+
+    it("runs bash syntax when bash is installed", async () => {
+      const result = await runCommand(
+        { command: 'if [[ "abc" == a* ]]; then echo glob-ok; fi' },
+        dir
+      );
+      expect(text(result)).toMatch(/^Exit code 0 · /);
+      expect(text(result)).toContain("glob-ok");
+    });
+
+    it("reports a program's own exit code", async () => {
+      const result = await runCommand({ command: "exit 5" }, dir);
+      expect(result.success).toBe(true);
+      expect(text(result)).toMatch(/^Exit code 5 · /);
+    });
+
+    it("reports a failed command with its error", async () => {
+      const result = await runCommand({ command: "cat no-such-file.txt" }, dir);
+      expect(result.success).toBe(true);
+      expect(text(result)).toMatch(/^Exit code 1 · /);
+      expect(text(result)).toContain("no-such-file.txt");
+    });
+
+    it("lists failure lines when a command exits 0 over them", async () => {
+      const result = await runCommand(
+        { command: "echo '✗ Failed to load config'; echo '3 failed'" },
+        dir
+      );
+      expect(text(result)).toMatch(/^Exit code 0 · /);
+      expect(text(result)).toContain("look like failures");
+    });
+
+    it("gives a command no input: reading stdin ends at once", async () => {
+      const started = Date.now();
+      const result = await runCommand(
+        { command: "read name; echo got=$name" },
+        dir
+      );
+      expect(Date.now() - started).toBeLessThan(10_000);
+      expect(text(result)).toContain("got=");
+    });
+
+    it("runs test runners once and without a pager or colour", async () => {
+      const result = await runCommand(
+        { command: 'echo "CI=$CI PAGER=$PAGER NO_COLOR=$NO_COLOR"' },
+        dir
+      );
+      expect(text(result)).toContain("CI=1 PAGER=cat NO_COLOR=1");
+    });
+
+    it("stops a command at its timeout, and what it started", async () => {
+      const marker = path.join(dir, "grandchild.pid");
+      const result = await runCommand(
+        {
+          command: `sh -c 'echo $$ > ${marker}; sleep 30' & wait`,
+          timeout_seconds: 2,
+        },
+        dir
+      );
+      expect(result.success).toBe(false);
+      expect(text(result)).toContain("Stopped after 2 s");
+      await expectProcessGone(marker);
+    }, 20_000);
+
+    it("stops a command, and what it started, when the user presses Stop", async () => {
+      const marker = path.join(dir, "stop.pid");
+      const running = runCommand(
+        { command: `sh -c 'echo $$ > ${marker}; sleep 30' & wait` },
+        dir
+      );
+      await waitForFile(marker);
+      expect(stopRunningCommands()).toBe(1);
+      const result = await running;
+      expect(result.success).toBe(false);
+      expect(text(result)).toContain("Stopped by the user");
+      await expectProcessGone(marker);
+    }, 20_000);
+
+    async function waitForFile(file: string) {
+      for (let i = 0; i < 50; i++) {
+        if (
+          await fs.stat(file).then(
+            () => true,
+            () => false
+          )
+        )
+          return;
+        await new Promise((resolve) => setTimeout(resolve, 100));
+      }
+      throw new Error(`${file} never appeared`);
+    }
+
+    async function expectProcessGone(pidFile: string) {
+      const pid = Number((await fs.readFile(pidFile, "utf8")).trim());
+      for (let i = 0; i < 30; i++) {
+        try {
+          process.kill(pid, 0);
+        } catch {
+          return;
+        }
+        await new Promise((resolve) => setTimeout(resolve, 100));
+      }
+      process.kill(pid, "SIGKILL"); // do not leave it running after the test
+      throw new Error(`process ${pid} started by the command is still running`);
+    }
+  }
+);

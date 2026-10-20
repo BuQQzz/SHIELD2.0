@@ -5,6 +5,8 @@
  * strict one-shot retry prompt to force tool-call output.
  */
 
+import { osName } from "../utils/platform";
+
 const REFUSAL_PATTERNS: RegExp[] = [
   /don't have direct access/i,
   /do not have direct access/i,
@@ -60,7 +62,7 @@ export function buildMCPRetryPrompt(
     "Do NOT refuse. Do NOT explain limitations.",
     "If the request is file-related, use the tool-call format provided in your instructions.",
     "Prefer write_file for file creation requests.",
-    "Use a full Windows path inside the folder listed in your instructions.",
+    `Use a full ${osName()} path inside the folder listed in your instructions.`,
     "No prose before or after the tool call.",
     "",
     `User request: ${userContent}`,

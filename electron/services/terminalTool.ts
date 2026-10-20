@@ -49,12 +49,25 @@ export function findPowerShell(): string {
 }
 
 /**
+ * bash where it exists (models write [[ ]] and `source`, which dash, /bin/sh
+ * on Debian and Ubuntu, does not run), else sh. The read-only check in
+ * commandSafety.ts admits only syntax both read the same way.
+ */
+export function findPosixShell(
+  exists: (file: string) => boolean = fs.existsSync
+): string {
+  return exists("/bin/bash") ? "/bin/bash" : "/bin/sh";
+}
+
+/**
  * Which shell runs commands, and how to run a script in it. Qwen3-Coder ran
  * its own UTF-8 test script with `powershell -File` (2026-09-28): Windows
  * PowerShell 5.1 read the file as ANSI and every ✓ came out as "âœ“".
  */
 function shellGuidance(powershell: string): string {
-  if (process.platform !== "win32") return "with sh.";
+  if (process.platform !== "win32") {
+    return `with ${path.basename(findPosixShell())}. Run a script as ./name.sh or with its interpreter (python3 name.py, node name.js), never by piping a download into a shell.`;
+  }
   return /pwsh\.exe$/i.test(powershell)
     ? "with PowerShell 7. Run a PowerShell script as .\\name.ps1 or pwsh -File name.ps1 - never powershell.exe or powershell -File, which start the older Windows PowerShell 5.1 and misread UTF-8 files."
     : "with Windows PowerShell 5.1, which has no && or || (run one command per call) and reads a script as ANSI unless the file starts with a UTF-8 byte order mark: keep scripts to plain ASCII.";
@@ -70,7 +83,7 @@ const WINDOWS_RULES =
 export function runCommandTool(powershell = findPowerShell()) {
   return {
     name: RUN_COMMAND_TOOL_NAME,
-    description: `Run a command in the project folder and get its output and exit code. Commands run ${shellGuidance(powershell)} Use it to run the project's tests, a script you wrote or changed, a build or a linter, and to look around with git (git status, git diff, git log) or search the files (Select-String). Commands that only read, like those, run at once; any other command waits for the user to allow it, showing them your reason. The command must finish on its own: no servers, watch modes or prompts for input. Output is cut to its first ${OUTPUT_HEAD_CHARS.toLocaleString("en-US")} and last ${OUTPUT_TAIL_CHARS.toLocaleString("en-US")} characters.${process.platform === "win32" ? WINDOWS_RULES : ""}`,
+    description: `Run a command in the project folder and get its output and exit code. Commands run ${shellGuidance(powershell)} Use it to run the project's tests, a script you wrote or changed, a build or a linter, and to look around with git (git status, git diff, git log) or search the files (${process.platform === "win32" ? "Select-String" : "grep -rn"}). Commands that only read, like those, run at once; any other command waits for the user to allow it, showing them your reason. The command must finish on its own: no servers, watch modes or prompts for input. Output is cut to its first ${OUTPUT_HEAD_CHARS.toLocaleString("en-US")} and last ${OUTPUT_TAIL_CHARS.toLocaleString("en-US")} characters.${process.platform === "win32" ? WINDOWS_RULES : ""}`,
     inputSchema: {
       type: "object",
       properties: {
@@ -108,10 +121,11 @@ export function runCommandTool(powershell = findPowerShell()) {
 export function shellInvocation(
   command: string,
   platform: NodeJS.Platform,
-  powershell: string
+  powershell: string,
+  posixShell = "/bin/sh"
 ): { file: string; args: string[] } {
   if (platform !== "win32") {
-    return { file: "/bin/sh", args: ["-c", command] };
+    return { file: posixShell, args: ["-c", command] };
   }
   const script = [
     "$ProgressPreference = 'SilentlyContinue'",
@@ -345,7 +359,8 @@ export function runCommand(
   const { file, args: shellArgs } = shellInvocation(
     command,
     process.platform,
-    powershell
+    powershell,
+    findPosixShell()
   );
   const started = Date.now();
 

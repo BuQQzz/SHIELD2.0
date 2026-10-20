@@ -32,7 +32,7 @@ describe("isReadOnlyCommand", () => {
     "node --version",
     "python --version",
   ])("runs %s", (command) => {
-    expect(isReadOnlyCommand(command)).toBe(true);
+    expect(isReadOnlyCommand(command, "windows")).toBe(true);
   });
 
   it.each([
@@ -83,7 +83,89 @@ describe("isReadOnlyCommand", () => {
     ["a version bump", "npm version patch"],
     ["a program given more than --version", "node --version app.js"],
   ])("asks for %s", (_label, command) => {
-    expect(isReadOnlyCommand(command)).toBe(false);
+    expect(isReadOnlyCommand(command, "windows")).toBe(false);
+  });
+});
+
+describe("isReadOnlyCommand in sh (Linux and macOS)", () => {
+  it.each([
+    "git status",
+    "git log --oneline -n 20",
+    "ls",
+    "ls -la src",
+    "cat README.md",
+    "head -n 20 src/app.ts",
+    "tail -n 50 server.log",
+    "wc -l src/*.ts",
+    "grep -rn TODO src",
+    "grep -n 'foo bar' notes.txt",
+    "grep -rn TODO . | head -20",
+    "git log --oneline | head -5",
+    "ls src | sort | uniq -c",
+    "sort names.txt",
+    "uniq names.txt",
+    "cut -d, -f1 data.csv",
+    "diff a.txt b.txt",
+    "stat package.json",
+    "which node",
+    "pwd",
+    "echo hello",
+    "realpath .",
+    "basename src/app.ts",
+    "npm ls",
+    "node --version",
+  ])("runs %s", (command) => {
+    expect(isReadOnlyCommand(command, "linux")).toBe(true);
+    expect(isReadOnlyCommand(command, "mac")).toBe(true);
+  });
+
+  it.each([
+    ["a test run", "npm test"],
+    ["removing a file", "rm x.txt"],
+    ["a recursive delete", "rm -rf build"],
+    ["moving a file", "mv a b"],
+    ["a script", "./build.sh"],
+    ["a second command", "ls; rm x"],
+    ["a chain", "ls && rm x"],
+    ["a redirect", "ls > out.txt"],
+    ["an append", "echo hi >> out.txt"],
+    ["a command substitution", "echo $(rm x)"],
+    ["backticks", "echo `rm x`"],
+    ["a variable", "cat $HOME/.ssh/id_rsa"],
+    ["a line break", "ls\nrm x"],
+    // the splitter reads the quote as open, so a pipe to rm hid inside it
+    ["a backslash-escaped quote hiding a pipe", 'echo \\" | rm x \\"'],
+    ["any backslash", "ls src\\app"],
+    ["history negation", "! rm x"],
+    ["sort writing its output", "sort -o out.txt in.txt"],
+    ["sort writing, long form", "sort --output=out.txt in.txt"],
+    ["sort writing, grouped flags", "sort -ro out.txt in.txt"],
+    ["sort running a program", "sort --compress-program=sh in.txt"],
+    ["uniq writing its output", "uniq in.txt out.txt"],
+    ["tail following", "tail -f server.log"],
+    ["tail following, grouped", "tail -fn5 server.log"],
+    ["find with delete", "find . -delete"],
+    ["find at all", "find . -name '*.ts'"],
+    ["xargs", "ls | xargs rm"],
+    ["tee", "ls | tee out.txt"],
+    ["a rooted path", "cat /etc/passwd"],
+    ["the home folder", "cat ~/.ssh/id_rsa"],
+    ["the parent folder", "cat ../secret.txt"],
+    ["an option with a rooted path", "grep --file=/etc/passwd x"],
+    ["a variable assignment before the command", "FOO=bar ls"],
+    ["a git global option", "git -c core.pager=less log"],
+    ["a commit", "git commit -m x"],
+    ["Windows cmdlets", "Get-ChildItem"],
+    ["a PowerShell alias that is sort here", "sort -Descending names.txt -o x"],
+    ["an open quote", "grep 'x"],
+    ["a trailing pipe", "ls |"],
+  ])("asks for %s", (_label, command) => {
+    expect(isReadOnlyCommand(command, "linux")).toBe(false);
+  });
+
+  it("keeps PowerShell cmdlets for Windows only", () => {
+    expect(isReadOnlyCommand("Get-ChildItem", "windows")).toBe(true);
+    expect(isReadOnlyCommand("Get-ChildItem", "linux")).toBe(false);
   });
 });
 

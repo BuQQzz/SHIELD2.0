@@ -13,6 +13,7 @@ import type {
   ToolDefinition,
 } from "../types/prompts";
 import { isMutatingTool } from "./toolClassification";
+import { osName, samplePath } from "../utils/platform";
 
 // =============================================================================
 // BASE PROMPTS - Core identity and behavior
@@ -21,7 +22,7 @@ import { isMutatingTool } from "./toolClassification";
 /**
  * Core SHIELD identity prompt - used by all models
  */
-export const BASE_PROMPT = `You are SHIELD, a helpful, privacy-focused AI assistant running locally on the user's Windows PC.
+export const BASE_PROMPT = `You are SHIELD, a helpful, privacy-focused AI assistant running locally on the user's ${osName()} PC.
 
 IMPORTANT: Your name is SHIELD. When asked your name, respond with "SHIELD".
 
@@ -225,7 +226,7 @@ ${READ_BEFORE_DESCRIBING}`
 You can ONLY access these directories and their subfolders:
 ${allowedPaths.map((path) => `- ${path}`).join("\n")}
 
-Always use a full path beginning with one of these. Never guess a path such as "/" or "C:\\".`
+Always use a full path beginning with one of these. Never guess a path such as "/" or "${osName() === "Windows" ? "C:\\" : "/etc"}".`
         : "";
   const editRule = callableTools.some((tool) => tool.name === "edit_file")
     ? "\n- To change an existing file, use edit_file with only the lines that change. Copy oldText exactly from the file and supply the replacement in newText. Use write_file only to create a new file." +
@@ -366,7 +367,7 @@ ${READ_BEFORE_DESCRIBING}
 You can ONLY access these directories and their subfolders:
 ${allowedPaths.map((p) => `- ${p}`).join("\n")}
 
-Always use a full path beginning with one of these. Never guess a path such as "/" or "C:\\".
+Always use a full path beginning with one of these. Never guess a path such as "/" or "${osName() === "Windows" ? "C:\\" : "/etc"}".
 `
         : "";
 
@@ -399,7 +400,7 @@ Stop after </tool_call>. The result arrives in the next message; then summarise 
 1. **ALWAYS USE TOOLS** - When asked to perform an action, USE the tools
 2. **NEVER JUST EXPLAIN** - Don't tell users how to do it manually
 3. **ONLY USE LISTED TOOLS** - Never invent a tool that is not listed above
-4. **USE FULL PATHS** - Windows paths like C:\\Users\\...
+4. **USE FULL PATHS** - ${osName()} paths like ${osName() === "Windows" ? "C:\\Users\\..." : "/home/name/..."}
 5. **ANSWER, THEN STOP** - Call only the tools the request needs. Once you can answer, answer without a tool call.${editRule}${commandRule}${planRule}`;
 }
 
@@ -460,7 +461,7 @@ call written in prose or a code block will NOT run:
 <tool_call>
 <server>${readTools[0]?.serverName ?? "filesystem"}</server>
 <tool>${readTools[0]?.name ?? "read_file"}</tool>
-<arguments>{"path": "C:\\\\Users\\\\Name\\\\Desktop\\\\file.txt"}</arguments>
+<arguments>{"path": "${samplePath()}"}</arguments>
 </tool_call>
 
 Make one call, wait for the result, then continue. Do not repeat a call you

@@ -14,6 +14,8 @@
  * anything or read outside the project folder.
  */
 
+import { hostOs, type HostOs } from "../utils/platform";
+
 export const TERMINAL_SERVER_NAME = "terminal";
 export const RUN_COMMAND_TOOL_NAME = "run_command";
 
@@ -23,6 +25,15 @@ export const RUN_COMMAND_TOOL_NAME = "run_command";
  * PowerShell provider (Env:, HKLM:) or a URL.
  */
 const UNSAFE = /[;&<>`$(){}[\]@:]|\|\|/;
+
+/**
+ * On Linux and macOS commands run in sh, where a backslash can escape a quote
+ * and hide a pipe from the word splitter below (`echo \" | rm x \"` is two
+ * commands to sh and one quoted string to the splitter), and "!" is history
+ * and negation. A backslash in a path is a Windows habit, so refusing it
+ * costs nothing.
+ */
+const POSIX_UNSAFE = /[;&<>`$(){}[\]@:\\!]|\|\|/;
 
 /** Line breaks (including Unicode ones), tabs and other control characters */
 function hasControlCharacter(text: string): boolean {
@@ -158,7 +169,12 @@ function stages(command: string): string[][] | null {
  * home folder ("~"), or climbing out ("..\x").
  */
 function leavesFolder(word: string): boolean {
-  return /^[\\/~]/.test(word) || /(^|[\\/])\.\.([\\/]|$)/.test(word);
+  return (
+    /^[\\/~]/.test(word) ||
+    // an option with its path attached: --file=/etc/passwd
+    /=[\\/~]/.test(word) ||
+    /(^|[\\/])\.\.([\\/]|$)/.test(word)
+  );
 }
 
 function isReadOnlyGit(words: string[]): boolean {
@@ -201,6 +217,61 @@ function isReadOnlyStage(words: string[]): boolean {
   );
 }
 
+/**
+ * Commands that only read when run in sh, with the options that make them
+ * write or wait checked in `isReadOnlyPosixStage`. Not `find` (-delete,
+ * -exec), `tree` (-o), `date` (-s), `rg` (--pre) or `xargs`.
+ */
+const POSIX_READ_ONLY = new Set([
+  "ls",
+  "cat",
+  "head",
+  "tail",
+  "wc",
+  "grep",
+  "pwd",
+  "echo",
+  "stat",
+  "which",
+  "sort",
+  "uniq",
+  "cut",
+  "diff",
+  "basename",
+  "dirname",
+  "realpath",
+]);
+
+function isReadOnlyPosixStage(words: string[]): boolean {
+  const [name, ...args] = words;
+  if (!name) return false;
+  if (words.some(leavesFolder)) return false;
+  if (name === "git") return isReadOnlyGit(words);
+  if (name === "npm") return args.length === 1 && /^(ls|list)$/.test(args[0]!);
+  if (POSIX_READ_ONLY.has(name)) {
+    // sort -o FILE and --output write a file; --compress-program runs one
+    if (name === "sort") {
+      return !args.some(
+        (a) => /^-[^-]*o/.test(a) || /^--(output|compress)/.test(a)
+      );
+    }
+    // tail -f never ends; it would only be stopped by the timeout
+    if (name === "tail") {
+      return !args.some(
+        (a) => /^-[^-]*[fF]/.test(a) || /^--(follow|retry)/.test(a)
+      );
+    }
+    // uniq INPUT OUTPUT writes OUTPUT
+    if (name === "uniq") {
+      return args.filter((a) => !a.startsWith("-")).length <= 1;
+    }
+    return true;
+  }
+  return (
+    /^[a-z][\w.-]*$/i.test(name) && args.length === 1 && args[0] === "--version"
+  );
+}
+
 const SCRIPT_FILE = /\.(ps1|psm1|bat|cmd|py|js|mjs|cjs|ts|sh|rb|pl)$/i;
 
 /**
@@ -221,10 +292,23 @@ export function scriptsInCommand(command: string): string[] {
   return [...new Set(words)];
 }
 
-/** True when the command can only read inside the project folder */
-export function isReadOnlyCommand(command: string): boolean {
+/**
+ * True when the command can only read inside the project folder. `os`
+ * selects the shell's rules: PowerShell on Windows, sh elsewhere.
+ */
+export function isReadOnlyCommand(
+  command: string,
+  os: HostOs = hostOs()
+): boolean {
+  const posix = os !== "windows";
   const text = command.trim();
-  if (!text || UNSAFE.test(text) || hasControlCharacter(text)) return false;
+  if (!text || (posix ? POSIX_UNSAFE : UNSAFE).test(text)) return false;
+  if (hasControlCharacter(text)) return false;
   const parsed = stages(text);
-  return parsed !== null && parsed.every((words) => isReadOnlyStage(words));
+  return (
+    parsed !== null &&
+    parsed.every((words) =>
+      posix ? isReadOnlyPosixStage(words) : isReadOnlyStage(words)
+    )
+  );
 }
