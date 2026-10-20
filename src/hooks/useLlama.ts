@@ -1,3 +1,4 @@
+import { emptyReplyMessage } from "@/utils/emptyReply";
 import { useState, useEffect, useCallback } from "react";
 import type { NativeToolResult } from "../types/nativeTools";
 import type { ToolDefinition } from "../types/prompts";
@@ -235,7 +236,12 @@ export function useLlama() {
             );
           return result.response;
         } else {
-          throw new Error(result.error || "Failed to get response");
+          throw new Error(
+            result.error ||
+              (result.success
+                ? emptyReplyMessage(options?.maxTokens)
+                : "Failed to get response")
+          );
         }
       } catch (err) {
         // Check if this is an abort error (user cancelled)
@@ -314,7 +320,12 @@ export function useLlama() {
             : result.response;
         } else {
           console.error("[useLlama] Failed:", result.error);
-          throw new Error(result.error || "Failed to get response");
+          throw new Error(
+            result.error ||
+              (result.success
+                ? emptyReplyMessage(options?.maxTokens)
+                : "Failed to get response")
+          );
         }
       } catch (err) {
         console.error("[useLlama] Exception:", err);
