@@ -33,6 +33,7 @@ import { useMCPTools } from "./hooks/useMCPTools";
 import { useToolPolicy } from "./hooks/useToolPolicy";
 import { useAgentTeam } from "./hooks/useAgentTeam";
 import { TeamPanel } from "./components/team/TeamPanel";
+import { useTeamStore } from "./stores/team-store";
 import { ORCHESTRATOR_PROMPT } from "./agents/roles";
 import { teamFor } from "./agents/team";
 import { useInstalledModels } from "./hooks/useInstalledModels";
@@ -318,7 +319,6 @@ function App() {
   // to the usual handler
   const { handleToolCall, activity: teamActivity } = useAgentTeam({
     conversationId: currentConversation?.id,
-    teamMode,
     handleToolCallRequest,
     workerPolicy,
     allowedPaths: mcpAllowedPaths,
@@ -365,7 +365,10 @@ function App() {
   // A new user message lets the orchestrator delegate again
   const handleSendMessage = useCallback(
     (...args: Parameters<typeof sendMessage>) => {
-      if (currentConversation) teamFor(currentConversation.id).beginTurn();
+      if (currentConversation) {
+        teamFor(currentConversation.id).beginTurn();
+        useTeamStore.getState().beginTurn(currentConversation.id);
+      }
       return sendMessage(...args);
     },
     [sendMessage, currentConversation]

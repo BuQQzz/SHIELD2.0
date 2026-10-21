@@ -3,7 +3,6 @@ import type { ModelSettings } from "../types/settings";
 import type { NativeToolResult } from "../types/nativeTools";
 import { useSettingsStore } from "../store/settingsStore";
 import { orchestratorRounds } from "../agents/delegate";
-import { teamFor } from "../agents/team";
 import { useGenerationStore } from "../store/generationStore";
 import { processMCPToolCalls, unrunToolCallsNote } from "./mcpMessageHandler";
 import {
@@ -13,13 +12,10 @@ import {
 } from "./workLedger";
 import { resultPayload } from "./mcpToolHandler";
 import { recallFor } from "./memoryRecall";
-import {
-  checkPlan,
-  finishOpenPlanSteps,
-  planRemarks,
-  takePlanNote,
-} from "./sessionPlan";
+import { checkPlan, planRemarks, takePlanNote } from "./sessionPlan";
 import { useConversationStore } from "@/stores/conversation-store";
+import { useTeamStore } from "@/stores/team-store";
+import { unbackedRoleNote } from "../agents/teamClaims";
 
 /**
  * A file's current contents for SHIELD's own checks, through the filesystem
@@ -57,10 +53,21 @@ async function noteUnappliedEdits(workspace?: string): Promise<void> {
     files,
     workspace
   );
-  if (!note) return;
+  // An agent team's answer that credits a role which never ran
+  const team = useTeamStore.getState();
+  const teamNote = (conversation as { team?: boolean }).team
+    ? unbackedRoleNote(
+        answer.content,
+        (team.runsByConversation[conversation.id] ?? []).slice(
+          team.turnStart[conversation.id] ?? 0
+        )
+      )
+    : "";
+  const combined = [note, teamNote].filter(Boolean).join(" ");
+  if (!combined) return;
   useConversationStore.getState().updateConversation({
     messages: conversation.messages.map((message) =>
-      message.id === answer.id ? { ...message, recordNote: note } : message
+      message.id === answer.id ? { ...message, recordNote: combined } : message
     ),
   });
 }
@@ -253,13 +260,22 @@ export function createMessageHandler({
           files
         );
         if (record) messageWithContext += `\n\n${record}`;
+        // The orchestrator has no update_plan: its plan is built from its
+        // delegations (agents/teamPlan.ts), so the note that says "keep it
+        // current with update_plan" is not sent
         const plan = useConversationStore.getState().currentConversation?.plan;
-        const planText = takePlanNote(
-          currentConversation.id,
-          currentConversation.messages,
-          plan,
-          planRemarks(plan?.steps ?? [], currentConversation.messages, files)
-        );
+        const planText = teamMode
+          ? ""
+          : takePlanNote(
+              currentConversation.id,
+              currentConversation.messages,
+              plan,
+              planRemarks(
+                plan?.steps ?? [],
+                currentConversation.messages,
+                files
+              )
+            );
         if (planText) messageWithContext += `\n\n${planText}`;
       }
 
@@ -463,26 +479,6 @@ export function createMessageHandler({
             }
           },
         });
-
-        // A team turn that ended in an answer with every delegation DONE:
-        // the step left in progress is finished
-        const last = useConversationStore
-          .getState()
-          .currentConversation?.messages.at(-1);
-        if (
-          teamMode &&
-          currentConversation &&
-          last?.role === "assistant" &&
-          !(last as { unrunToolCalls?: string[] }).unrunToolCalls?.length &&
-          extractToolCalls(last.content, {
-            enableOpenAIToolCalls: true,
-            enableXmlToolCalls: true,
-          }).length === 0 &&
-          !useGenerationStore.getState().stopRequested &&
-          teamFor(currentConversation.id).allDelegationsDone()
-        ) {
-          finishOpenPlanSteps();
-        }
       }
 
       if (fileTools) await noteUnappliedEdits(workspace);

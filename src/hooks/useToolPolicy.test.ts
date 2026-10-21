@@ -409,13 +409,13 @@ describe("agent teams", () => {
       teamMode,
     });
 
-  it("offers the orchestrator delegate and update_plan, and nothing else", () => {
+  // The orchestrator stalled on update_plan in five live runs; its plan is
+  // built from its delegations instead
+  it("offers the orchestrator delegate and nothing else - not even the plan", () => {
     const policy = resolve(true);
-    expect(names(policy.advertisedTools).sort()).toEqual([
-      "delegate",
-      "update_plan",
-    ]);
+    expect(names(policy.advertisedTools)).toEqual(["delegate"]);
     for (const blocked of [
+      "update_plan",
       "read_file",
       "write_file",
       "edit_file",

@@ -25,12 +25,16 @@ function readCollapsed(): boolean {
 
 interface TeamState {
   runsByConversation: Record<string, AgentRunView[]>;
+  /** Where the current message's runs start, per conversation (its plan covers those) */
+  turnStart: Record<string, number>;
   selectedRunId: string | null;
   /** Open the newest working agent on its own, until the user picks one */
   followLatest: boolean;
   collapsed: boolean;
 
   record: (conversationId: string, event: AgentEvent) => void;
+  /** A new user message: its delegations make a plan of their own */
+  beginTurn: (conversationId: string) => void;
   streamToken: (sessionId: string, token: string) => void;
   /** The user opened an agent (or, with null, went back to the list) */
   select: (runId: string | null) => void;
@@ -41,6 +45,7 @@ interface TeamState {
 
 export const useTeamStore = create<TeamState>((set) => ({
   runsByConversation: {},
+  turnStart: {},
   selectedRunId: null,
   followLatest: true,
   collapsed: readCollapsed(),
@@ -61,6 +66,15 @@ export const useTeamStore = create<TeamState>((set) => ({
         ? { ...next, selectedRunId: event.runId }
         : next;
     }),
+
+  beginTurn: (conversationId) =>
+    set((state) => ({
+      turnStart: {
+        ...state.turnStart,
+        [conversationId]: (state.runsByConversation[conversationId] ?? [])
+          .length,
+      },
+    })),
 
   streamToken: (sessionId, token) =>
     set((state) => {

@@ -10,16 +10,14 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { handleDelegate } from "@/agents/delegation";
-import {
-  isDelegateTool,
-  TEAM_NOTE_TOOL,
-  withDelegateNudge,
-} from "@/agents/delegate";
+import { isDelegateTool, TEAM_NOTE_TOOL } from "@/agents/delegate";
+import { planStepsFromRuns } from "@/agents/teamPlan";
 import { toolsForRole } from "@/agents/roles";
 import { teamFor } from "@/agents/team";
 import type { AgentRunDeps } from "@/agents/agentRunner";
 import { buildSystemPrompt, detectModelFamily } from "@/config/systemPrompts";
 import { useGenerationStore } from "@/store/generationStore";
+import { useConversationStore } from "@/stores/conversation-store";
 import { useTeamStore } from "@/stores/team-store";
 import type { ToolCallRequest } from "@/handlers/mcpToolHandler";
 import type { MCPToolResult } from "@/types/electron";
@@ -36,8 +34,6 @@ interface Sampling {
 
 interface UseAgentTeamProps {
   conversationId: string | undefined;
-  /** The session is led by an orchestrator */
-  teamMode: boolean;
   /** The app's handler for one tool call; takes the policy to decide it under */
   handleToolCallRequest: (
     request: ToolCallRequest,
@@ -61,9 +57,31 @@ function must<T extends { success: boolean; error?: string }>(
   return result;
 }
 
+/**
+ * The session's plan checklist follows the delegations: a step when an agent
+ * starts, ticked when it ends DONE (agents/teamPlan.ts). Not the
+ * orchestrator's to keep: it stalled on it (five live runs).
+ */
+function syncPlan(conversationId: string): void {
+  const { runsByConversation, turnStart } = useTeamStore.getState();
+  const runs = (runsByConversation[conversationId] ?? []).slice(
+    turnStart[conversationId] ?? 0
+  );
+  const steps = planStepsFromRuns(runs);
+  const conversations = useConversationStore.getState();
+  if (
+    steps.length === 0 ||
+    conversations.currentConversation?.id !== conversationId
+  ) {
+    return;
+  }
+  conversations.updateConversation({
+    plan: { steps, updatedAt: new Date().toISOString(), by: "model" },
+  });
+}
+
 export function useAgentTeam({
   conversationId,
-  teamMode,
   handleToolCallRequest,
   workerPolicy,
   allowedPaths,
@@ -85,18 +103,8 @@ export function useAgentTeam({
 
   const handleToolCall = useCallback(
     async (request: ToolCallRequest): Promise<MCPToolResult> => {
+      if (!isDelegateTool(request.tool)) return handleToolCallRequest(request);
       const team = teamFor(conversationId ?? "no-conversation");
-      if (teamMode) {
-        const refused = team.checkOrchestratorCall(request.tool);
-        if (refused) return { success: false, error: refused };
-      }
-      if (!isDelegateTool(request.tool)) {
-        const result = await handleToolCallRequest(request);
-        // Saving a plan is not progress: say what comes next
-        return teamMode && request.tool === "update_plan"
-          ? withDelegateNudge(result)
-          : result;
-      }
 
       const deps: AgentRunDeps = {
         openSession: async (prompt) => {
@@ -142,10 +150,11 @@ export function useAgentTeam({
         workspaceFolder,
         isStopped: () => useGenerationStore.getState().stopRequested,
         onProgress: setActivity,
-        onEvent: (event) =>
-          useTeamStore
-            .getState()
-            .record(conversationId ?? "no-conversation", event),
+        onEvent: (event) => {
+          const id = conversationId ?? "no-conversation";
+          useTeamStore.getState().record(id, event);
+          if (event.type === "start" || event.type === "end") syncPlan(id);
+        },
       };
 
       try {
@@ -156,7 +165,6 @@ export function useAgentTeam({
     },
     [
       handleToolCallRequest,
-      teamMode,
       workerPolicy,
       allowedPaths,
       workspaceFolder,

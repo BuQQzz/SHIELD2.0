@@ -72,8 +72,9 @@ export interface ToolPolicyInput {
    */
   fileTools?: boolean;
   /**
-   * The orchestrator of an agent team: it plans and delegates, and is
-   * offered nothing else - no file tool, no terminal, no web. The sub-agents
+   * The orchestrator of an agent team: it is offered delegate and nothing
+   * else - no file tool, no terminal, no web, no plan (its plan is built from
+   * its delegations). The sub-agents
    * work under the same policy resolved with this off.
    */
   teamMode?: boolean;
@@ -104,7 +105,7 @@ export function resolveToolPolicy({
     tool.serverName === AGENTS_SERVER_NAME
       ? teamMode && fileTools
       : teamMode
-        ? tool.serverName === PLAN_SERVER_NAME && fileTools
+        ? false
         : tool.serverName === WEB_SERVER_NAME
           ? webSearchEnabled
           : tool.serverName === MEMORY_SERVER_NAME

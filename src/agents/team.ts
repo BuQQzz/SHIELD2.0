@@ -14,10 +14,6 @@ export class TeamRun {
   private handoffs = new Map<string, StoredHandoff>();
   private counter = 0;
   private delegations = 0;
-  /** Delegations this turn that did not end DONE (PARTIAL, BLOCKED, FAILED) */
-  private problems = 0;
-  /** The orchestrator's last tool call this turn, to catch a plan-saving loop */
-  private lastOrchestratorTool: string | null = null;
   /** PARTIAL hand-offs of this turn that no later run has continued, newest last */
   private openPartials: string[] = [];
 
@@ -83,33 +79,6 @@ export class TeamRun {
   beginTurn(): void {
     this.delegations = 0;
     this.openPartials = [];
-    this.lastOrchestratorTool = null;
-    this.problems = 0;
-  }
-
-  /** How a delegation ended, for deciding whether the turn's work is finished */
-  recordOutcome(status: string): void {
-    if (status !== "DONE") this.problems += 1;
-  }
-
-  /** At least one delegation this turn, and every one ended DONE */
-  allDelegationsDone(): boolean {
-    return this.delegations > 0 && this.problems === 0;
-  }
-
-  /**
-   * Why the orchestrator may not make this call now, or null. A plan changes
-   * nothing, and a small model took saving it for progress: live
-   * (2026-10-20) one called update_plan seven times in a row and never
-   * delegated, a nudge in the result notwithstanding. A second plan update
-   * with no delegation in between is refused.
-   */
-  checkOrchestratorCall(tool: string): string | null {
-    if (tool === "update_plan" && this.lastOrchestratorTool === "update_plan") {
-      return "Not run: you updated the plan and have not delegated since. A plan does nothing by itself. Your next call must be delegate: give the step that is in progress to a coder, tester or reviewer.";
-    }
-    this.lastOrchestratorTool = tool;
-    return null;
   }
 
   /** False once the turn's delegations are used up */

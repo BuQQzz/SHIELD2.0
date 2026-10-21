@@ -628,13 +628,14 @@ Use this section to record decisions once we stop brainstorming and commit to th
 | 2026-09-24 | Decision | Model library cut to three families: Qwen (Coder-30B + 3.8-27B), Gemma 4 (12B + E4B), Bonsai 2 27B | User decision: 17 mostly-2024 entries → a few current models. Plan: `MODEL_LIBRARY_PLAN.md` |
 | 2026-09-24 | Decision | Bonsai 2 runs through a SHIELD-managed Prism `llama-server`; it is the provider layer's first test | Its PTQ1_0/PQ2_0 formats need the PrismML fork; stock llama.cpp refuses them or outputs garbage |
 | 2026-10-20 | Decision | Build agent teams (orchestrator + coder, tester, reviewer) now, overriding §13 item 10 / §14 "no subagents until single-agent execution is reliable" | User decision. Bonsai 27B handled tool loops well enough on the 8-task smoke (7/8) and the single-agent harness (ledger, Plan, memory, permission policy) is in place. v1 is small and measured: `scripts/bench/agent-team.ts` |
-| 2026-10-20 | Shipped | The orchestrator has only `delegate` and `update_plan`; workers get their own model sessions on the same llama-server | A prototype orchestrator that could read files looped re-reading its notes and never delegated |
+| 2026-10-20 | Shipped | The orchestrator has only `delegate`; workers get their own model sessions on the same llama-server | A prototype orchestrator that could read files looped re-reading its notes and never delegated |
 | 2026-10-20 | Shipped | Role limits are enforced by SHIELD (`checkToolUse`), not by prompt: the tester may change test files only, the reviewer nothing | A prompt-only limit does not stop a small model fixing the source and reporting its own fix as a passing test |
 | 2026-10-20 | Shipped | Sub-agent sessions never summarise or clear history; they checkpoint at 70% and hand over | Compaction was lossy ("tester lost detail"); a fresh agent seeded with the hand-off keeps the facts |
 | 2026-10-20 | Shipped | Every report carries SHIELD's record of files changed and commands run (exit codes) beside the agent's own words | A model's account of its own work is often wrong; the record survives a crash |
 | 2026-10-20 | Shipped | An agent that ends without a report is asked for one; an empty report is PARTIAL, never DONE, and carries a WARNING | Live run: a reviewer ended on a malformed tool call, reported nothing, and the orchestrator told the user the review had confirmed everything was correct |
 | 2026-10-20 | Shipped | Team panel: role icons and a collapsible side panel to watch each sub-agent work (events from the runner, live tokens over IPC) | User request: "like how Claude and Codex do it"; without it a delegation was one line of text while four agents worked |
-| 2026-10-20 | Shipped | A second plan update with no delegation in between is refused; an empty reply from a thinking model is explained | Live UI runs: an orchestrator saved its plan 5-7 times and never delegated; a thinking model used a whole reply limit on thought |
+| 2026-10-21 | Shipped | The orchestrator has only `delegate`; the plan checklist is derived from the delegations | `update_plan` stalled it in 3 of 5 live runs despite a hint, a guard and a round cap; derived steps are ticked by real results, so they also cannot drift |
+| 2026-10-20 | Shipped | An empty reply from a thinking model is explained | Live UI runs: an orchestrator saved its plan 5-7 times and never delegated; a thinking model used a whole reply limit on thought |
 | 2026-10-20 | Rejected | Launch llama-server with `--reasoning-budget 1024` | Thought past the budget continues in the visible answer (checked against the server and seen in the chat) |
 
 ---
@@ -839,7 +840,7 @@ A Code session can be led by an **orchestrator** that hands work to a **coder**,
 ```text
 user request
    |
-Orchestrator  (tools: delegate, update_plan - no file, terminal or web tools)
+Orchestrator  (one tool: delegate - no file, terminal, web or plan tools)
    |  delegate {role, task, continue_from?}
    v
 Sub-agent session  (own system prompt + history, shared llama-server, never compacts)
@@ -864,10 +865,10 @@ Report  (agent's summary + SHIELD's record of files/commands + HANDOFF id)
 
 ## Rules that came from evidence, not taste
 
-1. **The orchestrator cannot touch files.** With read access it looped re-reading the notes file 38 times and never delegated (opencode prototype). Plan and goal live in its prompt; each delegation embeds what the agent needs.
+1. **The orchestrator cannot touch files, and has one tool.** With read access it looped re-reading the notes file 38 times and never delegated (opencode prototype). Each delegation embeds what the agent needs. It is not even given `update_plan`: in five live runs it saved its plan five to nine times in a row and never delegated again, through a hint in the result, a guard and a round cap. The plan checklist is now built from the delegations (`src/agents/teamPlan.ts`): a step when an agent starts, ticked when it ends DONE, so it cannot disagree with what happened.
 2. **Limits are code.** Tester: reads, test files only (names with test/spec, or in a tests folder), commands. Reviewer: reads and read-only commands. Command caps per role. A refused call returns "Not run: ..." and is recorded.
 3. **Facts beside claims.** Each report lists the files changed and the commands run with exit codes, from the tools' own results. The orchestrator is told to trust that list over the agent's summary. The same record is the hand-off's backbone and exists from the first step, so a run that dies can still be continued.
-4. **No silent endings.** No HANDOFF block means one request for a report. An agent that reports nothing is PARTIAL with a WARNING, and the orchestrator may not say what it found.
+4. **No silent endings.** No HANDOFF block means one request for a report. An agent that reports nothing is PARTIAL with a WARNING, and the orchestrator may not say what it found. An answer that credits a role which never ran ("the tester ran..." after delegating only to a coder and a reviewer - seen live) gets a SHIELD record note under it (`src/agents/teamClaims.ts`).
 5. **Context is metered and handed over, not squeezed.** Every tool result ends with `[Context: N% used]` (the server's own token counts). At 70% the agent is told to stop and write a HANDOFF; if it keeps calling tools, calls are refused and the run ends PARTIAL. The orchestrator then calls `delegate` again with `continue_from` and a fresh agent starts from the hand-off note only, told not to assume it is complete.
 6. **Arguments are validated.** Unknown fields dropped; a `continue_from` that is not a hand-off id ("1") is refused with what a good one looks like; at most 12 delegations per user message.
 
@@ -895,7 +896,7 @@ A side panel on the right of a Team session (collapsed state remembered), like t
 1. *A reviewer ended on a malformed tool call (`<server>filesystem</tool>`), reported nothing, and the orchestrator told the user the review had confirmed everything was correct.* A real defect it should have caught (the tester's `cd "$(dirname \"$0\")"` had mangled quotes) went unmentioned. Fix: an agent without a HANDOFF block is asked for a report; an empty one is PARTIAL with a WARNING; the orchestrator is told never to state what a reviewer or tester found unless the report says so.
 2. *The orchestrator re-delegated after a PARTIAL with its own summary in the task and no `continue_from`*, so the fresh agent never got SHIELD's record. Fix: `handleDelegate` attaches the open PARTIAL hand-off of the same role itself (once, within the turn) and says so in the report.
 3. *A thinking model answered the report request with an empty reply.* Fix: one shorter second request.
-4. *The orchestrator saved its plan again and again and never delegated* (five and then seven `update_plan` calls in the real UI, until the repeat guard stopped it). A hint in the result was not enough; now the result says what comes next *and* a second `update_plan` with no delegation in between is refused ("Not run: ... your next call must be delegate").
+4. *The orchestrator saved its plan again and again and never delegated* (five, seven and nine `update_plan` calls in the real UI, until the repeat guard stopped it; a hint in the result and a refusal of the second call did not cure it). Fix: the orchestrator no longer has the tool; the plan is derived from the delegations.
 5. *A thinking model spent a whole 8,192-token reply thinking and answered nothing* (about seven minutes), and the user saw "Failed to get response". Fix: an empty reply now says what happened and where to raise Max Tokens. *Tried and reverted:* launching llama-server with `--reasoning-budget 1024` (what the agent prototype used). It cut thought off at the budget and the model carried on thinking in the visible answer - an orchestrator's chat filled with its own deliberation ending in a literal `</think>`. Checked directly against the server: a thought longer than the budget continues as the answer's first lines. So SHIELD does not pass the flag by default; `buildServerArgs` accepts a `reasoningBudget` for anyone who wants it.
 6. *Bonsai wrote invalid JSON for `write_file` 16 times in one team run* (quotes inside bash content). SHIELD rejected each call correctly; the agent still burned its steps. Not fixed here: a repair step for escaped quotes in tool-call JSON would help every Code session, not only teams.
 

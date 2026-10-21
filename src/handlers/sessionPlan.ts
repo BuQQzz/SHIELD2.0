@@ -107,38 +107,6 @@ export function savePlanFromCall(
   }
 }
 
-/**
- * After an agent team's turn ended with an answer and every delegation DONE,
- * the step the orchestrator left in progress is finished: it answered
- * without a last update_plan, and the plan showed "3 of 4 done" beside a
- * finished review (live, 2026-10-20). Steps not started stay pending.
- */
-export function finishOpenPlanSteps(): void {
-  const store = useConversationStore.getState();
-  const conversation = store.currentConversation;
-  const plan = conversation?.plan;
-  if (!conversation || !plan?.steps.some((s) => s.status === "in_progress")) {
-    return;
-  }
-  const finished = withSteps(
-    plan.steps.map((step) =>
-      step.status === "in_progress"
-        ? { ...step, status: "completed" as const }
-        : step
-    ),
-    "model",
-    plan.note
-  );
-  store.updateConversation({ plan: finished });
-  // SHIELD wrote it; the model needs no reminder of its own plan
-  if (finished) {
-    seen.set(conversation.id, {
-      key: planKey(finished, new Map()),
-      turn: userTurns(conversation.messages),
-    });
-  }
-}
-
 /** The user's edit, saved at once; the model is told with the next message */
 export async function editPlan(steps: PlanStep[]): Promise<void> {
   const store = useConversationStore.getState();

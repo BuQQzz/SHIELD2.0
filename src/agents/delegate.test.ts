@@ -2,8 +2,6 @@ import { describe, expect, it } from "vitest";
 import {
   MAX_ORCHESTRATOR_ROUNDS,
   orchestratorRounds,
-  DELEGATE_NEXT_NOTE,
-  withDelegateNudge,
   DELEGATE_TOOL,
   formatReport,
   MAX_DELEGATIONS_PER_TURN,
@@ -221,37 +219,6 @@ describe("TeamRun", () => {
     expect(team.openPartialFor("coder")).toBeUndefined();
   });
 
-  it("refuses a second plan update with no delegation in between, and allows it again after one", () => {
-    const team = new TeamRun();
-    expect(team.checkOrchestratorCall("update_plan")).toBeNull();
-    expect(team.checkOrchestratorCall("update_plan")).toContain(
-      "Your next call must be delegate"
-    );
-    // still refused until the orchestrator delegates
-    expect(team.checkOrchestratorCall("update_plan")).not.toBeNull();
-    expect(team.checkOrchestratorCall("delegate")).toBeNull();
-    expect(team.checkOrchestratorCall("update_plan")).toBeNull();
-    team.beginTurn();
-    expect(team.checkOrchestratorCall("update_plan")).toBeNull();
-    expect(team.checkOrchestratorCall("delegate")).toBeNull();
-    expect(team.checkOrchestratorCall("delegate")).toBeNull();
-  });
-
-  it("knows whether the turn's delegations all ended DONE", () => {
-    const team = new TeamRun();
-    expect(team.allDelegationsDone()).toBe(false); // nothing delegated
-    team.countDelegation(12);
-    team.recordOutcome("DONE");
-    expect(team.allDelegationsDone()).toBe(true);
-    team.countDelegation(12);
-    team.recordOutcome("PARTIAL");
-    expect(team.allDelegationsDone()).toBe(false);
-    team.beginTurn();
-    team.countDelegation(12);
-    team.recordOutcome("DONE");
-    expect(team.allDelegationsDone()).toBe(true);
-  });
-
   it("limits delegations per turn and resets on the next user message", () => {
     const team = new TeamRun();
     for (let i = 0; i < MAX_DELEGATIONS_PER_TURN; i++) {
@@ -260,29 +227,6 @@ describe("TeamRun", () => {
     expect(team.countDelegation(MAX_DELEGATIONS_PER_TURN)).toBe(false);
     team.beginTurn();
     expect(team.countDelegation(MAX_DELEGATIONS_PER_TURN)).toBe(true);
-  });
-});
-
-describe("withDelegateNudge", () => {
-  it("adds the instruction to a saved plan, keeping what was there", () => {
-    const saved = {
-      success: true,
-      data: { content: [{ type: "text", text: "Plan saved\n[>] Fix it" }] },
-    };
-    const nudged = withDelegateNudge(saved) as typeof saved;
-    expect(nudged.data.content.map((part) => part.text)).toEqual([
-      "Plan saved\n[>] Fix it",
-      DELEGATE_NEXT_NOTE,
-    ]);
-    expect(DELEGATE_NEXT_NOTE).toContain("your next call must be delegate");
-  });
-
-  it("leaves a failed plan call alone, and copes with a result that has no content", () => {
-    const failed = { success: false, error: "update_plan needs plan" };
-    expect(withDelegateNudge(failed)).toBe(failed);
-    expect(withDelegateNudge({ success: true })).toMatchObject({
-      data: { content: [{ text: DELEGATE_NEXT_NOTE }] },
-    });
   });
 });
 

@@ -139,18 +139,6 @@ describe("handleDelegate", () => {
     );
   });
 
-  it("records how each delegation ended, so the plan is only finished after clean work", async () => {
-    const team = new TeamRun();
-    await handleDelegate({ role: "coder", task: "a" }, team, deps());
-    expect(team.allDelegationsDone()).toBe(true);
-    await handleDelegate(
-      { role: "tester", task: "b" },
-      team,
-      deps("HANDOFF\nSTATUS: PARTIAL\nNEXT: more")
-    );
-    expect(team.allDelegationsDone()).toBe(false);
-  });
-
   it("stops a delegation loop at the per-turn limit, then allows more after a new user message", async () => {
     const team = new TeamRun();
     for (let i = 0; i < MAX_DELEGATIONS_PER_TURN; i++) {

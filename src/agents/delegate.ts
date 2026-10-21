@@ -7,7 +7,6 @@
  * good one looks like, instead of being passed on.
  */
 
-import type { MCPToolResult } from "../types/electron";
 import { describeWork } from "./handoff";
 import { AGENT_ROLES, type AgentReport, type AgentRole } from "./types";
 import { DELEGATE_TOOL_NAME, TEAM_NOTE_TOOL_NAME } from "./roles";
@@ -191,29 +190,4 @@ export function formatReport(report: AgentReport): string {
   ]
     .filter(Boolean)
     .join("\n");
-}
-
-/**
- * Said after the orchestrator's update_plan went through. A plan changes
- * nothing, so a small model took saving it for progress: live (2026-10-20)
- * one called update_plan five times in a row, never delegated, and was
- * stopped by the repeat guard.
- */
-export const DELEGATE_NEXT_NOTE =
-  "Plan saved. A plan does nothing by itself: your next call must be delegate, handing the step that is in progress to a team member. Do not call update_plan again until a report has come back.";
-
-export function withDelegateNudge(result: MCPToolResult): MCPToolResult {
-  if (!result.success) return result;
-  const data = result.data as
-    { content?: { type: string; text: string }[] } | undefined;
-  return {
-    ...result,
-    data: {
-      ...data,
-      content: [
-        ...(data?.content ?? []),
-        { type: "text", text: DELEGATE_NEXT_NOTE },
-      ],
-    },
-  };
 }

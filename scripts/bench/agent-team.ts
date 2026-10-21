@@ -21,13 +21,8 @@ import {
   detectModelFamily,
 } from "../../src/config/systemPrompts";
 import { processMCPToolCalls } from "../../src/handlers/mcpMessageHandler";
-import { runPlanTool, UPDATE_PLAN_TOOL } from "../../src/config/plan";
 import { handleDelegate } from "../../src/agents/delegation";
-import {
-  DELEGATE_TOOL,
-  TEAM_NOTE_TOOL,
-  withDelegateNudge,
-} from "../../src/agents/delegate";
+import { DELEGATE_TOOL, TEAM_NOTE_TOOL } from "../../src/agents/delegate";
 import { ORCHESTRATOR_PROMPT, toolsForRole } from "../../src/agents/roles";
 import { TeamRun } from "../../src/agents/team";
 import type { AgentRunDeps } from "../../src/agents/agentRunner";
@@ -181,7 +176,6 @@ try {
 
   const orchestratorTools = [
     { ...toToolDefinition({ ...DELEGATE_TOOL }), serverName: "agents" },
-    { ...toToolDefinition({ ...UPDATE_PLAN_TOOL }), serverName: "plan" },
   ] as ToolDefinition[];
   await runtime.applySystemPrompt(
     buildSystemPrompt({
@@ -214,13 +208,8 @@ try {
         say(
           `[orchestrator] ${call.tool} ${JSON.stringify(call.arguments).slice(0, 200)}`
         );
-        const refused = team.checkOrchestratorCall(call.tool);
-        if (refused) return { success: false, error: refused };
         if (call.tool === "delegate")
           return handleDelegate(call.arguments, team, deps);
-        if (call.tool === "update_plan") {
-          return withDelegateNudge(runPlanTool(call.arguments));
-        }
         return {
           success: false,
           error: `${call.tool} is not available to you`,

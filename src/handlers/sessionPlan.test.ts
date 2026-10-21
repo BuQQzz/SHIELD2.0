@@ -6,7 +6,6 @@ import { formatToolResult } from "./mcpToolHandler";
 import {
   checkPlan,
   editPlan,
-  finishOpenPlanSteps,
   forgetPlanSeen,
   planRemarks,
   PLAN_REMINDER_EVERY,
@@ -199,49 +198,5 @@ describe("takePlanNote", () => {
     expect(
       takePlanNote("c", turns(1), plan, new Map([[0, "not confirmed"]]))
     ).toContain("not confirmed");
-  });
-});
-
-describe("finishOpenPlanSteps", () => {
-  const setPlan = (planSteps: PlanStep[]) =>
-    useConversationStore.setState({
-      currentConversation: {
-        ...conversation(),
-        plan: {
-          steps: planSteps,
-          updatedAt: "2026-10-20T00:00:00Z",
-          by: "model",
-        },
-      },
-    });
-  const planNow = () =>
-    useConversationStore.getState().currentConversation?.plan;
-
-  // Live: the orchestrator answered without a last update_plan, and the plan
-  // read "3 of 4 done" beside a finished review
-  it("finishes the step left in progress and leaves pending steps alone", () => {
-    setPlan([
-      { step: "Fix the bug", status: "completed" },
-      { step: "Run the tests", status: "completed" },
-      { step: "Review the change", status: "in_progress" },
-      { step: "Write the changelog", status: "pending" },
-    ]);
-    finishOpenPlanSteps();
-    expect(planNow()?.steps.map((s) => s.status)).toEqual([
-      "completed",
-      "completed",
-      "completed",
-      "pending",
-    ]);
-    expect(planNow()?.by).toBe("model");
-  });
-
-  it("does nothing without a plan, or with nothing in progress", () => {
-    finishOpenPlanSteps();
-    expect(planNow()).toBeUndefined();
-    setPlan([{ step: "Done already", status: "completed" }]);
-    const before = planNow();
-    finishOpenPlanSteps();
-    expect(planNow()).toBe(before);
   });
 });
