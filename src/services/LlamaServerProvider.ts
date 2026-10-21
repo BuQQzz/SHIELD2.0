@@ -84,10 +84,12 @@ export interface ServerLoadOptions {
 }
 
 /**
- * No bytes from the server for this long means it has hung: the stream sends
- * a chunk per token, and progress while it reads the prompt. A Bonsai 27B
- * server stopped decoding at 151 tokens and sat there 45 minutes, with the
- * whole team run waiting on it (2026-10-21).
+ * No progress from the server for this long means it has hung: the stream
+ * reports each token, and the prompt as it is read. Bytes alone are not
+ * progress: a hung Bonsai 27B server (main thread at 100%, 1,971 tokens
+ * decoded and no more) still sent a few bytes now and then, which kept a
+ * byte-based timer from ever firing. An earlier hang sat 45 minutes with
+ * the whole team run waiting on it (2026-10-21).
  */
 export const STALL_MS = 5 * 60 * 1000;
 
@@ -370,6 +372,8 @@ export class LlamaServerProvider {
       clearTimeout(stallTimer);
       stallTimer = setTimeout(() => stalled.abort(), STALL_MS);
     };
+    /** The most prompt read or tokens written so far */
+    let furthest = 0;
     let firstTokenAt: number | null = null;
     let reply = "";
     let final: ChatStreamChunk | null = null;
@@ -413,7 +417,6 @@ export class LlamaServerProvider {
       const reader = response.body.getReader();
       for (;;) {
         const { done, value } = await reader.read();
-        watchForStall();
         if (done) break;
         for (const chunk of parser.push(
           decoder.decode(value, { stream: true })
@@ -425,6 +428,16 @@ export class LlamaServerProvider {
             options.onToken?.(text);
           }
           const progress = chunkProgress(chunk, promptTokens);
+          const mark =
+            progress?.phase === "reading"
+              ? progress.done
+              : progress?.phase === "writing"
+                ? progress.generated
+                : 0;
+          if (text || mark > furthest) {
+            furthest = Math.max(furthest, mark);
+            watchForStall();
+          }
           if (progress?.phase === "reading") promptTokens = progress.total;
           if (progress) options.onProgress?.(progress);
           if (chunk.timings || chunk.usage)
@@ -435,7 +448,7 @@ export class LlamaServerProvider {
       // Stopped by the user: keep what was generated, like LlamaChatSession
       if (stalled.signal.aborted && !signal.aborted) {
         throw new Error(
-          `llama-server sent nothing for ${STALL_MS / 60000} minutes and was given up on; the model server may have hung. Stop and reload the model.`
+          `llama-server made no progress for ${STALL_MS / 60000} minutes and was given up on; the model server may have hung. Stop and reload the model.`
         );
       }
       if (!signal.aborted) throw error;

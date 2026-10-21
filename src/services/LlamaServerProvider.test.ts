@@ -514,6 +514,50 @@ describe("LlamaServerProvider a server that goes silent", () => {
       (error: Error) => error.message
     );
     await vi.advanceTimersByTimeAsync(STALL_MS + 1000);
-    expect(await outcome).toContain("sent nothing for 5 minutes");
+    expect(await outcome).toContain("made no progress for 5 minutes");
+  });
+
+  // The second hang (2026-10-21): the server's main thread spun at 100% and
+  // sent a few bytes now and then, which kept a byte-based timer from firing
+  it("still gives up when the server keeps sending bytes but no progress", async () => {
+    vi.useFakeTimers();
+    const provider = new LlamaServerProvider();
+    Object.assign(provider, {
+      process: { exitCode: null },
+      baseUrl: "http://server",
+      contextSize: 32768,
+    });
+    const tokens = (n: number) =>
+      `data: ${JSON.stringify({ choices: [{ delta: {} }], timings: { predicted_n: n } })}\n\n`;
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (_url: string, init: RequestInit) => {
+        const encoder = new TextEncoder();
+        let ping: ReturnType<typeof setInterval>;
+        const body = new ReadableStream({
+          start(controller) {
+            controller.enqueue(encoder.encode(tokens(151)));
+            // A repeat of the last count, and a comment line: no progress
+            ping = setInterval(() => {
+              controller.enqueue(
+                encoder.encode(`: keep-alive\n\n${tokens(151)}`)
+              );
+            }, 60_000);
+            init.signal?.addEventListener("abort", () => {
+              clearInterval(ping);
+              controller.error(new DOMException("aborted", "AbortError"));
+            });
+          },
+        });
+        return new Response(body);
+      })
+    );
+
+    const outcome = provider.chat("hello").then(
+      () => "returned",
+      (error: Error) => error.message
+    );
+    await vi.advanceTimersByTimeAsync(STALL_MS + 61_000);
+    expect(await outcome).toContain("made no progress for 5 minutes");
   });
 });
