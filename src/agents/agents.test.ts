@@ -140,6 +140,12 @@ describe("roles", () => {
     );
   });
 
+  it("tells the orchestrator to delegate only what the request needs", () => {
+    expect(ORCHESTRATOR_PROMPT).toContain("never for the sake of it");
+    expect(ORCHESTRATOR_PROMPT).toContain("needs no agent: answer it yourself");
+    expect(ORCHESTRATOR_PROMPT).toContain("the user's own words");
+  });
+
   it("tells the orchestrator it cannot touch files and how to continue a PARTIAL", () => {
     expect(ORCHESTRATOR_PROMPT).toContain(
       "You cannot read, search, edit or run anything yourself"
