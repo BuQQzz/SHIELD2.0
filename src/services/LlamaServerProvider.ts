@@ -199,6 +199,7 @@ export class LlamaServerProvider {
       contextSize: options.contextSize,
       port,
       threads: defaultThreads(),
+      specType: process.env.SHIELD_SPEC_TYPE === "none" ? "none" : "ngram-mod",
     });
     console.log(`[LlamaServer] Starting ${binary} ${args.join(" ")}`);
 

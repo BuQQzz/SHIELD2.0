@@ -40,6 +40,18 @@ describe("buildServerArgs", () => {
     expect(custom[custom.indexOf("--reasoning-budget") + 1]).toBe("256");
   });
 
+  it("leaves speculative decoding off only when asked", () => {
+    const off = buildServerArgs({
+      modelPath: "m.gguf",
+      contextSize: 8192,
+      port: 1,
+      threads: 4,
+      specType: "none",
+    });
+    expect(off).not.toContain("--spec-type");
+    expect(args).toContain("--spec-type");
+  });
+
   it("never fixes a layer placement that could spill out of VRAM", () => {
     expect(args).not.toContain("--n-gpu-layers");
     expect(args).not.toContain("--n-cpu-moe");

@@ -26,6 +26,12 @@ export interface LaunchOptions {
    * explanation instead (src/utils/emptyReply.ts).
    */
   reasoningBudget?: number;
+  /**
+   * Speculative decoding: "ngram-mod" by default, "none" to leave it off.
+   * Switched off with SHIELD_SPEC_TYPE=none to test whether it makes the
+   * Bonsai 27B server hang (2026-10-21).
+   */
+  specType?: "ngram-mod" | "none";
 }
 
 /**
@@ -67,8 +73,7 @@ export function buildServerArgs(options: LaunchOptions): string[] {
     "2048",
     "--threads",
     String(options.threads),
-    "--spec-type",
-    "ngram-mod",
+    ...(options.specType === "none" ? [] : ["--spec-type", "ngram-mod"]),
     "--load-mode",
     "none",
     "--jinja",
