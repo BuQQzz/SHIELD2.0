@@ -1,6 +1,6 @@
 // @vitest-environment node
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { LlamaServerProvider } from "./LlamaServerProvider";
+import { LlamaServerProvider, STALL_MS } from "./LlamaServerProvider";
 import type { SavedMessage } from "./taskCapsule";
 
 interface SentRequest {
@@ -477,5 +477,43 @@ describe("LlamaServerProvider forked sessions", () => {
     expect(turnsOf(sent[0])[2]).toContain("removed from your context");
     expect(turnsOf(sent[1])[2]).toContain("a".repeat(1000));
     expect(turnsOf(sent[1])[4]).toContain("b".repeat(700));
+  });
+});
+
+describe("LlamaServerProvider a server that goes silent", () => {
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.unstubAllGlobals();
+  });
+
+  it("gives up after STALL_MS with no bytes, instead of waiting forever", async () => {
+    vi.useFakeTimers();
+    const provider = new LlamaServerProvider();
+    Object.assign(provider, {
+      process: { exitCode: null },
+      baseUrl: "http://server",
+      contextSize: 32768,
+    });
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (_url: string, init: RequestInit) => {
+        // Headers arrive, then the body never says anything
+        const body = new ReadableStream({
+          start(controller) {
+            init.signal?.addEventListener("abort", () =>
+              controller.error(new DOMException("aborted", "AbortError"))
+            );
+          },
+        });
+        return new Response(body);
+      })
+    );
+
+    const outcome = provider.chat("hello").then(
+      () => "returned",
+      (error: Error) => error.message
+    );
+    await vi.advanceTimersByTimeAsync(STALL_MS + 1000);
+    expect(await outcome).toContain("sent nothing for 5 minutes");
   });
 });

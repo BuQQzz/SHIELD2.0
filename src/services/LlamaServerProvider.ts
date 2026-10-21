@@ -83,6 +83,14 @@ export interface ServerLoadOptions {
   pidFile?: string;
 }
 
+/**
+ * No bytes from the server for this long means it has hung: the stream sends
+ * a chunk per token, and progress while it reads the prompt. A Bonsai 27B
+ * server stopped decoding at 151 tokens and sat there 45 minutes, with the
+ * whole team run waiting on it (2026-10-21).
+ */
+export const STALL_MS = 5 * 60 * 1000;
+
 export class LlamaServerProvider {
   private process: ChildProcess | null = null;
   private baseUrl = "";
@@ -356,6 +364,12 @@ export class LlamaServerProvider {
     this.lastCapsule = null;
     const userMessage: ChatMessage = { role: "user", content: message };
     const startedAt = performance.now();
+    const stalled = new AbortController();
+    let stallTimer: ReturnType<typeof setTimeout> | undefined;
+    const watchForStall = () => {
+      clearTimeout(stallTimer);
+      stallTimer = setTimeout(() => stalled.abort(), STALL_MS);
+    };
     let firstTokenAt: number | null = null;
     let reply = "";
     let final: ChatStreamChunk | null = null;
@@ -367,10 +381,11 @@ export class LlamaServerProvider {
       // while replying
       await this.makeRoom(message, signal, options.onProgress);
 
+      watchForStall();
       const response = await fetch(`${this.baseUrl}/v1/chat/completions`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        signal,
+        signal: AbortSignal.any([signal, stalled.signal]),
         body: JSON.stringify({
           messages: this.messages(userMessage),
           stream: true,
@@ -398,6 +413,7 @@ export class LlamaServerProvider {
       const reader = response.body.getReader();
       for (;;) {
         const { done, value } = await reader.read();
+        watchForStall();
         if (done) break;
         for (const chunk of parser.push(
           decoder.decode(value, { stream: true })
@@ -417,8 +433,14 @@ export class LlamaServerProvider {
       }
     } catch (error) {
       // Stopped by the user: keep what was generated, like LlamaChatSession
+      if (stalled.signal.aborted && !signal.aborted) {
+        throw new Error(
+          `llama-server sent nothing for ${STALL_MS / 60000} minutes and was given up on; the model server may have hung. Stop and reload the model.`
+        );
+      }
       if (!signal.aborted) throw error;
     } finally {
+      clearTimeout(stallTimer);
       this.abortController = null;
     }
 
