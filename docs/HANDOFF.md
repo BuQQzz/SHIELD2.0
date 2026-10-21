@@ -1,14 +1,12 @@
 # SHIELD — Session Handoff
 
-**Last session:** 2026-09-26 → 27 (previous: 2026-09-22 → 2026-09-25)  
-**Branch:** `feat/model-library`, 68 commits ahead of `main`; it contains `chore/dependency-refresh` and `feat/mcp-permission-modes`. Nothing is merged to `main`. All work is committed (not pushed; the user pushes).  
-**Tests:** 589 passing (`npx vitest run`) · `npm run build`, ESLint and Prettier clean on changed source files
+**Last session:** 2026-10-20 → 21, on Linux (previous: 2026-09-26 → 28, on Windows)  
+**Branch:** `feat/model-library`, 17 commits past the 2026-09-28 tip (`57d5baf`). Pushed to the public repo up to `3981847`; **`1ed9b36` (panel runs survive a restart) is committed locally, not pushed.** Nothing is merged to `main`. Only the user says when to push or open a PR.  
+**Tests:** 1080 passing, 7 skipped (`npx vitest run`) · `npx tsc --noEmit`, `npx eslint src electron scripts --ext ts,tsx --max-warnings 0` clean. `prettier --check` flags `src/components/ui/button.tsx` and `scripts/bench/mcp.ts`, which were already unformatted: do not run `prettier --write` over whole folders (it reformats `button.tsx`; `git checkout` it).
 
-**Tested in the app with:** Qwen3-Coder-30B-A3B Q4_K_M on an RTX 4070 (12 GB), SHIELD-managed llama-server at 32K (and 8K to force summaries); Gemma 4 12B at 32K (2026-09-26)
+**Tested in the app with (2026-10-20):** Bonsai 27B Q1_0 on an RTX 2070 SUPER 8 GB (Ubuntu 26.04), SHIELD-managed Prism llama-server at 32K, ~19 tok/s. Earlier sessions: Qwen3-Coder-30B and Gemma 4 12B on Windows (see the older updates).
 
-**Gemma 4:** native tools work in the app. Its thinking budget and sampling broke multi-step tool tasks; fixed and tried in the app, see the 2026-09-26 evening update. The user plans to keep Gemma to chat and simple tasks and Qwen3-Coder for coding.
-
-Read this first, then [SHIELD_AGENT_ARCHITECTURE.md](./SHIELD_AGENT_ARCHITECTURE.md) (§13 priorities, §17 decision log, §20 evidence) and [testing/AGENT_BENCHMARK.md](./testing/AGENT_BENCHMARK.md).
+Read this first (the section "Update — 2026-10-20 → 21" is the current state), then [SHIELD_AGENT_ARCHITECTURE.md](./SHIELD_AGENT_ARCHITECTURE.md) (§21 agent teams, §17 decision log, §13 priorities, §20 evidence) and [testing/AGENT_BENCHMARK.md](./testing/AGENT_BENCHMARK.md).
 
 ---
 
@@ -23,7 +21,7 @@ Order agreed with the user on 2026-09-26: the Code view, then the terminal, then
 - [x] **Memory step 1 and projects** (2026-09-28, working tree, not yet tried in the app): see "Memory step 1, projects" below. Try: "what did we do with the GUID fix?" in a new chat (automatic recall and search_memory); a project in Chat and one in Code (folder picked once, later sessions start there); moving a chat into a project.
 - [x] **AGENTS.md and Plan** (2026-09-28 evening, see the updates below; neither tried in the app yet).
 - [ ] **SHIELD learns and remembers** — the user's goal (2026-09-28): notes survive restarts, SHIELD learns from the user, its work and its chats, "as powerful as the Claude and Codex harnesses but offline and local". Plan in "Memory: where this is going" below; the recall tool is its first step.
-- [x] **Agent teams (v1)** — 2026-10-20, see the update at the top of the updates below.
+- [x] **Agent teams (v1)** and the **Linux port** — 2026-10-20 → 21, see "Update — 2026-10-20 → 21" below (start there).
 - [ ] **Recall tool** (after the terminal). Let the model read back the original messages a summary replaced, from the saved chat. Summaries become an index instead of a loss, and the re-reading loops stop (at 8K, "review the whole repo" re-read cleared files until the 20-round limit). A SHIELD-owned tool like `delete_file` and `web_search` (`electron/services/webTools.ts` shows how one is registered); the design docs' "compaction does not delete history". Proposed shape in the 2026-09-26 update.
 - [ ] Later: keep Gemma out of coding sessions (e.g. suggest Qwen3-Coder when a chat turns to file edits); give the context planner real headroom for the desktop; fork a chat from a summary; edit or pin summaries; whether node-llama-cpp models need clearing and summarising too (today they fall back on node-llama-cpp's own context shift, which drops the oldest turns).
 - [x] **Commit the working tree.** Done 2026-09-27 as three commits, each tested on its own: `6069e14` Gemma native tools and saved summaries (the 2026-09-25 work; 558 tests), `c36cf10` clearing to 40%, folder note, work-group header (567), then the evening fixes (589).
@@ -36,15 +34,40 @@ Order agreed with the user on 2026-09-26: the Code view, then the terminal, then
 
 ---
 
-## Update — 2026-10-20: Linux + Bonsai, and agent teams (feat/model-library, commits `d351752`..`3d340de`, then uncommitted)
+## Update — 2026-10-20 → 21: Linux, Bonsai, and agent teams (start here)
 
-**Linux / Bonsai** (committed): Bonsai 27B / 2 9B / 8B run through the llama-server engine with the PrismML fork (`SHIELD_LLAMA_SERVER=<path to llama-server>`; the fork accepts every flag SHIELD passes); filesystem path validation refuses relative, foreign and symlinked paths; the context meter and chat titles work with Bonsai's template; `run_command` runs in bash with POSIX read-only rules (a backslash bypass fixed); prompts and path matching are platform-aware. Details and the Linux checklist: `HANDOFF-linux-bonsai.md` (if kept) and the commit messages.
+### The machine and the Bonsai server
+- Ubuntu 26.04 (XFCE, X11), user `buqqzz`. Ryzen 5 3600, 15 GB RAM, RTX 2070 SUPER 8 GB (Turing, sm_75), driver 595, CUDA 12.4 toolkit, Node 22, `gh` installed and logged in as BuQQzz (HTTPS). No global git identity: commit with `git -c user.name=buqqzz -c user.email=buqqzz@gmail.com commit ...` (the author of the earlier commits).
+- Bonsai lives in `~/Desktop/Projects/Bonsai/`: PrismML's llama.cpp fork built with CUDA arch 75 (`src/llama.cpp/build/bin/llama-server`); models in `models/` (`Bonsai-27B-Q1_0` 3.8 GB, `Ternary-Bonsai-2-9B-PQ2_0` 2.4 GB, `Bonsai-8B-Q1_0` 1.2 GB). SHIELD finds the binary through **`SHIELD_LLAMA_SERVER=<path>`**; SHIELD's own models folder (`~/.config/shield2.0/models`) holds symlinks to the three files. The fork accepts every flag SHIELD passes.
+- Never use a quantized KV cache (`-ctk/-ctv q8_0`) with the 27B/9B on sm_75: the GPU crashes. SHIELD does not pass it.
+- **Thinking models:** the 27B thinks before it answers. Two traps found live: (1) a small reply limit (SHIELD's default Max Tokens is 2048) can be spent entirely on thought, leaving an empty reply (the chat now explains this; 8192 suits Bonsai); (2) **`--reasoning-budget` must not be on by default**: the model carries on thinking in the visible answer when it is cut off (checked against the server, and seen as a rambling block ending in `</think>` in the chat). `buildServerArgs` accepts an opt-in `reasoningBudget`; the thinking parser now also files a lone `</think>` as thinking.
 
-**Agent teams**: a **Team** toggle in Code sessions, and a **Team panel** on the right (role icons, agent list, live timeline of what each agent says and does, collapses to a rail of icons). An orchestrator that can only `delegate` and `update_plan` hands work to a coder, tester and reviewer, each in its own model session on the same llama-server. See `SHIELD_AGENT_ARCHITECTURE.md` §21 for the design, the rules and the live evidence. Code: `src/agents/`, `src/components/team/`, `src/stores/team-store.ts`, `src/hooks/useAgentTeam.ts`, `scripts/bench/agent-team.ts`.
+### What was built (commits `d351752`..`1ed9b36`)
+- **Linux:** path validation refuses relative, foreign (Windows drive/UNC) and symlinked paths (a symlink escape was a real hole); `run_command` runs in bash with POSIX read-only rules (a `echo a\" | rm x \"` bypass found and closed; backslash and `!` ask); `canonicalPath` is case-sensitive off Windows; prompts, the delete step, tagline and memory warning name the host OS and "Trash" (`src/utils/platform.ts`: `hostOs`, `osName`, `trashName`; the main process reads `process.platform`). Tests that are Windows scenarios pin the platform with `vi.stubGlobal("navigator", ...)` because jsdom reports Linux.
+- **Bonsai:** 27B / 2 9B / 8B in the catalog (runtime `prism-llama-server`, run by the llama-server engine); planner fallback for PQ2_0 (node-llama-cpp cannot size it); the context meter survives Bonsai's template (it refuses a chat with no user message); titles send `enable_thinking:false`; `closeOpenBrackets` mends tool-call JSON whose object never closed.
+- **Agent teams** (design, rules and evidence: `SHIELD_AGENT_ARCHITECTURE.md` §21). A **Team** toggle in Code sessions; an orchestrator with **one tool, `delegate`**, hands work to a coder, tester and reviewer, each in its own model session on the same llama-server (`LlamaServerProvider.fork`, `keepWholeHistory`; llama-server models only). SHIELD enforces role limits (tester changes test files only, reviewer nothing), meters context (`[Context: N% used]`), makes agents hand over at 70% (a fresh agent continues from the hand-off; SHIELD attaches it itself when the model forgets `continue_from`), puts its own record of files/commands in every report, asks for a report from an agent that ends without one, and notes under the answer when it credits a role that never ran. The **Team panel** (right side: role icons with status dots, agent list, live timeline with streamed text, context bar, report, collapses to a rail) and the plan checklist are fed by the runner's events; the plan is **derived from the delegations** (`src/agents/teamPlan.ts`); runs are saved with the conversation (`agentRuns`) and restored on open.
 
-- Try it: load Bonsai 27B (or Qwen3-Coder), open a Code session, press **Team**, choose Auto, and ask for a change plus a review. Each sub-agent call goes through the usual permission prompts. Needs a llama-server model.
-- Headless: `SHIELD_LLAMA_SERVER=... npx tsx scripts/bench/agent-team.ts --models-dir <dir> --model bonsai-27b --scenario bug [--checkpoint 0.12]` (`0.12` cuts agents off early on purpose). Evidence goes to `tmp/agent-team-*`.
-- Open: notes and hand-offs live in memory only (the panel's runs are saved with the chat); sub-agent steps are not saved as chat messages; one agent at a time; Bonsai's invalid-JSON writes (see §21); no repeated-run pass rates yet.
+### How to check things (the harnesses are in `tmp/ui-check/`, git-ignored; recreate if missing)
+- Headless team run: `SHIELD_LLAMA_SERVER=~/Desktop/Projects/Bonsai/src/llama.cpp/build/bin/llama-server npx tsx scripts/bench/agent-team.ts --models-dir ~/Desktop/Projects/Bonsai/models --model bonsai-27b --scenario bug [--checkpoint 0.12]` (`0.12` cuts agents off early on purpose; scenarios `fix`, `bug`, `build`; it re-runs the project's tests itself; evidence in `tmp/agent-team-*`; a run is 10-20 minutes). Single-agent smoke: `scripts/bench/gemma-smoke.ts --model bonsai-27b ...`.
+- The real window: `npm run build`, then a Playwright `_electron.launch` script against the build with an isolated `--user-data-dir` (`tmp/ui-check/team.mjs` drives a Team session: stubs the folder dialog, presses Team, sets Auto, clicks the **Run**/**Allow** buttons, screenshots every 45 s; `RUN_MS` caps it). Pitfalls: **never `page.setViewportSize`** (it forces the page wider than the real window); reset the profile's `Local Storage` between runs (the panel's collapsed state persists); the profile's Max Tokens must be 8192 for the 27B; the window appears on the user's desktop, so **run one only when the user has agreed, with a time cap**.
+- **Never `pkill -f` / `pgrep -f` with a pattern in your own command line** (it killed the calling shell once). Use `pkill -x electron` / `pkill -x llama-server`.
+
+### Findings from the live runs (what to expect)
+- Before the orchestrator lost `update_plan` it stalled in 3 of 5 runs (saving the plan 5-9 times, never delegating) despite a hint, a guard and a round cap. Since: 3 clean runs in a row (coder, tester, reviewer; plan "3 of 3 done"; fix passes outside the app). One run is one attempt on a tiny bug: **there is no pass rate yet.**
+- The 27B sometimes skips a role you asked for (it skipped the tester once, then claimed one had run: now flagged). It writes invalid JSON when file content has quotes (16 failed calls in one run before the repair) and mangles bash quoting inside written scripts.
+- A reviewer once ended on a malformed tool call, reported nothing, and the orchestrator said the review had confirmed everything: that is why every agent must report and SHIELD's record sits beside the agent's words.
+
+### Next steps (suggested order)
+1. **A repeated benchmark** of the team (e.g. 10 runs of the `bug` and `fix` scenarios: pass rate, time, which guard fired). The extra evidence is the basis for any claim of reliability.
+2. Try teams with **Qwen3-Coder** and the **9B/8B** Bonsai in the app (untested), and Ask mode with a human approving each call.
+3. **Windows**: CI runs on `windows-latest` for PRs and pushes to `main`. Nothing here was run on Windows; an eventual PR to `main` is where the platform-specific tests get their first Windows run. Ask the user before opening one.
+4. Team notes and hand-offs are in memory only; sub-agent steps are not saved as chat messages (only the panel's runs, with the chat); agents run one at a time (one server slot).
+5. Still open from before: the recall tool, "SHIELD learns and remembers", and the older "Later" list below.
+
+### Working agreements with the user
+- Ask before downloading large files or installing system packages (name, source, size). Push and open PRs only when asked, each time. Run visible windows only when agreed, with a cap.
+- Report plainly what failed or was not tested; verify with your own run, not an agent's summary.
+- **Never empty the Trash** or run any broad cleanup: on 2026-10-20 `gio trash --empty` was run to remove one test file (it empties everything). Nothing was lost (the Trash folder had been created by that same test seconds earlier), but clean up only your own files, by exact path.
 
 ## Update — 2026-09-28: a terminal for Code sessions, and edits written with `&quot;` (working tree)
 
