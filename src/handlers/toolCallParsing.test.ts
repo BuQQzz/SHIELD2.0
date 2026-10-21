@@ -8,6 +8,7 @@ import {
   repairJsonStrings,
   stripToolCallMarkup,
   streamingToolCallPreview,
+  unreadableToolCall,
   UNSUPPORTED_NATIVE_TOOL_CALL_MESSAGE,
 } from "./toolCallParsing";
 
@@ -500,5 +501,47 @@ describe("a call whose edit object never closes (Bonsai 27B, 2026-10-20)", () =>
         { oldText: "echo $(( $1 - $2 ))", newText: "echo $(( $1 + $2 ))" },
       ],
     });
+  });
+});
+
+describe("calls a model wrote badly (Bonsai 27B, 2026-10-21)", () => {
+  const body =
+    '<server>terminal</server>\n<tool>run_command</tool>\n<arguments>{"command":"python3 t.py","reason":"r"}</arguments>';
+
+  it("runs a call that stops after </arguments> without </tool_call>", () => {
+    const calls = extractToolCalls(`<tool_call>\n${body}`);
+    expect(calls).toHaveLength(1);
+    expect(calls[0]).toMatchObject({
+      serverName: "terminal",
+      tool: "run_command",
+    });
+  });
+
+  it("does not close a call cut off inside its arguments", () => {
+    expect(
+      extractToolCalls(
+        '<tool_call>\n<tool>write_file</tool>\n<arguments>{"path":"a","content":"x'
+      )
+    ).toEqual([]);
+  });
+
+  it("takes the last <server> before the tool", () => {
+    const calls = extractToolCalls(
+      `<tool_call>\n<server>agents</server>\n${body}\n</tool_call>`
+    );
+    expect(calls[0]?.serverName).toBe("terminal");
+  });
+
+  it("answers a call with no tool name instead of ending the turn", () => {
+    const text =
+      '<tool_call>\n<server>filesystem</tool>\n<arguments>{"path":"/a/b.py"}</arguments>\n</tool_call>';
+    expect(extractToolCalls(text)).toEqual([]);
+    const stand = unreadableToolCall(text);
+    expect(stand?.argumentsError).toContain("no <tool> element");
+  });
+
+  it("leaves readable calls and plain text alone", () => {
+    expect(unreadableToolCall(`<tool_call>\n${body}\n</tool_call>`)).toBeNull();
+    expect(unreadableToolCall("All done, no problems found.")).toBeNull();
   });
 });

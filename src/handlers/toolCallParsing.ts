@@ -20,6 +20,7 @@ export interface ToolCallRequest {
 
 /** Set on the stand-in for a call the reply ended in the middle of */
 export const CUT_OFF_ERROR_PREFIX = "The tool call was cut off";
+export const UNREADABLE_ERROR_PREFIX = "The tool call could not be read";
 
 /** Gemma 4's native tool markers are not part of SHIELD's XML tool protocol. */
 export const UNSUPPORTED_NATIVE_TOOL_CALL_MESSAGE =
@@ -540,6 +541,19 @@ function wrapBareCallBodies(text: string): string {
   );
 }
 
+/**
+ * A reply that stops right after a whole call body, without `</tool_call>`
+ * (a reviewer on Bonsai 27B did, 2026-10-21), never ran its call. Close it
+ * when the tool and its arguments are both complete; a call cut off inside
+ * its arguments is left to `cutOffToolCall`.
+ */
+const UNCLOSED_CALL =
+  /<tool_call>(?:(?!<tool_call>)[\s\S])*?<tool>[^<]+<\/tool>\s*<arguments>[\s\S]*?<\/arguments>\s*$/;
+
+function closeUnfinishedCall(text: string): string {
+  return UNCLOSED_CALL.test(text) ? `${text.trimEnd()}\n</tool_call>` : text;
+}
+
 export function repairToolCallMarkup(content: string): string {
   const CLOSE = "</tool_call>";
   const OPEN = "<tool_call>";
@@ -550,7 +564,7 @@ export function repairToolCallMarkup(content: string): string {
   for (;;) {
     const closeIndex = rest.indexOf(CLOSE);
     if (closeIndex === -1) {
-      output += wrapBareCallBodies(rest);
+      output += closeUnfinishedCall(wrapBareCallBodies(rest));
       break;
     }
 
@@ -623,7 +637,11 @@ function extractXmlToolCalls(rawContent: string): ToolCallRequest[] {
       const toolCallContent = match[1]?.trim();
       if (!toolCallContent) continue;
 
-      const serverMatch = toolCallContent.match(/<server>(.*?)<\/server>/);
+      // The last <server> before the tool: Bonsai wrote "agents", then
+      // "terminal", and the first one sent run_command to the wrong server
+      const serverMatch = toolCallContent.match(
+        /^[\s\S]*<server>(.*?)<\/server>/
+      );
       // Models use <tool> or <name> interchangeably, and <name> may carry a
       // dotted "server.tool" rather than a separate <server> element.
       const toolMatch =
@@ -879,5 +897,27 @@ export function cutOffToolCall(content: string): ToolCallRequest | null {
     arguments: {},
     format: "xml",
     argumentsError: `${CUT_OFF_ERROR_PREFIX}: your reply reached its length limit partway through the ${tool} arguments, so it was not run and nothing changed. Do it in smaller steps: create a large file in parts (write_file with the first part, then edit_file to add each next part), and change existing files with edit_file using only the lines that change.`,
+  };
+}
+
+/**
+ * A finished call block with no tool name: `<server>filesystem</tool>` with
+ * the name lost (Bonsai 27B, 2026-10-21). Nothing can run, and ending the
+ * turn on it left a reviewer with no report. The stand-in tells the model
+ * what was wrong so it can send the call again.
+ */
+export function unreadableToolCall(content: string): ToolCallRequest | null {
+  if (hasUnsupportedNativeToolCall(content)) return null;
+  const repaired = repairToolCallMarkup(content);
+  const blocks = [...repaired.matchAll(/<tool_call>([\s\S]*?)<\/tool_call>/g)];
+  const last = blocks[blocks.length - 1]?.[1];
+  if (!last || !/<arguments>|<server>/.test(last)) return null;
+  if (/<tool>[^<]+<\/tool>|<name>[^<]+<\/name>/.test(last)) return null;
+  return {
+    serverName: "filesystem",
+    tool: "tool",
+    arguments: {},
+    format: "xml",
+    argumentsError: `${UNREADABLE_ERROR_PREFIX}: it has no <tool> element naming the tool, so nothing ran. Send it again in full: <tool_call><server>NAME</server><tool>TOOL</tool><arguments>{...}</arguments></tool_call>, with the tool's name between <tool> and </tool>.`,
   };
 }

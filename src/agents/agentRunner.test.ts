@@ -231,8 +231,9 @@ describe("runAgent", () => {
 
   // Seen live (2026-10-20): a reviewer ended on <server>filesystem</tool>, which
   // parses as plain text, so it "finished" with no findings, and the
-  // orchestrator told the user the review had confirmed everything was correct
-  it("asks for a report from an agent that ends on a malformed tool call", async () => {
+  // orchestrator told the user the review had confirmed everything was correct.
+  // Now the call is answered with what was wrong, and the agent goes on.
+  it("tells an agent its tool call had no tool name, and it carries on to a report", async () => {
     const malformed =
       '<tool_call>\n<server>filesystem</tool>\n<arguments>{"path":"/p/test.sh"}</arguments>\n</tool_call>';
     const { deps, sent } = harness([
@@ -246,8 +247,7 @@ describe("runAgent", () => {
       deps
     );
 
-    expect(sent.at(-1)).toContain("stop here. Do not call any tool");
-    expect(sent.at(-1)).toContain("no problems found");
+    expect(sent.at(-1)).toContain("no <tool> element");
     expect(report.status).toBe("DONE");
     expect(report.summary).toBe(
       "One problem: test_negative.sh line 2 has mangled quotes in cd."

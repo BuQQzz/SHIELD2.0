@@ -11,7 +11,12 @@ import {
   resultPayload,
   type ToolCallRequest,
 } from "./mcpToolHandler";
-import { CUT_OFF_ERROR_PREFIX, cutOffToolCall } from "./toolCallParsing";
+import {
+  CUT_OFF_ERROR_PREFIX,
+  UNREADABLE_ERROR_PREFIX,
+  cutOffToolCall,
+  unreadableToolCall,
+} from "./toolCallParsing";
 import type { MCPToolResult } from "@/types/electron";
 import { isMutatingTool } from "../config/toolClassification";
 import { RUN_COMMAND_TOOL_NAME } from "../config/commandSafety";
@@ -283,7 +288,9 @@ export async function processMCPToolCalls(
       enableXmlToolCalls: true,
     });
     const cutOff = cutOffToolCall(text);
-    return cutOff ? [...calls, cutOff] : calls;
+    if (cutOff) return [...calls, cutOff];
+    const unreadable = calls.length === 0 ? unreadableToolCall(text) : null;
+    return unreadable ? [unreadable] : calls;
   };
 
   for (let round = 1; round <= maxToolRounds; round++) {
@@ -324,7 +331,9 @@ export async function processMCPToolCalls(
         // the same malformed call.
         result = {
           success: false,
-          error: toolCall.argumentsError.startsWith(CUT_OFF_ERROR_PREFIX)
+          error: [CUT_OFF_ERROR_PREFIX, UNREADABLE_ERROR_PREFIX].some(
+            (prefix) => toolCall.argumentsError?.startsWith(prefix)
+          )
             ? toolCall.argumentsError
             : `${toolCall.argumentsError} The call was not run. Send it again with the arguments as a valid JSON object, escaping line breaks inside strings as \\n.`,
         };
