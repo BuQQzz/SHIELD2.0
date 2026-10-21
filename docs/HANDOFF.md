@@ -44,7 +44,7 @@ Order agreed with the user on 2026-09-26: the Code view, then the terminal, then
 
 - Try it: load Bonsai 27B (or Qwen3-Coder), open a Code session, press **Team**, choose Auto, and ask for a change plus a review. Each sub-agent call goes through the usual permission prompts. Needs a llama-server model.
 - Headless: `SHIELD_LLAMA_SERVER=... npx tsx scripts/bench/agent-team.ts --models-dir <dir> --model bonsai-27b --scenario bug [--checkpoint 0.12]` (`0.12` cuts agents off early on purpose). Evidence goes to `tmp/agent-team-*`.
-- Open: notes and hand-offs live in memory only; sub-agent steps are not saved as chat messages; one agent at a time; Bonsai's invalid-JSON writes (see §21); no repeated-run pass rates yet.
+- Open: notes and hand-offs live in memory only (the panel's runs are saved with the chat); sub-agent steps are not saved as chat messages; one agent at a time; Bonsai's invalid-JSON writes (see §21); no repeated-run pass rates yet.
 
 ## Update — 2026-09-28: a terminal for Code sessions, and edits written with `&quot;` (working tree)
 

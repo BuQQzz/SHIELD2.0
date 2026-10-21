@@ -166,6 +166,37 @@ export function appendLiveText(
   );
 }
 
+/** Runs kept with a conversation: the latest this many */
+export const MAX_SAVED_RUNS = 24;
+
+/**
+ * Saved runs, as the panel shows them after SHIELD restarts. A run that was
+ * still working when it was saved never finished (SHIELD closed, or crashed):
+ * it is shown handed over, with why. Live text and session ids belong to a
+ * model session that is gone.
+ */
+export function restoreRuns(saved: AgentRunView[]): AgentRunView[] {
+  return saved.slice(-MAX_SAVED_RUNS).map((run) => {
+    const { sessionId: _session, ...rest } = run;
+    void _session;
+    const interrupted = run.status === "running";
+    return {
+      ...rest,
+      live: "",
+      status: interrupted ? "PARTIAL" : run.status,
+      reason: interrupted
+        ? "SHIELD was closed while it was working"
+        : run.reason,
+      endedAt: run.endedAt ?? (interrupted ? run.startedAt : undefined),
+      steps: run.steps.map((step) =>
+        step.kind === "tool" && step.state === "running"
+          ? { ...step, state: "failed" as const }
+          : step
+      ),
+    };
+  });
+}
+
 /** The run to follow: the newest still working, else the newest */
 export function latestRun(runs: AgentRunView[]): AgentRunView | undefined {
   return (

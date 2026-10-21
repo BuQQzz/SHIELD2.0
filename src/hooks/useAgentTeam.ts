@@ -12,6 +12,7 @@ import { useCallback, useEffect, useState } from "react";
 import { handleDelegate } from "@/agents/delegation";
 import { isDelegateTool, TEAM_NOTE_TOOL } from "@/agents/delegate";
 import { planStepsFromRuns } from "@/agents/teamPlan";
+import { MAX_SAVED_RUNS } from "@/agents/runView";
 import { toolsForRole } from "@/agents/roles";
 import { teamFor } from "@/agents/team";
 import type { AgentRunDeps } from "@/agents/agentRunner";
@@ -78,6 +79,14 @@ function syncPlan(conversationId: string): void {
   conversations.updateConversation({
     plan: { steps, updatedAt: new Date().toISOString(), by: "model" },
   });
+}
+
+/** The runs go into the conversation, saved with it, so they survive a restart */
+function saveRuns(conversationId: string): void {
+  const conversations = useConversationStore.getState();
+  if (conversations.currentConversation?.id !== conversationId) return;
+  const runs = useTeamStore.getState().runsByConversation[conversationId] ?? [];
+  conversations.updateConversation({ agentRuns: runs.slice(-MAX_SAVED_RUNS) });
 }
 
 export function useAgentTeam({
@@ -154,6 +163,7 @@ export function useAgentTeam({
           const id = conversationId ?? "no-conversation";
           useTeamStore.getState().record(id, event);
           if (event.type === "start" || event.type === "end") syncPlan(id);
+          if (event.type === "end") saveRuns(id);
         },
       };
 

@@ -34,6 +34,7 @@ import { useToolPolicy } from "./hooks/useToolPolicy";
 import { useAgentTeam } from "./hooks/useAgentTeam";
 import { TeamPanel } from "./components/team/TeamPanel";
 import { useTeamStore } from "./stores/team-store";
+import { restoreRuns } from "./agents/runView";
 import { ORCHESTRATOR_PROMPT } from "./agents/roles";
 import { teamFor } from "./agents/team";
 import { useInstalledModels } from "./hooks/useInstalledModels";
@@ -361,6 +362,17 @@ function App() {
     handleToolCallRequest: handleToolCall, // Pass MCP handler
     isMCPReady,
   });
+
+  // Opening a session brings back what its agents did (Team panel)
+  const openConversationId = currentConversation?.id;
+  const savedRuns = currentConversation?.agentRuns;
+  useEffect(() => {
+    if (openConversationId && savedRuns?.length) {
+      useTeamStore
+        .getState()
+        .hydrate(openConversationId, restoreRuns(savedRuns));
+    }
+  }, [openConversationId, savedRuns]);
 
   // A new user message lets the orchestrator delegate again
   const handleSendMessage = useCallback(

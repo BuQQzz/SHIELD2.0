@@ -3,6 +3,8 @@ import {
   appendLiveText,
   applyAgentEvent,
   latestRun,
+  MAX_SAVED_RUNS,
+  restoreRuns,
   type AgentRunView,
 } from "./runView";
 import type { AgentEvent } from "./events";
@@ -235,5 +237,71 @@ describe("latestRun", () => {
     });
     expect(latestRun(finished)?.id).toBe("h3");
     expect(latestRun([])).toBeUndefined();
+  });
+});
+
+describe("restoreRuns", () => {
+  const finished = run([
+    start,
+    { type: "session", runId: "h1", sessionId: "agent-1" },
+    { type: "reply", runId: "h1", text: "Fixed it." },
+    {
+      type: "end",
+      runId: "h1",
+      status: "DONE",
+      summary: "Fixed.",
+      workLines: ["- files: a.js edited"],
+      steps: 1,
+      contextPercent: 20,
+    },
+  ]);
+
+  it("keeps a finished run as it was, without the dead model session", () => {
+    const [restored] = restoreRuns(finished);
+    expect(restored).toMatchObject({
+      id: "h1",
+      status: "DONE",
+      summary: "Fixed.",
+      workLines: ["- files: a.js edited"],
+    });
+    expect(restored!.steps).toEqual(finished[0]!.steps);
+    expect("sessionId" in restored!).toBe(false);
+  });
+
+  it("shows a run that was working when SHIELD closed as handed over, with why", () => {
+    const working = run([
+      start,
+      { type: "session", runId: "h1", sessionId: "agent-1" },
+      {
+        type: "tool",
+        runId: "h1",
+        callId: "h1-1",
+        tool: "run_command",
+        target: "npm test",
+      },
+    ]);
+    working[0] = { ...working[0]!, live: "half a senten" };
+    const [restored] = restoreRuns(working);
+    expect(restored).toMatchObject({
+      status: "PARTIAL",
+      reason: "SHIELD was closed while it was working",
+      live: "",
+    });
+    expect(restored!.steps[0]).toMatchObject({ state: "failed" });
+    expect(restored!.endedAt).toBeDefined();
+  });
+
+  it("keeps only the latest runs, and survives a JSON round trip", () => {
+    const many = run(
+      Array.from({ length: MAX_SAVED_RUNS + 5 }, (_, i) => ({
+        type: "start" as const,
+        runId: `h${i}`,
+        role: "coder" as const,
+        task: `t${i}`,
+      }))
+    );
+    const restored = restoreRuns(JSON.parse(JSON.stringify(many)));
+    expect(restored).toHaveLength(MAX_SAVED_RUNS);
+    expect(restored[0]!.id).toBe("h5");
   });
 });

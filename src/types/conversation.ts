@@ -1,5 +1,6 @@
 import type { SavedCapsule } from "./electron";
 import type { Plan } from "../config/plan";
+import type { AgentRunView } from "../agents/runView";
 
 export interface Message {
   id: string;
@@ -85,6 +86,8 @@ export interface Conversation {
   plan?: Plan;
   /** A code session led by an orchestrator that delegates to sub-agents (src/agents) */
   team?: boolean;
+  /** What the team's agents did, for the Team panel after a restart */
+  agentRuns?: AgentRunView[];
 }
 
 export interface ConversationMetadata {

@@ -33,6 +33,8 @@ interface TeamState {
   collapsed: boolean;
 
   record: (conversationId: string, event: AgentEvent) => void;
+  /** Saved runs of a conversation, put back when it opens (once) */
+  hydrate: (conversationId: string, runs: AgentRunView[]) => void;
   /** A new user message: its delegations make a plan of their own */
   beginTurn: (conversationId: string) => void;
   streamToken: (sessionId: string, token: string) => void;
@@ -66,6 +68,21 @@ export const useTeamStore = create<TeamState>((set) => ({
         ? { ...next, selectedRunId: event.runId }
         : next;
     }),
+
+  hydrate: (conversationId, runs) =>
+    set((state) =>
+      (state.runsByConversation[conversationId]?.length ?? 0) > 0 ||
+      runs.length === 0
+        ? state
+        : {
+            runsByConversation: {
+              ...state.runsByConversation,
+              [conversationId]: runs,
+            },
+            // restored runs are not part of the next message's plan
+            turnStart: { ...state.turnStart, [conversationId]: runs.length },
+          }
+    ),
 
   beginTurn: (conversationId) =>
     set((state) => ({

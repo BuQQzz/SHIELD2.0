@@ -880,7 +880,7 @@ A side panel on the right of a Team session (collapsed state remembered), like t
 - **List, then detail.** Rows show role, state, task and tool-call count. Opening one shows its task, what it says, each tool call with its output (click to expand), the text it is writing now (streamed token by token; "Thinking" while a thinking model has nothing to show yet), a context bar that turns amber at the checkpoint, and at the end its report, why it stopped, and "Checked by SHIELD" (the files and commands record).
 - **Follows the newest working agent** until the user picks one; a locate button re-attaches it.
 - **Collapses** to a rail of icons; clicking an icon opens that agent. Shows in Team mode, or in any session that has agent runs.
-- Fed by `AgentEvent`s from the runner (`start`, `session`, `reply`, `tool`, `result`, `context`, `checkpoint`, `end`), so the headless harness and the UI see the same story. Runs live in memory per conversation: a restart forgets them.
+- Fed by `AgentEvent`s from the runner (`start`, `session`, `reply`, `tool`, `result`, `context`, `checkpoint`, `end`), so the headless harness and the UI see the same story. Runs are saved with the conversation (`agentRuns`, the latest 24) and put back when it opens; a run that was mid-flight when SHIELD closed is shown as handed over, with why.
 
 ## Evidence (2026-10-20, Bonsai 27B Q1_0 on an RTX 2070 SUPER, 32K window, ~19 tok/s)
 
@@ -906,6 +906,6 @@ The Electron path was driven with Playwright against the production build (Team 
 
 - Needs a llama-server model (Bonsai, Qwen3-Coder). The in-process engine has one chat session and cannot host sub-agents.
 - Agents run one at a time: the server has one slot, and each switch re-reads the prompt (5-25 s at 19 tok/s for the 27B).
-- Notes, hand-offs and the panel's runs are in memory; a restart forgets them. Sub-agent steps are not saved as chat messages (the chat keeps the "Delegated to coder" step and the report).
+- Notes and hand-offs are in memory; a restart forgets them (the panel's runs are saved with the conversation). Sub-agent steps are not saved as chat messages (the chat keeps the "Delegated to coder" step and the report).
 - Bonsai 27B sometimes writes invalid JSON for `write_file`/`edit_file` when the content has quotes (seen 3x in a Code session, 16x in a team run); SHIELD rejects each call and the agent retries, which burns its steps.
 - No async/parallel agents, no agent-to-agent messaging, no worktree isolation.
