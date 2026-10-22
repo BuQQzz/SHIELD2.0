@@ -46,6 +46,73 @@ describe("ToolPermissionBar", () => {
     expect(screen.getByTitle(path)).toBeTruthy();
   });
 
+  it("names the agent that is asking", () => {
+    render(
+      <ToolPermissionBar
+        request={{
+          ...base,
+          toolName: "edit_file",
+          targetPath: "/p/calc.py",
+          agent: "coder",
+        }}
+        onApprove={vi.fn()}
+        onDeny={vi.fn()}
+      />
+    );
+    expect(screen.getByText("coder")).toBeTruthy();
+  });
+
+  it("shows the lines an edit takes out and puts in", () => {
+    render(
+      <ToolPermissionBar
+        request={{
+          ...base,
+          toolName: "edit_file",
+          targetPath: "/p/calc.py",
+          change: {
+            kind: "edit",
+            edits: [
+              {
+                removed: ["    return a - b"],
+                added: ["    return a + b"],
+                hiddenRemoved: 0,
+                hiddenAdded: 0,
+              },
+            ],
+            moreEdits: 0,
+          },
+        }}
+        onApprove={vi.fn()}
+        onDeny={vi.fn()}
+      />
+    );
+    expect(screen.getByText(/return a - b/)).toBeTruthy();
+    expect(screen.getByText(/return a \+ b/)).toBeTruthy();
+  });
+
+  it("shows the start of a new file and what was left out", () => {
+    render(
+      <ToolPermissionBar
+        request={{
+          ...base,
+          toolName: "write_file",
+          targetPath: "/p/new.py",
+          change: {
+            kind: "write",
+            lines: ["print('hi')"],
+            hiddenLines: 3,
+            chars: 400,
+          },
+        }}
+        onApprove={vi.fn()}
+        onDeny={vi.fn()}
+      />
+    );
+    expect(screen.getByText(/New content, 400 characters/)).toBeTruthy();
+    expect(screen.getByText(/print\('hi'\)/)).toBeTruthy();
+    expect(screen.getByText(/3 more lines/)).toBeTruthy();
+  });
+
   it("shows a command in full and asks for it alone", () => {
     render(
       <ToolPermissionBar

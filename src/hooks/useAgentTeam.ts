@@ -38,7 +38,7 @@ interface UseAgentTeamProps {
   /** The app's handler for one tool call; takes the policy to decide it under */
   handleToolCallRequest: (
     request: ToolCallRequest,
-    options?: { policy?: ToolPolicy }
+    options?: { policy?: ToolPolicy; agent?: string }
   ) => Promise<MCPToolResult>;
   /** What sub-agents work under: the session's normal tools and permissions */
   workerPolicy: ToolPolicy;
@@ -140,8 +140,11 @@ export function useAgentTeam({
         closeSession: async (sessionId) => {
           await window.llama.agentClose(sessionId);
         },
-        execute: (call) =>
-          handleToolCallRequest(call, { policy: workerPolicy }),
+        execute: (call, context) =>
+          handleToolCallRequest(call, {
+            policy: workerPolicy,
+            agent: context?.role,
+          }),
         buildPrompt: (spec) =>
           buildSystemPrompt({
             modelFamily: detectModelFamily(modelName ?? "generic"),

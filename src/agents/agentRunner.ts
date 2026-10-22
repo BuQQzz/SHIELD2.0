@@ -57,7 +57,10 @@ export interface AgentRunDeps {
   contextOf(sessionId: string): Promise<{ used: number; size: number }>;
   closeSession(sessionId: string): Promise<void>;
   /** Runs a call through the app's permission policy and tools */
-  execute(call: ToolCallRequest): Promise<MCPToolResult>;
+  execute(
+    call: ToolCallRequest,
+    context?: { role: AgentRole }
+  ): Promise<MCPToolResult>;
   /** The system prompt for a role: its text plus the tools it may use */
   buildPrompt(spec: RoleSpec): string;
   workspaceFolder?: string;
@@ -323,7 +326,7 @@ export async function runAgent(
       }
       commandsRun += 1;
     }
-    const result = await deps.execute(call);
+    const result = await deps.execute(call, { role });
     recordCall(work, call, result);
     store("PARTIAL");
     return result;

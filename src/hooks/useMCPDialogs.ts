@@ -34,6 +34,7 @@ import { isRemovalNote } from "@/services/historyCompaction";
 import { isAgentsMd } from "@/config/agentsMd";
 import { modelWrittenFiles } from "@/handlers/workLedger";
 import { savePlanFromCall } from "@/handlers/sessionPlan";
+import { changePreview, type ChangePreview } from "@/utils/changePreview";
 
 /**
  * A command that asks the user carries the model's reason, shown in the
@@ -175,6 +176,10 @@ export interface PendingToolRequest {
   instructionsFile?: boolean;
   /** The text a write or edit would put in the file, to read first */
   proposed?: string;
+  /** The team member asking (coder, tester, reviewer), when one is */
+  agent?: string;
+  /** What an edit or a write would do to the file, to read before approving */
+  change?: ChangePreview;
 }
 
 interface UseMCPDialogsProps {
@@ -314,7 +319,7 @@ export function useMCPDialogs({
       request: ToolCallRequest,
       // A sub-agent's calls are decided by the worker policy, not the
       // orchestrator's; the same prompts and permission bar serve both
-      options: { policy?: ToolPolicy } = {}
+      options: { policy?: ToolPolicy; agent?: string } = {}
     ): Promise<MCPToolResult> => {
       const policy = options.policy ?? defaultPolicy;
       if (!policy.allows(request.tool)) {
@@ -458,6 +463,8 @@ export function useMCPDialogs({
           proposed: writesInstructions
             ? proposedText(toolCall.tool, toolCall.arguments)
             : undefined,
+          agent: options.agent,
+          change: changePreview(toolCall.tool, toolCall.arguments) ?? undefined,
         });
       });
     },

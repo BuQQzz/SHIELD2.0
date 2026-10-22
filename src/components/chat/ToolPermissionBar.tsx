@@ -22,6 +22,7 @@ import {
 import { Button } from "@/components/ui/button";
 import type { PendingToolRequest } from "@/hooks/useMCPDialogs";
 import { trashName } from "@/utils/platform";
+import type { ChangePreview } from "@/utils/changePreview";
 
 interface ToolPermissionBarProps {
   request: PendingToolRequest | null;
@@ -50,6 +51,60 @@ function PathText({ path, className }: { path: string; className?: string }) {
       <span className="min-w-0 truncate">{short.slice(0, cut)}</span>
       <span className="shrink-0">{short.slice(cut)}</span>
     </span>
+  );
+}
+
+/** What an edit or a write will do to the file, as the lines in and out */
+function ChangeView({ change }: { change: ChangePreview }) {
+  const line = (text: string, sign: "-" | "+", key: string) => (
+    <div
+      key={key}
+      className={
+        sign === "-"
+          ? "bg-red-500/10 text-red-700 dark:text-red-300"
+          : "bg-emerald-500/10 text-emerald-700 dark:text-emerald-300"
+      }
+    >
+      <span className="select-none pr-1.5 opacity-60">{sign}</span>
+      {text || " "}
+    </div>
+  );
+  const more = (count: number, what: string) =>
+    count > 0 ? (
+      <div className="text-muted-foreground">
+        … {count} more {what} line{count === 1 ? "" : "s"}
+      </div>
+    ) : null;
+
+  return (
+    <div className="mt-1 max-h-40 overflow-auto whitespace-pre-wrap break-all rounded bg-background/70 px-2 py-1 font-mono text-[11px] leading-snug">
+      {change.kind === "write" ? (
+        <>
+          <div className="text-muted-foreground">
+            New content, {change.chars.toLocaleString()} characters
+          </div>
+          {change.lines.map((text, i) => line(text, "+", `w${i}`))}
+          {more(change.hiddenLines, "")}
+        </>
+      ) : (
+        <>
+          {change.edits.map((edit, index) => (
+            <div key={index} className={index > 0 ? "mt-1.5" : undefined}>
+              {edit.removed.map((text, i) => line(text, "-", `r${i}`))}
+              {more(edit.hiddenRemoved, "removed")}
+              {edit.added.map((text, i) => line(text, "+", `a${i}`))}
+              {more(edit.hiddenAdded, "added")}
+            </div>
+          ))}
+          {change.moreEdits > 0 && (
+            <div className="mt-1 text-muted-foreground">
+              … and {change.moreEdits} more change
+              {change.moreEdits === 1 ? "" : "s"}
+            </div>
+          )}
+        </>
+      )}
+    </div>
   );
 }
 
@@ -171,6 +226,11 @@ export function ToolPermissionBar({
               {/* A flex row so a long path shortens with an ellipsis; as
                   inline text it ran under the Deny button */}
               <div className="flex min-w-0 items-baseline">
+                {request.agent && (
+                  <span className="mr-1.5 shrink-0 rounded bg-background/70 px-1.5 py-0.5 text-[11px] font-medium capitalize text-muted-foreground">
+                    {request.agent}
+                  </span>
+                )}
                 <span className="shrink-0 font-medium">
                   {request.isDestructive
                     ? `Move to ${trashName()}`
@@ -205,6 +265,9 @@ export function ToolPermissionBar({
                   </span>
                 )}
               </div>
+              {request.change && !request.instructionsFile && (
+                <ChangeView change={request.change} />
+              )}
               {request.instructionsFile && request.proposed !== undefined && (
                 <ProposedText text={request.proposed} />
               )}

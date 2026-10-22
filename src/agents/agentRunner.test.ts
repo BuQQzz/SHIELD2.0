@@ -61,6 +61,25 @@ function harness(
 }
 
 describe("runAgent", () => {
+  // The permission bar names the agent that is asking (2026-10-22)
+  it("tells the app which role makes each call", async () => {
+    const roles: (string | undefined)[] = [];
+    const { deps } = harness(
+      [
+        call("read_text_file", { path: "/p/a.sh" }),
+        `Looked.\n\n${HANDOFF_DONE}`,
+      ],
+      {
+        execute: async (_call, context) => {
+          roles.push(context?.role);
+          return ok("done");
+        },
+      }
+    );
+    await runAgent({ role: "reviewer", task: "t", team: new TeamRun() }, deps);
+    expect(roles).toEqual(["reviewer"]);
+  });
+
   it("runs a task through the tool loop and reports what SHIELD saw", async () => {
     const { deps, sent, executed } = harness([
       call("edit_file", {
