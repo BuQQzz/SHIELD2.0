@@ -140,16 +140,24 @@ describe("roles", () => {
     );
   });
 
+  // The user (2026-10-22): "the agent replying that it cannot do code or
+  // edit files is misleading. it should just work and spawn agents if needed"
+  it("keeps the orchestrator from telling the user it cannot touch files", () => {
+    expect(ORCHESTRATOR_PROMPT).toContain(
+      "never say that you cannot read, edit or run something"
+    );
+    expect(ORCHESTRATOR_PROMPT).toContain("never mention delegating");
+    expect(ORCHESTRATOR_PROMPT).toContain('Say "I"');
+  });
+
   it("tells the orchestrator to delegate only what the request needs", () => {
     expect(ORCHESTRATOR_PROMPT).toContain("never for the sake of it");
     expect(ORCHESTRATOR_PROMPT).toContain("needs no agent: answer it yourself");
     expect(ORCHESTRATOR_PROMPT).toContain("the user's own words");
   });
 
-  it("tells the orchestrator it cannot touch files and how to continue a PARTIAL", () => {
-    expect(ORCHESTRATOR_PROMPT).toContain(
-      "You cannot read, search, edit or run anything yourself"
-    );
+  it("tells the orchestrator to work through the team, and how to continue a PARTIAL", () => {
+    expect(ORCHESTRATOR_PROMPT).toContain("you do not touch files yourself");
     expect(ORCHESTRATOR_PROMPT).toContain("continue_from");
     expect(ORCHESTRATOR_PROMPT).toContain("Checked by SHIELD");
     expect(ORCHESTRATOR_PROMPT).toContain(
