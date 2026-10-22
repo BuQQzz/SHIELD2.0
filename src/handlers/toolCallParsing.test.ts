@@ -8,6 +8,7 @@ import {
   repairJsonStrings,
   stripToolCallMarkup,
   streamingToolCallPreview,
+  unescapeClosingQuote,
   unreadableToolCall,
   UNSUPPORTED_NATIVE_TOOL_CALL_MESSAGE,
 } from "./toolCallParsing";
@@ -543,5 +544,27 @@ describe("calls a model wrote badly (Bonsai 27B, 2026-10-21)", () => {
   it("leaves readable calls and plain text alone", () => {
     expect(unreadableToolCall(`<tool_call>\n${body}\n</tool_call>`)).toBeNull();
     expect(unreadableToolCall("All done, no problems found.")).toBeNull();
+  });
+});
+
+describe("a closing quote the model escaped (Bonsai 27B, 2026-10-22)", () => {
+  // The exact shape that was sent eleven times: the task string ends \" and }
+  const body =
+    '{"role":"coder","task":"Fix calc.py.\\n\\nPlan:\\n1. Read it\\n2. Verify the change was applied correctly\\"}';
+
+  it("reads a call whose last string ends with an escaped quote", () => {
+    const calls = extractToolCalls(
+      `<tool_call>\n<server>agents</server>\n<tool>delegate</tool>\n<arguments>${body}</arguments>\n</tool_call>`
+    );
+    expect(calls).toHaveLength(1);
+    expect(calls[0]?.argumentsError).toBeUndefined();
+    expect(calls[0]?.arguments).toMatchObject({ role: "coder" });
+    expect(String(calls[0]?.arguments.task)).toMatch(/applied correctly$/);
+  });
+
+  it("only touches an input that ends that way", () => {
+    expect(unescapeClosingQuote('{"a":"b"}')).toBeNull();
+    expect(unescapeClosingQuote('{"a":"say \\"hi\\" now"}')).toBeNull();
+    expect(unescapeClosingQuote('{"a":"b\\"}')).toBe('{"a":"b"}');
   });
 });

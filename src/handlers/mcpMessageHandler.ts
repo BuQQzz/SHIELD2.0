@@ -279,6 +279,7 @@ export async function processMCPToolCalls(
   // How often each call was sent back before running
   const bounces = new Map<string, number>();
   let stuckOn: ToolCallRequest | null = null;
+  let stuckUnreadable = false;
 
   // Complete calls, plus a stand-in for one the reply stopped in the middle
   // of, so a reply that hits the token limit mid-call does not end the turn
@@ -337,6 +338,15 @@ export async function processMCPToolCalls(
             ? toolCall.argumentsError
             : `${toolCall.argumentsError} The call was not run. Send it again with the arguments as a valid JSON object, escaping line breaks inside strings as \\n.`,
         };
+        // The same unreadable call again and again (an orchestrator sent one
+        // eleven times, 2026-10-22): give up after MAX_REPEATS, not the round cap
+        const badKey = `unreadable:${toolCall.tool}:${toolCall.argumentsError}`;
+        const count = (bounces.get(badKey) ?? 0) + 1;
+        bounces.set(badKey, count);
+        if (count >= MAX_REPEATS) {
+          stuckOn = toolCall;
+          stuckUnreadable = true;
+        }
       } else if (previous) {
         console.log(
           `[MCP] Repeated call answered from this turn: ${signature}`
@@ -416,7 +426,9 @@ export async function processMCPToolCalls(
       addMessage({
         id: `${Date.now()}-tool-repeats`,
         role: "assistant",
-        content: `Stopped: the model kept repeating the same step (${describeCall(stuckOn)}) instead of using its result. Try rephrasing the request or giving the exact file or folder.`,
+        content: stuckUnreadable
+          ? `Stopped: the model kept sending a ${stuckOn.tool} call that could not be read. Try the request again, or rephrase it.`
+          : `Stopped: the model kept repeating the same step (${describeCall(stuckOn)}) instead of using its result. Try rephrasing the request or giving the exact file or folder.`,
         timestamp: new Date(),
       });
       break;

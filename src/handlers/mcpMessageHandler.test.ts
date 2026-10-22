@@ -640,6 +640,31 @@ describe("repeated calls within a turn", () => {
     expect(added.at(-1)?.content).toContain("kept repeating the same step");
   });
 
+  // An orchestrator sent one unreadable delegate call eleven times, 2026-10-22
+  it("ends the turn when the same unreadable call keeps coming", async () => {
+    // A task string cut off in the middle: no repair can close it
+    const bad =
+      '<tool_call>\n<server>agents</server>\n<tool>delegate</tool>\n<arguments>{"role":"coder","task":"Fix it {{</arguments>\n</tool_call>';
+    const onToolCallDetected = vi.fn();
+    const continueConversation = vi.fn().mockResolvedValue(bad);
+    const added: { content: string }[] = [];
+
+    await processMCPToolCalls(
+      { id: "u1", role: "assistant", content: bad, timestamp: new Date() },
+      {
+        onToolCallDetected,
+        addMessage: (message) => added.push(message),
+        continueConversation,
+      }
+    );
+
+    expect(onToolCallDetected).not.toHaveBeenCalled();
+    expect(continueConversation).toHaveBeenCalledTimes(2);
+    expect(added.at(-1)?.content).toContain(
+      "kept sending a delegate call that could not be read"
+    );
+  });
+
   it("runs a read again after something changed", async () => {
     const read = call("read_file", '{"path":"C:/a.txt"}');
     const write = call("write_file", '{"path":"C:/a.txt","content":"new"}');

@@ -235,9 +235,26 @@ export function closeOpenBrackets(input: string): string | null {
   return out + stack.reverse().join("");
 }
 
+/**
+ * A final string that ends `\"}` : the model escaped the quote that closes
+ * the last string, so the object never closes. The orchestrator of an agent
+ * team (Bonsai 27B) wrote its delegate task this way and sent the same call
+ * eleven times (2026-10-22). Nothing valid ends that way, so the escaped
+ * quote is the closing one. Null when the input does not end like that.
+ */
+export function unescapeClosingQuote(input: string): string | null {
+  const match = /\\"(\s*[}\]]+\s*)$/.exec(input);
+  if (!match) return null;
+  return `${input.slice(0, match.index)}"${match[1]}`;
+}
+
 function parseJson(input: string): unknown | null {
   const repaired = repairJsonStrings(input);
   const candidates = [input, repaired, escapeStrayQuotes(repaired)];
+  for (const source of [input, repaired]) {
+    const unescaped = unescapeClosingQuote(source);
+    if (unescaped !== null) candidates.push(unescaped);
+  }
 
   for (const candidate of candidates) {
     try {
