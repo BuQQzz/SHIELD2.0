@@ -1,8 +1,8 @@
 # SHIELD — Session Handoff
 
 **Last session:** 2026-10-21 → 22, on Linux (previous: 2026-10-20 → 21 on Linux; 2026-09-26 → 28 on Windows)  
-**Branch:** `feat/model-library`, 28 commits past the 2026-09-28 tip (`57d5baf`). Pushed to the public repo up to `3981847`; **everything after it is committed locally, not pushed:** `1ed9b36` (panel runs survive a restart), `a26dba2` (the earlier handoff) and the commits of 2026-10-21 → 22 (`0839059` .. `93e094b`). Nothing is merged to `main`. Only the user says when to push or open a PR.  
-**Tests:** 1091 passing, 7 skipped (`npx vitest run`) · `npx tsc --noEmit`, `npx eslint src electron scripts --ext ts,tsx --max-warnings 0` clean. `prettier --check` flags `src/components/ui/button.tsx` and `scripts/bench/mcp.ts`, which were already unformatted: do not run `prettier --write` over whole folders (it reformats `button.tsx`; `git checkout` it).
+**Branch:** `feat/model-library`, 33 commits past the 2026-09-28 tip (`57d5baf`). Pushed to the public repo up to `3981847`; **everything after it is committed locally, not pushed:** `1ed9b36` (panel runs survive a restart), `a26dba2` (the earlier handoff) and the commits of 2026-10-21 → 22 (`0839059` .. this handoff commit). Nothing is merged to `main`. Only the user says when to push or open a PR.  
+**Tests:** 1119 passing, 7 skipped (`npx vitest run`) · `npx tsc --noEmit`, `npx eslint src electron scripts --ext ts,tsx --max-warnings 0` clean. `prettier --check` flags `src/components/ui/button.tsx` and `scripts/bench/mcp.ts`, which were already unformatted: do not run `prettier --write` over whole folders (it reformats `button.tsx`; `git checkout` it).
 
 **Tested in the app with (2026-10-20):** Bonsai 27B Q1_0 on an RTX 2070 SUPER 8 GB (Ubuntu 26.04), SHIELD-managed Prism llama-server at 32K, ~19 tok/s. Earlier sessions: Qwen3-Coder-30B and Gemma 4 12B on Windows (see the older updates).
 
@@ -45,6 +45,9 @@ The user's direction this session: **agents only when the task needs them or the
 - `969a0b0` `SHIELD_SPEC_TYPE=none` leaves out `--spec-type ngram-mod` (`buildServerArgs({ specType })`). The default is unchanged.
 - `a6f3a90` orchestrator prompt: speak as the assistant, never mention delegating, agents, tools, a terminal or access, never say it cannot read or edit; an example reply for a greeting. Its first wording was not enough (the model tried a tool that does not exist, then said it had no terminal).
 - `93e094b` **approval bar**: a long path ran under the Deny button (`truncate` does nothing on an inline span); the folders now shorten and the file name always stays visible (`PathText` in `ToolPermissionBar.tsx`).
+- `d02482c` **Team fit by model** (`src/agents/teamFit.ts`, `ModelMetadata.team` in `config/models.ts`): each catalog model is `good` (Bonsai 27B), `untested` (the 9B: one small task passed; Qwen3-Coder: never tried; the rest unrated) or `poor` (the 8B: `delegate` with no role). A model whose runtime is not a llama-server (Gemma, Qwen3.8) is `unavailable`. `shouldTurnTeamOff` (App.tsx effect, with a toast) turns Team off for the session when the model is poor or unavailable, unless the user accepted the caution for that model (`Conversation.teamOverride` holds the model id). The Team button (`TeamToggle`) is disabled for unavailable, explains and offers "Turn on anyway" (a dialog quoting the model's note) for poor, and the Model Library cards show "Team: works / untested / not suited / not available" (`teamLabel`). Edit the notes in the catalog when a model is tested.
+- `0eb3dcc` **approval bar**: a Coder/Tester/Reviewer chip names the agent that asks (`AgentRunDeps.execute(call, { role })` → `handleToolCallRequest(…, { agent })` → `PendingToolRequest.agent`), and an `edit_file` shows the lines taken out and put in, a `write_file` the start of the new file (`src/utils/changePreview.ts`, `ChangeView` in `ToolPermissionBar.tsx`; 3 edits of 8 lines at most, the rest counted).
+- `03d13a2` **escaped closing quote**: the orchestrator wrote `"task":"…applied correctly\"}` and sent that call 11 times until the round cap. `unescapeClosingQuote` now reads a final `\"` before the closing braces as the closing quote (checked on the real saved call), and the same unreadable call three times ends the turn with "kept sending a delegate call that could not be read" (`stuckUnreadable` in `mcpMessageHandler`).
 - `fd28e54` a per-reply **`thinking: false`** option (renderer `messageHandler` → `useLlama` → IPC → `LlamaService.ChatOptions` → `chat_template_kwargs: { enable_thinking: false }`), set for the team's orchestrator only: a greeting went from 36-67 s and 659-1,300 tokens to about 10 s and 146 tokens. The agents that do the work still think.
 
 ### The server hang (open question)
@@ -71,13 +74,15 @@ Five finished runs, all passing: **still no pass rate.** In the last `bug` run t
 - **8B** (the catalog calls it too weak for multi-step tool work): **fails**. It called `delegate` with no `role`, nothing was delegated, and the chat showed the tool's own error ("delegate needs "role"…") and then asked the user which role to use. `calc.py` stayed broken. Worth deciding: do not offer Team with the 8B, or hide the tool error behind a retry.
 - **Qwen3-Coder is not installed** (18.6 GB, "too large for this PC" in the library): not tried; ask before downloading.
 
+**Team fit and the approval bar, in the window** (`tmp/ui-check/fit.mjs`, `ask.mjs`): with the 8B, Team shows off with the explanation and the caution dialog, "Turn on anyway" turns it on; the library cards read works / untested / not available / not suited. In Ask mode the bar showed `Coder · read_text_file …/te… calc.py` and, for the edit, `- def add(a, b):` / `+ def add(a, b, c=0):` lines. A run on the 27B before the quote fix sent one unreadable delegate call 12 times (see `03d13a2`); after it the same task finished with `def add(a, b, c=0)`.
+
 **Not tried:** a human clicking through Ask mode, Qwen3-Coder as the team's model.
 
 ### Next steps (suggested order)
-1. Short in-app checks of what is untried (above): a human clicking through Ask mode, and Qwen3-Coder (needs a download, ask first). Decide what Team does with a model that is too weak (the 8B).
+1. Short in-app checks of what is untried: a human clicking through Ask mode, and Qwen3-Coder (needs a download, ask first; then set its `team` note in the catalog). Rate the 9B `good` once it has done a bigger task.
 2. Settle speculative decoding with a short single-agent loop, on and off; if it is the cause, decide with the user whether to drop it for Bonsai or only for the team.
-3. The approval bar: name the agent that asks and show the change an edit will make (both seen in the Ask-mode run). Also make a read-only question go to the reviewer and not the coder (the prompt says so; the 27B does not always follow it).
-4. The malformed `reason` in `run_command` JSON: see whether `repairJsonStrings` can mend `"reason\":\"…` without moving text into `command`.
+3. Make a read-only question go to the reviewer and not the coder (the prompt says so; the 27B does not always follow it). Its summary of a result can also be wrong while the agent's note is right (the 9B).
+4. The malformed `reason` in `run_command` JSON: see whether `repairJsonStrings` can mend `"reason\":\"…` without moving text into `command`. Bonsai breaks JSON in a few recurring ways (escaped closing quote, quotes inside file content): each repair so far came from a real saved call, so keep reading `tmp/ui-check/profile/conversations/*.json` after a bad run.
 5. Still open from before: Windows CI (an eventual PR to `main`, ask the user first), team notes and hand-offs kept only in memory, the recall tool, "SHIELD learns and remembers", and the older "Later" list below.
 
 ### Working agreements added this session
