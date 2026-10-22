@@ -1,8 +1,8 @@
 # SHIELD — Session Handoff
 
 **Last session:** 2026-10-21 → 22, on Linux (previous: 2026-10-20 → 21 on Linux; 2026-09-26 → 28 on Windows)  
-**Branch:** `feat/model-library`, 25 commits past the 2026-09-28 tip (`57d5baf`). Pushed to the public repo up to `3981847`; **everything after it is committed locally, not pushed:** `1ed9b36` (panel runs survive a restart), `a26dba2` (the earlier handoff) and the seven commits of 2026-10-21 → 22 (`0839059` .. `fd28e54`). Nothing is merged to `main`. Only the user says when to push or open a PR.  
-**Tests:** 1090 passing, 7 skipped (`npx vitest run`) · `npx tsc --noEmit`, `npx eslint src electron scripts --ext ts,tsx --max-warnings 0` clean. `prettier --check` flags `src/components/ui/button.tsx` and `scripts/bench/mcp.ts`, which were already unformatted: do not run `prettier --write` over whole folders (it reformats `button.tsx`; `git checkout` it).
+**Branch:** `feat/model-library`, 28 commits past the 2026-09-28 tip (`57d5baf`). Pushed to the public repo up to `3981847`; **everything after it is committed locally, not pushed:** `1ed9b36` (panel runs survive a restart), `a26dba2` (the earlier handoff) and the commits of 2026-10-21 → 22 (`0839059` .. `93e094b`). Nothing is merged to `main`. Only the user says when to push or open a PR.  
+**Tests:** 1091 passing, 7 skipped (`npx vitest run`) · `npx tsc --noEmit`, `npx eslint src electron scripts --ext ts,tsx --max-warnings 0` clean. `prettier --check` flags `src/components/ui/button.tsx` and `scripts/bench/mcp.ts`, which were already unformatted: do not run `prettier --write` over whole folders (it reformats `button.tsx`; `git checkout` it).
 
 **Tested in the app with (2026-10-20):** Bonsai 27B Q1_0 on an RTX 2070 SUPER 8 GB (Ubuntu 26.04), SHIELD-managed Prism llama-server at 32K, ~19 tok/s. Earlier sessions: Qwen3-Coder-30B and Gemma 4 12B on Windows (see the older updates).
 
@@ -44,6 +44,7 @@ The user's direction this session: **agents only when the task needs them or the
 - `a0587cc` and `08d922d` **stall watchdog** (`STALL_MS`, 5 minutes, `LlamaServerProvider.chat`): a server that makes no progress fails the turn. The first version reset on any byte and never fired, because the hung server still sent a few bytes now and then; the timer now counts progress only (new text, a higher generated-token count, more prompt read).
 - `969a0b0` `SHIELD_SPEC_TYPE=none` leaves out `--spec-type ngram-mod` (`buildServerArgs({ specType })`). The default is unchanged.
 - `a6f3a90` orchestrator prompt: speak as the assistant, never mention delegating, agents, tools, a terminal or access, never say it cannot read or edit; an example reply for a greeting. Its first wording was not enough (the model tried a tool that does not exist, then said it had no terminal).
+- `93e094b` **approval bar**: a long path ran under the Deny button (`truncate` does nothing on an inline span); the folders now shorten and the file name always stays visible (`PathText` in `ToolPermissionBar.tsx`).
 - `fd28e54` a per-reply **`thinking: false`** option (renderer `messageHandler` → `useLlama` → IPC → `LlamaService.ChatOptions` → `chat_template_kwargs: { enable_thinking: false }`), set for the team's orchestrator only: a greeting went from 36-67 s and 659-1,300 tokens to about 10 s and 146 tokens. The agents that do the work still think.
 
 ### The server hang (open question)
@@ -62,12 +63,14 @@ Two of two `fix` runs with speculative decoding on froze: llama-server's main th
 Five finished runs, all passing: **still no pass rate.** In the last `bug` run the orchestrator sent a tester twice although the scenario never asks for one, so the "delegate only what is needed" prompt is not reliably followed by this model. In another run a tester's `run_command` JSON was malformed (`"reason\":\"…` ended up inside `command`); harmless there, not fixed.
 
 ### Short in-app checks (real window, Bonsai 27B, Team on, Auto)
-`tmp/ui-check/quick.mjs` is `team.mjs` with a 90 s stability window instead of 240 s; run `RUN_MS=240000 node tmp/ui-check/quick.mjs "<prompt>"` after `npm run build` and `rm -rf "tmp/ui-check/profile/Local Storage"`. After the last commit: a greeting answered in 9.6 s with no mention of agents and no "I cannot"; "what does `add` in calc.py return?" answered in 8.7 s (a coder looked, not the reviewer the prompt prefers); "make `add` take an optional third number" done by the coder alone in 11 s (`def add(a, b, c=0)`), nothing else spawned. **Not tried:** a multi-step task with the orchestrator's thinking off, Ask mode with a human approving each call, Qwen3-Coder or the 9B/8B Bonsai as the team's model.
+`tmp/ui-check/quick.mjs` is `team.mjs` with a 90 s stability window instead of 240 s; run `RUN_MS=240000 node tmp/ui-check/quick.mjs "<prompt>"` after `npm run build` and `rm -rf "tmp/ui-check/profile/Local Storage"`. After the last commit: a greeting answered in 9.6 s with no mention of agents and no "I cannot"; "what does `add` in calc.py return?" answered in 8.7 s (a coder looked, not the reviewer the prompt prefers); "make `add` take an optional third number" done by the coder alone in 11 s (`def add(a, b, c=0)`), nothing else spawned. **Ask mode** (`tmp/ui-check/ask.mjs`: `team.mjs` in Ask mode; it waits `WAIT_MS` (default 60 s) for a human to click Allow, then clicks itself): the same edit asked for an approval before the read and before each edit, named the tool and path, and ended with the right file. In that run **nobody clicked**, so the script did; the buttons work, but a person reading the bars is untested. Two gaps seen in the bar and left alone: it does not say **which agent** is asking (the activity line and the Team panel do), and an edit shows only its path, **not the change** it will make.
+
+**Not tried:** a multi-step task with the orchestrator's thinking off, a human clicking through Ask mode, Qwen3-Coder or the 9B/8B Bonsai as the team's model.
 
 ### Next steps (suggested order)
 1. Short in-app checks of what is untried (above): Ask mode, a multi-step task, the 9B/8B and Qwen3-Coder.
 2. Settle speculative decoding with a short single-agent loop, on and off; if it is the cause, decide with the user whether to drop it for Bonsai or only for the team.
-3. Make a read-only question go to the reviewer and not the coder (the prompt says so; the 27B does not always follow it).
+3. The approval bar: name the agent that asks and show the change an edit will make (both seen in the Ask-mode run). Also make a read-only question go to the reviewer and not the coder (the prompt says so; the 27B does not always follow it).
 4. The malformed `reason` in `run_command` JSON: see whether `repairJsonStrings` can mend `"reason\":\"…` without moving text into `command`.
 5. Still open from before: Windows CI (an eventual PR to `main`, ask the user first), team notes and hand-offs kept only in memory, the recall tool, "SHIELD learns and remembers", and the older "Later" list below.
 
