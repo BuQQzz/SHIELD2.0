@@ -65,10 +65,16 @@ Five finished runs, all passing: **still no pass rate.** In the last `bug` run t
 ### Short in-app checks (real window, Bonsai 27B, Team on, Auto)
 `tmp/ui-check/quick.mjs` is `team.mjs` with a 90 s stability window instead of 240 s; run `RUN_MS=240000 node tmp/ui-check/quick.mjs "<prompt>"` after `npm run build` and `rm -rf "tmp/ui-check/profile/Local Storage"`. After the last commit: a greeting answered in 9.6 s with no mention of agents and no "I cannot"; "what does `add` in calc.py return?" answered in 8.7 s (a coder looked, not the reviewer the prompt prefers); "make `add` take an optional third number" done by the coder alone in 11 s (`def add(a, b, c=0)`), nothing else spawned. **Ask mode** (`tmp/ui-check/ask.mjs`: `team.mjs` in Ask mode; it waits `WAIT_MS` (default 60 s) for a human to click Allow, then clicks itself): the same edit asked for an approval before the read and before each edit, named the tool and path, and ended with the right file. In that run **nobody clicked**, so the script did; the buttons work, but a person reading the bars is untested. Two gaps seen in the bar and left alone: it does not say **which agent** is asking (the activity line and the Team panel do), and an edit shows only its path, **not the change** it will make.
 
-**Not tried:** a multi-step task with the orchestrator's thinking off, a human clicking through Ask mode, Qwen3-Coder or the 9B/8B Bonsai as the team's model.
+**Multi-step and smaller models** (`tmp/ui-check/quickm.mjs`: `quick.mjs` that picks the model from the Model Library; `MODEL_INDEX=1` is the 9B, `2` the 8B, with `MODEL_SIZE` its size on disk; the 27B is `MODEL_INDEX` unset). Task: `calc.py` has `a - b`, "python3 test_calc.py fails. Find the bug and fix it so the test passes." (Auto mode, Team on):
+- **27B** (thinking off for the orchestrator): one coder listed, read, ran the test (fail), edited, re-ran (pass); the orchestrator's answer came in 11 s; no tester or reviewer spawned; the test passes when run outside the app.
+- **9B**: the same, with SHIELD's record under the report confirming the edit and `exit 1` then `exit 0`; about 46-58 tok/s; the orchestrator's summary misdescribed the bug ("returning -b instead of +b") where the agent's own note was right.
+- **8B** (the catalog calls it too weak for multi-step tool work): **fails**. It called `delegate` with no `role`, nothing was delegated, and the chat showed the tool's own error ("delegate needs "role"…") and then asked the user which role to use. `calc.py` stayed broken. Worth deciding: do not offer Team with the 8B, or hide the tool error behind a retry.
+- **Qwen3-Coder is not installed** (18.6 GB, "too large for this PC" in the library): not tried; ask before downloading.
+
+**Not tried:** a human clicking through Ask mode, Qwen3-Coder as the team's model.
 
 ### Next steps (suggested order)
-1. Short in-app checks of what is untried (above): Ask mode, a multi-step task, the 9B/8B and Qwen3-Coder.
+1. Short in-app checks of what is untried (above): a human clicking through Ask mode, and Qwen3-Coder (needs a download, ask first). Decide what Team does with a model that is too weak (the 8B).
 2. Settle speculative decoding with a short single-agent loop, on and off; if it is the cause, decide with the user whether to drop it for Bonsai or only for the team.
 3. The approval bar: name the agent that asks and show the change an edit will make (both seen in the Ask-mode run). Also make a read-only question go to the reviewer and not the coder (the prompt says so; the 27B does not always follow it).
 4. The malformed `reason` in `run_command` JSON: see whether `repairJsonStrings` can mend `"reason\":\"…` without moving text into `command`.
