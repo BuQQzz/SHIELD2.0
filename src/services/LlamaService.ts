@@ -77,6 +77,11 @@ export interface ChatOptions {
   signal?: AbortSignal;
   /** Results of native calls approved and executed by the renderer. */
   toolResults?: NativeToolResult[];
+  /**
+   * false: a thinking model answers without thinking first. The team's
+   * orchestrator only routes work, and thought made a greeting take 60 s.
+   */
+  thinking?: boolean;
 }
 
 /**

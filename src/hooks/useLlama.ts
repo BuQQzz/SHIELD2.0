@@ -271,6 +271,7 @@ export function useLlama() {
         topK?: number;
         repeatPenalty?: number;
         toolResults?: NativeToolResult[];
+        thinking?: boolean;
       }
     ) => {
       console.log("[useLlama] sendStreamingMessage called");

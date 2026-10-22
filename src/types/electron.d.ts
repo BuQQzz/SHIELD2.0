@@ -24,6 +24,7 @@ export interface ChatOptions {
   topK?: number;
   repeatPenalty?: number;
   toolResults?: NativeToolResult[];
+  thinking?: boolean;
 }
 
 export interface Message {

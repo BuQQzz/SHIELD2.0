@@ -47,6 +47,7 @@ export interface ChatOptions {
   temperature?: number;
   maxTokens?: number;
   toolResults?: NativeToolResult[];
+  thinking?: boolean;
 }
 
 export interface LlamaAPI {

@@ -143,6 +143,7 @@ interface MessageHandlerProps {
       topK?: number;
       repeatPenalty?: number;
       toolResults?: NativeToolResult[];
+      thinking?: boolean;
     }
   ) => Promise<string>;
   addMessage: (message: Message) => void;
@@ -300,6 +301,8 @@ export function createMessageHandler({
           topP: modelSettings.topP,
           topK: modelSettings.topK,
           repeatPenalty: modelSettings.repeatPenalty,
+          // The orchestrator only routes: no long thought for a greeting
+          ...(teamMode ? { thinking: false } : {}),
         }
       );
 
@@ -449,6 +452,7 @@ export function createMessageHandler({
                   topK: modelSettings.topK,
                   repeatPenalty: modelSettings.repeatPenalty,
                   ...(toolResults?.length ? { toolResults } : {}),
+                  ...(teamMode ? { thinking: false } : {}),
                 }
               );
 

@@ -405,6 +405,9 @@ export class LlamaServerProvider {
           top_p: options.topP ?? 0.9,
           top_k: options.topK ?? 40,
           repeat_penalty: options.repeatPenalty ?? 1.1,
+          ...(options.thinking === false
+            ? { chat_template_kwargs: { enable_thinking: false } }
+            : {}),
         }),
       });
       if (!response.ok || !response.body) {
