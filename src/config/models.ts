@@ -85,6 +85,20 @@ export type LibraryFamilyId = "qwen" | "gemma" | "bonsai";
 /**
  * Model metadata for catalog and UI display - one variant of a family
  */
+/**
+ * How well a model runs an agent team (src/agents): "good" has been run as
+ * one end to end, "untested" has not been shown to work or fail, "poor"
+ * failed the check (the 8B called delegate with no role and gave up). A
+ * model with no entry is "untested".
+ */
+export type TeamFit = "good" | "untested" | "poor";
+
+export interface ModelTeamFit {
+  fit: TeamFit;
+  /** What was seen, in a sentence the user can read */
+  note: string;
+}
+
 export interface ModelMetadata {
   /** Stable identifier - stored in settings and conversations */
   id: string;
@@ -113,6 +127,8 @@ export interface ModelMetadata {
   chatTemplate: string;
   roles: ModelRole[];
   runtime: ModelRuntime;
+  /** How it does as the model of an agent team; see TeamFit */
+  team?: ModelTeamFit;
   /** Quantizations, best quality first */
   files: ModelFile[];
   /** Requires HuggingFace authentication (gated model) */
@@ -145,6 +161,7 @@ export interface ModelOption {
   capabilities?: ModelCapabilities;
   chatTemplate?: string;
   runtime: ModelRuntime;
+  team?: ModelTeamFit;
 }
 
 /** The host's GPU memory and system RAM, in GB. null when unknown. */
@@ -209,6 +226,10 @@ export const MODEL_FAMILIES: ModelFamilyEntry[] = [
         chatTemplate: "qwen",
         roles: ["agent", "coding"],
         runtime: "llama-server",
+        team: {
+          fit: "untested",
+          note: "Not tried as a team: it needs an 18.6 GB download that did not fit the test machine.",
+        },
         // Qwen's model card; its GGUF carries no sampling
         sampling: {
           temperature: 0.7,
@@ -385,6 +406,10 @@ export const MODEL_FAMILIES: ModelFamilyEntry[] = [
         chatTemplate: "generic",
         roles: ["agent", "long-context", "chat"],
         runtime: "prism-llama-server",
+        team: {
+          fit: "good",
+          note: "Run as a team end to end: five finished test runs passed and it did a real bug fix in the app (2026-10). The slowest model, and a server hang was seen with speculative decoding on.",
+        },
         files: [
           {
             name: "Bonsai-27B-Q1_0.gguf",
@@ -421,6 +446,10 @@ export const MODEL_FAMILIES: ModelFamilyEntry[] = [
         chatTemplate: "generic",
         roles: ["small", "chat"],
         runtime: "prism-llama-server",
+        team: {
+          fit: "untested",
+          note: "Passed one small bug fix as a team in the app (2026-10-22), about twice as fast as the 27B. Not tried on bigger tasks.",
+        },
         files: [
           {
             name: "Ternary-Bonsai-2-9B-PQ2_0.gguf",
@@ -457,6 +486,10 @@ export const MODEL_FAMILIES: ModelFamilyEntry[] = [
         chatTemplate: "generic",
         roles: ["small", "chat"],
         runtime: "prism-llama-server",
+        team: {
+          fit: "poor",
+          note: "Failed the team check: it called the delegate tool with no role, so nothing was delegated (2026-10-22). Too weak for multi-step tool work.",
+        },
         files: [
           {
             name: "Bonsai-8B-Q1_0.gguf",

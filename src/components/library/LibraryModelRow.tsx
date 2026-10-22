@@ -11,8 +11,25 @@ import {
 import type { DownloadProgress } from "@/types/electron";
 import { cn } from "@/lib/utils";
 import { ContextPicker } from "./ContextPicker";
+import { teamLabel } from "@/agents/teamFit";
 import { RamNotice } from "./RamNotice";
 import { trashName } from "@/utils/platform";
+
+/** What is known about the model leading an agent team (see teamFit.ts) */
+function TeamFitLabel({ model }: { model: ModelMetadata }) {
+  const { label, title, tone } = teamLabel(model);
+  return (
+    <span
+      title={title}
+      className={cn(
+        tone === "good" && "text-emerald-600 dark:text-emerald-400",
+        tone === "bad" && "text-amber-600 dark:text-amber-400"
+      )}
+    >
+      {label}
+    </span>
+  );
+}
 
 const ROLE_LABELS: Record<ModelRole, string> = {
   agent: "Agent",
@@ -229,6 +246,7 @@ export function LibraryModelRow({
           </p>
           <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-muted-foreground/80">
             <span>{model.roles.map((r) => ROLE_LABELS[r]).join(" · ")}</span>
+            <TeamFitLabel model={model} />
             {installed && runnable && (
               <ContextPicker
                 modelId={model.id}

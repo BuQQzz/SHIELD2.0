@@ -13,6 +13,7 @@ import { motion } from "framer-motion";
 import { PermissionModeSelector } from "./PermissionModeSelector";
 import { WorkspaceSelector } from "./WorkspaceSelector";
 import { TeamToggle } from "./TeamToggle";
+import type { TeamAvailability } from "@/agents/teamFit";
 import { ContextRing } from "./ContextRing";
 
 interface ChatInputProps {
@@ -22,6 +23,10 @@ interface ChatInputProps {
   disabled?: boolean;
   /** A Code session: show its project folder (chats have no file tools) */
   showFolder?: boolean;
+  /** Whether the model in use can lead an agent team (see TeamToggle) */
+  teamAvailability?: TeamAvailability;
+  modelId?: string;
+  modelName?: string;
 }
 
 export interface ChatInputRef {
@@ -30,7 +35,16 @@ export interface ChatInputRef {
 
 export const ChatInput = forwardRef<ChatInputRef, ChatInputProps>(
   function ChatInput(
-    { onSend, isGenerating = false, onStop, disabled = false, showFolder },
+    {
+      onSend,
+      isGenerating = false,
+      onStop,
+      disabled = false,
+      showFolder,
+      teamAvailability,
+      modelId,
+      modelName,
+    },
     ref
   ) {
     const [input, setInput] = useState("");
@@ -141,7 +155,13 @@ export const ChatInput = forwardRef<ChatInputRef, ChatInputProps>(
           <div className="mt-1 flex min-w-0 items-center gap-1 px-1">
             <PermissionModeSelector />
             {showFolder && <WorkspaceSelector />}
-            {showFolder && <TeamToggle />}
+            {showFolder && (
+              <TeamToggle
+                availability={teamAvailability}
+                modelId={modelId}
+                modelName={modelName}
+              />
+            )}
             <ContextRing />
           </div>
         </div>

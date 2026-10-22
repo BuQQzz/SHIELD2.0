@@ -40,6 +40,7 @@ export function useInstalledModels() {
           contextSize: catalogEntry.contextSize,
           capabilities: catalogEntry.capabilities,
           runtime: catalogEntry.runtime,
+          team: catalogEntry.team,
         });
       }
 

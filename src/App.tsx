@@ -17,6 +17,7 @@ import { ChatInput, type ChatInputRef } from "./components/chat/ChatInput";
 import { LazySettingsDialog, LazyTemplateSelector } from "./components/lazy";
 import { ToolPermissionBar } from "./components/chat/ToolPermissionBar";
 import { ThemeProvider } from "./components/theme/ThemeProvider";
+import { toast } from "sonner";
 import { Toaster } from "./components/ui/sonner";
 import { useLlama, type Message } from "./hooks/useLlama";
 import { useConversationStore } from "./stores/conversation-store";
@@ -54,6 +55,7 @@ import { PluginsPage } from "./components/plugins/PluginsPage";
 import { LowMemoryDialog } from "./components/models/LowMemoryDialog";
 import { DEFAULT_MODEL_ID, isRuntimeAvailable } from "./config/models";
 import { createAppShortcuts } from "./config/shortcuts";
+import { shouldTurnTeamOff, teamAvailability } from "./agents/teamFit";
 import "./App.css";
 
 function App() {
@@ -131,7 +133,25 @@ function App() {
   // A Code session can be led by an orchestrator that delegates (Team): it
   // is offered delegate and the plan only, and its sub-agents work under the
   // session's normal policy.
-  const teamMode = isCodeSession && !!currentConversation?.team;
+  const teamFit = teamAvailability(
+    installedModels.find((m) => m.id === currentModelId)
+  );
+  // Team on, but the model in use should not run it: it goes off, with a
+  // note, and the toggle explains how to turn it on anyway
+  const teamMustGoOff = shouldTurnTeamOff(
+    currentConversation,
+    currentModelId,
+    teamFit
+  );
+  const teamMode =
+    isCodeSession && !!currentConversation?.team && !teamMustGoOff;
+  useEffect(() => {
+    if (!teamMustGoOff) return;
+    updateConversation({ team: false });
+    toast(
+      "Team turned off: this model is not suited to leading a team. You can turn it on anyway from the Team button."
+    );
+  }, [teamMustGoOff, updateConversation]);
   const policyInput = {
     mode: settings.mcp?.mode ?? "ask",
     allowedTools: settings.mcp?.allowedTools ?? [],
@@ -587,6 +607,9 @@ function App() {
             onStop={handleStopGenerating}
             disabled={!isModelLoaded || !folderReady}
             showFolder={isCodeSession}
+            teamAvailability={teamFit}
+            modelId={currentModelId}
+            modelName={currentModelConfig?.displayName}
           />
         </div>
         {isCodeSession && (

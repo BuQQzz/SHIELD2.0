@@ -63,6 +63,8 @@ export interface Conversation {
   plan?: Plan;
   /** A code session led by an orchestrator that delegates to sub-agents (src/agents) */
   team?: boolean;
+  /** The model the user accepted the "not suited to a team" caution for */
+  teamOverride?: string;
   /** What the team's agents did, for the Team panel after a restart */
   agentRuns?: AgentRunView[];
 }
