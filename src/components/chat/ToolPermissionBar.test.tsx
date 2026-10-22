@@ -30,6 +30,22 @@ describe("ToolPermissionBar", () => {
     expect(screen.queryByText("Allow for session")).toBeNull();
   });
 
+  // A long path ran under the Deny button (2026-10-22): the folders shorten,
+  // the file name stays in an element of its own, and the title has it all
+  it("keeps the file name of a long path in view, with the full path as a tooltip", () => {
+    const path =
+      "/home/someone/Desktop/Projects/SHIELD2.0/tmp/ui-check/team-project/calc.py";
+    render(
+      <ToolPermissionBar
+        request={{ ...base, toolName: "edit_file", targetPath: path }}
+        onApprove={vi.fn()}
+        onDeny={vi.fn()}
+      />
+    );
+    expect(screen.getByText("calc.py")).toBeTruthy();
+    expect(screen.getByTitle(path)).toBeTruthy();
+  });
+
   it("shows a command in full and asks for it alone", () => {
     render(
       <ToolPermissionBar

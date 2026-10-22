@@ -35,6 +35,24 @@ function shortenPath(path: string, max = 52): string {
   return `...${path.slice(-(max - 3))}`;
 }
 
+/**
+ * A path that shortens its folders and always keeps the file name: the end
+ * is what tells the user which file the call touches
+ */
+function PathText({ path, className }: { path: string; className?: string }) {
+  const short = shortenPath(path);
+  const cut = Math.max(short.lastIndexOf("/"), short.lastIndexOf("\\")) + 1;
+  return (
+    <span
+      className={`flex min-w-0 text-xs text-muted-foreground ${className ?? ""}`}
+      title={path}
+    >
+      <span className="min-w-0 truncate">{short.slice(0, cut)}</span>
+      <span className="shrink-0">{short.slice(cut)}</span>
+    </span>
+  );
+}
+
 function toolIcon(request: PendingToolRequest) {
   if (request.isDestructive) return Trash2;
   if (request.command !== undefined) return SquareTerminal;
@@ -150,17 +168,43 @@ export function ToolPermissionBar({
             />
 
             <div className="min-w-0 flex-1">
-              <span className="font-medium">
-                {request.isDestructive
-                  ? `Move to ${trashName()}`
-                  : request.command !== undefined
-                    ? "Run this command?"
-                    : request.instructionsFile
-                      ? request.toolName === "write_file"
-                        ? "Write AGENTS.md?"
-                        : "Change AGENTS.md?"
-                      : request.toolName}
-              </span>
+              {/* A flex row so a long path shortens with an ellipsis; as
+                  inline text it ran under the Deny button */}
+              <div className="flex min-w-0 items-baseline">
+                <span className="shrink-0 font-medium">
+                  {request.isDestructive
+                    ? `Move to ${trashName()}`
+                    : request.command !== undefined
+                      ? "Run this command?"
+                      : request.instructionsFile
+                        ? request.toolName === "write_file"
+                          ? "Write AGENTS.md?"
+                          : "Change AGENTS.md?"
+                        : request.toolName}
+                </span>
+                {request.targetPath && (
+                  <PathText path={request.targetPath} className="ml-2" />
+                )}
+                {request.webTarget && (
+                  <span
+                    className="ml-2 min-w-0 truncate text-xs text-muted-foreground"
+                    title={request.webTarget}
+                  >
+                    {request.webTarget}
+                  </span>
+                )}
+                {request.destinationPath && (
+                  <>
+                    <ArrowRight className="ml-1 h-3 w-3 shrink-0 self-center text-muted-foreground" />
+                    <PathText path={request.destinationPath} className="ml-1" />
+                  </>
+                )}
+                {request.previewContent !== undefined && (
+                  <span className="ml-2 shrink-0 text-xs text-muted-foreground">
+                    · {request.previewContent.length} chars
+                  </span>
+                )}
+              </div>
               {request.instructionsFile && request.proposed !== undefined && (
                 <ProposedText text={request.proposed} />
               )}
@@ -177,36 +221,6 @@ export function ToolPermissionBar({
               {request.modelScripts?.map((script) => (
                 <ModelScript key={script.path} script={script} />
               ))}
-              {request.targetPath && (
-                <span
-                  className="ml-2 truncate text-xs text-muted-foreground"
-                  title={request.targetPath}
-                >
-                  {shortenPath(request.targetPath)}
-                </span>
-              )}
-              {request.webTarget && (
-                <span
-                  className="ml-2 truncate text-xs text-muted-foreground"
-                  title={request.webTarget}
-                >
-                  {request.webTarget}
-                </span>
-              )}
-              {request.destinationPath && (
-                <span
-                  className="ml-1 inline-flex items-center gap-1 truncate text-xs text-muted-foreground"
-                  title={request.destinationPath}
-                >
-                  <ArrowRight className="h-3 w-3" />
-                  {shortenPath(request.destinationPath)}
-                </span>
-              )}
-              {request.previewContent !== undefined && (
-                <span className="ml-2 text-xs text-muted-foreground">
-                  · {request.previewContent.length} chars
-                </span>
-              )}
             </div>
 
             <div className="flex shrink-0 items-center gap-1.5">
