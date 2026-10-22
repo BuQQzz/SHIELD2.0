@@ -1,12 +1,12 @@
 # SHIELD — Session Handoff
 
-**Last session:** 2026-10-20 → 21, on Linux (previous: 2026-09-26 → 28, on Windows)  
-**Branch:** `feat/model-library`, 17 commits past the 2026-09-28 tip (`57d5baf`). Pushed to the public repo up to `3981847`; **`1ed9b36` (panel runs survive a restart) is committed locally, not pushed.** Nothing is merged to `main`. Only the user says when to push or open a PR.  
-**Tests:** 1080 passing, 7 skipped (`npx vitest run`) · `npx tsc --noEmit`, `npx eslint src electron scripts --ext ts,tsx --max-warnings 0` clean. `prettier --check` flags `src/components/ui/button.tsx` and `scripts/bench/mcp.ts`, which were already unformatted: do not run `prettier --write` over whole folders (it reformats `button.tsx`; `git checkout` it).
+**Last session:** 2026-10-21 → 22, on Linux (previous: 2026-10-20 → 21 on Linux; 2026-09-26 → 28 on Windows)  
+**Branch:** `feat/model-library`, 25 commits past the 2026-09-28 tip (`57d5baf`). Pushed to the public repo up to `3981847`; **everything after it is committed locally, not pushed:** `1ed9b36` (panel runs survive a restart), `a26dba2` (the earlier handoff) and the seven commits of 2026-10-21 → 22 (`0839059` .. `fd28e54`). Nothing is merged to `main`. Only the user says when to push or open a PR.  
+**Tests:** 1090 passing, 7 skipped (`npx vitest run`) · `npx tsc --noEmit`, `npx eslint src electron scripts --ext ts,tsx --max-warnings 0` clean. `prettier --check` flags `src/components/ui/button.tsx` and `scripts/bench/mcp.ts`, which were already unformatted: do not run `prettier --write` over whole folders (it reformats `button.tsx`; `git checkout` it).
 
 **Tested in the app with (2026-10-20):** Bonsai 27B Q1_0 on an RTX 2070 SUPER 8 GB (Ubuntu 26.04), SHIELD-managed Prism llama-server at 32K, ~19 tok/s. Earlier sessions: Qwen3-Coder-30B and Gemma 4 12B on Windows (see the older updates).
 
-Read this first (the section "Update — 2026-10-20 → 21" is the current state), then [SHIELD_AGENT_ARCHITECTURE.md](./SHIELD_AGENT_ARCHITECTURE.md) (§21 agent teams, §17 decision log, §13 priorities, §20 evidence) and [testing/AGENT_BENCHMARK.md](./testing/AGENT_BENCHMARK.md).
+Read this first (the sections "Update — 2026-10-21 → 22" and then "Update — 2026-10-20 → 21" are the current state), then [SHIELD_AGENT_ARCHITECTURE.md](./SHIELD_AGENT_ARCHITECTURE.md) (§21 agent teams, §17 decision log, §13 priorities, §20 evidence) and [testing/AGENT_BENCHMARK.md](./testing/AGENT_BENCHMARK.md).
 
 ---
 
@@ -34,7 +34,49 @@ Order agreed with the user on 2026-09-26: the Code view, then the terminal, then
 
 ---
 
-## Update — 2026-10-20 → 21: Linux, Bonsai, and agent teams (start here)
+## Update — 2026-10-21 → 22: team fixes, a hanging server, and a quieter orchestrator (start here)
+
+The user's direction this session: **agents only when the task needs them or the user asks** (saved as a memory); the orchestrator must **speak as the one assistant that does the work** ("it should just work and spawn agents to help if needed"); and **short in-app tests over long benchmarks** ("we do not have the time"). The first plan, a repeated headless benchmark of the team, was cut short for the last reason.
+
+### Commits (all local, not pushed)
+- `0839059` **tool-call parser**: a call that stops after `</arguments>` with no `</tool_call>` now runs; with two `<server>` elements the last wins (Bonsai wrote `agents`, then `terminal`); a finished block with no `<tool>` name gets an error (`unreadableToolCall`, `UNREADABLE_ERROR_PREFIX`) instead of ending the turn. Cause: two of three reviewers in a `bug` run wrote `<server>filesystem</tool>` and ended without a report. The agent-runner test that used that call now expects the error, not a report request.
+- `7bf1563` orchestrator prompt: delegate only what the request needs (a greeting or general question: answer directly; a question about files: one read-only delegation; a change: the coder; tester and reviewer when the user asks or the change calls for them; the user's words come first).
+- `a0587cc` and `08d922d` **stall watchdog** (`STALL_MS`, 5 minutes, `LlamaServerProvider.chat`): a server that makes no progress fails the turn. The first version reset on any byte and never fired, because the hung server still sent a few bytes now and then; the timer now counts progress only (new text, a higher generated-token count, more prompt read).
+- `969a0b0` `SHIELD_SPEC_TYPE=none` leaves out `--spec-type ngram-mod` (`buildServerArgs({ specType })`). The default is unchanged.
+- `a6f3a90` orchestrator prompt: speak as the assistant, never mention delegating, agents, tools, a terminal or access, never say it cannot read or edit; an example reply for a greeting. Its first wording was not enough (the model tried a tool that does not exist, then said it had no terminal).
+- `fd28e54` a per-reply **`thinking: false`** option (renderer `messageHandler` → `useLlama` → IPC → `LlamaService.ChatOptions` → `chat_template_kwargs: { enable_thinking: false }`), set for the team's orchestrator only: a greeting went from 36-67 s and 659-1,300 tokens to about 10 s and 146 tokens. The agents that do the work still think.
+
+### The server hang (open question)
+Two of two `fix` runs with speculative decoding on froze: llama-server's main thread at 100% CPU, `/slots` showing `is_processing: true` with `n_decoded` unchanged (151 in the first, 1,971 in the second), the GPU about 40% busy, `/health` still "ok", and a few bytes sent now and then. Both times it ran with `--spec-type ngram-mod` (the launch default). Without it, the one `fix` and one `bug` run that finished took 1,279 s and 1,345 s (with it on, `bug` took 438-700 s), so it costs speed. **Two hangs in six runs do not prove the cause.** A short single-agent loop with the flag on and off would settle it faster than the team benchmark. To spot a hang live: query `/slots` twice a few seconds apart (`ss -ltnp | grep llama-server` gives the port).
+
+### What the runs showed (Bonsai 27B, 32K, `--max-tokens 8192`)
+| Run | Scenario | Speculation | Result | Time |
+|---|---|---|---|---|
+| 1 | bug | on | pass | 700 s |
+| 1 | fix | on | hung, killed | 49 min |
+| 2 | bug | on | pass | 438 s |
+| 2 | fix | on | hung, killed | about 35 min |
+| 1 | fix | off | pass (tests re-run by the harness) | 1,279 s |
+| 1 | bug | off | pass | 1,345 s |
+
+Five finished runs, all passing: **still no pass rate.** In the last `bug` run the orchestrator sent a tester twice although the scenario never asks for one, so the "delegate only what is needed" prompt is not reliably followed by this model. In another run a tester's `run_command` JSON was malformed (`"reason\":\"…` ended up inside `command`); harmless there, not fixed.
+
+### Short in-app checks (real window, Bonsai 27B, Team on, Auto)
+`tmp/ui-check/quick.mjs` is `team.mjs` with a 90 s stability window instead of 240 s; run `RUN_MS=240000 node tmp/ui-check/quick.mjs "<prompt>"` after `npm run build` and `rm -rf "tmp/ui-check/profile/Local Storage"`. After the last commit: a greeting answered in 9.6 s with no mention of agents and no "I cannot"; "what does `add` in calc.py return?" answered in 8.7 s (a coder looked, not the reviewer the prompt prefers); "make `add` take an optional third number" done by the coder alone in 11 s (`def add(a, b, c=0)`), nothing else spawned. **Not tried:** a multi-step task with the orchestrator's thinking off, Ask mode with a human approving each call, Qwen3-Coder or the 9B/8B Bonsai as the team's model.
+
+### Next steps (suggested order)
+1. Short in-app checks of what is untried (above): Ask mode, a multi-step task, the 9B/8B and Qwen3-Coder.
+2. Settle speculative decoding with a short single-agent loop, on and off; if it is the cause, decide with the user whether to drop it for Bonsai or only for the team.
+3. Make a read-only question go to the reviewer and not the coder (the prompt says so; the 27B does not always follow it).
+4. The malformed `reason` in `run_command` JSON: see whether `repairJsonStrings` can mend `"reason\":\"…` without moving text into `command`.
+5. Still open from before: Windows CI (an eventual PR to `main`, ask the user first), team notes and hand-offs kept only in memory, the recall tool, "SHIELD learns and remembers", and the older "Later" list below.
+
+### Working agreements added this session
+- Agents only when needed; the orchestrator speaks as one assistant (see the top of this section).
+- Never chain `git stash` with other commands: an interrupted chain once left the work in the stash and the tree clean (recovered with `git stash pop`, nothing lost). Do not `git init` inside a test project either.
+- A background `until` loop that waits for "an exit line" must count lines (or watch the process), not match any earlier line: two checks returned at once on old output.
+
+## Update — 2026-10-20 → 21: Linux, Bonsai, and agent teams
 
 ### The machine and the Bonsai server
 - Ubuntu 26.04 (XFCE, X11), user `buqqzz`. Ryzen 5 3600, 15 GB RAM, RTX 2070 SUPER 8 GB (Turing, sm_75), driver 595, CUDA 12.4 toolkit, Node 22, `gh` installed and logged in as BuQQzz (HTTPS). No global git identity: commit with `git -c user.name=buqqzz -c user.email=buqqzz@gmail.com commit ...` (the author of the earlier commits).
