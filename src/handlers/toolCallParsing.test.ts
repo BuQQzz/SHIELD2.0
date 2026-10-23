@@ -9,6 +9,7 @@ import {
   stripToolCallMarkup,
   streamingToolCallPreview,
   unescapeClosingQuote,
+  unescapeKeyQuotes,
   unreadableToolCall,
   UNSUPPORTED_NATIVE_TOOL_CALL_MESSAGE,
 } from "./toolCallParsing";
@@ -566,5 +567,38 @@ describe("a closing quote the model escaped (Bonsai 27B, 2026-10-22)", () => {
     expect(unescapeClosingQuote('{"a":"b"}')).toBeNull();
     expect(unescapeClosingQuote('{"a":"say \\"hi\\" now"}')).toBeNull();
     expect(unescapeClosingQuote('{"a":"b\\"}')).toBe('{"a":"b"}');
+  });
+});
+
+describe("a key written with escaped quotes (Bonsai 27B, 2026-10-21)", () => {
+  // Three shapes from saved team runs: the quotes around the colon after
+  // "reason" are escaped, and sometimes the closing quote too.
+  const shapes = [
+    '{"command":"chmod +x /tmp/p/t.sh && bash /tmp/p/t.sh","reason\\":\\"Runs the negative number test"}',
+    '{"command":"bash /tmp/p/t.sh","reason\\":\\"Runs the addition test\\"}',
+    '{"command":"pwd", "reason\\":\\"Check current working directory\\"}',
+  ];
+
+  it.each(shapes)("keeps command and reason apart: %s", (body) => {
+    const calls = extractToolCalls(
+      `<tool_call>\n<server>terminal</server>\n<tool>run_command</tool>\n<arguments>${body}</arguments>\n</tool_call>`
+    );
+    expect(calls).toHaveLength(1);
+    expect(calls[0]?.argumentsError).toBeUndefined();
+    expect(Object.keys(calls[0]!.arguments).sort()).toEqual([
+      "command",
+      "reason",
+    ]);
+    expect(String(calls[0]?.arguments.command)).not.toContain("reason");
+    expect(String(calls[0]?.arguments.reason)).toMatch(/^(Runs|Check) /);
+  });
+
+  it("leaves escaped JSON inside a value alone", () => {
+    expect(
+      unescapeKeyQuotes('{"content":"{\\"a\\":\\"b\\",\\"c\\":\\"d\\"}"}')
+    ).toBeNull();
+    expect(unescapeKeyQuotes('{"a":"b","reason\\":\\"x"}')).toBe(
+      '{"a":"b","reason":"x"}'
+    );
   });
 });

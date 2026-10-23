@@ -248,9 +248,31 @@ export function unescapeClosingQuote(input: string): string | null {
   return `${input.slice(0, match.index)}"${match[1]}`;
 }
 
+/**
+ * A key whose quotes around the colon were escaped: `,"reason\":\"Runs…`.
+ * Bonsai 27B agents wrote run_command this way in three team runs
+ * (2026-10-21); escapeStrayQuotes then took the quote after the command for
+ * text and ran `bash test.sh","reason":"Runs…` as the command. Only a key
+ * that opens with a bare quote after `{` or `,` is touched, so escaped JSON
+ * inside a value (`,\"c\":\"`) stays as it is. Null when there is none.
+ */
+export function unescapeKeyQuotes(input: string): string | null {
+  const pattern = /([{,]\s*")([A-Za-z_][\w-]*)\\":\s*\\"/g;
+  if (!pattern.test(input)) return null;
+  return input.replace(pattern, '$1$2":"');
+}
+
 function parseJson(input: string): unknown | null {
   const repaired = repairJsonStrings(input);
-  const candidates = [input, repaired, escapeStrayQuotes(repaired)];
+  const candidates = [input, repaired];
+  // before escapeStrayQuotes, which would read the escaped key as text
+  const keyed = unescapeKeyQuotes(repaired);
+  if (keyed !== null) {
+    candidates.push(keyed);
+    const closed = unescapeClosingQuote(keyed);
+    if (closed !== null) candidates.push(closed);
+  }
+  candidates.push(escapeStrayQuotes(repaired));
   for (const source of [input, repaired]) {
     const unescaped = unescapeClosingQuote(source);
     if (unescaped !== null) candidates.push(unescaped);
