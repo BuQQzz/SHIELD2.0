@@ -29,7 +29,7 @@ export const MAX_DELEGATIONS_PER_TURN = 12;
 export const DELEGATE_TOOL = {
   name: DELEGATE_TOOL_NAME,
   description:
-    "Give a task to a team member and get its report. Roles: coder (changes files), tester (writes and runs tests; may only change test files), reviewer (reads and critiques; changes nothing). The agent has no memory of this conversation, so put everything it needs in task: the goal, the plan so far, file names, what earlier agents reported. It runs until it finishes or runs out of room, then reports. For a PARTIAL report, delegate again with continue_from set to its handoff id.",
+    "Give a task to a team member and get its report. Roles: coder (changes files), tester (writes and runs tests; may only change test files), reviewer (reads the code, answers questions about it and critiques it; changes nothing). The agent has no memory of this conversation, so put everything it needs in task: the goal, the plan so far, file names, what earlier agents reported. It runs until it finishes or runs out of room, then reports. For a PARTIAL report, delegate again with continue_from set to its handoff id.",
   inputSchema: {
     type: "object",
     properties: {

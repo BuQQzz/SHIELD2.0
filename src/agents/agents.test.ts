@@ -6,6 +6,7 @@ import {
   roleSpec,
   toolsForRole,
 } from "./roles";
+import { DELEGATE_TOOL } from "./delegate";
 import type { ToolDefinition } from "../types/prompts";
 import {
   describeWork,
@@ -148,6 +149,18 @@ describe("roles", () => {
     );
     expect(ORCHESTRATOR_PROMPT).toContain("never mention delegating");
     expect(ORCHESTRATOR_PROMPT).toContain('Say "I"');
+  });
+
+  // The 27B sent a coder to a read-only question (2026-10-22); a question
+  // goes to the reviewer, which has to be able to answer one
+  it("sends questions about the files to the reviewer, who answers them", () => {
+    expect(ORCHESTRATOR_PROMPT).toContain(
+      "goes to the reviewer, never the coder"
+    );
+    expect(roleSpec("reviewer").prompt).toContain(
+      "If the task is a question about the project"
+    );
+    expect(DELEGATE_TOOL.description).toContain("answers questions");
   });
 
   it("tells the orchestrator to delegate only what the request needs", () => {
