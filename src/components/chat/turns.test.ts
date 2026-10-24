@@ -241,6 +241,9 @@ describe("labels", () => {
     expect(groupLabel([tool("web_search"), tool("web_search")])).toBe(
       "Ran 2 searches"
     );
+    expect(groupLabel([tool("delegate"), tool("delegate")])).toBe(
+      "Made 2 delegations"
+    );
   });
 
   it("takes the last path segment", () => {

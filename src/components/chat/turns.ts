@@ -236,6 +236,7 @@ const GROUP_VERB: Record<string, string> = {
   create_directory: "Created",
   delete_file: `Moved to ${trashName()}:`,
   web_search: "Ran",
+  delegate: "Made",
 };
 
 /**
