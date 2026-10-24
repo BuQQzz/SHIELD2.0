@@ -95,6 +95,9 @@ export function stripHandoff(text: string): string {
 const action = (file: VerifiedWork["files"][number]) =>
   `${file.path} ${file.action}${file.ok ? "" : " (FAILED)"}`;
 
+/** Ends a `refused` entry for a call the user turned down at the approval bar */
+export const DENIED_BY_USER = "(denied by the user)";
+
 /** SHIELD's facts as lines, for the orchestrator and for a fresh agent */
 export function describeWork(work: VerifiedWork): string[] {
   const lines: string[] = [];

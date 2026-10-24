@@ -26,6 +26,7 @@ import {
 import { processMCPToolCalls } from "../handlers/mcpMessageHandler";
 import type { MCPToolResult } from "../types/electron";
 import {
+  DENIED_BY_USER,
   describeWork,
   EMPTY_WORK,
   HANDOFF_FORMAT,
@@ -332,7 +333,7 @@ export async function runAgent(
     const result = await deps.execute(call, { role });
     if (!result.success && result.error === USER_DENIED) {
       work.refused.push(
-        `${role} ${call.tool}${pathOf(call) ? ` ${shortPath(pathOf(call))}` : ""} (denied by the user)`
+        `${role} ${call.tool}${pathOf(call) ? ` ${shortPath(pathOf(call))}` : ""} ${DENIED_BY_USER}`
       );
       return result;
     }

@@ -142,6 +142,27 @@ describe("formatReport", () => {
     expect(text).toContain('delegate to coder again with continue_from "h3"');
   });
 
+  it("tells the orchestrator not to retry or continue a call the user denied", () => {
+    const text = formatReport({
+      ...base,
+      status: "PARTIAL",
+      work: {
+        files: [],
+        commands: [],
+        refused: [
+          "reviewer edit_file p/a.sh",
+          "coder read_text_file team-project/calc.py (denied by the user)",
+        ],
+      },
+    });
+    expect(text).toContain(
+      "THE USER DENIED: coder read_text_file team-project/calc.py (denied by the user). Do not ask any agent to do that again"
+    );
+    expect(text).not.toContain("reviewer edit_file p/a.sh. Do not");
+    expect(text).not.toContain("continue_from");
+    expect(formatReport(base)).not.toContain("THE USER DENIED");
+  });
+
   it("warns the orchestrator when an agent reported nothing", () => {
     const text = formatReport({
       ...base,

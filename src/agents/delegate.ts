@@ -7,7 +7,7 @@
  * good one looks like, instead of being passed on.
  */
 
-import { describeWork } from "./handoff";
+import { DENIED_BY_USER, describeWork } from "./handoff";
 import { AGENT_ROLES, type AgentReport, type AgentRole } from "./types";
 import { DELEGATE_TOOL_NAME, TEAM_NOTE_TOOL_NAME } from "./roles";
 
@@ -171,6 +171,9 @@ export function formatReport(report: AgentReport): string {
     parsed.next && `NEXT: ${parsed.next}`,
     parsed.notes && `NOTES: ${parsed.notes}`,
   ].filter((line): line is string => !!line);
+  // A denial answered by "continue the PARTIAL run" was a retry of the very
+  // call the user turned down (2026-10-24), so it replaces the continue line
+  const denied = report.work.refused.filter((r) => r.endsWith(DENIED_BY_USER));
 
   return [
     head,
@@ -184,7 +187,10 @@ export function formatReport(report: AgentReport): string {
     ...narrative,
     "Checked by SHIELD from the tools' real results (trust this over the summary):",
     ...describeWork(report.work),
-    report.status === "PARTIAL"
+    denied.length
+      ? `THE USER DENIED: ${denied.join("; ")}. Do not ask any agent to do that again, and do not continue this run. If the request cannot be finished without it, stop and tell the user what you did not do because they declined, and ask how they want to go on.`
+      : "",
+    report.status === "PARTIAL" && !denied.length
       ? `This run is not finished. To continue it, delegate to ${report.role} again with continue_from "${report.handoffId}".`
       : "",
   ]
