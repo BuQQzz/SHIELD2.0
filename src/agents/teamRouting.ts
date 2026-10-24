@@ -24,3 +24,24 @@ export function isProjectQuestion(message: string): boolean {
 
 export const QUESTION_NOTE =
   "[SHIELD: this message is a question about the project, not a change. Delegate the reviewer to read the files and answer it. Do not use the coder.]";
+
+/**
+ * A sentence that opens with a change, after an optional "please" or "can
+ * you": "Make add take ...", "The loader is slow. Refactor it ...".
+ */
+const OPENS_A_CHANGE =
+  /(^|[.!?]\s+)(please\s+)?((can|could|would)\s+you\s+(please\s+)?)?(fix|change|add|create|write|edit|modify|update|implement|rename|remove|delete|refactor|make|replace|rewrite|patch)\b/i;
+
+/**
+ * A change the user asked for, which the coder can start on at once. Bonsai
+ * 27B first sent the reviewer to look at the files in 2-3 of 6 first
+ * delegations of a plain change (2026-10-24), a round the coder does not need.
+ */
+export function isChangeRequest(message: string): boolean {
+  const text = message.trim();
+  if (isProjectQuestion(text)) return false;
+  return OPENS_A_CHANGE.test(text) || ALSO_ASKS_FOR_A_CHANGE.test(text);
+}
+
+export const CHANGE_NOTE =
+  "[SHIELD: this message asks for a change. Delegate it now to the coder (or to the tester if it is only about tests); the agent reads the files it needs. Do not send the reviewer to look first.]";

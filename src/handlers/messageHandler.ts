@@ -16,7 +16,12 @@ import { checkPlan, planRemarks, takePlanNote } from "./sessionPlan";
 import { useConversationStore } from "@/stores/conversation-store";
 import { useTeamStore } from "@/stores/team-store";
 import { unbackedRoleNote } from "../agents/teamClaims";
-import { isProjectQuestion, QUESTION_NOTE } from "../agents/teamRouting";
+import {
+  CHANGE_NOTE,
+  isChangeRequest,
+  isProjectQuestion,
+  QUESTION_NOTE,
+} from "../agents/teamRouting";
 
 /**
  * A file's current contents for SHIELD's own checks, through the filesystem
@@ -279,9 +284,11 @@ export function createMessageHandler({
               )
             );
         if (planText) messageWithContext += `\n\n${planText}`;
-        // A question goes to the reviewer, not the coder
+        // A question goes to the reviewer, a change straight to the coder
         if (teamMode && isProjectQuestion(content)) {
           messageWithContext += `\n\n${QUESTION_NOTE}`;
+        } else if (teamMode && isChangeRequest(content)) {
+          messageWithContext += `\n\n${CHANGE_NOTE}`;
         }
       }
 
