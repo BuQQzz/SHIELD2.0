@@ -1,12 +1,12 @@
 # SHIELD — Session Handoff
 
-**Last session:** 2026-10-21 → 22, on Linux (previous: 2026-10-20 → 21 on Linux; 2026-09-26 → 28 on Windows)  
-**Branch:** `feat/model-library`, 35 commits past the 2026-09-28 tip (`57d5baf`). Pushed to the public repo up to `3981847`; **everything after it is committed locally, not pushed:** `1ed9b36` (panel runs survive a restart), `a26dba2` (the earlier handoff) and the commits of 2026-10-21 → 22 (`0839059` .. this handoff commit). Nothing is merged to `main`. Only the user says when to push or open a PR.  
-**Tests:** 1135 passing, 7 skipped (`npx vitest run`) · `npx tsc --noEmit`, `npx eslint src electron scripts --ext ts,tsx --max-warnings 0` clean. `prettier --check` flags `src/components/ui/button.tsx` and `scripts/bench/mcp.ts`, which were already unformatted: do not run `prettier --write` over whole folders (it reformats `button.tsx`; `git checkout` it).
+**Last session:** 2026-10-23 → 24, on Linux (previous: 2026-10-21 → 22 and 2026-10-20 → 21 on Linux; 2026-09-26 → 28 on Windows)  
+**Branch:** `feat/model-library`, 39 commits past the 2026-09-28 tip (`57d5baf`). Pushed to the public repo up to `3981847`; **everything after it is committed locally, not pushed:** `1ed9b36` (panel runs survive a restart), `a26dba2` (the earlier handoff), the commits of 2026-10-21 → 22 (`0839059` .. `4983806`) and of 2026-10-23 → 24 (`5b930de` and this handoff commit). Nothing is merged to `main`. Only the user says when to push or open a PR.  
+**Tests:** 1139 passing, 7 skipped (`npx vitest run`) · `npx tsc --noEmit`, `npx eslint src electron scripts --ext ts,tsx --max-warnings 0` clean. `prettier --check` flags `src/components/ui/button.tsx` and `scripts/bench/mcp.ts`, which were already unformatted: do not run `prettier --write` over whole folders (it reformats `button.tsx`; `git checkout` it).
 
 **Tested in the app with (2026-10-20):** Bonsai 27B Q1_0 on an RTX 2070 SUPER 8 GB (Ubuntu 26.04), SHIELD-managed Prism llama-server at 32K, ~19 tok/s. Earlier sessions: Qwen3-Coder-30B and Gemma 4 12B on Windows (see the older updates).
 
-Read this first (the sections "Update — 2026-10-21 → 22" and then "Update — 2026-10-20 → 21" are the current state), then [SHIELD_AGENT_ARCHITECTURE.md](./SHIELD_AGENT_ARCHITECTURE.md) (§21 agent teams, §17 decision log, §13 priorities, §20 evidence) and [testing/AGENT_BENCHMARK.md](./testing/AGENT_BENCHMARK.md).
+Read this first (the sections "Update — 2026-10-23 → 24", "Update — 2026-10-21 → 22" and then "Update — 2026-10-20 → 21" are the current state), then [SHIELD_AGENT_ARCHITECTURE.md](./SHIELD_AGENT_ARCHITECTURE.md) (§21 agent teams, §17 decision log, §13 priorities, §20 evidence) and [testing/AGENT_BENCHMARK.md](./testing/AGENT_BENCHMARK.md).
 
 ---
 
@@ -34,7 +34,25 @@ Order agreed with the user on 2026-09-26: the Code view, then the terminal, then
 
 ---
 
-## Update — 2026-10-21 → 22: team fixes, a hanging server, and a quieter orchestrator (start here)
+## Update — 2026-10-23 → 24: an escaped key repaired, and the hang hunted in short rounds (start here)
+
+The user's direction: **short increments** ("40 minutes is too long for today"): 10-minute rounds, each result shown before the next. A 40-minute run was stopped after 2 minutes (13 turns, no hang).
+
+### Commit (local, not pushed)
+- `5b930de` **escaped key quotes** (step 4 of the 2026-10-21 → 22 list): Bonsai agents wrote `run_command` as `{"command":"pwd", "reason\":\"Check …\"}` (three shapes in `tmp/agent-team-*/transcript.log`; sometimes the closing quote is escaped too). `escapeStrayQuotes` then read the quote after the command as text and the command became `bash test.sh","reason":"Runs…`. `unescapeKeyQuotes` (`toolCallParsing.ts`) un-escapes a key that opens with a bare quote after `{` or `,`, tried before `escapeStrayQuotes`, with `unescapeClosingQuote` applied to its result; escaped JSON inside a value (`,\"c\":\"`) is not touched. Four tests built from the real shapes.
+
+### The hang, three 10-minute rounds (not reproduced)
+`tmp/hang-hunt/team-stress.mts` (git-ignored, kept this time, with the round logs): starts llama-server with SHIELD's `buildServerArgs` (Bonsai 27B, 32K, `--spec-type ngram-mod`; `SPEC=none` drops it) and sends SHIELD's exact streamed request body (`return_progress`, `timings_per_token`, `cache_prompt`). Four histories (orchestrator with thinking off, coder, tester, reviewer with it on) take turns on the one slot, each turn followed by a `<tool_result>` holding a real source file; about 1 in 10 requests is aborted mid-stream. A hang = processing with `n_decoded` unchanged for 45 s, or a request over 8 minutes; then the script exits 2 and leaves the server up. Run: `EDIT=1 FULL=1 MINUTES=10 npx tsx tmp/hang-hunt/team-stress.mts` from the repo (`EDIT=1`: workers rewrite the file they were shown; `FULL=1`: 8-12K-char tool results, reset only past 22K prompt tokens).
+
+| Round | Setup | Requests | Tokens out | Aborted | Hangs | Note |
+|---|---|---|---|---|---|---|
+| 1 | short tool results | 57 | 15,189 | 2 | 0 | coder/tester replies only ~140 tokens: not the heavy-drafting case |
+| 2 | `EDIT=1` | 17 | 24,627 | 1 | 0 | replies 1.2-3.1K tokens avg, 3 hit the 4,096 cap; 32-58 tok/s |
+| 3 | `EDIT=1 FULL=1` | 15 | 24,387 | 1 | 0 | largest prompt only **9,635 tokens** (30% of 32K): 4K replies take ~130 s, so 3-4 turns per history |
+
+**About 89 team-style requests, ~64K tokens, speculation on throughout: no hang.** Alternating histories on one slot, tool results, mid-stream aborts and long drafted output do not cause it, alone or together, within 10-20 minutes. **Not yet tested: near-full context.** The real hangs came 35-49 minutes into team runs; no history here passed 30%. Next: pre-fill each history to about 18K tokens of earlier turns so every request starts near the limit (the user's choice for a later session), then the long team run with `SHIELD_SPEC_TYPE=none`.
+
+## Update — 2026-10-21 → 22: team fixes, a hanging server, and a quieter orchestrator
 
 The user's direction this session: **agents only when the task needs them or the user asks** (saved as a memory); the orchestrator must **speak as the one assistant that does the work** ("it should just work and spawn agents to help if needed"); and **short in-app tests over long benchmarks** ("we do not have the time"). The first plan, a repeated headless benchmark of the team, was cut short for the last reason.
 
@@ -87,9 +105,9 @@ Five finished runs, all passing: **still no pass rate.** In the last `bug` run t
 
 ### Next steps (suggested order)
 1. Short in-app checks of what is untried: a human clicking through Ask mode. Rate the 9B `good` once it has done a bigger task. Qwen3-Coder stays `untested` in the catalog: it cannot be run here without spilling into system RAM, which the user does not want on this PC.
-2. Find the hang. Speculative decoding is not shown to cause it (see above). Try the two untested ideas there: alternating conversation histories with tool results on one slot, and a long team run with `SHIELD_SPEC_TYPE=none`. If it still hangs with it off, the cause is elsewhere (the fork, the 1-bit kernels, the cache).
+2. Find the hang. Speculative decoding is not shown to cause it (see above). Alternating histories with tool results on one slot: tried 2026-10-23 → 24, no hang (see that update); near-full context is what is left, then a long team run with `SHIELD_SPEC_TYPE=none`. If it still hangs with it off, the cause is elsewhere (the fork, the 1-bit kernels, the cache).
 3. ~~Make a read-only question go to the reviewer~~ done: the system-prompt rule alone changed nothing for the 27B (three questions, three coders); a note in the user's message does (`src/agents/teamRouting.ts`: `isProjectQuestion` = opens with a question word and asks for no change, then `QUESTION_NOTE` is appended in `messageHandler`), the reviewer's role text now covers answering, and three questions went to the reviewer with correct answers in the app. It is a word pattern, so an oddly phrased question still reaches the coder as before. The 9B's summary of a result can still be wrong while the agent's note is right.
-4. The malformed `reason` in `run_command` JSON: see whether `repairJsonStrings` can mend `"reason\":\"…` without moving text into `command`. Bonsai breaks JSON in a few recurring ways (escaped closing quote, quotes inside file content): each repair so far came from a real saved call, so keep reading `tmp/ui-check/profile/conversations/*.json` after a bad run.
+4. ~~The malformed `reason` in `run_command` JSON~~ done 2026-10-23 (`5b930de`, `unescapeKeyQuotes`). Bonsai breaks JSON in a few recurring ways (escaped closing quote, quotes inside file content): each repair so far came from a real saved call, so keep reading `tmp/ui-check/profile/conversations/*.json` after a bad run.
 5. Still open from before: Windows CI (an eventual PR to `main`, ask the user first), team notes and hand-offs kept only in memory, the recall tool, "SHIELD learns and remembers", and the older "Later" list below.
 
 ### Working agreements added this session
