@@ -1,7 +1,7 @@
 # SHIELD — Session Handoff
 
 **Last session:** 2026-10-23 → 24, on Linux (previous: 2026-10-21 → 22 and 2026-10-20 → 21 on Linux; 2026-09-26 → 28 on Windows)  
-**Branch:** `feat/model-library`, 50 commits past the 2026-09-28 tip (`57d5baf`). **Pushed to the public repo on 2026-10-24 at the user's request, up to and including this handoff commit** (the remote had been at `a26dba2`). Later commits (from `6838ef7` on) are local only. Nothing is merged to `main`. Only the user says when to push or open a PR.
+**Branch:** `feat/model-library`, 50 commits past the 2026-09-28 tip (`57d5baf`). **Pushed to the public repo on 2026-10-24 at the user's request, up to and including this handoff commit** (the remote had been at `a26dba2`). Pushed again on 2026-10-24 evening at the user's request, up to and including the handoff commit after `8f02eed`. Nothing is merged to `main`. Only the user says when to push or open a PR.
 **Tests:** 1154 passing, 7 skipped (`npx vitest run`) · `npx tsc --noEmit`, `npx eslint src electron scripts --ext ts,tsx --max-warnings 0` clean. `prettier --check` flags `src/components/ui/button.tsx` and `scripts/bench/mcp.ts`, which were already unformatted: do not run `prettier --write` over whole folders (it reformats `button.tsx`; `git checkout` it).
 
 **Tested in the app with (2026-10-20):** Bonsai 27B Q1_0 on an RTX 2070 SUPER 8 GB (Ubuntu 26.04), SHIELD-managed Prism llama-server at 32K, ~19 tok/s. Earlier sessions: Qwen3-Coder-30B and Gemma 4 12B on Windows (see the older updates).
