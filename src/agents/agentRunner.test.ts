@@ -594,6 +594,31 @@ describe("runAgent", () => {
       );
     });
 
+    it("marks a call the user denied as refused, and records it", async () => {
+      // The user denied a coder's list_directory in Ask mode; the panel
+      // showed it as failed (2026-10-24)
+      const { deps, events } = withEvents(
+        [call("list_directory", { path: "/p" }), HANDOFF_DONE],
+        {
+          execute: async () => ({
+            success: false,
+            error: "User denied permission",
+          }),
+        }
+      );
+      const report = await runAgent(
+        { role: "coder", task: "t", team: new TeamRun() },
+        deps
+      );
+      expect(events.find((e) => e.type === "result")).toMatchObject({
+        ok: false,
+        refused: true,
+      });
+      expect(report.work.refused).toEqual([
+        "coder list_directory /p (denied by the user)",
+      ]);
+    });
+
     it("reports the checkpoint and the context as it grows", async () => {
       const { deps, events } = withEvents(
         [

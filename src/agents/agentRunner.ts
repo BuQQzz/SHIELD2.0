@@ -117,6 +117,9 @@ function describeCall(role: AgentRole, call: ToolCallRequest): string {
 }
 
 /** The text of a tool result, as the model would read it */
+/** What the approval bar's Deny returns (useMCPDialogs) */
+const USER_DENIED = "User denied permission";
+
 function resultText(result: MCPToolResult): string {
   if (!result.success) return result.error ?? "";
   const data = result.data as
@@ -327,6 +330,12 @@ export async function runAgent(
       commandsRun += 1;
     }
     const result = await deps.execute(call, { role });
+    if (!result.success && result.error === USER_DENIED) {
+      work.refused.push(
+        `${role} ${call.tool}${pathOf(call) ? ` ${shortPath(pathOf(call))}` : ""} (denied by the user)`
+      );
+      return result;
+    }
     recordCall(work, call, result);
     store("PARTIAL");
     return result;
@@ -349,7 +358,10 @@ export async function runAgent(
       runId: handoffId,
       callId,
       ok: result.success,
-      refused: !result.success && text.startsWith("Not run:"),
+      // by SHIELD's rules ("Not run: …") or by the user in Ask mode
+      refused:
+        !result.success &&
+        (text.startsWith("Not run:") || text === USER_DENIED),
       text: text.slice(0, EVENT_TEXT_CHARS),
     });
     return result;
