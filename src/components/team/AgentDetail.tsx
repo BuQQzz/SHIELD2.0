@@ -3,7 +3,7 @@
  * came back, the text it is writing now, and how it ended.
  */
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Ban,
   Check,
@@ -15,6 +15,7 @@ import {
 import type { AgentRunView, RunStep } from "@/agents/runView";
 import { cn } from "@/lib/utils";
 import { stepLabel } from "@/components/chat/turns";
+import { streamingToolCallPreview } from "@/handlers/toolCallParsing";
 import { AgentIcon } from "./AgentIcon";
 import { ROLE_LOOKS, STATUS_LOOK } from "./agentLooks";
 
@@ -79,6 +80,17 @@ function ToolRow({ step }: { step: Extract<RunStep, { kind: "tool" }> }) {
   );
 }
 
+/**
+ * "Editing calc.py…" for a call the agent is still writing; a tool the chat
+ * has no words for is "Using <tool>…". The call's markup itself showed in the
+ * panel until the call was complete (2026-10-24).
+ */
+function pendingLabel(tool: string, target: string | undefined): string {
+  if (!tool) return "Preparing a tool call…";
+  const label = stepLabel(tool, "", target, "running");
+  return `${label.startsWith(".") ? `Using ${tool}` : label}…`;
+}
+
 interface AgentDetailProps {
   run: AgentRunView;
   onBack: () => void;
@@ -90,6 +102,7 @@ export function AgentDetail({ run, onBack }: AgentDetailProps) {
   /** Follows the bottom while the user is there; lets go when they scroll up */
   const stuck = useRef(true);
   const status = STATUS_LOOK[run.status];
+  const live = useMemo(() => streamingToolCallPreview(run.live), [run.live]);
 
   useEffect(() => {
     const el = scroller.current;
@@ -171,11 +184,23 @@ export function AgentDetail({ run, onBack }: AgentDetailProps) {
         )}
 
         {run.status === "running" &&
-          (run.live ? (
-            <p className="whitespace-pre-wrap text-[13px] leading-snug">
-              {run.live}
-              <span className="ml-0.5 inline-block h-3 w-1.5 animate-pulse bg-foreground/60 align-middle" />
-            </p>
+          (live.text || live.pendingTool !== null ? (
+            <>
+              {live.text && (
+                <p className="whitespace-pre-wrap text-[13px] leading-snug">
+                  {live.text}
+                  {live.pendingTool === null && (
+                    <span className="ml-0.5 inline-block h-3 w-1.5 animate-pulse bg-foreground/60 align-middle" />
+                  )}
+                </p>
+              )}
+              {live.pendingTool !== null && (
+                <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                  <Loader2 className="h-3 w-3 animate-spin" aria-hidden />
+                  {pendingLabel(live.pendingTool, live.pendingTarget)}
+                </p>
+              )}
+            </>
           ) : (
             <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
               <Loader2 className="h-3 w-3 animate-spin" aria-hidden />

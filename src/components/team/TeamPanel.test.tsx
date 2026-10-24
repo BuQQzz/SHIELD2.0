@@ -163,6 +163,20 @@ describe("TeamPanel", () => {
     expect(screen.queryByText("Thinking")).toBeNull();
   });
 
+  it("names the tool an agent is calling instead of showing the call's markup", () => {
+    panel();
+    record(coder, { type: "session", runId: "h1", sessionId: "agent-1" });
+    const stream = (token: string) =>
+      act(() => useTeamStore.getState().streamToken("agent-1", token));
+    stream("Now the test.\n<tool_call>\n<server>filesystem</server>\n<");
+    expect(screen.getByText("Now the test.")).toBeTruthy();
+    expect(screen.getByText("Preparing a tool call…")).toBeTruthy();
+    stream('tool>edit_file</tool>\n<arguments>{"path":"/p/test_calc.py"');
+    expect(screen.getByText("Editing test_calc.py…")).toBeTruthy();
+    expect(document.body.textContent).not.toContain("<server>");
+    expect(document.body.textContent).not.toContain("edit_file");
+  });
+
   it("lets the user open another agent, and stops following the newest until asked", () => {
     panel();
     record(coder, end("h1"), tester);
