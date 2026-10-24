@@ -1,7 +1,7 @@
 # SHIELD — Session Handoff
 
 **Last session:** 2026-10-23 → 24, on Linux (previous: 2026-10-21 → 22 and 2026-10-20 → 21 on Linux; 2026-09-26 → 28 on Windows)  
-**Branch:** `feat/model-library`, 39 commits past the 2026-09-28 tip (`57d5baf`). Pushed to the public repo up to `3981847`; **everything after it is committed locally, not pushed:** `1ed9b36` (panel runs survive a restart), `a26dba2` (the earlier handoff), the commits of 2026-10-21 → 22 (`0839059` .. `4983806`) and of 2026-10-23 → 24 (`5b930de` and this handoff commit). Nothing is merged to `main`. Only the user says when to push or open a PR.  
+**Branch:** `feat/model-library`, 40 commits past the 2026-09-28 tip (`57d5baf`). Pushed to the public repo up to `3981847`; **everything after it is committed locally, not pushed:** `1ed9b36` (panel runs survive a restart), `a26dba2` (the earlier handoff), the commits of 2026-10-21 → 22 (`0839059` .. `4983806`) and of 2026-10-23 → 24 (`5b930de`, `c6221e2` and this handoff commit). Nothing is merged to `main`. Only the user says when to push or open a PR.  
 **Tests:** 1139 passing, 7 skipped (`npx vitest run`) · `npx tsc --noEmit`, `npx eslint src electron scripts --ext ts,tsx --max-warnings 0` clean. `prettier --check` flags `src/components/ui/button.tsx` and `scripts/bench/mcp.ts`, which were already unformatted: do not run `prettier --write` over whole folders (it reformats `button.tsx`; `git checkout` it).
 
 **Tested in the app with (2026-10-20):** Bonsai 27B Q1_0 on an RTX 2070 SUPER 8 GB (Ubuntu 26.04), SHIELD-managed Prism llama-server at 32K, ~19 tok/s. Earlier sessions: Qwen3-Coder-30B and Gemma 4 12B on Windows (see the older updates).
@@ -34,7 +34,7 @@ Order agreed with the user on 2026-09-26: the Code view, then the terminal, then
 
 ---
 
-## Update — 2026-10-23 → 24: an escaped key repaired, and the hang hunted in short rounds (start here)
+## Update — 2026-10-23 → 24: an escaped key repaired, and the hang hunted in four short rounds (start here)
 
 The user's direction: **short increments** ("40 minutes is too long for today"): 10-minute rounds, each result shown before the next. A 40-minute run was stopped after 2 minutes (13 turns, no hang).
 
@@ -49,8 +49,11 @@ The user's direction: **short increments** ("40 minutes is too long for today"):
 | 1 | short tool results | 57 | 15,189 | 2 | 0 | coder/tester replies only ~140 tokens: not the heavy-drafting case |
 | 2 | `EDIT=1` | 17 | 24,627 | 1 | 0 | replies 1.2-3.1K tokens avg, 3 hit the 4,096 cap; 32-58 tok/s |
 | 3 | `EDIT=1 FULL=1` | 15 | 24,387 | 1 | 0 | largest prompt only **9,635 tokens** (30% of 32K): 4K replies take ~130 s, so 3-4 turns per history |
+| 4 | `EDIT=1 FULL=1 PREFILL=55000` | 15 | 18,344 | 2 | 0 | **every prompt 14.5-22K tokens** (45-69% of 32K); each switch re-reads the prompt (~30 s at ~500-600 tok/s); 3 replies hit 4,096; one history reset at 22K |
 
-**About 89 team-style requests, ~64K tokens, speculation on throughout: no hang.** Alternating histories on one slot, tool results, mid-stream aborts and long drafted output do not cause it, alone or together, within 10-20 minutes. **Not yet tested: near-full context.** The real hangs came 35-49 minutes into team runs; no history here passed 30%. Next: pre-fill each history to about 18K tokens of earlier turns so every request starts near the limit (the user's choice for a later session), then the long team run with `SHIELD_SPEC_TYPE=none`.
+**About 104 team-style requests, ~82K tokens, speculation on throughout: no hang.** Alternating histories on one slot, tool results, mid-stream aborts, long drafted output and near-full context do not cause it, alone or together, within 10-minute rounds. What is left of the conditions of the real hangs is **duration** (35-49 minutes into a run, the same server process the whole time) and real model-chosen tool calls. Next: a long team run with `SHIELD_SPEC_TYPE=none`, or one long `team-stress.mts` run (`PREFILL=55000 FULL=1 EDIT=1 MINUTES=45`) when there is time for it.
+
+**Detector fix (round 4's first try was a false alarm).** The first version called a hang when `/slots` showed `n_decoded` unchanged for 45 s, and fired 20 s into reading a 14.5K-token prompt (`n_decoded` is 0 while the prompt is read; the server log showed 67% read at ~600 tok/s). It now counts progress the way SHIELD's stall watchdog does, from the stream: prompt tokens read (`prompt_progress.processed`), tokens generated (`timings.predicted_n`), new text or thinking; `/slots` is only logged when it fires. Rounds 1-3 had no prompt read over 45 s, so they were not affected. The real hangs of 2026-10-21 stopped at `n_decoded` 151 and 1,971, so they were decoding, not reading. `PREFILL=<chars>` fills a fresh history with earlier reads and replies up to that size (55,000 is ~15-19K tokens).
 
 ## Update — 2026-10-21 → 22: team fixes, a hanging server, and a quieter orchestrator
 
@@ -105,7 +108,7 @@ Five finished runs, all passing: **still no pass rate.** In the last `bug` run t
 
 ### Next steps (suggested order)
 1. Short in-app checks of what is untried: a human clicking through Ask mode. Rate the 9B `good` once it has done a bigger task. Qwen3-Coder stays `untested` in the catalog: it cannot be run here without spilling into system RAM, which the user does not want on this PC.
-2. Find the hang. Speculative decoding is not shown to cause it (see above). Alternating histories with tool results on one slot: tried 2026-10-23 → 24, no hang (see that update); near-full context is what is left, then a long team run with `SHIELD_SPEC_TYPE=none`. If it still hangs with it off, the cause is elsewhere (the fork, the 1-bit kernels, the cache).
+2. Find the hang. Speculative decoding is not shown to cause it (see above). Alternating histories with tool results on one slot: tried 2026-10-23 → 24 in four 10-minute rounds up to 69% context, no hang (see that update); what is left is duration (a 45-minute run) and a long team run with `SHIELD_SPEC_TYPE=none`. If it still hangs with it off, the cause is elsewhere (the fork, the 1-bit kernels, the cache).
 3. ~~Make a read-only question go to the reviewer~~ done: the system-prompt rule alone changed nothing for the 27B (three questions, three coders); a note in the user's message does (`src/agents/teamRouting.ts`: `isProjectQuestion` = opens with a question word and asks for no change, then `QUESTION_NOTE` is appended in `messageHandler`), the reviewer's role text now covers answering, and three questions went to the reviewer with correct answers in the app. It is a word pattern, so an oddly phrased question still reaches the coder as before. The 9B's summary of a result can still be wrong while the agent's note is right.
 4. ~~The malformed `reason` in `run_command` JSON~~ done 2026-10-23 (`5b930de`, `unescapeKeyQuotes`). Bonsai breaks JSON in a few recurring ways (escaped closing quote, quotes inside file content): each repair so far came from a real saved call, so keep reading `tmp/ui-check/profile/conversations/*.json` after a bad run.
 5. Still open from before: Windows CI (an eventual PR to `main`, ask the user first), team notes and hand-offs kept only in memory, the recall tool, "SHIELD learns and remembers", and the older "Later" list below.
