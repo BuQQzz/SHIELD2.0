@@ -3,6 +3,8 @@ import { cleanup, renderHook } from "@testing-library/react";
 import { useMCPSystemPrompt } from "./useMCPSystemPrompt";
 import { resolveToolPolicy } from "./useToolPolicy";
 import type { ToolDefinition } from "@/types/prompts";
+import { BASE_PROMPT } from "@/config/systemPrompts";
+import { ORCHESTRATOR_PROMPT } from "@/agents/roles";
 
 afterEach(cleanup);
 
@@ -166,5 +168,24 @@ describe("useMCPSystemPrompt native tools", () => {
       read,
       write,
     ]);
+  });
+
+  it("sends the team's orchestrator prompt, and adds a built-in default only once", () => {
+    const setSystemPrompt = vi.fn().mockResolvedValue(undefined);
+    const { rerender } = renderHook(
+      ({ baseSystemPrompt }) =>
+        useMCPSystemPrompt({
+          ...baseProps,
+          modelName: "Bonsai-27B",
+          baseSystemPrompt,
+          setSystemPrompt,
+        }),
+      { initialProps: { baseSystemPrompt: ORCHESTRATOR_PROMPT } }
+    );
+    const sent = () => setSystemPrompt.mock.lastCall![0] as string;
+    expect(sent().startsWith(ORCHESTRATOR_PROMPT)).toBe(true);
+    expect(sent()).not.toContain(BASE_PROMPT);
+    rerender({ baseSystemPrompt: BASE_PROMPT });
+    expect(sent().split(BASE_PROMPT).length).toBe(2);
   });
 });

@@ -10,6 +10,7 @@ import {
   buildSystemPrompt,
   detectModelFamily,
   getCapabilitiesFromModel,
+  isBuiltInPrompt,
   usesNativeToolCalling,
 } from "@/config/systemPrompts";
 import { isMutatingTool } from "@/config/toolClassification";
@@ -92,7 +93,7 @@ export function useMCPSystemPrompt({
 
     // Check if user has a custom prompt (different from default)
     const isCustomPrompt =
-      baseSystemPrompt && !baseSystemPrompt.startsWith("You are SHIELD");
+      baseSystemPrompt && !isBuiltInPrompt(baseSystemPrompt);
 
     // MCP is up but we have not heard back from the servers yet. Publishing
     // now would hand the model a prompt with no tools, and it would correctly

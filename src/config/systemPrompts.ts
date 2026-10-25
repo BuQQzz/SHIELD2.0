@@ -634,3 +634,13 @@ export function getCapabilitiesFromModel(modelCapabilities: {
 export function getDefaultSystemPrompt(): string {
   return BASE_PROMPT;
 }
+
+/**
+ * True for BASE_PROMPT, MINIMAL_PROMPT and older saved copies of them (every
+ * version opened this way), which buildSystemPrompt adds itself. Not "You are
+ * SHIELD" alone: the team's orchestrator prompt opens with that too, and was
+ * dropped as a default from 2026-10-22 to 10-24.
+ */
+export function isBuiltInPrompt(prompt: string): boolean {
+  return prompt.startsWith("You are SHIELD, a helpful");
+}
