@@ -27,6 +27,7 @@ import {
   SseParser,
   type ChatStreamChunk,
 } from "./llamaServer/sse.js";
+import { RepetitionWatch } from "./llamaServer/repetition.js";
 import {
   CLEAR_TO,
   COMPACT_AT,
@@ -368,6 +369,10 @@ export class LlamaServerProvider {
     const userMessage: ChatMessage = { role: "user", content: message };
     const startedAt = performance.now();
     const stalled = new AbortController();
+    // Thought going round in circles: dropped, and the message sent again
+    // without thinking (repetition.ts)
+    const looping = new AbortController();
+    const thoughtWatch = new RepetitionWatch();
     let stallTimer: ReturnType<typeof setTimeout> | undefined;
     const watchForStall = () => {
       clearTimeout(stallTimer);
@@ -380,6 +385,7 @@ export class LlamaServerProvider {
     let final: ChatStreamChunk | null = null;
     /** The whole prompt, once the server says how long it is */
     let promptTokens = 0;
+    let retryWithoutThinking = false;
 
     try {
       // Inside the try: Stop while summarising ends the turn like Stop
@@ -390,7 +396,7 @@ export class LlamaServerProvider {
       const response = await fetch(`${this.baseUrl}/v1/chat/completions`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        signal: AbortSignal.any([signal, stalled.signal]),
+        signal: AbortSignal.any([signal, stalled.signal, looping.signal]),
         body: JSON.stringify({
           messages: this.messages(userMessage),
           stream: true,
@@ -425,6 +431,8 @@ export class LlamaServerProvider {
         for (const chunk of parser.push(
           decoder.decode(value, { stream: true })
         )) {
+          const thought = chunk.choices?.[0]?.delta?.reasoning_content;
+          if (thought && thoughtWatch.push(thought)) looping.abort();
           const text = chunk.choices?.[0]?.delta?.content;
           if (text) {
             firstTokenAt ??= performance.now();
@@ -449,16 +457,25 @@ export class LlamaServerProvider {
         }
       }
     } catch (error) {
+      if (looping.signal.aborted && !signal.aborted) {
+        console.log(
+          "[LlamaServer] The model's thinking repeated itself; sending the message again without thinking"
+        );
+        retryWithoutThinking = true;
+      }
       // Stopped by the user: keep what was generated, like LlamaChatSession
-      if (stalled.signal.aborted && !signal.aborted) {
+      else if (stalled.signal.aborted && !signal.aborted) {
         throw new Error(
           `llama-server made no progress for ${STALL_MS / 60000} minutes and was given up on; the model server may have hung. Stop and reload the model.`
         );
-      }
-      if (!signal.aborted) throw error;
+      } else if (!signal.aborted) throw error;
     } finally {
       clearTimeout(stallTimer);
       this.abortController = null;
+    }
+    // Nothing of the dropped reply is kept: the history is as it was
+    if (retryWithoutThinking) {
+      return this.chat(message, { ...options, thinking: false });
     }
 
     this.history.push(userMessage, { role: "assistant", content: reply });

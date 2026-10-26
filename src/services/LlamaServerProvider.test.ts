@@ -561,3 +561,71 @@ describe("LlamaServerProvider a server that goes silent", () => {
     expect(await outcome).toContain("made no progress for 5 minutes");
   });
 });
+
+describe("LlamaServerProvider thinking in circles", () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  it("drops a reply whose thinking repeats itself and sends it again without thinking", async () => {
+    const provider = new LlamaServerProvider();
+    Object.assign(provider, {
+      process: { exitCode: null },
+      baseUrl: "http://server",
+      contextSize: 32768,
+    });
+    const loop =
+      "Wait, the file is calc.py, not calcul.py. Let me read calc.py again. Actually I listed it already. ";
+    const sent: { chat_template_kwargs?: { enable_thinking?: boolean } }[] = [];
+    let aborted = false;
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (_url: string, init: RequestInit) => {
+        const body = JSON.parse(init.body as string);
+        sent.push(body);
+        const encoder = new TextEncoder();
+        const event = (delta: object) =>
+          encoder.encode(
+            `data: ${JSON.stringify({ choices: [{ delta }] })}\n\n`
+          );
+        if (body.chat_template_kwargs?.enable_thinking === false) {
+          return new Response(
+            new ReadableStream({
+              start(controller) {
+                controller.enqueue(event({ content: "Reading calc.py." }));
+                controller.close();
+              },
+            })
+          );
+        }
+        // Thinks the same passage over and over, and would never stop
+        let timer: ReturnType<typeof setInterval>;
+        return new Response(
+          new ReadableStream({
+            start(controller) {
+              timer = setInterval(
+                () => controller.enqueue(event({ reasoning_content: loop })),
+                1
+              );
+              init.signal?.addEventListener("abort", () => {
+                aborted = true;
+                clearInterval(timer);
+                controller.error(new DOMException("aborted", "AbortError"));
+              });
+            },
+          })
+        );
+      })
+    );
+
+    expect(await provider.chat("next step?")).toBe("Reading calc.py.");
+    expect(aborted).toBe(true);
+    expect(sent).toHaveLength(2);
+    expect(sent[0]!.chat_template_kwargs).toBeUndefined();
+    expect(sent[1]!.chat_template_kwargs).toEqual({ enable_thinking: false });
+    // the history holds the message once, with the answer that was kept
+    expect(
+      (provider as unknown as { history: { content: string }[] }).history.map(
+        (m) => m.content
+      )
+    ).toEqual(["next step?", "Reading calc.py."]);
+  });
+});
