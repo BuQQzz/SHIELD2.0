@@ -98,6 +98,29 @@ const checkpointNotice = (at: number) =>
  * reader gets what was seen, then the hand-off.
  */
 /** For a thinking model that spent the whole reply on thought and said nothing */
+/**
+ * The task's file names as full paths in the project folder. Told only "calc.py"
+ * and the folder (in its prompt, below the tool list), Bonsai 27B's coder read a
+ * name of its own (calcs.py, calculators/calculator.py) in 7 of 12 first calls;
+ * with this note, 0 of 12 (the folder alone: 5 of 12; 2026-10-26).
+ */
+export function namedFilesNote(task: string, folder?: string): string {
+  if (!folder) return "";
+  const sep = folder.includes("\\") && !folder.includes("/") ? "\\" : "/";
+  const base = folder.replace(/[\\/]+$/, "");
+  const names = [
+    ...task.matchAll(
+      /(?<![\w/\\.:~-])((?:[\w-]+[/\\])*[\w-]{2,}\.[A-Za-z][A-Za-z0-9]{0,5})(?![\w/\\-])/g
+    ),
+  ].map((m) => m[1]!);
+  const paths = [...new Set(names)].map(
+    (name) => `${base}${sep}${name.replace(/[/\\]/g, sep)}`
+  );
+  return paths.length
+    ? `[Files named in the task, in the project folder: ${paths.join("; ")}]`
+    : "";
+}
+
 const SHORT_REPORT_REQUEST = `[SHIELD: your last reply was empty. Do not think at length. Reply in a few short lines: what you did and saw, then your HANDOFF block:\n${HANDOFF_FORMAT}]`;
 
 const REPORT_REQUEST = `[SHIELD: stop here. Do not call any tool. Reply now with your report: first what you did and found, in plain words, quoting real output (a reviewer lists each problem with file and line, or says "no problems found"); then your HANDOFF block, in this format:\n${HANDOFF_FORMAT}]`;
@@ -184,8 +207,13 @@ function endEvent(report: AgentReport): AgentEvent {
   };
 }
 
+// The server files thinking apart, yet a coder's reply was once a bare
+// "</think>", shown in the Team panel as the agent's words (2026-10-26)
 const withoutToolCalls = (text: string) =>
-  text.replace(/<tool_call>[\s\S]*?(<\/tool_call>|$)/g, "").trim();
+  text
+    .replace(/<tool_call>[\s\S]*?(<\/tool_call>|$)/g, "")
+    .replace(/<\/?think>/gi, "")
+    .trim();
 
 const failed = (
   input: AgentRunInput,
@@ -252,6 +280,7 @@ export async function runAgent(
 
   const seed = [
     `TASK:\n${input.task}`,
+    namedFilesNote(input.task, deps.workspaceFolder),
     input.continueFrom
       ? handoffNote({
           fromRole: input.continueFrom.role,

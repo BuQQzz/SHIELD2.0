@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { runAgent, type AgentRunDeps } from "./agentRunner";
+import { namedFilesNote, runAgent, type AgentRunDeps } from "./agentRunner";
 import { TeamRun } from "./team";
 import type { AgentEvent } from "./events";
 import type { MCPToolResult } from "../types/electron";
@@ -527,6 +527,21 @@ describe("runAgent", () => {
       return { ...h, events };
     };
 
+    it("leaves a stray think tag out of what the agent said", async () => {
+      const { deps, events } = withEvents([
+        `</think>\n\n${call("read_text_file", { path: "/p/a.js" })}`,
+        `</think>\nRead it.\n\n${HANDOFF_DONE}`,
+      ]);
+      const report = await runAgent(
+        { role: "coder", task: "fix it", team: new TeamRun() },
+        deps
+      );
+      const said = events.flatMap((e) => (e.type === "reply" ? [e.text] : []));
+      expect(said).toHaveLength(1);
+      expect(said[0]).toMatch(/^Read it\.\n\nHANDOFF/);
+      expect(report.summary).toBe("Read it.");
+    });
+
     it("reports a run from start to end: session, what the agent said, each tool and its result", async () => {
       const { deps, events } = withEvents([
         `Let me look.\n${call("read_text_file", { path: "/p/a.js" })}`,
@@ -685,5 +700,43 @@ describe("runAgent", () => {
       );
       expect(report.status).toBe("DONE");
     });
+  });
+});
+
+describe("namedFilesNote", () => {
+  it("gives each file the task names its full path in the project folder", () => {
+    expect(
+      namedFilesNote(
+        "Read calc.py and test_calc.py. Add an assert to test_calc.py, then run python3 test_calc.py.",
+        "/home/me/project/"
+      )
+    ).toBe(
+      "[Files named in the task, in the project folder: /home/me/project/calc.py; /home/me/project/test_calc.py]"
+    );
+    expect(namedFilesNote("Fix src/app.js and README.md.", "C:\\work")).toBe(
+      "[Files named in the task, in the project folder: C:\\work\\src\\app.js; C:\\work\\README.md]"
+    );
+  });
+
+  it("leaves out full paths, abbreviations, numbers and a task with no folder", () => {
+    const folder = "/home/me/project";
+    expect(
+      namedFilesNote(
+        "Read /home/me/project/calc.py, e.g. its add (i.e. a + b), version 3.14, add(2, 3).",
+        folder
+      )
+    ).toBe("");
+    expect(namedFilesNote("Read calc.py", undefined)).toBe("");
+  });
+
+  it("is sent to the agent with its task", async () => {
+    const { deps, sent } = harness(["HANDOFF\nSTATUS: DONE\nDONE: read it"]);
+    await runAgent(
+      { role: "reviewer", task: "Read calc.py", team: new TeamRun() },
+      { ...deps, workspaceFolder: "/p" }
+    );
+    expect(sent[0]).toContain(
+      "TASK:\nRead calc.py\n\n[Files named in the task, in the project folder: /p/calc.py]"
+    );
   });
 });
