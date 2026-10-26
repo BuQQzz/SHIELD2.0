@@ -263,6 +263,19 @@ describe("repairJsonStrings", () => {
 });
 
 describe("streamingToolCallPreview", () => {
+  // The Team panel once read "Reading tool> <arguments>{…" (2026-10-24)
+  it("names the call's path, but never a value holding markup", () => {
+    const head =
+      "<tool_call>\n<server>filesystem</server>\n<tool>read_text_file</tool>\n<arguments>";
+    expect(
+      streamingToolCallPreview(`${head}{"path":"/p/calc.py"`).pendingTarget
+    ).toBe("/p/calc.py");
+    expect(
+      streamingToolCallPreview(`${head}{"path":"/p/</tool> <arguments>{x"`)
+        .pendingTarget
+    ).toBeUndefined();
+  });
+
   it("holds back a call that is still being written", () => {
     const partial =
       "Let me look.\n\n<tool_call>\n<server>filesystem</server>\n<tool>list_dir";

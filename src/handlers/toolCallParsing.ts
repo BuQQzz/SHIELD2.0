@@ -895,7 +895,11 @@ export function streamingToolCallPreview(content: string): {
     unfinished.match(/"name"\s*:\s*"([^"]+)"/)?.[1] ??
     "";
 
-  const target = unfinished.match(/"(?:path|source)"\s*:\s*"([^"]+)"/)?.[1];
+  // A value holding markup is not a path: the Team panel once read
+  // "Reading tool> <arguments>{…" (2026-10-24)
+  const target = unfinished
+    .match(/"(?:path|source)"\s*:\s*"([^"]+)"/)?.[1]
+    ?.match(/^[^<>{}]+$/)?.[0];
 
   return {
     text: stripToolCallMarkup(content.slice(0, start))
