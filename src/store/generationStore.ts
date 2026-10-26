@@ -59,6 +59,17 @@ interface GenerationStore {
   addSteer: (text: string) => void;
   /** The waiting messages, emptied */
   takeSteer: () => string[];
+  /**
+   * Messages queued while a turn ran, each sent as a turn of its own when
+   * the one before ends (shown as chips above the input)
+   */
+  queue: string[];
+  addQueued: (text: string) => void;
+  removeQueued: (index: number) => void;
+  /** The first queued message, taken off the queue */
+  nextQueued: () => string | undefined;
+  /** All of them, emptied */
+  takeQueue: () => string[];
 }
 
 export const useGenerationStore = create<GenerationStore>((set, get) => ({
@@ -93,6 +104,20 @@ export const useGenerationStore = create<GenerationStore>((set, get) => ({
     const notes = get().steer;
     if (notes.length) set({ steer: [] });
     return notes;
+  },
+  queue: [],
+  addQueued: (text) => set((state) => ({ queue: [...state.queue, text] })),
+  removeQueued: (index) =>
+    set((state) => ({ queue: state.queue.filter((_, i) => i !== index) })),
+  nextQueued: () => {
+    const [first, ...rest] = get().queue;
+    if (first !== undefined) set({ queue: rest });
+    return first;
+  },
+  takeQueue: () => {
+    const all = get().queue;
+    if (all.length) set({ queue: [] });
+    return all;
   },
   refreshContext: async () => {
     try {

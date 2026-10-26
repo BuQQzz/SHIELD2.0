@@ -37,6 +37,7 @@ import { useAgentTeam } from "./hooks/useAgentTeam";
 import { TeamPanel } from "./components/team/TeamPanel";
 import { useTeamStore } from "./stores/team-store";
 import { useGenerationStore } from "./store/generationStore";
+import { sendWhatWaits } from "./handlers/steer";
 import { restoreRuns } from "./agents/runView";
 import { ORCHESTRATOR_PROMPT } from "./agents/roles";
 import { teamFor } from "./agents/team";
@@ -401,6 +402,8 @@ function App() {
   sendRef.current = sendMessage;
   const isGeneratingRef = useRef(isGenerating);
   isGeneratingRef.current = isGenerating;
+  const conversationIdRef = useRef(currentConversation?.id);
+  conversationIdRef.current = currentConversation?.id;
 
   // A new user message lets the orchestrator delegate again
   const handleSendMessage = useCallback(
@@ -428,20 +431,34 @@ function App() {
       };
       beginTurn();
       await sendRef.current(...args);
-      // Sent while it worked, but no tool result came after to take it: the
-      // next message. After Stop, back in the box for the user to decide.
-      for (;;) {
-        const left = useGenerationStore.getState().takeSteer();
-        if (left.length === 0) return;
-        if (useGenerationStore.getState().stopRequested) {
-          inputRef.current?.restore(left.join("\n\n"));
-          return;
-        }
-        beginTurn();
-        await sendRef.current(left.join("\n\n"), { shown: true });
-      }
+      const generation = useGenerationStore.getState;
+      await sendWhatWaits({
+        canGoOn: () =>
+          !generation().stopRequested &&
+          conversationIdRef.current === currentConversation?.id,
+        takeSteer: () => generation().takeSteer(),
+        nextQueued: () => generation().nextQueued(),
+        takeQueue: () => generation().takeQueue(),
+        send: async (content, options) => {
+          beginTurn();
+          await sendRef.current(content, options);
+        },
+        restore: (text) => inputRef.current?.restore(text),
+      });
     },
     [currentConversation, setMessages, addMessage]
+  );
+
+  // Held for its own turn once the running one ends (handleSendMessage)
+  const handleQueueMessage = useCallback(
+    (content: string) => {
+      if (isGeneratingRef.current) {
+        useGenerationStore.getState().addQueued(content);
+      } else {
+        void handleSendMessage(content);
+      }
+    },
+    [handleSendMessage]
   );
 
   // A new Code session starts in a folder the user picks - or in its
@@ -642,6 +659,7 @@ function App() {
           <ChatInput
             ref={inputRef}
             onSend={handleSendMessage}
+            onQueue={handleQueueMessage}
             isGenerating={isGenerating}
             onStop={handleStopGenerating}
             disabled={!isModelLoaded || !folderReady}

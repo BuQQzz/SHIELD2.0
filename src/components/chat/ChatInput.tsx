@@ -8,7 +8,8 @@ import {
   forwardRef,
   useImperativeHandle,
 } from "react";
-import { Send, Square } from "lucide-react";
+import { ListPlus, Send, Square, X } from "lucide-react";
+import { useGenerationStore } from "@/store/generationStore";
 import { motion } from "framer-motion";
 import { PermissionModeSelector } from "./PermissionModeSelector";
 import { WorkspaceSelector } from "./WorkspaceSelector";
@@ -18,6 +19,8 @@ import { ContextRing } from "./ContextRing";
 
 interface ChatInputProps {
   onSend: (message: string) => void;
+  /** Hold a message for its own turn after this one (Ctrl+Enter while working) */
+  onQueue?: (message: string) => void;
   isGenerating?: boolean;
   onStop?: () => void;
   disabled?: boolean;
@@ -39,6 +42,7 @@ export const ChatInput = forwardRef<ChatInputRef, ChatInputProps>(
   function ChatInput(
     {
       onSend,
+      onQueue,
       isGenerating = false,
       onStop,
       disabled = false,
@@ -50,6 +54,7 @@ export const ChatInput = forwardRef<ChatInputRef, ChatInputProps>(
     ref
   ) {
     const [input, setInput] = useState("");
+    const queue = useGenerationStore((state) => state.queue);
     const textareaRef = useRef<HTMLTextAreaElement>(null);
 
     // Expose focus method via ref
@@ -65,6 +70,22 @@ export const ChatInput = forwardRef<ChatInputRef, ChatInputProps>(
         textareaRef.current.focus();
       }
     }, [isGenerating, disabled]);
+
+    const handleQueue = () => {
+      if (!input.trim() || disabled || !onQueue) return;
+      onQueue(input.trim());
+      setInput("");
+      if (textareaRef.current) textareaRef.current.style.height = "auto";
+    };
+
+    /** A queued message back in the box, to change or send now */
+    const editQueued = (index: number) => {
+      const text = useGenerationStore.getState().queue[index];
+      if (text === undefined) return;
+      useGenerationStore.getState().removeQueued(index);
+      setInput((current) => (current ? `${text}\n\n${current}` : text));
+      textareaRef.current?.focus();
+    };
 
     const handleSubmit = () => {
       console.log(
@@ -102,7 +123,9 @@ export const ChatInput = forwardRef<ChatInputRef, ChatInputProps>(
     const handleKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>) => {
       if (e.key === "Enter" && !e.shiftKey) {
         e.preventDefault();
-        handleSubmit();
+        // While it works: Enter adds to this task, Ctrl+Enter waits for after
+        if (isGenerating && (e.ctrlKey || e.metaKey) && onQueue) handleQueue();
+        else handleSubmit();
       }
     };
 
@@ -116,6 +139,40 @@ export const ChatInput = forwardRef<ChatInputRef, ChatInputProps>(
     return (
       <div className="bg-background p-4">
         <div className="mx-auto max-w-3xl">
+          {queue.length > 0 && (
+            <div
+              className="mb-1.5 flex flex-col gap-1"
+              aria-label="Queued messages"
+            >
+              {queue.map((text, index) => (
+                <div
+                  key={`${index}-${text}`}
+                  className="flex min-w-0 items-center gap-2 rounded-md bg-muted/40 px-2.5 py-1 text-xs"
+                >
+                  <ListPlus className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                  <button
+                    type="button"
+                    className="min-w-0 flex-1 truncate text-left hover:underline"
+                    onClick={() => editQueued(index)}
+                    title="Back into the box, to change it or send it now"
+                  >
+                    <span className="text-muted-foreground">Queued: </span>
+                    {text}
+                  </button>
+                  <button
+                    type="button"
+                    className="shrink-0 rounded p-0.5 text-muted-foreground hover:bg-muted hover:text-foreground"
+                    onClick={() =>
+                      useGenerationStore.getState().removeQueued(index)
+                    }
+                    aria-label="Remove from the queue"
+                  >
+                    <X className="h-3.5 w-3.5" />
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
           <div className="relative flex items-end gap-2 rounded-xl bg-muted/50 p-2 shadow-sm ring-1 ring-black/5 transition-shadow focus-within:shadow-md dark:bg-muted/30 dark:ring-white/5">
             <textarea
               ref={textareaRef}
@@ -124,7 +181,7 @@ export const ChatInput = forwardRef<ChatInputRef, ChatInputProps>(
               onKeyDown={handleKeyDown}
               placeholder={
                 isGenerating
-                  ? "Add to the task while it works... (it reads this after its next step)"
+                  ? "Enter: add to this task · Ctrl+Enter: queue for after"
                   : "Type your message... (Shift+Enter for new line)"
               }
               rows={1}
@@ -132,6 +189,18 @@ export const ChatInput = forwardRef<ChatInputRef, ChatInputProps>(
               disabled={disabled}
             />
 
+            {isGenerating && input.trim() && onQueue && (
+              <motion.button
+                whileTap={{ scale: 0.92 }}
+                onClick={handleQueue}
+                disabled={disabled}
+                className="shrink-0 rounded-md p-2 transition-colors"
+                aria-label="Queue for after"
+                title="Queue for after (Ctrl+Enter): sent as its own message when this one finishes"
+              >
+                <ListPlus className="h-5 w-5 text-muted-foreground transition-colors hover:text-foreground" />
+              </motion.button>
+            )}
             {isGenerating && input.trim() && (
               <motion.button
                 whileTap={{ scale: 0.92 }}
