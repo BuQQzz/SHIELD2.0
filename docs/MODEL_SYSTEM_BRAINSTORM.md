@@ -43,13 +43,13 @@ So: **if compliance issues persist post-hybrid-parser, the remaining causes are 
 ### [OpenCode](https://opencode.ai/) (208k GitHub stars, MIT)
 
 - **Client/server split**: terminal, desktop, and IDE surfaces all talk to one engine. Relevant even if SHIELD stays single-surface — it's the same shape as "provider abstraction," just at the whole-app level instead of just the model layer.
-- **Provider registry pattern**: connects to 75+ providers via a shared registry (Models.dev) plus "any OpenAI-compatible endpoint." SHIELD doesn't need 75 providers, but the *pattern* — a small provider interface (`load`, `chat`, `stream`, capability flags) that specific backends implement — is exactly what would have made Bonsai support a config entry instead of a new subsystem.
+- **Provider registry pattern**: connects to 75+ providers via a shared registry (Models.dev) plus "any OpenAI-compatible endpoint." SHIELD doesn't need 75 providers, but the _pattern_ — a small provider interface (`load`, `chat`, `stream`, capability flags) that specific backends implement — is exactly what would have made Bonsai support a config entry instead of a new subsystem.
 - **Plan mode**: a mode where the agent can't edit files, only draft what it intends to do. Directly reusable idea for SHIELD's MCP file-operation flow — cheaper trust-building than a permission dialog per action.
 - Extensibility via MCP + custom agents + plugins — SHIELD already has MCP; the agent/plugin layer is the part we don't have.
 
 ### [Jan.ai](https://jan.ai/), [Open WebUI](https://openwebui.com/), [AnythingLLM](https://anythingllm.com/) — the broader local-chat field
 
-- **Jan.ai** is the closest positioning match: privacy-first, native desktop app, simple onboarding, 5.5M downloads. Good company to be in — but it's a *generalist* chat client. It doesn't do OS-level file permissions or an audit log the way SHIELD does.
+- **Jan.ai** is the closest positioning match: privacy-first, native desktop app, simple onboarding, 5.5M downloads. Good company to be in — but it's a _generalist_ chat client. It doesn't do OS-level file permissions or an audit log the way SHIELD does.
 - **Open WebUI** wins on breadth (any-model support, huge community) but has more restrictive commercial-reuse terms and is web-server-first, not a native desktop app.
 - **AnythingLLM** differentiates on document-centric RAG (bundled vector DB, workspaces, zero-config `@agent` tools).
 - Takeaway: SHIELD's actual differentiation isn't "yet another local chat UI" — it's **agentic system access with explicit consent + audit logging, on Windows, fully local.** None of these three foreground that. Worth keeping front-and-center rather than chasing generalist chat-UI feature parity.
@@ -65,7 +65,9 @@ So: **if compliance issues persist post-hybrid-parser, the remaining causes are 
 ## Ideas for SHIELD specifically (not a decision — pick, mix, or reject)
 
 ### 1. Formalize a provider/runtime layer
+
 Instead of `LlamaService` hardcoding `node-llama-cpp`, define a small interface (`load`, `chat` (streaming), `unload`, capability flags) with implementations:
+
 - `NodeLlamaCppProvider` (current behavior, default)
 - `ExternalServerProvider` (spawns a `llama-server`-compatible binary and speaks HTTP — this is what Bonsai needs, and also what SHIELD3.0's README already assumes for its own llama-server mode)
 - Future, optional: `RemoteEndpointProvider` for someone's own already-running OpenAI-compatible server (Ollama, LM Studio, etc.) — opt-in, not cloud, still local-network-only by default
@@ -73,19 +75,24 @@ Instead of `LlamaService` hardcoding `node-llama-cpp`, define a small interface 
 This is the single highest-leverage change: it's what Bionic, OpenCode, and every gateway-style tool have in common, and it directly unblocks Bonsai without a one-off.
 
 ### 2. Restructure the catalog UI, not just the data
+
 Mirror Bionic's split instead of one flat dropdown:
+
 - **Installed** (what's ready to use now)
 - **Browse/Explore** (the full catalog, filterable — this exists already as `ModelDownloadDialog`, just needs to become the primary entry point instead of a secondary dialog)
 - **Defaults** (which model loads on startup, per-task defaults if we do #3)
 - Group the browse view by use-case tags (Chat / Coding / Tool-use / Tiny-fast) instead of the current Premium/High-Perf/Efficient/Specialized tiers, which are about hardware cost, not what the user is trying to do.
 
-### 3. Capability-aware *suggestions*, not silent routing
+### 3. Capability-aware _suggestions_, not silent routing
+
 When a user's message needs something the loaded model can't do well (tool call requested but `toolCalling: false`), surface an inline suggestion to switch — don't auto-swap models behind their back. Keeps the "explicit consent" ethos consistent between file operations and model selection. This reuses capability flags that already exist; it's a UI/message-pipeline change, not a new subsystem.
 
 ### 4. Adopt a lightweight "Plan mode" for MCP file operations
+
 Borrowed directly from OpenCode: a mode where the model can propose a multi-step plan (what files it'll touch and how) before any permission dialog fires, rather than approving one tool call at a time with no preview of what's coming. Complements, doesn't replace, the existing per-action permission dialog.
 
 ### 5. Prune, don't just reorganize
+
 "We have a lot of models" is also a legitimate complaint on its own. Candidates to reconsider (not necessarily remove): the two Meta 1B/3B efficient-tier models overlap heavily with Qwen3 4B now that it's tool-calling-capable at a similar size; DeepSeek Coder 6.7B (2024-01) and Gemma 2 9B (2024-06) are the oldest, weakest-capability entries in the catalog relative to what's been added since. Fewer, better-labeled defaults > exhaustive coverage, per your "simplicity wins" instinct.
 
 ---
@@ -94,6 +101,6 @@ Borrowed directly from OpenCode: a mode where the model can propose a multi-step
 
 1. Does "chatbot first, personal assistant, sometimes coding" mean the provider-layer work (idea #1) is worth doing generally, or should it be scoped narrowly just to unblock Bonsai?
 2. On suggestions vs. auto-routing (#3) — confirm the "never silently switch" instinct is right, or is some auto-behavior acceptable for pure quality-of-life (e.g., auto-picking context size)?
-3. Worth spending a short validation pass on the *existing* hybrid parser against real models before assuming more architecture is needed for the compliance issue specifically?
+3. Worth spending a short validation pass on the _existing_ hybrid parser against real models before assuming more architecture is needed for the compliance issue specifically?
 
 No code touched for any of this — say which thread (if any) you want turned into an actual plan.

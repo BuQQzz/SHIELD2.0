@@ -103,9 +103,8 @@ export async function startMCP(
   fixtureDir: string,
   opts: { denyMutations: boolean }
 ): Promise<BenchMCP> {
-  const serverPath = require.resolve(
-    "@modelcontextprotocol/server-filesystem/dist/index.js"
-  );
+  const serverPath =
+    require.resolve("@modelcontextprotocol/server-filesystem/dist/index.js");
   const transport = new StdioClientTransport({
     command: "node",
     args: [serverPath, fixtureDir],

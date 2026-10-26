@@ -153,7 +153,6 @@ The existing text parser remains valuable as a compatibility adapter, not the id
 
 The XML tool prompt now teaches only the XML format; the parser still accepts OpenAI-style JSON, but only when it is call-shaped.
 
-
 When a model/backend cannot use native tool calling, SHIELD should advertise **one** fallback syntax.
 
 Do not make small/local models choose between XML and OpenAI JSON in the prompt.
@@ -168,7 +167,6 @@ Parser support may remain broad even when prompt instructions are narrow. We can
 ## Shipped for XML (2026-09-22): no repeated calls
 
 `processMCPToolCalls` answers identical calls within a turn from memory, cleared by any mutation. The native path will need the same once it ships.
-
 
 Local models commonly repeat a successful call.
 
@@ -535,12 +533,12 @@ Ship model/harness profiles based on evidence rather than intuition.
 ## Direction, revised 2026-09-22 with benchmark evidence
 
 0. ~~SHIELD Agent Benchmark~~: **shipped** (first version). Every item below is now measured with it before and after.
-1. **Harden the XML path**: it's what users run today. *Shipped 2026-09-22:* arguments no longer silently become `{}`; quoted JSON data is no longer run as a tool call; the tool prompt teaches one format with no `Thought/Observation` template. Needs a benchmark re-run to measure.
-2. **Untrusted tool-result envelope + post-untrusted-read policy**: moved up because injection succeeded 3/3 on the shipped path. *Envelope shipped 2026-09-22* (`trusted="false"`, note, tag neutralisation, reminder in the continuation). The **policy half is still open**: e.g. ask before any mutation that follows a read of untrusted content, even in Auto mode.
+1. **Harden the XML path**: it's what users run today. _Shipped 2026-09-22:_ arguments no longer silently become `{}`; quoted JSON data is no longer run as a tool call; the tool prompt teaches one format with no `Thought/Observation` template. Needs a benchmark re-run to measure.
+2. **Untrusted tool-result envelope + post-untrusted-read policy**: moved up because injection succeeded 3/3 on the shipped path. _Envelope shipped 2026-09-22_ (`trusted="false"`, note, tag neutralisation, reminder in the continuation). The **policy half is still open**: e.g. ask before any mutation that follows a read of untrusted content, even in Auto mode.
 3. **Native tool calling on node-llama-cpp** for models whose template it recognises (Qwen2.5, Qwen3.8, Gemma 4, Llama 3.x, …), behind a setting, using the nullable-optional schema adapter. **Enable it per model, never as a global default:** on Qwen3-Coder the generic fallback silently corrupted a written file and the forced Qwen wrapper made no calls, while XML scored 100% (benchmark Round 2). A model whose resolved wrapper is the generic ChatML fallback stays on XML.
 4. **Provider/runtime abstraction**: moved up from 8. The primary target model (Qwen3-Coder-30B-A3B) needs `llama-server --jinja` for true native tools, and Bonsai/Prism needs a separate runtime too. This condition was anticipated below and has now been met.
 5. Synthetic per-turn runtime/mode context
-6. ~~Duplicate-call blocking in the harness~~: *shipped 2026-09-22* for the XML path (per-turn memory, cleared by any mutation). Native path still to do.
+6. ~~Duplicate-call blocking in the harness~~: _shipped 2026-09-22_ for the XML path (per-turn memory, cleared by any mutation). Native path still to do.
 7. Behavioral model profiles, assigned from benchmark results
 8. Repo/context engine
 9. Persistent task/checkpoint model
@@ -605,38 +603,38 @@ When new research changes a design assumption, update this document and link the
 
 Use this section to record decisions once we stop brainstorming and commit to them.
 
-| Date | Status | Decision | Evidence / reason |
-| --- | --- | --- | --- |
-| 2026-09-21 | Shipped | Preserve system prompt when history is replaced | Real bug: tool instructions disappeared after conversation restore/clear |
-| 2026-09-21 | Shipped | Central Ask / Auto / Plan / Read-only policy | Replaces disconnected permission settings and fails closed |
-| 2026-09-21 | Direction | Prefer deterministic harness behavior over larger prose prompts | Cross-harness research + local-model failure patterns |
-| 2026-09-21 | Direction | Native tool calling should become the preferred path | Avoids spending model capacity on serialization protocol |
-| 2026-09-21 | Proposal | Inject mode/runtime state near the latest user turn | Recency pattern observed in OpenCode |
-| 2026-09-21 | Proposal | Treat tool output as explicitly untrusted data | Tool results can contain prompt-like instructions |
-| 2026-09-22 | Shipped | SHIELD Agent Benchmark (`npm run bench:agent`) | Decisions need measurements; earlier observations were invalidated by the lost-system-prompt bug |
-| 2026-09-22 | Shipped | Never execute tool calls whose arguments failed to parse; repair common JSON breakage first | Benchmark: XML edits scored 0/3 because arguments silently became `{}` |
-| 2026-09-22 | Direction | Native tool calling is per runtime + model, not global | Grammar forces all properties; node-llama-cpp can't do Qwen3-Coder's native format |
-| 2026-09-22 | Direction | Provider/runtime layer moves ahead of context-engine work | Primary target model needs a different serving runtime for native tools |
-| 2026-09-22 | Direction | Untrusted-result handling becomes near-term, not later | Injection obeyed 3/3 on the shipped XML path |
-| 2026-09-22 | Shipped | Tool results are wrapped as untrusted data | Mitigation for the injection result; policy rule still to design |
-| 2026-09-22 | Shipped | Only call-shaped JSON counts as a tool call | Quoted config data was being run as a phantom tool |
-| 2026-09-22 | Shipped | One advertised call format; no Thought/Observation template | Model fabricated tool results from the template (§4 "one fallback syntax" proposal → shipped) |
-| 2026-09-22 | Shipped | Load models reserving VRAM for the requested context | Large models silently lost context size under `gpuLayers: "auto"` |
-| 2026-09-24 | Shipped | Auto runs every known file change unprompted; deletes always ask; Ask's "Allow for session" never covers deletes | User decision: local models deleting the wrong thing could take out a codebase or system files |
-| 2026-09-24 | Shipped | delete_file moves to the Recycle Bin (SHIELD's own tool) | The filesystem server has no delete; the model invented one, then faked a delete by renaming |
-| 2026-09-22 | Direction | Native tools only where the wrapper matches the model's trained format; generic fallback → XML | Qwen3-Coder: XML 100%, generic native 83% with silent file corruption, forced Qwen wrapper 42% |
-| 2026-09-24 | Decision | Model library cut to three families: Qwen (Coder-30B + 3.8-27B), Gemma 4 (12B + E4B), Bonsai 2 27B | User decision: 17 mostly-2024 entries → a few current models. Plan: `MODEL_LIBRARY_PLAN.md` |
-| 2026-09-24 | Decision | Bonsai 2 runs through a SHIELD-managed Prism `llama-server`; it is the provider layer's first test | Its PTQ1_0/PQ2_0 formats need the PrismML fork; stock llama.cpp refuses them or outputs garbage |
-| 2026-10-20 | Decision | Build agent teams (orchestrator + coder, tester, reviewer) now, overriding §13 item 10 / §14 "no subagents until single-agent execution is reliable" | User decision. Bonsai 27B handled tool loops well enough on the 8-task smoke (7/8) and the single-agent harness (ledger, Plan, memory, permission policy) is in place. v1 is small and measured: `scripts/bench/agent-team.ts` |
-| 2026-10-20 | Shipped | The orchestrator has only `delegate`; workers get their own model sessions on the same llama-server | A prototype orchestrator that could read files looped re-reading its notes and never delegated |
-| 2026-10-20 | Shipped | Role limits are enforced by SHIELD (`checkToolUse`), not by prompt: the tester may change test files only, the reviewer nothing | A prompt-only limit does not stop a small model fixing the source and reporting its own fix as a passing test |
-| 2026-10-20 | Shipped | Sub-agent sessions never summarise or clear history; they checkpoint at 70% and hand over | Compaction was lossy ("tester lost detail"); a fresh agent seeded with the hand-off keeps the facts |
-| 2026-10-20 | Shipped | Every report carries SHIELD's record of files changed and commands run (exit codes) beside the agent's own words | A model's account of its own work is often wrong; the record survives a crash |
-| 2026-10-20 | Shipped | An agent that ends without a report is asked for one; an empty report is PARTIAL, never DONE, and carries a WARNING | Live run: a reviewer ended on a malformed tool call, reported nothing, and the orchestrator told the user the review had confirmed everything was correct |
-| 2026-10-20 | Shipped | Team panel: role icons and a collapsible side panel to watch each sub-agent work (events from the runner, live tokens over IPC) | User request: "like how Claude and Codex do it"; without it a delegation was one line of text while four agents worked |
-| 2026-10-21 | Shipped | The orchestrator has only `delegate`; the plan checklist is derived from the delegations | `update_plan` stalled it in 3 of 5 live runs despite a hint, a guard and a round cap; derived steps are ticked by real results, so they also cannot drift |
-| 2026-10-20 | Shipped | An empty reply from a thinking model is explained | Live UI runs: an orchestrator saved its plan 5-7 times and never delegated; a thinking model used a whole reply limit on thought |
-| 2026-10-20 | Rejected | Launch llama-server with `--reasoning-budget 1024` | Thought past the budget continues in the visible answer (checked against the server and seen in the chat) |
+| Date       | Status    | Decision                                                                                                                                             | Evidence / reason                                                                                                                                                                                                              |
+| ---------- | --------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| 2026-09-21 | Shipped   | Preserve system prompt when history is replaced                                                                                                      | Real bug: tool instructions disappeared after conversation restore/clear                                                                                                                                                       |
+| 2026-09-21 | Shipped   | Central Ask / Auto / Plan / Read-only policy                                                                                                         | Replaces disconnected permission settings and fails closed                                                                                                                                                                     |
+| 2026-09-21 | Direction | Prefer deterministic harness behavior over larger prose prompts                                                                                      | Cross-harness research + local-model failure patterns                                                                                                                                                                          |
+| 2026-09-21 | Direction | Native tool calling should become the preferred path                                                                                                 | Avoids spending model capacity on serialization protocol                                                                                                                                                                       |
+| 2026-09-21 | Proposal  | Inject mode/runtime state near the latest user turn                                                                                                  | Recency pattern observed in OpenCode                                                                                                                                                                                           |
+| 2026-09-21 | Proposal  | Treat tool output as explicitly untrusted data                                                                                                       | Tool results can contain prompt-like instructions                                                                                                                                                                              |
+| 2026-09-22 | Shipped   | SHIELD Agent Benchmark (`npm run bench:agent`)                                                                                                       | Decisions need measurements; earlier observations were invalidated by the lost-system-prompt bug                                                                                                                               |
+| 2026-09-22 | Shipped   | Never execute tool calls whose arguments failed to parse; repair common JSON breakage first                                                          | Benchmark: XML edits scored 0/3 because arguments silently became `{}`                                                                                                                                                         |
+| 2026-09-22 | Direction | Native tool calling is per runtime + model, not global                                                                                               | Grammar forces all properties; node-llama-cpp can't do Qwen3-Coder's native format                                                                                                                                             |
+| 2026-09-22 | Direction | Provider/runtime layer moves ahead of context-engine work                                                                                            | Primary target model needs a different serving runtime for native tools                                                                                                                                                        |
+| 2026-09-22 | Direction | Untrusted-result handling becomes near-term, not later                                                                                               | Injection obeyed 3/3 on the shipped XML path                                                                                                                                                                                   |
+| 2026-09-22 | Shipped   | Tool results are wrapped as untrusted data                                                                                                           | Mitigation for the injection result; policy rule still to design                                                                                                                                                               |
+| 2026-09-22 | Shipped   | Only call-shaped JSON counts as a tool call                                                                                                          | Quoted config data was being run as a phantom tool                                                                                                                                                                             |
+| 2026-09-22 | Shipped   | One advertised call format; no Thought/Observation template                                                                                          | Model fabricated tool results from the template (§4 "one fallback syntax" proposal → shipped)                                                                                                                                  |
+| 2026-09-22 | Shipped   | Load models reserving VRAM for the requested context                                                                                                 | Large models silently lost context size under `gpuLayers: "auto"`                                                                                                                                                              |
+| 2026-09-24 | Shipped   | Auto runs every known file change unprompted; deletes always ask; Ask's "Allow for session" never covers deletes                                     | User decision: local models deleting the wrong thing could take out a codebase or system files                                                                                                                                 |
+| 2026-09-24 | Shipped   | delete_file moves to the Recycle Bin (SHIELD's own tool)                                                                                             | The filesystem server has no delete; the model invented one, then faked a delete by renaming                                                                                                                                   |
+| 2026-09-22 | Direction | Native tools only where the wrapper matches the model's trained format; generic fallback → XML                                                       | Qwen3-Coder: XML 100%, generic native 83% with silent file corruption, forced Qwen wrapper 42%                                                                                                                                 |
+| 2026-09-24 | Decision  | Model library cut to three families: Qwen (Coder-30B + 3.8-27B), Gemma 4 (12B + E4B), Bonsai 2 27B                                                   | User decision: 17 mostly-2024 entries → a few current models. Plan: `MODEL_LIBRARY_PLAN.md`                                                                                                                                    |
+| 2026-09-24 | Decision  | Bonsai 2 runs through a SHIELD-managed Prism `llama-server`; it is the provider layer's first test                                                   | Its PTQ1_0/PQ2_0 formats need the PrismML fork; stock llama.cpp refuses them or outputs garbage                                                                                                                                |
+| 2026-10-20 | Decision  | Build agent teams (orchestrator + coder, tester, reviewer) now, overriding §13 item 10 / §14 "no subagents until single-agent execution is reliable" | User decision. Bonsai 27B handled tool loops well enough on the 8-task smoke (7/8) and the single-agent harness (ledger, Plan, memory, permission policy) is in place. v1 is small and measured: `scripts/bench/agent-team.ts` |
+| 2026-10-20 | Shipped   | The orchestrator has only `delegate`; workers get their own model sessions on the same llama-server                                                  | A prototype orchestrator that could read files looped re-reading its notes and never delegated                                                                                                                                 |
+| 2026-10-20 | Shipped   | Role limits are enforced by SHIELD (`checkToolUse`), not by prompt: the tester may change test files only, the reviewer nothing                      | A prompt-only limit does not stop a small model fixing the source and reporting its own fix as a passing test                                                                                                                  |
+| 2026-10-20 | Shipped   | Sub-agent sessions never summarise or clear history; they checkpoint at 70% and hand over                                                            | Compaction was lossy ("tester lost detail"); a fresh agent seeded with the hand-off keeps the facts                                                                                                                            |
+| 2026-10-20 | Shipped   | Every report carries SHIELD's record of files changed and commands run (exit codes) beside the agent's own words                                     | A model's account of its own work is often wrong; the record survives a crash                                                                                                                                                  |
+| 2026-10-20 | Shipped   | An agent that ends without a report is asked for one; an empty report is PARTIAL, never DONE, and carries a WARNING                                  | Live run: a reviewer ended on a malformed tool call, reported nothing, and the orchestrator told the user the review had confirmed everything was correct                                                                      |
+| 2026-10-20 | Shipped   | Team panel: role icons and a collapsible side panel to watch each sub-agent work (events from the runner, live tokens over IPC)                      | User request: "like how Claude and Codex do it"; without it a delegation was one line of text while four agents worked                                                                                                         |
+| 2026-10-21 | Shipped   | The orchestrator has only `delegate`; the plan checklist is derived from the delegations                                                             | `update_plan` stalled it in 3 of 5 live runs despite a hint, a guard and a round cap; derived steps are ticked by real results, so they also cannot drift                                                                      |
+| 2026-10-20 | Shipped   | An empty reply from a thinking model is explained                                                                                                    | Live UI runs: an orchestrator saved its plan 5-7 times and never delegated; a thinking model used a whole reply limit on thought                                                                                               |
+| 2026-10-20 | Rejected  | Launch llama-server with `--reasoning-budget 1024`                                                                                                   | Thought past the budget continues in the visible answer (checked against the server and seen in the chat)                                                                                                                      |
 
 ---
 
@@ -650,7 +648,6 @@ When we learn something new:
 2. update the relevant section here
 3. change the status if confidence changed
 4. add a Decision Log entry when a proposal becomes an architectural decision
-
 
 ---
 
@@ -812,20 +809,19 @@ Detailed results and methodology: [testing/AGENT_BENCHMARK.md](./testing/AGENT_B
 
 The first benchmark run (Qwen2.5-7B-Instruct Q4_K_M, RTX 4070, 8 tasks × 3 repeats) changed several assumptions in this document:
 
-| Assumption | What the evidence says | Where it's updated |
-| --- | --- | --- |
-| The hybrid parser had largely solved tool-call format problems | It turned malformed arguments into `{}` and still ran the call, which made every multi-line edit fail. Fixed. | §13, decision log |
-| Native tool calling is one switch on the current runtime | It needs a schema adapter (grammar forces all properties) and doesn't cover Qwen3-Coder on node-llama-cpp | §4 |
-| The provider layer can wait until after the context engine | The primary target model needs `llama-server` for true native tools | §13 |
-| Tool-result injection is a future hardening item | Reproduced 3/3 on the shipped path | §7, §13 |
-| Prompt examples are harmless guidance | The `Thought/Observation` example led the model to write fake tool results | §5 (visible chain-of-thought direction now has evidence) |
+| Assumption                                                     | What the evidence says                                                                                        | Where it's updated                                       |
+| -------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------- |
+| The hybrid parser had largely solved tool-call format problems | It turned malformed arguments into `{}` and still ran the call, which made every multi-line edit fail. Fixed. | §13, decision log                                        |
+| Native tool calling is one switch on the current runtime       | It needs a schema adapter (grammar forces all properties) and doesn't cover Qwen3-Coder on node-llama-cpp     | §4                                                       |
+| The provider layer can wait until after the context engine     | The primary target model needs `llama-server` for true native tools                                           | §13                                                      |
+| Tool-result injection is a future hardening item               | Reproduced 3/3 on the shipped path                                                                            | §7, §13                                                  |
+| Prompt examples are harmless guidance                          | The `Thought/Observation` example led the model to write fake tool results                                    | §5 (visible chain-of-thought direction now has evidence) |
 
 Still pending, and blocked on GPU availability (the machine is shared): the full XML re-run with both parser fixes, and all three strategies on Qwen3-Coder-30B-A3B.
 
-## Proposals in the Sept 21/22 addenda that this does *not* change
+## Proposals in the Sept 21/22 addenda that this does _not_ change
 
 The Tool Atlas, wiki memory, Operation layer and async execution remain proposals. None of them were tested, and nothing in the results argues for building them sooner. The benchmark is where they should prove their value (Experiments B, D, F in the design docs) before implementation.
-
 
 ---
 
@@ -849,19 +845,19 @@ Sub-agent session  (own system prompt + history, shared llama-server, never comp
 Report  (agent's summary + SHIELD's record of files/commands + HANDOFF id)
 ```
 
-| Piece | Where |
-| --- | --- |
-| Isolated model sessions (`fork`, `keepWholeHistory`), `createAgentSession` / `agentChat` / `getAgentContext` / `closeAgentSession` | `LlamaServerProvider.ts`, `ModelRuntime.ts`, IPC `llama:agent*` |
-| Roles, prompts, enforced limits (`checkToolUse`), tools shown per role | `src/agents/roles.ts` |
-| `delegate` tool, strict argument parsing, report format | `src/agents/delegate.ts` |
-| The run loop: context meter, 70% checkpoint, command caps, verified record | `src/agents/agentRunner.ts` |
-| Hand-off format and the note a fresh agent gets | `src/agents/handoff.ts` |
-| Shared notes, hand-off store, per-turn delegation cap | `src/agents/team.ts` |
-| `handleDelegate`: arguments -> `continue_from` -> run -> report | `src/agents/delegation.ts` |
-| App binding, worker policy vs orchestrator policy | `src/hooks/useAgentTeam.ts`, `useToolPolicy.ts` (`teamMode`), `App.tsx` |
-| What a run reports as it goes (`AgentEvent`), and the per-agent view built from it | `src/agents/events.ts`, `src/agents/runView.ts` |
-| The **Team panel**: role icons, agent list, live timeline, collapsible to a rail of icons | `src/components/team/`, `src/stores/team-store.ts`; sub-agent text streams over IPC `llama:agentToken` |
-| Headless test | `scripts/bench/agent-team.ts` |
+| Piece                                                                                                                              | Where                                                                                                  |
+| ---------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
+| Isolated model sessions (`fork`, `keepWholeHistory`), `createAgentSession` / `agentChat` / `getAgentContext` / `closeAgentSession` | `LlamaServerProvider.ts`, `ModelRuntime.ts`, IPC `llama:agent*`                                        |
+| Roles, prompts, enforced limits (`checkToolUse`), tools shown per role                                                             | `src/agents/roles.ts`                                                                                  |
+| `delegate` tool, strict argument parsing, report format                                                                            | `src/agents/delegate.ts`                                                                               |
+| The run loop: context meter, 70% checkpoint, command caps, verified record                                                         | `src/agents/agentRunner.ts`                                                                            |
+| Hand-off format and the note a fresh agent gets                                                                                    | `src/agents/handoff.ts`                                                                                |
+| Shared notes, hand-off store, per-turn delegation cap                                                                              | `src/agents/team.ts`                                                                                   |
+| `handleDelegate`: arguments -> `continue_from` -> run -> report                                                                    | `src/agents/delegation.ts`                                                                             |
+| App binding, worker policy vs orchestrator policy                                                                                  | `src/hooks/useAgentTeam.ts`, `useToolPolicy.ts` (`teamMode`), `App.tsx`                                |
+| What a run reports as it goes (`AgentEvent`), and the per-agent view built from it                                                 | `src/agents/events.ts`, `src/agents/runView.ts`                                                        |
+| The **Team panel**: role icons, agent list, live timeline, collapsible to a rail of icons                                          | `src/components/team/`, `src/stores/team-store.ts`; sub-agent text streams over IPC `llama:agentToken` |
+| Headless test                                                                                                                      | `scripts/bench/agent-team.ts`                                                                          |
 
 ## Rules that came from evidence, not taste
 
@@ -886,19 +882,19 @@ A side panel on the right of a Team session (collapsed state remembered), like t
 
 `scripts/bench/agent-team.ts` runs the real runtime, filesystem tool server and terminal tool, with every call approved (Auto). The harness re-runs the project's tests itself afterwards; nothing below rests on an agent's own report.
 
-| Run | Result |
-| --- | --- |
-| `fix` (bash project, buggy `add.sh`), default checkpoint | 5 sessions in 557 s: tester, coder, tester, tester, reviewer. `./test.sh` and the tester's new `test_negative.sh` both pass when the harness runs them. |
+| Run                                                                    | Result                                                                                                                                                                                                                                                                                                       |
+| ---------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `fix` (bash project, buggy `add.sh`), default checkpoint               | 5 sessions in 557 s: tester, coder, tester, tester, reviewer. `./test.sh` and the tester's new `test_negative.sh` both pass when the harness runs them.                                                                                                                                                      |
 | `bug` (Python project with 6 filler modules), checkpoint forced to 12% | 4 sessions in 1,008 s. Coder #1 hit the checkpoint and wrote a `STATUS: PARTIAL` hand-off with the finding (`calc.py` line 2); a fresh coder made the fix with `edit_file`; the tester's reply came back empty (thinking budget); the reviewer reported "no problems found". `python3 test_calc.py` exits 0. |
 
 **What the runs found, and what changed because of them**
 
-1. *A reviewer ended on a malformed tool call (`<server>filesystem</tool>`), reported nothing, and the orchestrator told the user the review had confirmed everything was correct.* A real defect it should have caught (the tester's `cd "$(dirname \"$0\")"` had mangled quotes) went unmentioned. Fix: an agent without a HANDOFF block is asked for a report; an empty one is PARTIAL with a WARNING; the orchestrator is told never to state what a reviewer or tester found unless the report says so.
-2. *The orchestrator re-delegated after a PARTIAL with its own summary in the task and no `continue_from`*, so the fresh agent never got SHIELD's record. Fix: `handleDelegate` attaches the open PARTIAL hand-off of the same role itself (once, within the turn) and says so in the report.
-3. *A thinking model answered the report request with an empty reply.* Fix: one shorter second request.
-4. *The orchestrator saved its plan again and again and never delegated* (five, seven and nine `update_plan` calls in the real UI, until the repeat guard stopped it; a hint in the result and a refusal of the second call did not cure it). Fix: the orchestrator no longer has the tool; the plan is derived from the delegations.
-5. *A thinking model spent a whole 8,192-token reply thinking and answered nothing* (about seven minutes), and the user saw "Failed to get response". Fix: an empty reply now says what happened and where to raise Max Tokens. *Tried and reverted:* launching llama-server with `--reasoning-budget 1024` (what the agent prototype used). It cut thought off at the budget and the model carried on thinking in the visible answer - an orchestrator's chat filled with its own deliberation ending in a literal `</think>`. Checked directly against the server: a thought longer than the budget continues as the answer's first lines. So SHIELD does not pass the flag by default; `buildServerArgs` accepts a `reasoningBudget` for anyone who wants it.
-6. *Bonsai wrote invalid JSON for `write_file` 16 times in one team run* (quotes inside bash content). SHIELD rejected each call correctly; the agent still burned its steps. Not fixed here: a repair step for escaped quotes in tool-call JSON would help every Code session, not only teams.
+1. _A reviewer ended on a malformed tool call (`<server>filesystem</tool>`), reported nothing, and the orchestrator told the user the review had confirmed everything was correct._ A real defect it should have caught (the tester's `cd "$(dirname \"$0\")"` had mangled quotes) went unmentioned. Fix: an agent without a HANDOFF block is asked for a report; an empty one is PARTIAL with a WARNING; the orchestrator is told never to state what a reviewer or tester found unless the report says so.
+2. _The orchestrator re-delegated after a PARTIAL with its own summary in the task and no `continue_from`_, so the fresh agent never got SHIELD's record. Fix: `handleDelegate` attaches the open PARTIAL hand-off of the same role itself (once, within the turn) and says so in the report.
+3. _A thinking model answered the report request with an empty reply._ Fix: one shorter second request.
+4. _The orchestrator saved its plan again and again and never delegated_ (five, seven and nine `update_plan` calls in the real UI, until the repeat guard stopped it; a hint in the result and a refusal of the second call did not cure it). Fix: the orchestrator no longer has the tool; the plan is derived from the delegations.
+5. _A thinking model spent a whole 8,192-token reply thinking and answered nothing_ (about seven minutes), and the user saw "Failed to get response". Fix: an empty reply now says what happened and where to raise Max Tokens. _Tried and reverted:_ launching llama-server with `--reasoning-budget 1024` (what the agent prototype used). It cut thought off at the budget and the model carried on thinking in the visible answer - an orchestrator's chat filled with its own deliberation ending in a literal `</think>`. Checked directly against the server: a thought longer than the budget continues as the answer's first lines. So SHIELD does not pass the flag by default; `buildServerArgs` accepts a `reasoningBudget` for anyone who wants it.
+6. _Bonsai wrote invalid JSON for `write_file` 16 times in one team run_ (quotes inside bash content). SHIELD rejected each call correctly; the agent still burned its steps. Not fixed here: a repair step for escaped quotes in tool-call JSON would help every Code session, not only teams.
 
 The Electron path was driven with Playwright against the production build (Team toggle, orchestrator plan, delegation to a coder shown live in the panel, the permission bar for a command, collapse to the rail and reopen). **Final check (2026-10-20, after the fixes above, ~10 min):** coder, tester and reviewer all ran through the panel (5, 1 and 2 tool calls), three command prompts were approved, `python3 test_calc.py` exits 0 when run outside the app, and the chat held only the orchestrator's plan steps and final answer - no leaked reasoning, no raw tool calls, no repeat-guard stop. Cosmetic: the plan's last step (the review) was left unticked. Not yet measured: pass rates over repeats, Qwen3-Coder, and teams under Ask mode with a human approving each call.
 

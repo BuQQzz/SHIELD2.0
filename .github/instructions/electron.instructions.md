@@ -190,9 +190,7 @@ export class SettingsStorageService {
   }
 
   private static getDefaultSettings(): Settings {
-    return {
-      /* defaults */
-    };
+    return {/* defaults */};
   }
 }
 ```

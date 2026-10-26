@@ -835,21 +835,21 @@ If higher layers require Prism-specific conditionals, the provider boundary need
 
 # 18. Current design status
 
-| Idea | Status |
-| --- | --- |
-| Optimization as a top-level SHIELD principle | **Direction** |
-| Replace flat model picker with Model Library | **Direction** |
-| Separate model identity from runtime provider | **Direction** |
-| Bonsai as first special-runtime test | **Proposal** |
-| MCP → native model tool calling | **Direction** |
-| Tool Atlas | **Proposal** |
-| Progressive schema disclosure | **Proposal** |
-| `find_tools` / lazy tool loading | **Proposal** |
-| Hardware-aware auto-compaction | **Proposal** |
-| Structured Task Capsule | **Proposal** |
-| Persistent wiki memory | **Proposal** |
-| Memory Atlas | **Proposal** |
-| SQLite/FTS memory implementation | **Candidate implementation** |
+| Idea                                          | Status                       |
+| --------------------------------------------- | ---------------------------- |
+| Optimization as a top-level SHIELD principle  | **Direction**                |
+| Replace flat model picker with Model Library  | **Direction**                |
+| Separate model identity from runtime provider | **Direction**                |
+| Bonsai as first special-runtime test          | **Proposal**                 |
+| MCP → native model tool calling               | **Direction**                |
+| Tool Atlas                                    | **Proposal**                 |
+| Progressive schema disclosure                 | **Proposal**                 |
+| `find_tools` / lazy tool loading              | **Proposal**                 |
+| Hardware-aware auto-compaction                | **Proposal**                 |
+| Structured Task Capsule                       | **Proposal**                 |
+| Persistent wiki memory                        | **Proposal**                 |
+| Memory Atlas                                  | **Proposal**                 |
+| SQLite/FTS memory implementation              | **Candidate implementation** |
 
 ---
 

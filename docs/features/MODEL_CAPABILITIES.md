@@ -52,13 +52,13 @@ High Performance, Efficient, Specialized) - see
 current list, or `src/config/models.ts` (`MODEL_CATALOG`) as the
 canonical source. Rather than duplicate a per-model table here (which
 went stale the first time the catalog grew), this doc tracks the
-*system* that reads those capabilities.
+_system_ that reads those capabilities.
 
 **Pre-installed defaults** (`isInstalled: true`) remain Qwen 2.5 7B,
 Llama 3.2 3B, and Mistral 7B - none of which support native tool
 calling (see below). Everything added since (Qwen3 family, Llama 3.3
 70B, Qwen 2.5 Coder 32B, Mistral Large 2) is downloadable through the
-Model Browser and several of those *do* support tool calling.
+Model Browser and several of those _do_ support tool calling.
 
 **Recommended for general chat**: Qwen 7B (default) or Mistral 7B.
 **Recommended for tool calling**: see the Premium tier in
