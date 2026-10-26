@@ -565,6 +565,85 @@ describe("LlamaServerProvider a server that goes silent", () => {
   });
 });
 
+// Live (2026-10-26): the prompt read set the one progress mark to 7,161,
+// a thinking reply's count stayed under it, and a server writing 22 tok/s
+// was given up on 5 minutes after the read
+describe("LlamaServerProvider a long thinking reply after a long prompt", () => {
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.unstubAllGlobals();
+  });
+
+  it("counts every new token as progress, though fewer than the prompt", async () => {
+    vi.useFakeTimers();
+    const provider = new LlamaServerProvider();
+    Object.assign(provider, {
+      process: { exitCode: null },
+      baseUrl: "http://server",
+      contextSize: 32768,
+    });
+    const event = (body: object) => `data: ${JSON.stringify(body)}\n\n`;
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (_url: string, init: RequestInit) => {
+        const encoder = new TextEncoder();
+        let tick: ReturnType<typeof setInterval>;
+        let n = 0;
+        const body = new ReadableStream({
+          start(controller) {
+            controller.enqueue(
+              encoder.encode(
+                event({
+                  prompt_progress: {
+                    processed: 7161,
+                    total: 7161,
+                    cache: 3756,
+                  },
+                })
+              )
+            );
+            // A token a minute, timings only (thinking is not content):
+            // 7 minutes, past STALL_MS, and still under 7,161
+            tick = setInterval(() => {
+              n += 1;
+              if (n > 7) {
+                clearInterval(tick);
+                controller.enqueue(
+                  encoder.encode(
+                    event({ choices: [{ delta: { content: "Done." } }] })
+                  )
+                );
+                controller.close();
+                return;
+              }
+              controller.enqueue(
+                encoder.encode(
+                  event({
+                    choices: [{ delta: {} }],
+                    timings: { predicted_n: n * 400 },
+                  })
+                )
+              );
+            }, 60_000);
+            init.signal?.addEventListener("abort", () => {
+              clearInterval(tick);
+              controller.error(new DOMException("aborted", "AbortError"));
+            });
+          },
+        });
+        return new Response(body);
+      })
+    );
+
+    const outcome = provider.chat("hello").then(
+      (reply) => reply,
+      (error: Error) => error.message
+    );
+    await vi.advanceTimersByTimeAsync(9 * 60_000);
+    expect(await outcome).toContain("Done.");
+  });
+});
+
 describe("LlamaServerProvider thinking in circles", () => {
   afterEach(() => vi.unstubAllGlobals());
 
@@ -651,6 +730,49 @@ describe("LlamaServerProvider SHIELD_SERVER_LOG", () => {
     vi.stubEnv("SHIELD_SERVER_LOG", "");
     await provider.chat("again");
     expect(fs.readFileSync(file, "utf8").split("\n")).toHaveLength(2);
+    fs.rmSync(dir, { recursive: true, force: true });
+  });
+
+  it("saves the request that stalled, to send it again to a fresh server", async () => {
+    vi.useFakeTimers();
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "shield-log-"));
+    const file = path.join(dir, "server.log");
+    vi.stubEnv("SHIELD_SERVER_LOG", file);
+    const provider = new LlamaServerProvider();
+    Object.assign(provider, {
+      process: { exitCode: null },
+      baseUrl: "http://server",
+      contextSize: 32768,
+    });
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: string, init: RequestInit) => {
+        if (url.endsWith("/slots")) return new Response("[]");
+        const body = new ReadableStream({
+          start(controller) {
+            init.signal?.addEventListener("abort", () =>
+              controller.error(new DOMException("aborted", "AbortError"))
+            );
+          },
+        });
+        return new Response(body);
+      })
+    );
+
+    const outcome = provider.chat("fix calc.py").catch(() => "stalled");
+    await vi.advanceTimersByTimeAsync(STALL_MS + 1000);
+    expect(await outcome).toBe("stalled");
+    vi.useRealTimers();
+
+    const log = fs.readFileSync(file, "utf8");
+    expect(log).toContain("no progress for 5 minutes");
+    const saved = /the stalled request was saved to (\S+)/.exec(log)?.[1];
+    const request = JSON.parse(fs.readFileSync(saved!, "utf8"));
+    expect(request.messages.at(-1)).toEqual({
+      role: "user",
+      content: "fix calc.py",
+    });
+    expect(request.stream).toBe(true);
     fs.rmSync(dir, { recursive: true, force: true });
   });
 });

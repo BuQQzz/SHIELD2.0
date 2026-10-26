@@ -8,7 +8,7 @@
  * OpenAI-compatible API.
  */
 
-import { spawn, type ChildProcess } from "child_process";
+import { execFileSync, spawn, type ChildProcess } from "child_process";
 import fs from "fs";
 import net from "net";
 import {
@@ -106,6 +106,37 @@ function appendServerLog(line: string): void {
     fs.appendFileSync(file, `${new Date().toISOString()} ${line}\n`);
   } catch {
     // A diagnostic only: never fail a reply over it
+  }
+}
+
+/**
+ * For the server log when a request stalls: the exact request, so it can be
+ * sent again to a fresh server (with speculation on and off), and what each
+ * llama-server thread is doing. The 2026-10-21 hangs spun one thread at
+ * 100% CPU.
+ */
+function logStallDetails(requestBody: object): void {
+  const file = process.env.SHIELD_SERVER_LOG;
+  if (!file) return;
+  const saved = `${file}.stall-${Date.now()}.json`;
+  try {
+    fs.writeFileSync(saved, JSON.stringify(requestBody, null, 1));
+    appendServerLog(`[SHIELD] the stalled request was saved to ${saved}`);
+  } catch {
+    // A diagnostic only
+  }
+  if (process.platform === "win32") return;
+  try {
+    const threads = execFileSync(
+      "ps",
+      ["-C", "llama-server", "-L", "-o", "pid,tid,pcpu,stat,wchan:24"],
+      { encoding: "utf8", timeout: 3000 }
+    );
+    appendServerLog(`[SHIELD] llama-server threads:\n${threads.trimEnd()}`);
+  } catch (error) {
+    appendServerLog(
+      `[SHIELD] llama-server threads unreadable (${(error as Error).message})`
+    );
   }
 }
 
@@ -394,14 +425,22 @@ export class LlamaServerProvider {
       clearTimeout(stallTimer);
       stallTimer = setTimeout(() => stalled.abort(), STALL_MS);
     };
-    /** The most prompt read or tokens written so far */
-    let furthest = 0;
+    /**
+     * The most prompt read and tokens written so far, kept apart: one mark
+     * for both was set to the prompt's size by the read, and a thinking
+     * reply's count stayed under it, so a server writing 22 tok/s was
+     * called stalled 5 minutes after the read (2026-10-26)
+     */
+    let furthestRead = 0;
+    let furthestWritten = 0;
     let firstTokenAt: number | null = null;
     let reply = "";
     let final: ChatStreamChunk | null = null;
     /** The whole prompt, once the server says how long it is */
     let promptTokens = 0;
     let retryWithoutThinking = false;
+    /** What was sent, kept for the server log when it stalls */
+    let requestBody: object = {};
 
     try {
       // Inside the try: Stop while summarising ends the turn like Stop
@@ -412,28 +451,29 @@ export class LlamaServerProvider {
       appendServerLog(
         `[SHIELD] chat request, thinking ${options.thinking === false ? "off" : "on"}`
       );
+      requestBody = {
+        messages: this.messages(userMessage),
+        stream: true,
+        stream_options: { include_usage: true },
+        // Live progress: reading once per batch, then a count per token
+        // that includes thinking, which is not streamed as content
+        return_progress: true,
+        timings_per_token: true,
+        cache_prompt: true,
+        temperature: options.temperature ?? 0.7,
+        max_tokens: options.maxTokens ?? 512,
+        top_p: options.topP ?? 0.9,
+        top_k: options.topK ?? 40,
+        repeat_penalty: options.repeatPenalty ?? 1.1,
+        ...(options.thinking === false
+          ? { chat_template_kwargs: { enable_thinking: false } }
+          : {}),
+      };
       const response = await fetch(`${this.baseUrl}/v1/chat/completions`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         signal: AbortSignal.any([signal, stalled.signal, looping.signal]),
-        body: JSON.stringify({
-          messages: this.messages(userMessage),
-          stream: true,
-          stream_options: { include_usage: true },
-          // Live progress: reading once per batch, then a count per token
-          // that includes thinking, which is not streamed as content
-          return_progress: true,
-          timings_per_token: true,
-          cache_prompt: true,
-          temperature: options.temperature ?? 0.7,
-          max_tokens: options.maxTokens ?? 512,
-          top_p: options.topP ?? 0.9,
-          top_k: options.topK ?? 40,
-          repeat_penalty: options.repeatPenalty ?? 1.1,
-          ...(options.thinking === false
-            ? { chat_template_kwargs: { enable_thinking: false } }
-            : {}),
-        }),
+        body: JSON.stringify(requestBody),
       });
       if (!response.ok || !response.body) {
         throw new Error(
@@ -459,16 +499,17 @@ export class LlamaServerProvider {
             options.onToken?.(text);
           }
           const progress = chunkProgress(chunk, promptTokens);
-          const mark =
+          const advanced =
             progress?.phase === "reading"
-              ? progress.done
-              : progress?.phase === "writing"
-                ? progress.generated
-                : 0;
-          if (text || mark > furthest) {
-            furthest = Math.max(furthest, mark);
-            watchForStall();
+              ? progress.done > furthestRead
+              : progress?.phase === "writing" &&
+                progress.generated > furthestWritten;
+          if (progress?.phase === "reading") {
+            furthestRead = Math.max(furthestRead, progress.done);
+          } else if (progress?.phase === "writing") {
+            furthestWritten = Math.max(furthestWritten, progress.generated);
           }
+          if (text || thought || advanced) watchForStall();
           if (progress?.phase === "reading") promptTokens = progress.total;
           if (progress) options.onProgress?.(progress);
           if (chunk.timings || chunk.usage)
@@ -496,6 +537,7 @@ export class LlamaServerProvider {
               .then((r) => r.text())
               .catch((e: Error) => `unreadable (${e.message})`)}`
           );
+          logStallDetails(requestBody);
         }
         throw new Error(
           `llama-server made no progress for ${STALL_MS / 60000} minutes and was given up on; the model server may have hung. Stop and reload the model.`
