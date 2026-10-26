@@ -1,12 +1,12 @@
 # SHIELD — Session Handoff
 
-**Last session:** 2026-10-23 → 24, on Linux (previous: 2026-10-21 → 22 and 2026-10-20 → 21 on Linux; 2026-09-26 → 28 on Windows)  
-**Branch:** `feat/model-library`, 50 commits past the 2026-09-28 tip (`57d5baf`). **Pushed to the public repo on 2026-10-24 at the user's request, up to and including this handoff commit** (the remote had been at `a26dba2`). Pushed again on 2026-10-24 evening at the user's request, up to `171c352`; the commits after it (from `1fc3d96`, the orchestrator-prompt fix, to the thinking-loop guard and the handoffs) are local only. Nothing is merged to `main`. Only the user says when to push or open a PR.
+**Last session:** 2026-10-25 → 26, on Linux (previous: 2026-10-23 → 24, 2026-10-21 → 22 and 2026-10-20 → 21 on Linux; 2026-09-26 → 28 on Windows)  
+**Branch:** `feat/model-library`, 50 commits past the 2026-09-28 tip (`57d5baf`). **Pushed to the public repo on 2026-10-24 at the user's request, up to and including this handoff commit** (the remote had been at `a26dba2`). Pushed again on 2026-10-24 evening at the user's request, up to `171c352`; the 12 commits after it (`1fc3d96` … `ca7cda1`, listed under "Update — 2026-10-25 → 26") are **local only, not pushed**. Nothing is merged to `main`. Only the user says when to push or open a PR.
 **Tests:** 1166 passing, 7 skipped (`npx vitest run`) · `npx tsc --noEmit`, `npx eslint src electron scripts --ext ts,tsx --max-warnings 0` clean. `prettier --check` flags `src/components/ui/button.tsx` and `scripts/bench/mcp.ts`, which were already unformatted: do not run `prettier --write` over whole folders (it reformats `button.tsx`; `git checkout` it).
 
 **Tested in the app with (2026-10-20):** Bonsai 27B Q1_0 on an RTX 2070 SUPER 8 GB (Ubuntu 26.04), SHIELD-managed Prism llama-server at 32K, ~19 tok/s. Earlier sessions: Qwen3-Coder-30B and Gemma 4 12B on Windows (see the older updates).
 
-Read this first (start with "Redoing the in-app checks with the prompt in place" and "The orchestrator prompt never reached the app" inside "Update — 2026-10-23 → 24"; then the sections "Update — 2026-10-23 → 24", "Update — 2026-10-21 → 22" and then "Update — 2026-10-20 → 21" are the current state), then [SHIELD_AGENT_ARCHITECTURE.md](./SHIELD_AGENT_ARCHITECTURE.md) (§21 agent teams, §17 decision log, §13 priorities, §20 evidence) and [testing/AGENT_BENCHMARK.md](./testing/AGENT_BENCHMARK.md).
+Read this first (start with "Update — 2026-10-25 → 26" just below; its details are in "The orchestrator prompt never reached the app" and "Redoing the in-app checks with the prompt in place" inside "Update — 2026-10-23 → 24"; then the sections "Update — 2026-10-23 → 24", "Update — 2026-10-21 → 22" and then "Update — 2026-10-20 → 21" are the current state), then [SHIELD_AGENT_ARCHITECTURE.md](./SHIELD_AGENT_ARCHITECTURE.md) (§21 agent teams, §17 decision log, §13 priorities, §20 evidence) and [testing/AGENT_BENCHMARK.md](./testing/AGENT_BENCHMARK.md).
 
 ---
 
@@ -34,7 +34,37 @@ Order agreed with the user on 2026-09-26: the Code view, then the terminal, then
 
 ---
 
-## Update — 2026-10-23 → 24: an escaped key repaired, and the hang hunted in four short rounds (start here)
+## Update — 2026-10-25 → 26: the orchestrator prompt reaches the app; four in-app rechecks pass (start here)
+
+The user's direction is unchanged: short, capped window runs, each result shown before the next. **Every window check now runs with `SHIELD_SERVER_LOG=$PWD/tmp/ui-check/<name>.log`** (see below). Details and numbers: the subsections "The orchestrator prompt never reached the app" and "Redoing the in-app checks with the prompt in place" under 2026-10-23 → 24.
+
+### Commits (local, not pushed)
+- `1fc3d96` **the orchestrator prompt was never sent** (since `a6f3a90`, 2026-10-22): `useMCPSystemPrompt` took any prompt opening "You are SHIELD" for the built-in default; now `isBuiltInPrompt` ("You are SHIELD, a helpful"). Team mode had run on `BASE_PROMPT` + delegate; all in-app team results from 10-22 to 10-25 were without the orchestrator rules.
+- `02a104e` **report requests without thinking** (`AgentRunDeps.chat(id, msg, { thinking })`): a reviewer thought 8,192 tokens on "write your HANDOFF block"; after, 277 tokens in 1.5 s.
+- `db72362` **thinking-loop guard** (`src/services/llamaServer/repetition.ts`, `LlamaServerProvider.chat`): newest 150 characters of `reasoning_content` written three times → abort, resend with thinking off. Tuned on 11 real traces (`tmp/hang-hunt/traces/`): 10 normal never fire, a real 29,926-character loop caught at ~8,850. **Not yet seen firing in the app.**
+- `b7b0a02` **`SHIELD_SERVER_LOG=<file>`**: llama-server's output plus timestamped `[SHIELD]` markers (each request with thinking on/off, a guard abort, a stall with a `/slots` snapshot). The harness filters keep every `[LlamaServer]` line.
+- `d4d7e0c` **full paths of the task's files in the agent's first message** (`namedFilesNote`): made-up first reads 7 of 12 → 0 of 12 headless (`tmp/hang-hunt/coder-paths.mts`); calc.py first in the window. Also strips a stray `</think>` from what an agent says (seen in the Team panel; fixed by test only).
+- The rest are handoff updates. Tests 1155 → 1166.
+
+### In-app rechecks with the real prompt (Bonsai 27B, Team on)
+| Check | Result |
+|---|---|
+| Greeting | pass: the prompt's example sentence, 5.4 s, no agent |
+| Question ("what does add in calc.py return?") | pass after `02a104e`: reviewer, correct, 17.8 s |
+| Change (calc.py third number, Auto) | pass after `db72362`, again after `d4d7e0c`: ~5-6 min, test exit 0, answer in "I" |
+| Deny (Ask, first call denied) | first try **hung the server** (stall watchdog after 5 min; unknown whether the guard fired: no log then); second try with the log **passed** (8.6 min, 5 delegations, denied path never retried, no guard abort, no stall) |
+
+### Next steps (suggested order)
+1. **The hang.** One more seen 2026-10-26 17:10, 7 minutes into a deny run; the first since the loop guard went in and the first in a run this short. Keep `SHIELD_SERVER_LOG` on in every window run: the next hang shows whether a guard abort or a long request came just before it. If the guard is involved, wait for the aborted request to end (`/slots` idle) before resending.
+2. **A repeated delegate gets the cached report.** The orchestrator sent the identical delegate call three times after a run that changed nothing; SHIELD's duplicate-call guard returned the same report each time until the loop guard ended the turn. For `delegate`, answer a repeat with a note ("the last run changed nothing: give the agent what it lacks") instead. Also: a coder given a change that changed no file is filed DONE; it should not be.
+3. **Extra rounds in the team.** The deny run took 5 delegations (a coder only to *read* calc.py; a reviewer to find a file). The change run added a tester once and not another time. Decide with the user whether a tester belongs on a two-line change the user asked to "then run".
+4. Still open from before: the "coder agent" wording in final answers was not seen again in five runs with the prompt in place (likely the missing prompt); Windows CI before any PR to `main` (ask first); the recall tool; "SHIELD learns and remembers".
+
+### Working notes from this session
+- The harness's 90-second quiet-page exit fired while an agent was still thinking; `quick.mjs`/`deny.mjs` now wait while the panel says "N working". `tmp/ui-check/recheck.sh <name> <cap-ms> <script> "<prompt>"` runs one capped check. Reset `team-project/calc.py` and `test_calc.py` to their originals before a change run (they are at the originals now).
+- Never `pkill -f` with a pattern that appears in your own command line (it happened again: it ended the calling shell, no harm). Kill by `-x` name or PID.
+
+## Update — 2026-10-23 → 24: an escaped key repaired, and the hang hunted in four short rounds
 
 The user's direction: **short increments** ("40 minutes is too long for today"): 10-minute rounds, each result shown before the next. A 40-minute run was stopped after 2 minutes (13 turns, no hang).
 
@@ -60,7 +90,7 @@ The user's direction: **short increments** ("40 minutes is too long for today"):
 - **Fixed:** `isBuiltInPrompt` (`systemPrompts.ts`) matches "You are SHIELD, a helpful", which every version of `BASE_PROMPT` and `MINIMAL_PROMPT` opened with; one hook test (fails on the old check, passes now) that the orchestrator prompt is sent and a built-in default is added once.
 - **In the window after the fix** (`deny.mjs`, which now records the renderer's `[MCP] - Included modules` lines): `custom` is in the modules and the prompt is 6,647 characters. The run behaved differently: the plan was **coder, then tester** (the prompt adds a tester when the change "can only be trusted once run"); the denied first call showed as not allowed; the coder edited calc.py (`c=None`, works); the tester was still working at the 10-minute cap (it also tried `filesystem.add_team_note`, refused), so the chat was not saved and test_calc.py has no new assert. **The short in-app checks of 2026-10-21 → 24 (greeting, question to the reviewer, change to the coder alone, denial) should be repeated with the prompt in place**; expect slower runs if the tester is now added to small changes.
 
-### Redoing the in-app checks with the prompt in place (started 2026-10-25, continue here)
+### Redoing the in-app checks with the prompt in place (2026-10-25 → 26; all four pass)
 `tmp/ui-check/recheck.sh <name> <cap-ms> <script> "<prompt>"` (git-ignored): resets the profile's Local Storage, runs one capped window check, writes `tmp/ui-check/recheck-<name>.txt`. Reset `team-project/calc.py` and `test_calc.py` to their three-line originals before each change run (they are at the originals now).
 - [x] **Greeting** (`quick.mjs`, 4 min cap, "Hi! What can you help me with?"): answered in 5.4 s with the prompt's example sentence word for word, no agent spawned or named.
 - [x] **Question** ("What does add in calc.py return?", 6 min cap). First try: the script quit after 90 s of an unchanged page while the reviewer was still thinking (`quick.mjs`/`deny.mjs` now wait while the panel says "N working"). Second: **a thinking runaway on the report request**: the reviewer answered correctly (739 tokens) without a HANDOFF block, SHIELD asked for the report, and it thought for **8,192 tokens** (first token at 204 s) and hit the cap (`tmp/ui-check/recheck-question-runaway.txt`, `team-log-runaway.txt`). **Fixed (`02a104e`):** both report requests go with `thinking: false` (`AgentRunDeps.chat(id, message, { thinking })`, through `agentChat`'s options). After: reviewer, correct answer, report request 277 tokens in 1.5 s, the answer in 17.8 s naming no agent.
