@@ -6,8 +6,12 @@ import { useSettingsStore } from "@/store/settingsStore";
 import { useMCP } from "@/hooks/useMCP";
 import { useModelCapabilities } from "@/hooks/useModelCapabilities";
 import { AlertTriangle } from "lucide-react";
-import type { MCPSettings as MCPSettingsType } from "@/types/settings";
-import type { ModelOption } from "@/components/chat/ModelSelector";
+import {
+  DEFAULT_SETTINGS,
+  type MCPSettings as MCPSettingsType,
+} from "@/types/settings";
+import type { ModelOption } from "@/config/models";
+import { trashName } from "@/utils/platform";
 
 interface MCPSettingsProps {
   settings: MCPSettingsType;
@@ -27,11 +31,8 @@ export function MCPSettings({ settings, currentModel }: MCPSettingsProps) {
   const warning = getWarning("mcp");
   const hasWarning = warning !== null;
 
-  const allowedTools = settings.allowedTools ?? [
-    "read_file",
-    "write_file",
-    "list_directory",
-  ];
+  const allowedTools =
+    settings.allowedTools ?? DEFAULT_SETTINGS.mcp.allowedTools;
 
   const toolDescriptions = useMemo(
     () => ({
@@ -49,6 +50,7 @@ export function MCPSettings({ settings, currentModel }: MCPSettingsProps) {
       read_media_file: "Read image/audio file contents",
       list_directory_with_sizes: "List directory contents with file sizes",
       list_allowed_directories: "See allowed filesystem root paths",
+      delete_file: `Delete files or folders (moved to the ${trashName()})`,
     }),
     []
   );
@@ -186,7 +188,10 @@ export function MCPSettings({ settings, currentModel }: MCPSettingsProps) {
       <div className="text-xs text-muted-foreground space-y-1">
         <p>• MCP remains enabled for built-in tool-calling</p>
         <p>• Header status indicator shows: Initializing → Ready</p>
-        <p>• Only Desktop and Documents folders are accessible</p>
+        <p>
+          • Only the folder chosen next to the message box is accessible
+          (Documents and Desktop if none is chosen)
+        </p>
         <p>• All operations require your explicit permission</p>
         <p>• Keep at least one tool enabled for MCP workflows</p>
       </div>

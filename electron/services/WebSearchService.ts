@@ -1,7 +1,4 @@
-import {
-  BrowserManager,
-  type PrivacyOptions,
-} from "./web-search/BrowserManager";
+import { loadPage } from "./web-search/InAppBrowser";
 import {
   ContentExtractor,
   type PageContent,
@@ -10,76 +7,48 @@ import { SearchProvider, type SearchResult } from "./web-search/SearchProvider";
 
 /**
  * Privacy-focused web search and content fetching service
- * Uses DuckDuckGo for privacy-focused search with no tracking
- * Implements request anonymization and tracker blocking
+ * Searches DuckDuckGo's HTML version (no JavaScript, no tracking) and reads
+ * pages in SHIELD's in-app browser - see InAppBrowser.ts for what keeps it
+ * anonymous.
  */
 
-export type { SearchResult, PageContent, PrivacyOptions };
+export type { SearchResult, PageContent };
 
 /**
- * Utility to yield to event loop - prevents UI freezing
+ * Kept for callers written for the Playwright browser. Only `timeout` has
+ * an effect now: tracker blocking is always on, and one common user agent
+ * is used because a rotating one makes a browser easier to single out.
  */
-function yieldToEventLoop(): Promise<void> {
-  return new Promise((resolve) => setImmediate(resolve));
+export interface PrivacyOptions {
+  timeout?: number;
+  blockTrackers?: boolean;
+  useRandomUA?: boolean;
+  userAgent?: string;
 }
 
 export class WebSearchService {
-  private browserManager: BrowserManager;
-  private contentExtractor: ContentExtractor;
-  private searchProvider: SearchProvider;
+  private contentExtractor = new ContentExtractor();
+  private searchProvider = new SearchProvider();
 
-  constructor() {
-    this.browserManager = new BrowserManager();
-    this.contentExtractor = new ContentExtractor();
-    this.searchProvider = new SearchProvider();
-  }
-
-  /**
-   * Initialize the browser instance for web scraping
-   */
-  async initialize(): Promise<void> {
-    await this.browserManager.initialize();
-  }
+  /** Nothing to start: the in-app browser opens a window per page */
+  async initialize(): Promise<void> {}
 
   /**
    * Search DuckDuckGo with privacy focus (no API key required)
-   * Uses event loop yielding to prevent UI freezing
    */
   async search(
     query: string,
     maxResults: number = 5,
     options: PrivacyOptions = {}
   ): Promise<SearchResult[]> {
-    await this.initialize();
-    await yieldToEventLoop(); // Allow UI to update
-
     const sanitizedQuery = this.searchProvider.sanitizeQuery(query);
-
     console.log(`[WebSearch] Searching DuckDuckGo: "${sanitizedQuery}"`);
 
     try {
-      const page = await this.browserManager.createPrivacyPage(options);
-      await yieldToEventLoop(); // Allow UI to update after page creation
-
-      // Navigate to DuckDuckGo HTML version (no JavaScript required)
-      await page.goto(
+      const { html } = await loadPage(
         `https://html.duckduckgo.com/html/?q=${encodeURIComponent(sanitizedQuery)}`,
-        {
-          waitUntil: "domcontentloaded",
-          timeout: options.timeout || 15000,
-        }
+        options.timeout ?? 15000
       );
-      await yieldToEventLoop(); // Allow UI to update after navigation
-
-      // Extract search results
-      const html = await page.content();
-
-      // Debug: Log HTML snippet to diagnose parsing issues
-      console.log("[WebSearch] HTML snippet:", html.substring(0, 500));
-
-      await page.close();
-      await yieldToEventLoop(); // Allow UI to update
-
       return this.searchProvider.parseSearchResults(html, maxResults);
     } catch (error) {
       console.error("[WebSearch] Search failed:", error);
@@ -91,38 +60,22 @@ export class WebSearchService {
 
   /**
    * Fetch and extract clean content from a web page
-   * Uses event loop yielding to prevent UI freezing
    */
   async fetchPage(
     url: string,
     options: PrivacyOptions = {}
   ): Promise<PageContent> {
-    await this.initialize();
-    await yieldToEventLoop(); // Allow UI to update
-
     const cleanUrl = this.contentExtractor.removeTrackingParams(url);
     console.log(`[WebSearch] Fetching page: ${cleanUrl}`);
 
     try {
-      const page = await this.browserManager.createPrivacyPage(options);
-      await yieldToEventLoop(); // Allow UI to update after page creation
-
-      // Navigate to the page
-      await page.goto(cleanUrl, {
-        waitUntil: "domcontentloaded",
-        timeout: options.timeout || 5000, // Reduced from 20s to 5s
-      });
-      await yieldToEventLoop(); // Allow UI to update after navigation
-
-      // Get page HTML
-      const html = await page.content();
-      const pageTitle = await page.title();
-      await yieldToEventLoop(); // Allow UI to update
-
-      await page.close();
-
+      const page = await loadPage(cleanUrl, options.timeout ?? 15000);
       // Extract clean content using Readability
-      return this.contentExtractor.extractContent(html, cleanUrl, pageTitle);
+      return this.contentExtractor.extractContent(
+        page.html,
+        page.url,
+        page.title
+      );
     } catch (error) {
       console.error("[WebSearch] Page fetch failed:", error);
       throw new Error(
@@ -131,12 +84,8 @@ export class WebSearchService {
     }
   }
 
-  /**
-   * Cleanup browser instance
-   */
-  async dispose(): Promise<void> {
-    await this.browserManager.dispose();
-  }
+  /** Windows close after each page; nothing is left open */
+  async dispose(): Promise<void> {}
 }
 
 // Singleton instance

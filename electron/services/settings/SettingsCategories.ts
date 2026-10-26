@@ -5,6 +5,23 @@
  * settings categories in SHIELD 2.0.
  */
 
+/**
+ * How much autonomy MCP tool calls are granted.
+ *
+ * - ask      every tool call prompts (default)
+ * - auto     reads run immediately, mutating tools still prompt
+ * - plan     the model states what it intends to do, nothing executes
+ * - readonly mutating tools are not even offered to the model
+ */
+export type PermissionMode = "ask" | "auto" | "plan" | "readonly";
+
+export const PERMISSION_MODES: readonly PermissionMode[] = [
+  "ask",
+  "auto",
+  "plan",
+  "readonly",
+] as const;
+
 export interface Settings {
   model: {
     temperature: number;
@@ -36,15 +53,65 @@ export interface Settings {
   };
   mcp: {
     enabled: boolean;
-    allowedServers: string[];
+    /** How much autonomy tool calls get this turn */
+    mode: PermissionMode;
     allowedTools: string[];
-    showPermissionDialog: boolean;
-    rememberChoices: boolean;
     auditLogRetentionDays: number;
-    hybridParserEnabled: boolean;
+    /** Max tool calls executed in a single round */
     maxToolCallsPerTurn: number;
+    /** Max tool -> result -> tool cycles in a single turn */
+    maxToolRounds: number;
+    /** Folder file tools may use; unset means Documents and Desktop */
+    workspaceFolder?: string;
   };
 }
+
+/**
+ * Every tool @modelcontextprotocol/server-filesystem exposes (2026.8.x).
+ * All allowed by default: the permission mode (Ask / Auto / Plan /
+ * Read-only) decides what needs approval, so the allowlist only exists for
+ * users who want to switch individual tools off.
+ */
+export const FILESYSTEM_TOOLS = [
+  "read_text_file",
+  "read_media_file",
+  "read_multiple_files",
+  "read_file",
+  "list_directory",
+  "list_directory_with_sizes",
+  "directory_tree",
+  "search_files",
+  "get_file_info",
+  "list_allowed_directories",
+  "write_file",
+  "edit_file",
+  "create_directory",
+  "move_file",
+  // SHIELD's own: moves to the Recycle Bin (the server has no delete)
+  "delete_file",
+];
+
+/**
+ * Tool -> result -> tool cycles allowed in one turn. It was 5, which a model
+ * building a project used up on two directory listings and two mkdirs, and
+ * the write_file that followed was dropped (2026-09-24).
+ */
+export const DEFAULT_MAX_TOOL_ROUNDS = 20;
+
+/** The maxToolRounds default before that; not editable in the UI */
+export const PREVIOUS_DEFAULT_MAX_TOOL_ROUNDS = 5;
+
+/** FILESYSTEM_TOOLS before delete_file was added (2026-09-24) */
+export const PREVIOUS_DEFAULT_ALLOWED_TOOLS = FILESYSTEM_TOOLS.filter(
+  (tool) => tool !== "delete_file"
+);
+
+/** The allowlist every install had before FILESYSTEM_TOOLS existed */
+export const LEGACY_DEFAULT_ALLOWED_TOOLS = [
+  "read_file",
+  "write_file",
+  "list_directory",
+];
 
 export const DEFAULT_SETTINGS: Settings = {
   model: {
@@ -77,12 +144,10 @@ export const DEFAULT_SETTINGS: Settings = {
   },
   mcp: {
     enabled: true,
-    allowedServers: ["filesystem"],
-    allowedTools: ["read_file", "write_file", "list_directory"],
-    showPermissionDialog: true,
-    rememberChoices: false,
+    mode: "ask",
+    allowedTools: [...FILESYSTEM_TOOLS],
     auditLogRetentionDays: 30,
-    hybridParserEnabled: true,
     maxToolCallsPerTurn: 5,
+    maxToolRounds: DEFAULT_MAX_TOOL_ROUNDS,
   },
 };

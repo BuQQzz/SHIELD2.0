@@ -28,7 +28,6 @@ export default defineConfig({
                 "@node-llama-cpp/linux-x64",
                 "@node-llama-cpp/linux-arm64",
                 "better-sqlite3",
-                "playwright-core",
                 "jsdom",
                 "cheerio",
                 "@mozilla/readability",

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import {
   Menu,
   MoreVertical,
@@ -16,7 +16,7 @@ import { motion } from "framer-motion";
 import { toast } from "sonner";
 import { useChatStore } from "@/stores/chat-store";
 import { useConversationStore } from "@/stores/conversation-store";
-import { ModelSelector, type ModelOption } from "./ModelSelector";
+import type { ModelOption } from "@/config/models";
 import { useState } from "react";
 import {
   DropdownMenu,
@@ -30,13 +30,13 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Tag } from "./Tag";
 import { MCPStatus } from "./MCPStatus";
+import { SummariesMenu, type ChatSummary } from "./SummariesMenu";
 
 interface ChatHeaderProps {
   modelName?: string;
   isLoading?: boolean;
   error?: string | null;
   warning?: string | null;
-  onModelSelect?: (model: ModelOption) => void;
   availableModels?: ModelOption[];
   currentModelId?: string;
   onClearHistory?: () => void;
@@ -47,7 +47,6 @@ export function ChatHeader({
   isLoading,
   error,
   warning,
-  onModelSelect,
   availableModels = [],
   currentModelId,
   onClearHistory,
@@ -62,6 +61,17 @@ export function ChatHeader({
   const [newTagInput, setNewTagInput] = useState("");
   const [showTagInput, setShowTagInput] = useState(false);
   const lastWarningRef = useRef<string | null>(null);
+
+  // Replies that had to summarise earlier turns first
+  const summaries = useMemo(
+    () =>
+      (currentConversation?.messages ?? []).flatMap((m): ChatSummary[] =>
+        m.summary
+          ? [{ id: m.id, summary: m.summary, timestamp: m.timestamp }]
+          : []
+      ),
+    [currentConversation?.messages]
+  );
 
   // Show warning as toast notification (only once per unique warning)
   useEffect(() => {
@@ -159,19 +169,13 @@ export function ChatHeader({
 
       {/* Right Section */}
       <div className="flex items-center gap-2">
+        <SummariesMenu
+          conversationId={currentConversation?.id}
+          summaries={summaries}
+        />
         <MCPStatus
           currentModel={availableModels.find((m) => m.id === currentModelId)}
         />
-
-        {onModelSelect && (
-          <ModelSelector
-            models={availableModels}
-            currentModel={currentModelId}
-            onModelSelect={onModelSelect}
-            disabled={isLoading}
-            isLoading={isLoading}
-          />
-        )}
 
         {/* Options Menu */}
         <DropdownMenu>

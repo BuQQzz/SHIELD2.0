@@ -1,4 +1,5 @@
 import type { Message } from "../hooks/useLlama";
+import { useGenerationStore } from "../store/generationStore";
 import type { ModelSettings } from "../types/settings";
 
 // Generate unique message IDs to prevent React key collisions
@@ -62,7 +63,7 @@ export const createContinuationHandler = ({
     const assistantMessageId = generateMessageId();
 
     try {
-      await sendStreamingMessage(
+      const returned = await sendStreamingMessage(
         "Continue",
         (token) => {
           streamingContentRef.current += token;
@@ -77,7 +78,8 @@ export const createContinuationHandler = ({
         }
       );
 
-      const finalContent = streamingContentRef.current;
+      // Complete even when late tokens were missed (see messageHandler)
+      const finalContent = returned || streamingContentRef.current;
 
       // Detect truncation with same logic as messageHandler
       const estimatedTokens = Math.ceil(finalContent.length / 3.5);
@@ -104,6 +106,8 @@ export const createContinuationHandler = ({
         content: finalContent,
         timestamp: new Date(),
         truncated: wasTruncated,
+        summary: useGenerationStore.getState().lastSummary ?? undefined,
+        capsule: useGenerationStore.getState().lastCapsule ?? undefined,
       };
 
       setMessages((prev) => [...prev, assistantMessage]);

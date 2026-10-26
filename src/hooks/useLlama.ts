@@ -1,5 +1,16 @@
+import { emptyReplyMessage } from "@/utils/emptyReply";
 import { useState, useEffect, useCallback } from "react";
-import type { SearchResult } from "../types/electron";
+import type { NativeToolResult } from "../types/nativeTools";
+import type { ToolDefinition } from "../types/prompts";
+import type {
+  ChatProgress,
+  GenerationStats,
+  MemoryCheck,
+  SavedCapsule,
+  SearchResult,
+} from "../types/electron";
+import { useGenerationStore } from "../store/generationStore";
+import { LOOP_NOTE, LoopGuard } from "../utils/loopGuard";
 
 export interface Message {
   id: string;
@@ -11,12 +22,108 @@ export interface Message {
   reasoning?: string; // AI's step-by-step reasoning (for web search responses)
   thinking?: string; // AI's chain-of-thought analysis (extracted from XML tags)
   isThinking?: boolean; // True while streaming thinking content
+  /** Tokens and speed of the reply, shown under assistant messages */
+  stats?: GenerationStats;
+  /**
+   * The model's history was too full before this reply, and its oldest
+   * turns were replaced by this summary (the model's copy only). Shown as a
+   * step in the reply.
+   */
+  summary?: string;
+  /** That summary as data: a restored chat resumes from it */
+  capsule?: SavedCapsule;
+  /**
+   * Tool calls the model wrote that were never run because the turn hit its
+   * tool-round limit, e.g. "write_file C:\p\index.html". Set on the
+   * notice shown to the user; the next prompt tells the model about them.
+   */
+  unrunToolCalls?: string[];
+  /** SHIELD's record under a reply that claims a change never made */
+  recordNote?: string;
+  /** Sent while the turn ran (handlers/steer.ts) */
+  steer?: boolean;
+  /**
+   * Set when this message is an MCP tool result rather than something the
+   * user typed. It is stored with role "user" because that is how the model's
+   * chat template expects tool output, but it must not be rendered as if the
+   * user wrote it.
+   */
+  toolResult?: {
+    tool: string;
+    serverName: string;
+    success: boolean;
+    /** The file or folder it acted on, for the step's label */
+    target?: string;
+    /**
+     * Plan mode refused to run this. Not a failure - the mode working as
+     * intended - so it must not be presented as an error.
+     */
+    blocked?: boolean;
+  };
 }
 
 export interface ModelInfo {
+  /** Library model id (src/config/models.ts) */
+  id: string;
   name: string;
   uri: string;
   contextSize?: number;
+}
+
+/** A load held back because the model needs more memory than is free */
+export interface MemoryPrompt {
+  model: ModelInfo;
+  check: MemoryCheck;
+}
+
+/** Live progress reaches the page at most this often while writing */
+const PROGRESS_INTERVAL_MS = 150;
+
+/**
+ * Progress, throttled while the reply is written. One store update per
+ * token re-rendered the page for each, and it fell up to 28 s behind a
+ * 1,770-token reply (2026-09-25). The counts animate between updates. The
+ * first report of each phase always passes, so the status changes at once;
+ * reading and summarising reports are rare enough to pass straight through.
+ */
+export function throttleProgress(
+  setProgress: (progress: ChatProgress) => void
+): (progress: ChatProgress) => void {
+  let last = 0;
+  let lastPhase: ChatProgress["phase"] | null = null;
+  return (progress) => {
+    const now = performance.now();
+    if (
+      progress.phase === "writing" &&
+      lastPhase === "writing" &&
+      now - last < PROGRESS_INTERVAL_MS
+    ) {
+      return;
+    }
+    last = now;
+    lastPhase = progress.phase;
+    setProgress(progress);
+  };
+}
+
+/**
+ * The model the main process already holds, or null. A window reload
+ * (Ctrl+R, or the one that follows a renderer crash) starts this page from
+ * scratch while the model stays loaded.
+ */
+async function findLoadedModel(): Promise<ModelInfo | null> {
+  try {
+    const [loaded, info] = await Promise.all([
+      window.llama.isModelLoaded(),
+      window.llama.getModelInfo(),
+    ]);
+    if (!loaded.loaded || !info.info) return null;
+    const { id, name, uri, contextSize } = info.info;
+    return { id, name, uri, contextSize };
+  } catch (err) {
+    console.warn("[useLlama] Could not ask which model is loaded:", err);
+    return null;
+  }
 }
 
 export function useLlama() {
@@ -26,6 +133,7 @@ export function useLlama() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [warning, setWarning] = useState<string | null>(null);
+  const [memoryPrompt, setMemoryPrompt] = useState<MemoryPrompt | null>(null);
 
   // Initialize llama.cpp on mount
   useEffect(() => {
@@ -47,6 +155,17 @@ export function useLlama() {
       try {
         const result = await window.llama.initialize();
         if (result.success) {
+          const loaded = await findLoadedModel();
+          if (loaded) {
+            // A reply the previous page was streaming has no one to show it
+            // to, and llama-server's single slot would make the next message
+            // wait for it to finish
+            await window.llama.stopGeneration();
+            console.log(`[useLlama] ${loaded.name} is already loaded`);
+            setCurrentModel(loaded);
+            setIsModelLoaded(true);
+            void useGenerationStore.getState().refreshContext();
+          }
           setIsInitialized(true);
         } else {
           setError(result.error || "Failed to initialize");
@@ -60,29 +179,45 @@ export function useLlama() {
     init();
   }, []);
 
-  const loadModel = useCallback(async (model: ModelInfo) => {
-    setIsLoading(true);
-    setError(null);
-    setWarning(null);
-    try {
-      const result = await window.llama.loadModel(model);
-      if (result.success) {
-        setIsModelLoaded(true);
-        setCurrentModel(model);
-        if (result.warning) {
-          setWarning(result.warning);
+  const loadModel = useCallback(
+    async (model: ModelInfo, options: { allowLowMemory?: boolean } = {}) => {
+      setIsLoading(true);
+      setError(null);
+      setWarning(null);
+      setMemoryPrompt(null);
+      try {
+        const result = await window.llama.loadModel({ ...model, ...options });
+        if (result.memory) {
+          // Nothing was unloaded or loaded; the user decides
+          setMemoryPrompt({ model, check: result.memory });
+        } else if (result.success) {
+          setIsModelLoaded(true);
+          setCurrentModel(model);
+          void useGenerationStore.getState().refreshContext();
+          if (result.warning) {
+            setWarning(result.warning);
+          }
+        } else {
+          setError(result.error || "Failed to load model");
+          console.error("[useLlama] Load model failed:", result.error);
         }
-      } else {
-        setError(result.error || "Failed to load model");
-        console.error("[useLlama] Load model failed:", result.error);
+      } catch (err) {
+        console.error("[useLlama] Load model exception:", err);
+        setError(err instanceof Error ? err.message : "Unknown error");
+      } finally {
+        setIsLoading(false);
       }
-    } catch (err) {
-      console.error("[useLlama] Load model exception:", err);
-      setError(err instanceof Error ? err.message : "Unknown error");
-    } finally {
-      setIsLoading(false);
+    },
+    []
+  );
+
+  const confirmLowMemory = useCallback(() => {
+    if (memoryPrompt) {
+      void loadModel(memoryPrompt.model, { allowLowMemory: true });
     }
-  }, []);
+  }, [memoryPrompt, loadModel]);
+
+  const cancelLowMemory = useCallback(() => setMemoryPrompt(null), []);
 
   const sendMessage = useCallback(
     async (
@@ -93,9 +228,22 @@ export function useLlama() {
       try {
         const result = await window.llama.chat(message, options);
         if (result.success && result.response) {
+          useGenerationStore
+            .getState()
+            .record(
+              result.stats,
+              result.context,
+              result.summary,
+              result.capsule
+            );
           return result.response;
         } else {
-          throw new Error(result.error || "Failed to get response");
+          throw new Error(
+            result.error ||
+              (result.success
+                ? emptyReplyMessage(options?.maxTokens)
+                : "Failed to get response")
+          );
         }
       } catch (err) {
         // Check if this is an abort error (user cancelled)
@@ -124,6 +272,8 @@ export function useLlama() {
         topP?: number;
         topK?: number;
         repeatPenalty?: number;
+        toolResults?: NativeToolResult[];
+        thinking?: boolean;
       }
     ) => {
       console.log("[useLlama] sendStreamingMessage called");
@@ -131,31 +281,54 @@ export function useLlama() {
       console.log("[useLlama] Options:", JSON.stringify(options));
 
       setError(null);
+      // A reply that repeats itself is stopped like the Stop button, with a
+      // note: otherwise it runs to the token limit, minutes on a local model
+      const guard = new LoopGuard();
       try {
-        // Set up token listener
-        console.log("[useLlama] Setting up token listener...");
+        // No per-token or full-response logging: both flooded the console
         const unsubscribe = window.llama.onToken((token) => {
-          console.log("[useLlama] Token received:", token.substring(0, 20));
           onToken(token);
+          if (guard.push(token)) {
+            console.warn("[useLlama] The reply is repeating itself; stopping");
+            onToken(LOOP_NOTE);
+            useGenerationStore.getState().setStopRequested(true);
+            void window.llama.stopGeneration();
+          }
         });
-
-        // Send message
-        console.log("[useLlama] Calling window.llama.chatStreaming...");
-        const result = await window.llama.chatStreaming(message, options);
-        console.log("[useLlama] chatStreaming result:", JSON.stringify(result));
-
-        // Clean up listener
-        unsubscribe();
+        const { setProgress } = useGenerationStore.getState();
+        const unsubscribeProgress = window.llama.onProgress(
+          throttleProgress(setProgress)
+        );
+        let result;
+        try {
+          result = await window.llama.chatStreaming(message, options);
+        } finally {
+          unsubscribe();
+          unsubscribeProgress();
+          setProgress(null);
+        }
 
         if (result.success && result.response) {
-          console.log(
-            "[useLlama] Success! Response length:",
-            result.response.length
-          );
-          return result.response;
+          useGenerationStore
+            .getState()
+            .record(
+              result.stats,
+              result.context,
+              result.summary,
+              result.capsule
+            );
+          // llama-server returns what it had when stopped, without the note
+          return guard.hasTripped
+            ? `${result.response}${LOOP_NOTE}`
+            : result.response;
         } else {
           console.error("[useLlama] Failed:", result.error);
-          throw new Error(result.error || "Failed to get response");
+          throw new Error(
+            result.error ||
+              (result.success
+                ? emptyReplyMessage(options?.maxTokens)
+                : "Failed to get response")
+          );
         }
       } catch (err) {
         console.error("[useLlama] Exception:", err);
@@ -185,6 +358,7 @@ export function useLlama() {
     setError(null);
     try {
       await window.llama.clearHistory();
+      void useGenerationStore.getState().refreshContext();
     } catch (err) {
       console.error("[useLlama] clearHistory failed:", err);
       setError(err instanceof Error ? err.message : "Unknown error");
@@ -214,6 +388,7 @@ export function useLlama() {
     }
     try {
       await window.llama.setChatHistory(messages);
+      void useGenerationStore.getState().refreshContext();
     } catch (err) {
       console.error("[useLlama] setChatHistory failed:", err);
       setError(err instanceof Error ? err.message : "Unknown error");
@@ -242,20 +417,23 @@ export function useLlama() {
     []
   );
 
-  const setSystemPrompt = useCallback(async (prompt: string) => {
-    if (!window.llama) {
-      console.warn(
-        "[useLlama] setSystemPrompt called but window.llama not available"
-      );
-      return;
-    }
-    try {
-      await window.llama.setSystemPrompt(prompt);
-    } catch (err) {
-      console.error("[useLlama] setSystemPrompt failed:", err);
-      setError(err instanceof Error ? err.message : "Unknown error");
-    }
-  }, []);
+  const setSystemPrompt = useCallback(
+    async (prompt: string, tools?: ToolDefinition[]) => {
+      if (!window.llama) {
+        console.warn(
+          "[useLlama] setSystemPrompt called but window.llama not available"
+        );
+        return;
+      }
+      try {
+        await window.llama.setSystemPrompt(prompt, tools);
+      } catch (err) {
+        console.error("[useLlama] setSystemPrompt failed:", err);
+        setError(err instanceof Error ? err.message : "Unknown error");
+      }
+    },
+    []
+  );
 
   const getSystemPrompt = useCallback(async (): Promise<string | null> => {
     if (!window.llama) {
@@ -283,6 +461,9 @@ export function useLlama() {
     isLoading,
     error,
     warning,
+    memoryPrompt,
+    confirmLowMemory,
+    cancelLowMemory,
     loadModel,
     sendMessage,
     sendStreamingMessage,

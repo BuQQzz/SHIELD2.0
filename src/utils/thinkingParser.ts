@@ -94,6 +94,28 @@ export function parseReasoning(
   return { reasoning, processedContent };
 }
 
+const THINK_CLOSE = "</think>";
+
+/**
+ * <think>...</think>answer, or - when the chat template opened the tag in
+ * the prompt - "...</think>answer" with no opening tag. A model cut off
+ * mid-thought (llama-server's reasoning budget) carries on thinking in the
+ * answer and closes the tag itself; the whole deliberation then showed in the
+ * chat as the answer (2026-10-20). A closing tag inside a code block, as in
+ * an explanation of the tag, is left alone.
+ */
+function splitOnThinkClose(
+  content: string
+): { thinking: string; answer: string } | null {
+  const close = content.toLowerCase().indexOf(THINK_CLOSE);
+  if (close < 0) return null;
+  const before = content.slice(0, close);
+  if ((before.match(/```/g) ?? []).length % 2 !== 0) return null;
+  const thinking = before.replace(/^\s*<think>/i, "").trim();
+  if (!thinking) return null;
+  return { thinking, answer: content.slice(close + THINK_CLOSE.length).trim() };
+}
+
 /**
  * Parse thinking/analysis patterns from chain-of-thought models
  */
@@ -101,6 +123,11 @@ export function parseThinking(content: string): {
   thinking?: string;
   processedContent: string;
 } {
+  const think = splitOnThinkClose(content);
+  if (think) {
+    return { thinking: think.thinking, processedContent: think.answer };
+  }
+
   for (const { pattern, thinkingIndex, contentIndex } of THINKING_PATTERNS) {
     const match = content.match(pattern);
 

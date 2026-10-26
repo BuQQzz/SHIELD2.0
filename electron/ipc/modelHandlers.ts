@@ -1,6 +1,7 @@
 import { ipcMain, app } from "electron";
 import { getModelDownloadService } from "../services/ModelDownloadService.js";
-import { MODEL_CATALOG } from "../../src/config/models.js";
+import { MODEL_CATALOG, pickModelFile } from "../../src/config/models.js";
+import { getLlamaService } from "../../src/services/LlamaService.js";
 
 /**
  * Register all model download related IPC handlers
@@ -16,7 +17,14 @@ export function registerModelHandlers() {
         return { success: false, error: "Model not found" };
       }
 
-      const path = await modelDownloadService.downloadModel(model);
+      // The quantization that suits this GPU (Qwen3.8 has two)
+      const { vramGB } = await getLlamaService().getHardwareInfo();
+      const file = pickModelFile(model.files, vramGB);
+      if (!file) {
+        return { success: false, error: "Model has no downloadable file" };
+      }
+
+      const path = await modelDownloadService.downloadModel(model, file);
       return { success: true, path };
     } catch (error) {
       console.error("Failed to download model:", error);
@@ -126,6 +134,19 @@ export function registerModelHandlers() {
       return { success: true };
     } catch (error) {
       console.error("Failed to delete model:", error);
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : "Unknown error",
+      };
+    }
+  });
+
+  // GPU memory and RAM, for recommending models
+  ipcMain.handle("model:get-hardware", async () => {
+    try {
+      const hardware = await getLlamaService().getHardwareInfo();
+      return { success: true, hardware };
+    } catch (error) {
       return {
         success: false,
         error: error instanceof Error ? error.message : "Unknown error",

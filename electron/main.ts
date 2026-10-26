@@ -1,10 +1,14 @@
+import path from "path";
 import { app, BrowserWindow } from "electron";
 import { SettingsStorageService } from "./services/SettingsStorageService.js";
 import { mcpService } from "./services/MCPService.js";
+import { stopRunningCommands } from "./services/terminalTool.js";
 import { createMainWindow } from "./setup/windowSetup.js";
 import { registerLlamaHandlers } from "./ipc/llamaHandlers.js";
 import { registerConversationHandlers } from "./ipc/conversationHandlers.js";
 import { registerMcpHandlers } from "./ipc/mcpHandlers.js";
+import { registerMemoryHandlers } from "./ipc/memoryHandlers.js";
+import { registerProjectHandlers } from "./ipc/projectHandlers.js";
 import { registerSearchHandlers } from "./ipc/searchHandlers.js";
 import { registerSettingsHandlers } from "./ipc/settingsHandlers.js";
 import { registerModelHandlers } from "./ipc/modelHandlers.js";
@@ -53,15 +57,30 @@ async function setupIpcHandlers() {
   // Pass a getter function for mainWindow so handlers can access it after it's created
   const llamaService = registerLlamaHandlers(() => mainWindow);
   registerConversationHandlers();
+  registerProjectHandlers();
+  registerMemoryHandlers();
   await registerMcpHandlers();
   const { webSearchService, getWebCacheService } = registerSearchHandlers();
   const modelDownloadService = registerModelHandlers();
   registerSystemHandlers();
 
-  // Apply initial settings to services
+  // Apply initial settings to services. The model loader gets the download
+  // folder even without a custom one - its own default was a different
+  // folder, so downloaded models could not be loaded.
+  llamaService.setCustomModelsDir(
+    settings.system.modelDirectory ||
+      path.join(app.getPath("userData"), "models")
+  );
+  // Stops a llama-server orphaned by a crash, and records the next one
+  llamaService.setStateDir(app.getPath("userData"));
   if (settings.system.modelDirectory) {
-    llamaService.setCustomModelsDir(settings.system.modelDirectory);
     modelDownloadService.setCustomModelsDir(settings.system.modelDirectory);
+  }
+
+  // Before the renderer initialises MCP, so the filesystem server starts
+  // with the saved folder rather than restarting straight after launch
+  if (settings.mcp?.workspaceFolder) {
+    await mcpService.setWorkspaceFolder(settings.mcp.workspaceFolder);
   }
 
   // Apply HuggingFace token if configured
@@ -81,6 +100,13 @@ async function setupIpcHandlers() {
     modelDownloadService.setHuggingFaceToken(
       updatedSettings.system.huggingFaceToken
     );
+    // Keeps settings the source of truth (e.g. an imported or reset settings
+    // file). A no-op when the folder chip already applied the same folder.
+    mcpService
+      .setWorkspaceFolder(updatedSettings.mcp?.workspaceFolder ?? null)
+      .catch((error) =>
+        console.error("[main] Failed to apply workspace folder:", error)
+      );
   });
 
   return {
@@ -112,6 +138,7 @@ app.on("window-all-closed", async () => {
       await webCacheService.dispose();
     }
   }
+  stopRunningCommands();
   await mcpService.shutdown();
   if (process.platform !== "darwin") {
     app.quit();

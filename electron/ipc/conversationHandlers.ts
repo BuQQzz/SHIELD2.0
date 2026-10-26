@@ -1,6 +1,7 @@
 import { ipcMain } from "electron";
 import { ConversationStorageService } from "../services/ConversationStorageService.js";
 import { ExportService } from "../services/ExportService.js";
+import { forgetConversation, indexConversation } from "./memoryHandlers.js";
 
 /**
  * Register all conversation management IPC handlers
@@ -8,9 +9,11 @@ import { ExportService } from "../services/ExportService.js";
 export function registerConversationHandlers() {
   const conversationStorage = new ConversationStorageService();
 
-  // Save conversation
+  // Save conversation, and keep SHIELD's memory index in step
   ipcMain.handle("conversations:save", async (_event, conversation) => {
-    return await conversationStorage.saveConversation(conversation);
+    const result = await conversationStorage.saveConversation(conversation);
+    if (result.success) indexConversation(conversation);
+    return result;
   });
 
   // Load conversation
@@ -25,7 +28,9 @@ export function registerConversationHandlers() {
 
   // Delete conversation
   ipcMain.handle("conversations:delete", async (_event, conversationId) => {
-    return await conversationStorage.deleteConversation(conversationId);
+    const result = await conversationStorage.deleteConversation(conversationId);
+    if (result.success) forgetConversation(conversationId);
+    return result;
   });
 
   // Search conversations

@@ -1,4 +1,5 @@
 import type { Message } from "../hooks/useLlama";
+import { useGenerationStore } from "../store/generationStore";
 
 interface EditMessageHandlerProps {
   messages: Message[];
@@ -50,7 +51,7 @@ export function createEditMessageHandler(props: EditMessageHandlerProps) {
     props.streamingContentRef.current = "";
 
     try {
-      await props.sendStreamingMessage(
+      const returned = await props.sendStreamingMessage(
         newContent,
         (token) => {
           props.streamingContentRef.current += token;
@@ -65,12 +66,15 @@ export function createEditMessageHandler(props: EditMessageHandlerProps) {
         }
       );
 
-      const finalContent = props.streamingContentRef.current;
+      // Complete even when late tokens were missed (see messageHandler)
+      const finalContent = returned || props.streamingContentRef.current;
       const finalMessage: Message = {
         id: crypto.randomUUID(),
         role: "assistant",
         content: finalContent,
         timestamp: new Date(),
+        summary: useGenerationStore.getState().lastSummary ?? undefined,
+        capsule: useGenerationStore.getState().lastCapsule ?? undefined,
       };
 
       props.setMessages((prev) => [...prev, finalMessage]);
@@ -110,7 +114,7 @@ export function createRegenerateMessageHandler(props: EditMessageHandlerProps) {
     props.streamingContentRef.current = "";
 
     try {
-      await props.sendStreamingMessage(
+      const returned = await props.sendStreamingMessage(
         userMessage.content,
         (token) => {
           props.streamingContentRef.current += token;
@@ -125,12 +129,15 @@ export function createRegenerateMessageHandler(props: EditMessageHandlerProps) {
         }
       );
 
-      const finalContent = props.streamingContentRef.current;
+      // Complete even when late tokens were missed (see messageHandler)
+      const finalContent = returned || props.streamingContentRef.current;
       const finalMessage: Message = {
         id: crypto.randomUUID(),
         role: "assistant",
         content: finalContent,
         timestamp: new Date(),
+        summary: useGenerationStore.getState().lastSummary ?? undefined,
+        capsule: useGenerationStore.getState().lastCapsule ?? undefined,
       };
 
       props.setMessages((prev) => [...prev, finalMessage]);

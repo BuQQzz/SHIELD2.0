@@ -1,6 +1,76 @@
-import { ipcMain } from "electron";
+import {
+  BrowserWindow,
+  dialog,
+  ipcMain,
+  type OpenDialogOptions,
+} from "electron";
+import dns from "dns/promises";
+import fs from "fs/promises";
+import path from "path";
 import { mcpService } from "../services/MCPService.js";
 import { auditLogService } from "../services/AuditLogService.js";
+import { SettingsStorageService } from "../services/SettingsStorageService.js";
+import { getWebSearchService } from "../services/WebSearchService.js";
+import {
+  isWebTool,
+  runWebTool,
+  WEB_SERVER_NAME,
+  WEB_TOOLS,
+} from "../services/webTools.js";
+import {
+  isTerminalTool,
+  runCommand,
+  runCommandTool,
+  stopRunningCommands,
+  TERMINAL_SERVER_NAME,
+} from "../services/terminalTool.js";
+import {
+  isMemoryTool,
+  MEMORY_SERVER_NAME,
+  MEMORY_TOOLS,
+  runMemoryTool,
+} from "../services/memory/memoryTools.js";
+import { getMemoryIndex } from "./memoryHandlers.js";
+import {
+  isPlanTool,
+  PLAN_SERVER_NAME,
+  runPlanTool,
+  UPDATE_PLAN_TOOL,
+} from "../../src/config/plan.js";
+import {
+  AGENTS_SERVER_NAME,
+  DELEGATE_TOOL,
+  isDelegateTool,
+} from "../../src/agents/delegate.js";
+import type { MCPToolCall, MCPToolResult } from "../services/MCPService.js";
+import { ensurePageCache, fetchPageCached } from "./searchHandlers.js";
+
+const BROWSER_OPTIONS = { blockTrackers: true, useRandomUA: true };
+
+/**
+ * web_search / fetch_page, with the user's current Web Search settings.
+ * Read per call, so switching web search off takes effect at once.
+ */
+async function callWebTool(request: MCPToolCall): Promise<MCPToolResult> {
+  const { webSearch } = await SettingsStorageService.loadSettings();
+  if (webSearch?.enabled && webSearch.cacheEnabled) {
+    await ensurePageCache({ cacheExpiryHours: webSearch.cacheTTL / 60 });
+  }
+  return runWebTool(request.tool, request.arguments ?? {}, {
+    enabled: webSearch?.enabled ?? false,
+    maxResults: webSearch?.maxResults ?? 5,
+    search: (query, maxResults) =>
+      getWebSearchService().search(query, maxResults, {
+        ...BROWSER_OPTIONS,
+        timeout: 15000,
+      }),
+    fetchPage: async (url) =>
+      (await fetchPageCached(url, { ...BROWSER_OPTIONS, timeout: 15000 }))
+        .content,
+    lookup: async (hostname) =>
+      (await dns.lookup(hostname, { all: true })).map((a) => a.address),
+  });
+}
 
 /**
  * Register all MCP (Model Context Protocol) related IPC handlers
@@ -24,7 +94,34 @@ export async function registerMcpHandlers() {
   // Call MCP tool
   ipcMain.handle("mcp:call-tool", async (_event, request) => {
     try {
-      const result = await mcpService.callTool(request);
+      // SHIELD's own web and terminal tools are routed by name as well: a
+      // model writes bare tool names, which the chat assumes are filesystem
+      // tools. Commands run in the open session's project folder.
+      const result =
+        request.serverName === WEB_SERVER_NAME || isWebTool(request.tool)
+          ? await callWebTool(request)
+          : isTerminalTool(request.tool)
+            ? await runCommand(
+                request.arguments ?? {},
+                mcpService.getWorkspaceFolder()
+              )
+            : isMemoryTool(request.tool)
+              ? await runMemoryTool(
+                  request.tool,
+                  request.arguments ?? {},
+                  getMemoryIndex()
+                )
+              : isPlanTool(request.tool)
+                ? runPlanTool(request.arguments ?? {})
+                : isDelegateTool(request.tool)
+                  ? // Runs in the renderer, where the model sessions, the
+                    // permission dialogs and the tools meet (useAgentTeam)
+                    {
+                      success: false,
+                      error:
+                        "delegate is handled by the app, not the tool server",
+                    }
+                  : await mcpService.callTool(request);
 
       // Log the tool call
       const logId = await auditLogService.logToolCall(
@@ -50,7 +147,18 @@ export async function registerMcpHandlers() {
   // List available tools
   ipcMain.handle("mcp:list-tools", async (_event, serverName) => {
     try {
-      const tools = await mcpService.listTools(serverName);
+      const tools =
+        serverName === WEB_SERVER_NAME
+          ? WEB_TOOLS
+          : serverName === TERMINAL_SERVER_NAME
+            ? [runCommandTool()]
+            : serverName === MEMORY_SERVER_NAME
+              ? MEMORY_TOOLS
+              : serverName === PLAN_SERVER_NAME
+                ? [UPDATE_PLAN_TOOL]
+                : serverName === AGENTS_SERVER_NAME
+                  ? [DELEGATE_TOOL]
+                  : await mcpService.listTools(serverName);
       return { success: true, tools };
     } catch (error) {
       console.error("Failed to list MCP tools:", error);
@@ -62,11 +170,82 @@ export async function registerMcpHandlers() {
   });
 
   // Get server configuration
+  ipcMain.handle("mcp:list-servers", async () => {
+    try {
+      // The web and terminal tools are always listed; Settings > Web Search
+      // and the open conversation (code sessions only) decide whether the
+      // model is offered them (useToolPolicy)
+      return {
+        success: true,
+        servers: [
+          ...mcpService.getConnectedServers(),
+          WEB_SERVER_NAME,
+          TERMINAL_SERVER_NAME,
+          MEMORY_SERVER_NAME,
+          PLAN_SERVER_NAME,
+          AGENTS_SERVER_NAME,
+        ],
+      };
+    } catch (error) {
+      console.error("Failed to list MCP servers:", error);
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : "Unknown error",
+      };
+    }
+  });
+
+  // Stop pressed: end any running command and what it started
+  ipcMain.handle("mcp:stop-commands", async () => ({
+    success: true,
+    stopped: stopRunningCommands(),
+  }));
+
   ipcMain.handle("mcp:get-server-config", async (_event, serverName) => {
     try {
       const config = mcpService.getServerConfig(serverName);
       return { success: true, config };
     } catch (error) {
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : "Unknown error",
+      };
+    }
+  });
+
+  // Ask the user for a workspace folder. Returns the path, or null if they
+  // cancelled. Nothing changes until mcp:set-workspace is called with it.
+  ipcMain.handle("mcp:choose-workspace", async (event) => {
+    const window = BrowserWindow.fromWebContents(event.sender);
+    const options: OpenDialogOptions = {
+      properties: ["openDirectory", "createDirectory"],
+      title: "Choose a folder for SHIELD",
+      message: "SHIELD's file tools will only be able to use this folder",
+      defaultPath: mcpService.getWorkspaceFolder() ?? undefined,
+    };
+    const result = window
+      ? await dialog.showOpenDialog(window, options)
+      : await dialog.showOpenDialog(options);
+    return result.canceled ? null : (result.filePaths[0] ?? null);
+  });
+
+  // Point file tools at a folder (or back to the defaults with null) and
+  // wait for the filesystem server to restart with it.
+  ipcMain.handle("mcp:set-workspace", async (_event, folder: unknown) => {
+    try {
+      if (folder !== null) {
+        if (typeof folder !== "string" || !path.isAbsolute(folder)) {
+          return { success: false, error: "Folder must be an absolute path" };
+        }
+        const stats = await fs.stat(folder).catch(() => null);
+        if (!stats?.isDirectory()) {
+          return { success: false, error: `Not a folder: ${folder}` };
+        }
+      }
+      await mcpService.setWorkspaceFolder(folder);
+      return { success: true, folder: mcpService.getWorkspaceFolder() };
+    } catch (error) {
+      console.error("Failed to set workspace folder:", error);
       return {
         success: false,
         error: error instanceof Error ? error.message : "Unknown error",

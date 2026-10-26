@@ -4,20 +4,65 @@ import {
   LlamaModel,
   LlamaContext,
   LlamaChatSession,
-  resolveModelFile,
   resolveChatWrapper,
   InputLookupTokenPredictor,
+  LlamaText,
+  type ChatHistoryItem,
 } from "node-llama-cpp";
+import os from "os";
 import path from "path";
 import { fileURLToPath } from "url";
+import {
+  getModelById,
+  isRuntimeAvailable,
+  type HardwareInfo,
+} from "../config/models.js";
+import { chooseInstalledFile, findGgufFiles } from "./modelFiles.js";
+import { planContext, type ContextPlan } from "./contextPlanner.js";
 import { generateConversationTitle } from "./titleGenerator.js";
+import { NativeChatSession } from "./NativeChatSession.js";
+import { Gemma4ToolChatWrapper } from "./Gemma4ToolChatWrapper.js";
+import type { ToolDefinition } from "../types/prompts.js";
+import type { NativeToolResult } from "../types/nativeTools.js";
+import { buildNativeTools } from "./nativeTools.js";
+import {
+  breakDownContext,
+  type ContextBreakdown,
+  type HistoryItem,
+} from "./contextBreakdown.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const defaultModelsDir = path.join(__dirname, "..", "..", "models");
 
+/**
+ * Tokens Gemma 4 may think before each reply. Without a budget it thought
+ * through all 8,192 tokens and never answered; a thought cut short comes
+ * out broken, so there must be room to finish one. Replaying a 13-file
+ * read-and-write task (2026-09-26): 512 counted over the whole turn broke
+ * every time, 2,048 per reply finished it, leaving half for the reply.
+ */
+export function gemmaThoughtBudget(maxTokens: number): number {
+  return Math.max(1, Math.min(2048, Math.floor(maxTokens / 2)));
+}
+
 export interface ChatMessage {
   role: "user" | "assistant" | "system";
   content: string;
+}
+
+/** How one reply was generated - shown under the message */
+export interface GenerationStats {
+  outputTokens: number;
+  /** Decode speed: output tokens over the time from first to last token */
+  tokensPerSecond: number;
+  /** Whole reply, including prompt processing before the first token */
+  durationMs: number;
+}
+
+/** How full the model's context window is */
+export interface ContextUsage {
+  used: number;
+  size: number;
 }
 
 export interface ChatOptions {
@@ -27,14 +72,50 @@ export interface ChatOptions {
   topK?: number;
   repeatPenalty?: number;
   onToken?: (token: string) => void;
+  /** What the engine is doing, as it happens: for the chat's live status */
+  onProgress?: (progress: ChatProgress) => void;
   signal?: AbortSignal;
+  /** Results of native calls approved and executed by the renderer. */
+  toolResults?: NativeToolResult[];
+  /**
+   * false: a thinking model answers without thinking first. The team's
+   * orchestrator only routes work, and thought made a greeting take 60 s.
+   */
+  thinking?: boolean;
 }
 
+/**
+ * One request as it runs. `contextUsed` is how many tokens the window
+ * holds at that moment, so the context ring can follow along.
+ */
+export type ChatProgress =
+  /** The history was too full: the model is summarising older turns */
+  | { phase: "summarising" }
+  /** Reading the prompt (llama-server); `done` includes the `cached` part */
+  | {
+      phase: "reading";
+      done: number;
+      total: number;
+      cached: number;
+      contextUsed: number;
+    }
+  /** Generating: thinking or the reply itself */
+  | {
+      phase: "writing";
+      generated: number;
+      tokensPerSecond: number;
+      contextUsed: number;
+    };
+
 export interface ModelConfig {
+  /** Library model id (src/config/models.ts) */
+  id: string;
   name: string;
   uri: string;
   contextSize?: number;
   speculativeDecoding?: boolean; // Enable input lookup token prediction
+  /** The user chose to load despite a low-memory warning */
+  allowLowMemory?: boolean;
 }
 
 /**
@@ -46,10 +127,17 @@ export class LlamaService {
   private model: LlamaModel | null = null;
   private context: LlamaContext | null = null;
   private session: LlamaChatSession | null = null;
+  private nativeSession: NativeChatSession | null = null;
+  private nativeTools: ToolDefinition[] = [];
   private currentModelConfig: ModelConfig | null = null;
   private currentAbortController: AbortController | null = null;
+  private lastStats: GenerationStats | null = null;
   private systemPrompt: string = "You are a helpful AI assistant.";
   private customModelsDir: string | undefined;
+  /** The user's context choice for the loaded model (undefined = auto) */
+  private requestedContextSize: number | undefined;
+  /** Per model file; reading GGUF insights takes a moment */
+  private contextPlans = new Map<string, Promise<ContextPlan>>();
 
   /**
    * Set custom models directory from settings
@@ -73,32 +161,61 @@ export class LlamaService {
     this.llama = await getLlama();
   }
 
+  /** The llama.cpp bindings, e.g. for reading GGUF insights */
+  async getLlama(): Promise<Llama> {
+    await this.initialize();
+    if (!this.llama) throw new Error("LlamaService not initialized");
+    return this.llama;
+  }
+
+  /**
+   * GPU memory and system RAM in GB, for picking quantizations and
+   * recommending models. VRAM is null when no GPU backend is available.
+   */
+  async getHardwareInfo(): Promise<HardwareInfo> {
+    await this.initialize();
+    const ramGB = os.totalmem() / 2 ** 30;
+    if (!this.llama || this.llama.gpu === false) {
+      return { vramGB: null, ramGB };
+    }
+    const { total } = await this.llama.getVramState();
+    return { vramGB: total / 2 ** 30, ramGB };
+  }
+
   /**
    * Set the system prompt for the AI assistant
-   * Applies immediately by recreating the session while preserving chat history
+   * Applies immediately while preserving chat history and its active sequence
    */
-  async setSystemPrompt(prompt: string): Promise<void> {
+  async setSystemPrompt(
+    prompt: string,
+    tools?: ToolDefinition[]
+  ): Promise<void> {
+    const toolsChanged =
+      tools !== undefined &&
+      JSON.stringify(tools) !== JSON.stringify(this.nativeTools);
+    if (prompt === this.systemPrompt && !toolsChanged) return;
     this.systemPrompt = prompt;
+    if (tools !== undefined) this.nativeTools = tools;
+    if (this.session?.chatWrapper instanceof Gemma4ToolChatWrapper) {
+      this.session.chatWrapper.setAvailableFunctions(
+        buildNativeTools(this.nativeTools).functions
+      );
+    }
 
     // Apply immediately if we have an active session
     if (this.context && this.session && this.model) {
-      // Save current chat history
-      const currentHistory = this.session.getChatHistory();
+      this.nativeSession?.cancelPending();
+      // Save current chat history, minus the old system message - restoring it
+      // verbatim would immediately overwrite the prompt we are setting here.
+      const currentHistory = this.session
+        .getChatHistory()
+        .filter((item) => item.type !== "system");
 
-      // Resolve chat wrapper from model to maintain correct template format
-      const chatWrapper = resolveChatWrapper(this.model);
-
-      // Recreate session with new system prompt
-      this.session = new LlamaChatSession({
-        contextSequence: this.context.getSequence(),
-        chatWrapper,
-        systemPrompt: this.systemPrompt,
-      });
-
-      // Restore chat history
-      if (currentHistory && currentHistory.length > 0) {
-        this.session.setChatHistory(currentHistory);
-      }
+      // Restore chat history re-anchored on the new system prompt
+      this.session.setChatHistory([
+        { type: "system", text: this.systemPrompt },
+        ...currentHistory,
+      ]);
     }
   }
 
@@ -110,16 +227,18 @@ export class LlamaService {
   }
 
   /**
-   * Load a model from Hugging Face URI
+   * Load a library model. `config.contextSize` is the user's choice for
+   * this model; without one the context plan's recommendation is used.
    */
   async loadModel(config: ModelConfig): Promise<{ warning?: string }> {
     if (!this.llama) {
       throw new Error("LlamaService not initialized. Call initialize() first");
     }
 
-    // Check if model is already loaded
+    // Already loaded with the same context choice
     if (
       this.currentModelConfig?.uri === config.uri &&
+      this.requestedContextSize === config.contextSize &&
       this.model &&
       this.context &&
       this.session
@@ -130,30 +249,25 @@ export class LlamaService {
     // Clean up existing resources
     await this.cleanup();
 
-    // Resolve and load model
-    const modelsDir = this.getModelsDir();
-    let modelPath: string;
+    const modelPath = await this.resolveModelPath(config.id);
 
-    // Check if it's a custom local file (file:// URI) or Hugging Face URI
-    if (config.uri.startsWith("file://")) {
-      // Custom model: extract filename and build path
-      const filename = config.uri.replace("file://", "");
-      modelPath = path.join(modelsDir, filename);
-    } else {
-      // Standard Hugging Face model
-      modelPath = await resolveModelFile(config.uri, modelsDir);
-    }
+    let contextSize =
+      config.contextSize ?? (await this.planContextFor(modelPath)).recommended;
+    this.requestedContextSize = config.contextSize;
+    console.log(
+      `[LlamaService] Context: ${contextSize} tokens (${config.contextSize ? "chosen" : "recommended"})`
+    );
 
-    // Load model with automatic GPU layer offloading
-    // "auto" tells llama.cpp to fit as many layers as possible in VRAM,
-    // and automatically offload remaining layers to system RAM
-    // This enables running large models (e.g., 32B) on GPUs with limited VRAM
+    // Split layers between VRAM and system RAM, leaving VRAM for the
+    // requested context. Plain "auto" fills the GPU with layers first, so on
+    // large models (Qwen3-Coder 30B on 12 GB) the context no longer fit and
+    // was shrunk below - silently cutting the window that tool schemas and
+    // tool results need. A few more layers in RAM is the better trade.
     this.model = await this.llama.loadModel({
       modelPath,
-      gpuLayers: "auto", // Automatically split between VRAM and RAM
+      gpuLayers: { fitContext: { contextSize } },
     });
 
-    let contextSize = config.contextSize || 2048;
     let warning: string | undefined;
 
     // Try to create context with requested size, fallback if insufficient VRAM
@@ -177,7 +291,9 @@ export class LlamaService {
         );
 
         // Try progressively smaller context sizes
-        const fallbackSizes = [16384, 8192, 4096, 2048, 1024, 512];
+        const fallbackSizes = [
+          65536, 32768, 16384, 8192, 4096, 2048, 1024, 512,
+        ];
 
         for (const fallbackSize of fallbackSizes) {
           if (fallbackSize >= contextSize) continue; // Skip if not smaller
@@ -221,12 +337,15 @@ export class LlamaService {
     // Create chat session with system prompt
     // Explicitly resolve chat wrapper from model's GGUF metadata to ensure
     // correct template format (Llama, Qwen, Mistral, etc.) is used
-    const chatWrapper = resolveChatWrapper(this.model);
+    const chatWrapper = config.id.startsWith("gemma-4-")
+      ? new Gemma4ToolChatWrapper()
+      : resolveChatWrapper(this.model);
 
     // Create context sequence with optional speculative decoding
-    // InputLookupTokenPredictor speeds up generation for input-grounded tasks
-    // (code modification, summarization, etc.) by predicting tokens from input
-    const useSpeculativeDecoding = config.speculativeDecoding ?? true;
+    // Input lookup helps some input-grounded tasks, but slows Gemma 4 down
+    // substantially on the supported CUDA runtime. Keep an explicit override.
+    const useSpeculativeDecoding =
+      config.speculativeDecoding ?? !config.id.startsWith("gemma-4-");
     const contextSequence = this.context.getSequence({
       tokenPredictor: useSpeculativeDecoding
         ? new InputLookupTokenPredictor({
@@ -254,6 +373,74 @@ export class LlamaService {
   }
 
   /**
+   * Context sizes for an installed library model and how much of it each
+   * leaves on the GPU, plus the recommended size.
+   */
+  async getContextPlan(modelId: string): Promise<ContextPlan> {
+    await this.initialize();
+    return this.planContextFor(await this.resolveModelPath(modelId));
+  }
+
+  private planContextFor(modelPath: string): Promise<ContextPlan> {
+    let plan = this.contextPlans.get(modelPath);
+    if (!plan) {
+      const llama = this.llama;
+      if (!llama) throw new Error("LlamaService not initialized");
+      plan = llama
+        .getVramState()
+        .then(({ total }) => planContext(modelPath, llama, total))
+        .then((result) => {
+          const sizes = result.options
+            .map(
+              (o) =>
+                `${o.contextSize / 1024}K ${o.gpuLayers}/${result.totalLayers}`
+            )
+            .join(", ");
+          console.log(
+            `[LlamaService] Context plan for ${path.basename(modelPath)} ` +
+              `(${llama.gpu || "cpu"}): ${sizes} -> ${result.recommended / 1024}K`
+          );
+          return result;
+        });
+      // A failed read should not stick
+      plan.catch(() => this.contextPlans.delete(modelPath));
+      this.contextPlans.set(modelPath, plan);
+    }
+    return plan;
+  }
+
+  /**
+   * Find the file to load for a library model. Loading never downloads -
+   * that is an explicit choice in the model browser.
+   */
+  async resolveModelPath(modelId: string): Promise<string> {
+    const model = getModelById(modelId);
+    if (!model) {
+      throw new Error(`Unknown model "${modelId}". Pick one from the library.`);
+    }
+    if (!isRuntimeAvailable(model)) {
+      throw new Error(
+        `${model.displayName} needs a runtime SHIELD does not support yet.`
+      );
+    }
+
+    const modelsDir = this.getModelsDir();
+    const { vramGB } = await this.getHardwareInfo();
+    const chosen = chooseInstalledFile(
+      model,
+      await findGgufFiles(modelsDir),
+      vramGB
+    );
+    if (!chosen) {
+      throw new Error(
+        `${model.displayName} is not installed in ${modelsDir}. Download it from Browse & Download Models.`
+      );
+    }
+    console.log(`[LlamaService] Loading ${model.id} from ${chosen.path}`);
+    return chosen.path;
+  }
+
+  /**
    * Send a message and get a response
    */
   async chat(message: string, options: ChatOptions = {}): Promise<string> {
@@ -272,36 +459,129 @@ export class LlamaService {
 
     // Create abort controller for this request
     this.currentAbortController = new AbortController();
-    const signal = options.signal || this.currentAbortController.signal;
+    const signal = options.signal
+      ? AbortSignal.any([options.signal, this.currentAbortController.signal])
+      : this.currentAbortController.signal;
+
+    const sequence = this.session.sequence;
+    const outputTokensBefore = sequence.tokenMeter.usedOutputTokens;
+    const inputTokensBefore = sequence.tokenMeter.usedInputTokens;
+    const startedAt = performance.now();
+    let firstTokenAt: number | null = null;
+    let streamedVisible = "";
+    let unsupportedNativeCall = false;
 
     try {
       console.log("[LlamaService] Starting inference...");
-      const response = await this.session.prompt(message, {
+      const maxTokens = options.maxTokens ?? 512;
+      // Gemma 4's wrapper enables thought segments; gemmaThoughtBudget
+      // keeps them from taking the whole reply
+      const isGemma4 = this.currentModelConfig?.id.startsWith("gemma-4-");
+      const useNativeTools = isGemma4 && this.nativeTools.length > 0;
+      if (options.toolResults !== undefined && !useNativeTools) {
+        throw new Error(
+          "Native tool results cannot be used by the current model."
+        );
+      }
+      const reportProgress = () => {
+        firstTokenAt ??= performance.now();
+        if (options.onProgress) {
+          const generated =
+            sequence.tokenMeter.usedOutputTokens - outputTokensBefore;
+          const seconds = (performance.now() - firstTokenAt) / 1000;
+          options.onProgress({
+            phase: "writing",
+            generated,
+            tokensPerSecond: seconds > 0 ? generated / seconds : 0,
+            contextUsed: sequence.nextTokenIndex,
+          });
+        }
+      };
+      const promptOptions = {
         temperature: options.temperature ?? 0.7,
-        maxTokens: options.maxTokens ?? 512,
+        maxTokens,
         topP: options.topP ?? 0.9,
         topK: options.topK ?? 40,
         repeatPenalty: options.repeatPenalty
           ? { penalty: options.repeatPenalty }
           : { penalty: 1.1 },
-        onTextChunk: options.onToken
-          ? (chunk: string) => {
-              console.log(
-                "[LlamaService] Token received:",
-                chunk.substring(0, 20)
-              );
-              options.onToken!(chunk);
+        ...(isGemma4
+          ? {
+              budgets: {
+                thoughtTokens: gemmaThoughtBudget(maxTokens),
+                // Per reply, not per turn: counted across a turn's tool
+                // rounds, the old 512 ran out by the third, and a thought
+                // cut short streamed into the chat as garbage (2026-09-26)
+                includeCurrentResponse: false,
+              },
             }
-          : undefined,
+          : {}),
+        // No per-token logging: at 10-50 tokens/s it drowned the log
+        onTextChunk: (chunk: string) => {
+          streamedVisible += chunk;
+          options.onToken?.(chunk);
+          reportProgress();
+          // A raw marker means the native bridge did not capture this call
+          // (for example, tools are disabled). Never pass it off as executed.
+          if (
+            isGemma4 &&
+            !useNativeTools &&
+            streamedVisible.includes("<|tool_call>")
+          ) {
+            unsupportedNativeCall = true;
+            this.currentAbortController?.abort();
+          }
+        },
+        // onTextChunk excludes Gemma thought segments. Keep the live token
+        // counter moving while thought is hidden from the visible reply.
+        onResponseChunk: reportProgress,
         signal,
-      });
+      };
+      let result: { responseText: string; stopReason: string };
+      if (useNativeTools) {
+        this.nativeSession ??= new NativeChatSession(this.session);
+        result = await this.nativeSession.prompt(
+          message,
+          this.nativeTools,
+          promptOptions,
+          options.toolResults
+        );
+      } else {
+        result = await this.session.promptWithMeta(message, promptOptions);
+      }
+      const response = result.responseText;
 
+      const endedAt = performance.now();
+      const outputTokens =
+        sequence.tokenMeter.usedOutputTokens - outputTokensBefore;
+      const decodeSeconds = (endedAt - (firstTokenAt ?? startedAt)) / 1000;
+      this.lastStats = {
+        outputTokens,
+        tokensPerSecond: decodeSeconds > 0 ? outputTokens / decodeSeconds : 0,
+        durationMs: endedAt - startedAt,
+      };
+
+      // Time before the first token is the model reading the prompt; with
+      // part of a large model in system RAM it can run to minutes, which
+      // looked like a hang (2026-09-23). Logged so it can be told apart.
+      const readingSeconds = ((firstTokenAt ?? endedAt) - startedAt) / 1000;
       console.log(
-        "[LlamaService] Inference complete, response length:",
-        response.length
+        `[LlamaService] Inference complete: ${outputTokens} tokens, ` +
+          `${this.lastStats.tokensPerSecond.toFixed(1)} tok/s, ` +
+          `first token after ${readingSeconds.toFixed(1)}s, ` +
+          `input ${sequence.tokenMeter.usedInputTokens - inputTokensBefore} tokens, ` +
+          `context ${sequence.nextTokenIndex}/${sequence.contextSize}, ` +
+          `stop ${result.stopReason}, visible ${response.length} chars`
       );
       return response;
     } catch (error) {
+      if (unsupportedNativeCall) {
+        console.warn(
+          `[LlamaService] Stopped unsupported Gemma 4 native tool call after ` +
+            `${sequence.tokenMeter.usedOutputTokens - outputTokensBefore} output tokens`
+        );
+        return streamedVisible;
+      }
       console.error("[LlamaService] Chat error:", error);
       throw error;
     } finally {
@@ -337,53 +617,69 @@ export class LlamaService {
    * Preserves the current system prompt
    */
   setChatHistory(messages: ChatMessage[]): void {
+    this.nativeSession?.dispose();
+    this.nativeSession = null;
     if (this.session) {
-      // Convert our ChatMessage format to LlamaChatSession format
-      const chatHistory = messages.map((msg) => {
-        if (msg.role === "user") {
-          return { type: "user" as const, text: msg.content };
-        } else {
-          // assistant messages are "model" responses in llama.cpp
-          return { type: "model" as const, response: [msg.content] };
-        }
-      });
-      this.session.setChatHistory(chatHistory);
+      this.session.setChatHistory(this.buildSessionHistory(messages));
     }
+  }
+
+  /**
+   * Convert our ChatMessage list into the session's history format.
+   *
+   * LlamaChatSession.setChatHistory REPLACES the whole history, so the system
+   * message has to be re-supplied every time. Leaving it out silently strips
+   * the system prompt - including the MCP tool instructions - from the model's
+   * context, which makes the model answer that it has no tools.
+   */
+  private buildSessionHistory(messages: ChatMessage[]): ChatHistoryItem[] {
+    const history: ChatHistoryItem[] = [
+      { type: "system", text: this.systemPrompt },
+    ];
+
+    for (const msg of messages) {
+      // The system prompt is already anchored above
+      if (msg.role === "system") continue;
+
+      if (msg.role === "user") {
+        history.push({ type: "user", text: msg.content });
+      } else {
+        // assistant messages are "model" responses in llama.cpp
+        history.push({ type: "model", response: [msg.content] });
+      }
+    }
+
+    return history;
   }
 
   /**
    * Clear chat history
    */
   clearHistory(): void {
+    this.nativeSession?.dispose();
+    this.nativeSession = null;
     if (this.session) {
-      this.session.setChatHistory([]);
+      // Clear the conversation but keep the system prompt in place
+      this.session.setChatHistory(this.buildSessionHistory([]));
     }
   }
 
   /**
    * Apply updated system prompt to current session
-   * Recreates the chat session with new system prompt while preserving context
+   * Preserve the session and context while changing the prompt or native tools
    */
-  async applySystemPrompt(prompt: string): Promise<void> {
-    this.systemPrompt = prompt;
-
-    if (this.context && this.model) {
-      // Resolve chat wrapper from model to maintain correct template format
-      const chatWrapper = resolveChatWrapper(this.model);
-
-      // Recreate session with new system prompt
-      this.session = new LlamaChatSession({
-        contextSequence: this.context.getSequence(),
-        chatWrapper,
-        systemPrompt: this.systemPrompt,
-      });
-    }
+  async applySystemPrompt(
+    prompt: string,
+    tools?: ToolDefinition[]
+  ): Promise<void> {
+    await this.setSystemPrompt(prompt, tools);
   }
 
   /**
    * Stop the current generation
    */
   stopGeneration(): void {
+    this.nativeSession?.cancelPending();
     if (this.currentAbortController) {
       this.currentAbortController.abort();
       this.currentAbortController = null;
@@ -393,6 +689,73 @@ export class LlamaService {
   /**
    * Get current model info
    */
+  /** Stats for the most recent reply, or null before the first */
+  getLastStats(): GenerationStats | null {
+    return this.lastStats;
+  }
+
+  /**
+   * Tokens the model sees, or null with no model. Derived from the same
+   * breakdown as the context panel so the ring and the panel always agree.
+   */
+  getContextUsage(): ContextUsage | null {
+    const breakdown = this.getContextBreakdown();
+    return breakdown ? { used: breakdown.used, size: breakdown.size } : null;
+  }
+
+  /**
+   * What is filling the context window, by kind. Tokenises the whole
+   * session history, so it is computed on demand (when the user opens the
+   * context panel), not after every reply.
+   */
+  getContextBreakdown(): ContextBreakdown | null {
+    if (!this.session || !this.context || !this.model) return null;
+    const model = this.model;
+    const sequence = this.session.sequence;
+    const chatHistory = this.session.getChatHistory();
+
+    // Exactly what the next prompt would load, template tokens included
+    const rendered = this.session.chatWrapper
+      .generateContextState({
+        chatHistory,
+        ...(this.currentModelConfig?.id.startsWith("gemma-4-") &&
+        this.nativeTools.length > 0
+          ? { availableFunctions: buildNativeTools(this.nativeTools).functions }
+          : {}),
+      })
+      .contextText.tokenize(model.tokenizer).length;
+
+    const history: HistoryItem[] = chatHistory.map((item): HistoryItem => {
+      if (item.type === "system") {
+        return {
+          type: "system",
+          text:
+            typeof item.text === "string"
+              ? item.text
+              : LlamaText.fromJSON(item.text).toString(),
+        };
+      }
+      if (item.type === "user") return { type: "user", text: item.text };
+      return {
+        type: "model",
+        response: item.response.map((piece) =>
+          typeof piece === "string"
+            ? piece
+            : {
+                type: piece.type,
+                text: "text" in piece ? String(piece.text) : undefined,
+              }
+        ),
+      };
+    });
+
+    return breakDownContext(history, (text) => model.tokenize(text).length, {
+      rendered,
+      size: sequence.contextSize,
+      trainContextSize: model.trainContextSize,
+    });
+  }
+
   getModelInfo(): ModelConfig | null {
     return this.currentModelConfig;
   }
@@ -410,14 +773,28 @@ export class LlamaService {
    * Clean up resources
    */
   async cleanup(): Promise<void> {
+    const { context, model } = this;
+    this.nativeSession?.dispose();
+    this.nativeSession = null;
     this.session = null;
     this.context = null;
-
-    if (this.model) {
-      this.model = null;
-    }
-
+    this.model = null;
     this.currentModelConfig = null;
+    this.requestedContextSize = undefined;
+
+    // Free VRAM now rather than at garbage collection: the next model, or
+    // a llama-server taking over, needs it straight away. Separately, so a
+    // context that fails to dispose does not leave the weights loaded.
+    try {
+      await context?.dispose();
+    } catch (error) {
+      console.warn("[LlamaService] Failed to free the context:", error);
+    }
+    try {
+      await model?.dispose();
+    } catch (error) {
+      console.warn("[LlamaService] Failed to free the model:", error);
+    }
   }
 
   /**
@@ -427,8 +804,24 @@ export class LlamaService {
     if (!this.session) {
       throw new Error("No active session");
     }
-
-    return generateConversationTitle(this.session, userMessage);
+    const session = this.session;
+    const history = session.getChatHistory();
+    const wrapper = session.chatWrapper;
+    if (wrapper instanceof Gemma4ToolChatWrapper) {
+      wrapper.setAvailableFunctions({});
+    }
+    try {
+      return await generateConversationTitle(session, userMessage);
+    } finally {
+      // Titles are metadata. Keep their extra prompt/reply out of the user's
+      // conversation and out of a pending native tool turn.
+      session.setChatHistory(history);
+      if (wrapper instanceof Gemma4ToolChatWrapper) {
+        wrapper.setAvailableFunctions(
+          buildNativeTools(this.nativeTools).functions
+        );
+      }
+    }
   }
 
   /**

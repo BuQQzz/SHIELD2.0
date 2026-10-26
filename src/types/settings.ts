@@ -3,9 +3,27 @@ export interface ModelSettings {
   topP: number;
   topK: number;
   repeatPenalty: number;
+  /** Unused - context size is chosen per model (contextByModel) */
   contextLength: number;
+  /** Context size chosen per library model id; absent = recommended */
+  contextByModel?: Record<string, number>;
+  /** Models whose "runs partly from system RAM" explanation was dismissed */
+  ramNoticeSeen?: string[];
+  /**
+   * Load the last model when SHIELD starts. Off by default: a large model
+   * takes the GPU and up to ~12 GB of RAM, so loading is the user's call.
+   */
+  loadOnStartup?: boolean;
+  /** Library id of the last model loaded, offered first at startup */
+  lastModelId?: string;
   maxTokens: number;
   speculativeDecoding: boolean; // Use input lookup token prediction for faster inference
+  /**
+   * Use the sampling the loaded model recommends (its file, else SHIELD's
+   * catalog) instead of temperature/topP/topK/repeatPenalty above. Absent
+   * means on.
+   */
+  useModelSampling?: boolean;
 }
 
 export interface SystemSettings {
@@ -31,15 +49,31 @@ export interface WebSearchSettings {
   showReasoning: boolean; // Show LLM's step-by-step reasoning for web search answers
 }
 
+/**
+ * How much autonomy MCP tool calls are granted.
+ *
+ * - ask      every tool call prompts (default)
+ * - auto     reads run immediately, mutating tools still prompt
+ * - plan     the model states what it intends to do, nothing executes
+ * - readonly mutating tools are not even offered to the model
+ */
+export type PermissionMode = "ask" | "auto" | "plan" | "readonly";
+
 export interface MCPSettings {
   enabled: boolean;
-  allowedServers: string[];
+  /** How much autonomy tool calls get this turn */
+  mode: PermissionMode;
   allowedTools: string[];
-  showPermissionDialog: boolean;
-  rememberChoices: boolean;
   auditLogRetentionDays: number;
-  hybridParserEnabled: boolean;
+  /** Max tool calls executed in a single round */
   maxToolCallsPerTurn: number;
+  /** Max tool -> result -> tool cycles in a single turn */
+  maxToolRounds: number;
+  /**
+   * Folder file tools may use. Unset means the defaults (Documents and
+   * Desktop). Chosen from the folder chip next to the composer.
+   */
+  workspaceFolder?: string;
 }
 
 export interface AppSettings {
@@ -52,6 +86,32 @@ export interface AppSettings {
 
 // Import the default prompt from systemPrompts config
 import { getDefaultSystemPrompt } from "../config/systemPrompts";
+
+/** Mirrors electron/services/settings/SettingsCategories.ts.
+ *
+ * Every tool @modelcontextprotocol/server-filesystem exposes (2026.8.x).
+ * All allowed by default: the permission mode (Ask / Auto / Plan /
+ * Read-only) decides what needs approval, so the allowlist only exists for
+ * users who want to switch individual tools off.
+ */
+export const FILESYSTEM_TOOLS = [
+  "read_text_file",
+  "read_media_file",
+  "read_multiple_files",
+  "read_file",
+  "list_directory",
+  "list_directory_with_sizes",
+  "directory_tree",
+  "search_files",
+  "get_file_info",
+  "list_allowed_directories",
+  "write_file",
+  "edit_file",
+  "create_directory",
+  "move_file",
+  // SHIELD's own: moves to the Recycle Bin (the server has no delete)
+  "delete_file",
+];
 
 export const DEFAULT_SETTINGS: AppSettings = {
   model: {
@@ -84,12 +144,10 @@ export const DEFAULT_SETTINGS: AppSettings = {
   },
   mcp: {
     enabled: true,
-    allowedServers: ["filesystem"],
-    allowedTools: ["read_file", "write_file", "list_directory"],
-    showPermissionDialog: true,
-    rememberChoices: false,
+    mode: "ask",
+    allowedTools: [...FILESYSTEM_TOOLS],
     auditLogRetentionDays: 30,
-    hybridParserEnabled: true,
     maxToolCallsPerTurn: 5,
+    maxToolRounds: 20,
   },
 };

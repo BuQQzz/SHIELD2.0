@@ -1,10 +1,11 @@
 import { useCallback, type MutableRefObject } from "react";
 import type { Message } from "./useLlama";
+import type { ConversationKind } from "../types/conversation";
 import type { ModelSettings } from "../types/settings";
 import type { ChatInputRef } from "../components/chat/ChatInput";
-import type { SearchResult, PageContent } from "../types/electron";
 import type { ToolCallRequest } from "../handlers/mcpToolHandler";
 import type { MCPToolResult } from "@/types";
+import { useGenerationStore } from "../store/generationStore";
 import { createMessageHandler } from "../handlers/messageHandler";
 import { createContinuationHandler } from "../handlers/continuationHandler";
 import {
@@ -51,14 +52,12 @@ interface UseAppHandlersProps {
   stopGeneration: () => Promise<void>;
   clearHistory: () => Promise<void>;
   setChatHistory: (messages: Message[]) => Promise<void>;
-  createNewConversation: (title: string, modelId: string) => void;
+  createNewConversation: (
+    title: string,
+    modelId: string,
+    session?: { kind: ConversationKind; projectId?: string }
+  ) => void;
   setSystemPrompt: (prompt: string) => Promise<void>;
-  performWebSearch?: (query: string) => Promise<{
-    results: SearchResult[];
-    contents: PageContent[];
-  } | null>;
-  setIsSearching?: React.Dispatch<React.SetStateAction<boolean>>;
-  clearResults?: () => void;
   handleToolCallRequest?: (request: ToolCallRequest) => Promise<MCPToolResult>;
   isMCPReady?: boolean;
 }
@@ -84,9 +83,6 @@ export function useAppHandlers({
   setChatHistory,
   createNewConversation,
   setSystemPrompt,
-  performWebSearch,
-  setIsSearching,
-  clearResults,
   handleToolCallRequest,
   isMCPReady,
 }: UseAppHandlersProps) {
@@ -103,14 +99,16 @@ export function useAppHandlers({
     updateTitle,
     saveCurrentConversation,
     modelSettings,
-    performWebSearch,
-    setIsSearching,
     handleToolCallRequest,
     isMCPReady,
   });
 
   const handleStopGenerating = useCallback(async () => {
     try {
+      // Before aborting, so the tool loop sees it when the reply returns
+      useGenerationStore.getState().setStopRequested(true);
+      // A command run_command is running would otherwise go on to its timeout
+      void window.electronAPI?.mcp?.stopCommands?.();
       await stopGeneration();
       setIsGenerating(false);
 
@@ -150,23 +148,28 @@ export function useAppHandlers({
     }
   }, [clearHistory, setMessages]);
 
-  const handleNewChat = useCallback(() => {
-    if (currentConversation && currentConversation.messages.length > 0) {
-      saveCurrentConversation();
-    }
-    createNewConversation("New Chat", currentModelId);
-    setMessages([]);
-    clearHistory();
-    clearResults?.();
-  }, [
-    currentConversation,
-    saveCurrentConversation,
-    createNewConversation,
-    currentModelId,
-    clearHistory,
-    clearResults,
-    setMessages,
-  ]);
+  const handleNewChat = useCallback(
+    (projectId?: string) => {
+      if (currentConversation && currentConversation.messages.length > 0) {
+        saveCurrentConversation();
+      }
+      createNewConversation(
+        "New Chat",
+        currentModelId,
+        projectId ? { kind: "chat", projectId } : undefined
+      );
+      setMessages([]);
+      clearHistory();
+    },
+    [
+      currentConversation,
+      saveCurrentConversation,
+      createNewConversation,
+      currentModelId,
+      clearHistory,
+      setMessages,
+    ]
+  );
 
   const handleContinue = createContinuationHandler({
     messages,

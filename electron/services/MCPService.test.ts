@@ -2,11 +2,13 @@
  * MCPService Tests
  */
 
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, afterEach } from "vitest";
 import {
+  resolveToolPaths,
   validateFilesystemPath,
   OFFICIAL_MCP_SERVERS,
 } from "./MCPServerConfig";
+import fs from "fs";
 import path from "path";
 import os from "os";
 
@@ -36,11 +38,134 @@ describe("MCPServerConfig", () => {
       expect(result.error).toContain("Access denied");
     });
 
-    it("should reject when no path is provided", () => {
-      const result = validateFilesystemPath({}, config);
+    // list_allowed_directories takes no arguments. Rejecting calls without a
+    // "path" meant it, move_file and read_multiple_files could never run.
+    it("allows a tool call that has no path argument", () => {
+      expect(validateFilesystemPath({}, config).success).toBe(true);
+    });
+
+    it("rejects an empty path", () => {
+      const result = validateFilesystemPath({ path: "" }, config);
 
       expect(result.success).toBe(false);
       expect(result.error).toBe("No path provided");
+    });
+
+    it("checks both ends of a move", () => {
+      const inside = path.join(os.homedir(), "Documents", "a.txt");
+      const outside = "C:/Windows/System32/a.txt";
+
+      expect(
+        validateFilesystemPath({ source: inside, destination: inside }, config)
+          .success
+      ).toBe(true);
+      expect(
+        validateFilesystemPath({ source: inside, destination: outside }, config)
+          .success
+      ).toBe(false);
+    });
+
+    it("checks every path in read_multiple_files", () => {
+      const inside = path.join(os.homedir(), "Desktop", "a.txt");
+      const outside = "C:/Windows/win.ini";
+
+      expect(validateFilesystemPath({ paths: [inside] }, config).success).toBe(
+        true
+      );
+      expect(
+        validateFilesystemPath({ paths: [inside, outside] }, config).success
+      ).toBe(false);
+    });
+
+    // The tests run inside ~/Desktop, an allowed folder: a relative path
+    // resolved against the process directory used to pass for that reason.
+    it("never judges a relative path by the process directory", () => {
+      for (const relative of ["README.md", "./src/x.ts", "../etc/passwd"]) {
+        const result = validateFilesystemPath(
+          { path: relative },
+          {
+            ...config,
+            allowedPaths: [process.cwd()],
+          }
+        );
+        expect(result.success).toBe(false);
+        expect(result.error).toContain("not an absolute path");
+      }
+    });
+
+    describe("symlinks", () => {
+      const made: string[] = [];
+      const tmp = () => {
+        const dir = fs.realpathSync(
+          fs.mkdtempSync(path.join(os.tmpdir(), "shield-paths-"))
+        );
+        made.push(dir);
+        return dir;
+      };
+      afterEach(() => {
+        for (const dir of made.splice(0)) {
+          fs.rmSync(dir, { recursive: true, force: true });
+        }
+      });
+      const it_ = process.platform === "win32" ? it.skip : it;
+
+      it_("refuses a link inside the folder that leads outside it", () => {
+        const allowed = tmp();
+        const secret = tmp();
+        fs.writeFileSync(path.join(secret, "key.txt"), "secret");
+        fs.symlinkSync(secret, path.join(allowed, "link"));
+        const cfg = { ...config, allowedPaths: [allowed] };
+
+        for (const target of [
+          path.join(allowed, "link", "key.txt"),
+          path.join(allowed, "link", "new-file.txt"), // not written yet
+        ]) {
+          const result = validateFilesystemPath({ path: target }, cfg);
+          expect(result.success).toBe(false);
+          expect(result.error).toContain("Access denied");
+        }
+      });
+
+      it_("allows a link that stays inside the folder", () => {
+        const allowed = tmp();
+        fs.mkdirSync(path.join(allowed, "real"));
+        fs.symlinkSync(path.join(allowed, "real"), path.join(allowed, "alias"));
+        const cfg = { ...config, allowedPaths: [allowed] };
+
+        expect(
+          validateFilesystemPath(
+            { path: path.join(allowed, "alias", "a.txt") },
+            cfg
+          ).success
+        ).toBe(true);
+      });
+
+      it_("allows paths below an allowed folder that is itself a link", () => {
+        const real = tmp();
+        const holder = tmp();
+        const linked = path.join(holder, "Desktop");
+        fs.symlinkSync(real, linked);
+        const cfg = { ...config, allowedPaths: [linked] };
+
+        expect(
+          validateFilesystemPath({ path: path.join(linked, "a.txt") }, cfg)
+            .success
+        ).toBe(true);
+      });
+
+      it_("is not fooled by a sibling folder with the same prefix", () => {
+        const base = tmp();
+        fs.mkdirSync(path.join(base, "work"));
+        fs.mkdirSync(path.join(base, "work-secrets"));
+        const cfg = { ...config, allowedPaths: [path.join(base, "work")] };
+
+        expect(
+          validateFilesystemPath(
+            { path: path.join(base, "work-secrets", "a.txt") },
+            cfg
+          ).success
+        ).toBe(false);
+      });
     });
 
     it("should normalize paths before validation", () => {
@@ -81,5 +206,95 @@ describe("MCPServerConfig", () => {
       expect(permissions).toContain("write");
       expect(permissions).toContain("list");
     });
+  });
+});
+
+// Captured in the app, 2026-09-22: Qwen3-Coder sent {"path": "."} for
+// "what's in this folder?" and SHIELD resolved it to its own install
+// directory, denied it, and the model apologised for a correct call.
+describe("resolveToolPaths", () => {
+  const workspace = path.join(os.homedir(), "Projects", "app");
+
+  it("resolves '.' to the workspace, not the process directory", () => {
+    expect(resolveToolPaths({ path: "." }, workspace).path).toBe(workspace);
+  });
+
+  it.skipIf(process.platform === "win32")(
+    "leaves a Windows drive or UNC path alone off Windows, so it is refused",
+    () => {
+      for (const foreign of [
+        "C:\\Windows\\System32\\x.txt",
+        "c:/Windows/x.txt",
+        "\\\\server\\share\\x.txt",
+      ]) {
+        expect(resolveToolPaths({ path: foreign }, workspace).path).toBe(
+          foreign
+        );
+      }
+    }
+  );
+
+  it("resolves bare file names inside the workspace", () => {
+    expect(resolveToolPaths({ path: "README.md" }, workspace).path).toBe(
+      path.join(workspace, "README.md")
+    );
+  });
+
+  it("resolves move and multi-file arguments too", () => {
+    const out = resolveToolPaths(
+      { source: "a.txt", destination: "b.txt", paths: ["c.txt"] },
+      workspace
+    );
+    expect(out.source).toBe(path.join(workspace, "a.txt"));
+    expect(out.destination).toBe(path.join(workspace, "b.txt"));
+    expect(out.paths).toEqual([path.join(workspace, "c.txt")]);
+  });
+
+  it("leaves absolute paths and other arguments alone", () => {
+    const abs = path.join(os.homedir(), "Desktop", "x.txt");
+    const out = resolveToolPaths({ path: abs, pattern: "*.md" }, workspace);
+    expect(out.path).toBe(abs);
+    expect(out.pattern).toBe("*.md");
+  });
+
+  // Gemma wrote "...\WiFi\diag.ps1" for the folder "wifi" (2026-09-26)
+  it("gives a path inside the workspace the workspace's own capitals", () => {
+    const upper = workspace.replace(/app$/, "APP");
+    const out = resolveToolPaths(
+      { path: path.join(upper, "diag.ps1"), paths: [upper] },
+      workspace,
+      true
+    );
+    expect(out.path).toBe(path.join(workspace, "diag.ps1"));
+    expect(out.paths).toEqual([workspace]);
+    expect(
+      validateFilesystemPath(out, {
+        ...OFFICIAL_MCP_SERVERS.filesystem!,
+        allowedPaths: [workspace],
+      }).success
+    ).toBe(true);
+  });
+
+  it("leaves capitals alone where names are case-sensitive", () => {
+    const upper = path.join(workspace.replace(/app$/, "APP"), "x.txt");
+    expect(resolveToolPaths({ path: upper }, workspace, false).path).toBe(
+      upper
+    );
+  });
+
+  it("does not respell a folder that only starts like the workspace", () => {
+    const sibling = `${workspace.replace(/app$/, "APP")}-old${path.sep}x.txt`;
+    expect(resolveToolPaths({ path: sibling }, workspace, true).path).toBe(
+      sibling
+    );
+  });
+
+  it("still denies a relative path that climbs out of the workspace", () => {
+    const resolved = resolveToolPaths({ path: "../../secret" }, workspace);
+    const result = validateFilesystemPath(resolved, {
+      ...OFFICIAL_MCP_SERVERS.filesystem!,
+      allowedPaths: [workspace],
+    });
+    expect(result.success).toBe(false);
   });
 });

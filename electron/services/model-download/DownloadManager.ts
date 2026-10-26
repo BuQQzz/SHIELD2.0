@@ -1,6 +1,10 @@
 import { createModelDownloader, type ModelDownloader } from "node-llama-cpp";
 import { BrowserWindow } from "electron";
-import type { ModelMetadata } from "../../../src/config/models";
+import {
+  hfUri,
+  type ModelFile,
+  type ModelMetadata,
+} from "../../../src/config/models.js";
 
 export interface DownloadProgress {
   modelId: string;
@@ -113,7 +117,7 @@ export class DownloadManager {
   /**
    * Download a model with progress tracking
    */
-  async download(model: ModelMetadata): Promise<string> {
+  async download(model: ModelMetadata, file: ModelFile): Promise<string> {
     if (this.activeDownloads.has(model.id)) {
       throw new Error(`Model ${model.displayName} is already downloading`);
     }
@@ -141,7 +145,12 @@ export class DownloadManager {
     try {
       this.emitProgress(progress);
 
-      const modelPath = await this.downloadWithProgress(model, task, progress);
+      const modelPath = await this.downloadWithProgress(
+        model,
+        file,
+        task,
+        progress
+      );
 
       // Download completed successfully
       console.log(
@@ -181,12 +190,14 @@ export class DownloadManager {
    */
   private async downloadWithProgress(
     model: ModelMetadata,
+    file: ModelFile,
     task: DownloadTask,
     progress: DownloadProgress
   ): Promise<string> {
     const modelsDir = this.getModelsDir();
+    const modelUri = hfUri(file);
     console.log(`[DownloadManager] Downloading ${model.displayName}...`);
-    console.log(`[DownloadManager] URI: ${model.uri}`);
+    console.log(`[DownloadManager] URI: ${modelUri}`);
     console.log(`[DownloadManager] Target: ${modelsDir}`);
 
     // Debug token info (masked for security)
@@ -200,8 +211,11 @@ export class DownloadManager {
 
     // Create model downloader with proper options
     const downloader = await createModelDownloader({
-      modelUri: model.uri,
+      modelUri,
       dirPath: modelsDir,
+      // The repo's own file name, so the file is recognised wherever it is
+      // later moved (node-llama-cpp would otherwise prefix hf_<owner>_)
+      fileName: file.name,
       showCliProgress: false, // We handle our own progress
       deleteTempFileOnCancel: true, // Clean up .ipull files on cancel
       parallelDownloads: 2,

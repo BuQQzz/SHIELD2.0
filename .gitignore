@@ -110,3 +110,9 @@ $RECYCLE.BIN/
 # package-lock.json
 # yarn.lock
 # pnpm-lock.yaml
+
+# local dev server output
+dev.log
+
+# agent benchmark traces
+bench-results/

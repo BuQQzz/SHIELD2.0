@@ -8,40 +8,60 @@ import {
   forwardRef,
   useImperativeHandle,
 } from "react";
-import { Send, Square, Globe } from "lucide-react";
+import { ListPlus, Send, Square, X } from "lucide-react";
+import { useGenerationStore } from "@/store/generationStore";
 import { motion } from "framer-motion";
-import { useSettingsStore } from "@/store/settingsStore";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
+import { PermissionModeSelector } from "./PermissionModeSelector";
+import { WorkspaceSelector } from "./WorkspaceSelector";
+import { TeamToggle } from "./TeamToggle";
+import type { TeamAvailability } from "@/agents/teamFit";
+import { ContextRing } from "./ContextRing";
 
 interface ChatInputProps {
-  onSend: (message: string, useWebSearch?: boolean) => void;
+  onSend: (message: string) => void;
+  /** Hold a message for its own turn after this one (Ctrl+Enter while working) */
+  onQueue?: (message: string) => void;
   isGenerating?: boolean;
   onStop?: () => void;
   disabled?: boolean;
+  /** A Code session: show its project folder (chats have no file tools) */
+  showFolder?: boolean;
+  /** Whether the model in use can lead an agent team (see TeamToggle) */
+  teamAvailability?: TeamAvailability;
+  modelId?: string;
+  modelName?: string;
 }
 
 export interface ChatInputRef {
   focus: () => void;
+  /** Put text back in the box, before what is there (unsent steer) */
+  restore: (text: string) => void;
 }
 
 export const ChatInput = forwardRef<ChatInputRef, ChatInputProps>(
   function ChatInput(
-    { onSend, isGenerating = false, onStop, disabled = false },
+    {
+      onSend,
+      onQueue,
+      isGenerating = false,
+      onStop,
+      disabled = false,
+      showFolder,
+      teamAvailability,
+      modelId,
+      modelName,
+    },
     ref
   ) {
     const [input, setInput] = useState("");
-    const [webSearchEnabled, setWebSearchEnabled] = useState(false);
+    const queue = useGenerationStore((state) => state.queue);
     const textareaRef = useRef<HTMLTextAreaElement>(null);
-    const { settings } = useSettingsStore();
 
     // Expose focus method via ref
     useImperativeHandle(ref, () => ({
       focus: () => textareaRef.current?.focus(),
+      restore: (text: string) =>
+        setInput((current) => (current ? `${text}\n\n${current}` : text)),
     }));
 
     // Auto-focus on mount and when not generating
@@ -50,6 +70,22 @@ export const ChatInput = forwardRef<ChatInputRef, ChatInputProps>(
         textareaRef.current.focus();
       }
     }, [isGenerating, disabled]);
+
+    const handleQueue = () => {
+      if (!input.trim() || disabled || !onQueue) return;
+      onQueue(input.trim());
+      setInput("");
+      if (textareaRef.current) textareaRef.current.style.height = "auto";
+    };
+
+    /** A queued message back in the box, to change or send now */
+    const editQueued = (index: number) => {
+      const text = useGenerationStore.getState().queue[index];
+      if (text === undefined) return;
+      useGenerationStore.getState().removeQueued(index);
+      setInput((current) => (current ? `${text}\n\n${current}` : text));
+      textareaRef.current?.focus();
+    };
 
     const handleSubmit = () => {
       console.log(
@@ -63,12 +99,9 @@ export const ChatInput = forwardRef<ChatInputRef, ChatInputProps>(
         disabled
       );
 
-      if (input.trim() && !isGenerating && !disabled) {
-        console.log(
-          "[ChatInput] Calling onSend with message and webSearch:",
-          webSearchEnabled
-        );
-        onSend(input.trim(), webSearchEnabled);
+      // While a turn runs, a message steers it (handlers/steer.ts)
+      if (input.trim() && !disabled) {
+        onSend(input.trim());
         setInput("");
         if (textareaRef.current) {
           textareaRef.current.style.height = "auto";
@@ -90,7 +123,9 @@ export const ChatInput = forwardRef<ChatInputRef, ChatInputProps>(
     const handleKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>) => {
       if (e.key === "Enter" && !e.shiftKey) {
         e.preventDefault();
-        handleSubmit();
+        // While it works: Enter adds to this task, Ctrl+Enter waits for after
+        if (isGenerating && (e.ctrlKey || e.metaKey) && onQueue) handleQueue();
+        else handleSubmit();
       }
     };
 
@@ -104,68 +139,120 @@ export const ChatInput = forwardRef<ChatInputRef, ChatInputProps>(
     return (
       <div className="bg-background p-4">
         <div className="mx-auto max-w-3xl">
-          <div className="relative flex items-end gap-2 rounded-lg border bg-background p-2 focus-within:ring-2 focus-within:ring-ring">
-            {/* Web Search Toggle - only show if enabled in settings */}
-            {settings.webSearch.enabled && (
-              <TooltipProvider>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <motion.button
-                      whileTap={{ scale: 0.95 }}
-                      onClick={() => setWebSearchEnabled(!webSearchEnabled)}
-                      className={`shrink-0 rounded-md p-2 transition-colors ${
-                        webSearchEnabled
-                          ? "bg-primary text-primary-foreground"
-                          : "hover:bg-accent"
-                      }`}
-                      type="button"
-                    >
-                      <Globe
-                        className={`h-5 w-5 ${webSearchEnabled ? "" : "text-muted-foreground"}`}
-                      />
-                    </motion.button>
-                  </TooltipTrigger>
-                  <TooltipContent>
-                    <p>
-                      {webSearchEnabled
-                        ? "Web search enabled"
-                        : "Enable web search"}
-                    </p>
-                  </TooltipContent>
-                </Tooltip>
-              </TooltipProvider>
-            )}
-
+          {queue.length > 0 && (
+            <div
+              className="mb-1.5 flex flex-col gap-1"
+              aria-label="Queued messages"
+            >
+              {queue.map((text, index) => (
+                <div
+                  key={`${index}-${text}`}
+                  className="flex min-w-0 items-center gap-2 rounded-md bg-muted/40 px-2.5 py-1 text-xs"
+                >
+                  <ListPlus className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                  <button
+                    type="button"
+                    className="min-w-0 flex-1 truncate text-left hover:underline"
+                    onClick={() => editQueued(index)}
+                    title="Back into the box, to change it or send it now"
+                  >
+                    <span className="text-muted-foreground">Queued: </span>
+                    {text}
+                  </button>
+                  <button
+                    type="button"
+                    className="shrink-0 rounded p-0.5 text-muted-foreground hover:bg-muted hover:text-foreground"
+                    onClick={() =>
+                      useGenerationStore.getState().removeQueued(index)
+                    }
+                    aria-label="Remove from the queue"
+                  >
+                    <X className="h-3.5 w-3.5" />
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+          <div className="relative flex items-end gap-2 rounded-xl bg-muted/50 p-2 shadow-sm ring-1 ring-black/5 transition-shadow focus-within:shadow-md dark:bg-muted/30 dark:ring-white/5">
             <textarea
               ref={textareaRef}
               value={input}
               onChange={handleInput}
               onKeyDown={handleKeyDown}
-              placeholder="Type your message... (Shift+Enter for new line)"
+              placeholder={
+                isGenerating
+                  ? "Enter: add to this task · Ctrl+Enter: queue for after"
+                  : "Type your message... (Shift+Enter for new line)"
+              }
               rows={1}
               className="max-h-32 min-h-[40px] flex-1 resize-none bg-transparent px-2 py-2 text-sm outline-none placeholder:text-muted-foreground"
-              disabled={isGenerating || disabled}
+              disabled={disabled}
             />
 
+            {isGenerating && input.trim() && onQueue && (
+              <motion.button
+                whileTap={{ scale: 0.92 }}
+                onClick={handleQueue}
+                disabled={disabled}
+                className="shrink-0 rounded-md p-2 transition-colors"
+                aria-label="Queue for after"
+                title="Queue for after (Ctrl+Enter): sent as its own message when this one finishes"
+              >
+                <ListPlus className="h-5 w-5 text-muted-foreground transition-colors hover:text-foreground" />
+              </motion.button>
+            )}
+            {isGenerating && input.trim() && (
+              <motion.button
+                whileTap={{ scale: 0.92 }}
+                onClick={handleSubmit}
+                disabled={disabled}
+                className="shrink-0 rounded-md p-2 transition-colors"
+                aria-label="Send while it works"
+                title="Send while it works: it reads this after its next step"
+              >
+                <Send className="h-5 w-5 text-primary transition-colors" />
+              </motion.button>
+            )}
             {isGenerating ? (
               <motion.button
-                whileTap={{ scale: 0.95 }}
+                whileTap={{ scale: 0.92 }}
                 onClick={onStop}
-                className="shrink-0 rounded-md p-2 transition-colors hover:bg-accent"
+                className="shrink-0 rounded-md p-2 transition-colors"
               >
-                <Square className="h-5 w-5" />
+                <Square className="h-5 w-5 text-destructive transition-colors" />
               </motion.button>
             ) : (
               <motion.button
-                whileTap={{ scale: 0.95 }}
-                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.92 }}
+                whileHover={{ scale: 1.08 }}
                 onClick={handleSubmit}
                 disabled={!input.trim() || disabled}
-                className="shrink-0 rounded-md bg-primary p-2 text-primary-foreground transition-colors hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed"
+                className="shrink-0 rounded-md p-2 transition-colors disabled:cursor-not-allowed"
               >
-                <Send className="h-5 w-5" />
+                <Send
+                  className={`h-5 w-5 transition-colors ${
+                    !input.trim() || disabled
+                      ? "text-muted-foreground/40"
+                      : "text-primary"
+                  }`}
+                />
               </motion.button>
             )}
+          </div>
+
+          {/* Permission mode and folder sit under the composer: visible while
+              typing, out of the way of the send action. */}
+          <div className="mt-1 flex min-w-0 items-center gap-1 px-1">
+            <PermissionModeSelector />
+            {showFolder && <WorkspaceSelector />}
+            {showFolder && (
+              <TeamToggle
+                availability={teamAvailability}
+                modelId={modelId}
+                modelName={modelName}
+              />
+            )}
+            <ContextRing />
           </div>
         </div>
       </div>

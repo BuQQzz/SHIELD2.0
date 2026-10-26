@@ -10,14 +10,26 @@ import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
 import path from "path";
 import os from "os";
-import { app } from "electron";
+import { app, shell } from "electron";
+import fsPromises from "fs/promises";
 import {
   OFFICIAL_MCP_SERVERS,
+  resolveToolPaths,
   validateFilesystemPath,
   type MCPServerConfig,
   type MCPToolCall,
   type MCPToolResult,
 } from "./MCPServerConfig.js";
+import {
+  DELETE_TOOL,
+  DELETE_TOOL_NAME,
+  moveToRecycleBin,
+} from "./recycleBin.js";
+import {
+  DECODED_EDIT_NOTE,
+  decodeEditArguments,
+  missedEdit,
+} from "./editEntities.js";
 
 /**
  * Expand tilde (~) in paths to actual home directory
@@ -37,6 +49,10 @@ class MCPService {
   private static instance: MCPService | null = null;
   private clients: Map<string, Client> = new Map();
   private isInitialized = false;
+  /** In-flight initialize(), shared by concurrent callers */
+  private initializing: Promise<void> | null = null;
+  /** Folder the user chose for file tools; null means the default folders */
+  private workspaceFolder: string | null = null;
 
   /**
    * Private constructor for singleton pattern
@@ -62,25 +78,30 @@ class MCPService {
       return;
     }
 
-    console.log("[MCPService] Initializing MCP service...");
+    // The renderer asks from more than one place at startup. Without this,
+    // concurrent calls each started a filesystem server and the first one
+    // was left running, orphaned.
+    this.initializing ??= this.connectToServer("filesystem")
+      .then(() => {
+        this.isInitialized = true;
+        console.log("[MCPService] MCP service initialized successfully");
+      })
+      .catch((error: unknown) => {
+        console.error("[MCPService] Failed to initialize:", error);
+        throw error;
+      })
+      .finally(() => {
+        this.initializing = null;
+      });
 
-    try {
-      // Connect to filesystem server
-      await this.connectToServer("filesystem");
-
-      this.isInitialized = true;
-      console.log("[MCPService] MCP service initialized successfully");
-    } catch (error) {
-      console.error("[MCPService] Failed to initialize:", error);
-      throw error;
-    }
+    return this.initializing;
   }
 
   /**
    * Connect to an MCP server
    */
   private async connectToServer(serverName: string): Promise<void> {
-    const config = OFFICIAL_MCP_SERVERS[serverName];
+    const config = this.effectiveConfig(serverName);
     if (!config) {
       throw new Error(`Unknown MCP server: ${serverName}`);
     }
@@ -103,6 +124,10 @@ class MCPService {
       const transport = new StdioClientTransport({
         command: "node",
         args: serverArgs,
+        // Anything the server resolves itself starts in the user's folder
+        ...(serverName === "filesystem"
+          ? { cwd: this.baseFolder(config) }
+          : {}),
       });
 
       const client = new Client(
@@ -152,7 +177,7 @@ class MCPService {
     const { serverName, tool, arguments: args } = request;
 
     // Verify server is in whitelist
-    const config = OFFICIAL_MCP_SERVERS[serverName];
+    const config = this.effectiveConfig(serverName);
     if (!config) {
       return {
         success: false,
@@ -170,10 +195,16 @@ class MCPService {
     }
 
     try {
-      // Expand tilde paths in arguments
-      const expandedArgs = { ...args };
-      if (expandedArgs.path && typeof expandedArgs.path === "string") {
-        expandedArgs.path = expandTildePath(expandedArgs.path);
+      // Expand ~ and make relative paths ("." = the user's folder) absolute
+      // against the workspace, not the process's own directory
+      let expandedArgs: Record<string, unknown> = { ...args };
+      if (serverName === "filesystem") {
+        for (const key of ["path", "source", "destination"]) {
+          if (typeof expandedArgs[key] === "string") {
+            expandedArgs[key] = expandTildePath(expandedArgs[key] as string);
+          }
+        }
+        expandedArgs = resolveToolPaths(expandedArgs, this.baseFolder(config));
       }
 
       // Validate path restrictions for filesystem operations
@@ -182,6 +213,19 @@ class MCPService {
         if (!validated.success) {
           return validated;
         }
+
+        // SHIELD's own tool - the server has no delete. Runs only after the
+        // same path checks as every server tool.
+        if (tool === DELETE_TOOL_NAME) {
+          return moveToRecycleBin(expandedArgs.path, config.allowedPaths, {
+            exists: (target) =>
+              fsPromises.stat(target).then(
+                () => true,
+                () => false
+              ),
+            trash: (target) => shell.trashItem(target),
+          });
+        }
       }
 
       // Call tool through MCP client
@@ -189,6 +233,33 @@ class MCPService {
         name: tool,
         arguments: expandedArgs,
       });
+
+      // An edit whose oldText came XML-escaped (&quot;) - see editEntities
+      if (
+        serverName === "filesystem" &&
+        tool === "edit_file" &&
+        missedEdit(result)
+      ) {
+        const decoded = decodeEditArguments(expandedArgs);
+        const retry = decoded
+          ? await client.callTool({ name: tool, arguments: decoded })
+          : null;
+        if (retry && !retry.isError && Array.isArray(retry.content)) {
+          console.log(
+            "[MCPService] edit_file matched once XML codes were decoded"
+          );
+          return {
+            success: true,
+            data: {
+              ...retry,
+              content: [
+                ...retry.content,
+                { type: "text", text: DECODED_EDIT_NOTE },
+              ],
+            },
+          };
+        }
+      }
 
       return {
         success: true,
@@ -217,7 +288,9 @@ class MCPService {
     }
 
     const result = await client.listTools();
-    return result.tools || [];
+    const tools = result.tools || [];
+    // The filesystem server cannot delete; SHIELD adds a Recycle Bin delete
+    return serverName === "filesystem" ? [...tools, DELETE_TOOL] : tools;
   }
 
   /**
@@ -246,7 +319,61 @@ class MCPService {
    * Get server configuration
    */
   public getServerConfig(serverName: string): MCPServerConfig | undefined {
-    return OFFICIAL_MCP_SERVERS[serverName];
+    return this.effectiveConfig(serverName);
+  }
+
+  /**
+   * A server's config with the user's workspace applied: when a folder has
+   * been chosen, the filesystem server may touch that folder and nothing
+   * else. Everything that checks or starts a server goes through here.
+   */
+  private effectiveConfig(serverName: string): MCPServerConfig | undefined {
+    const config = OFFICIAL_MCP_SERVERS[serverName];
+    if (!config || serverName !== "filesystem" || !this.workspaceFolder) {
+      return config;
+    }
+    return { ...config, allowedPaths: [this.workspaceFolder] };
+  }
+
+  public getWorkspaceFolder(): string | null {
+    return this.workspaceFolder;
+  }
+
+  /** Where relative paths point: the workspace, else the first default */
+  private baseFolder(config: MCPServerConfig): string {
+    return this.workspaceFolder ?? config.allowedPaths[0] ?? os.homedir();
+  }
+
+  /**
+   * Point file tools at a folder, or back at the defaults with null.
+   *
+   * The filesystem server takes its folders on the command line, so a
+   * running server is restarted to pick the change up.
+   */
+  public async setWorkspaceFolder(folder: string | null): Promise<void> {
+    const next = folder ? path.resolve(folder) : null;
+    if (next === this.workspaceFolder) return;
+
+    this.workspaceFolder = next;
+    console.log(`[MCPService] Workspace folder: ${next ?? "default folders"}`);
+
+    const client = this.clients.get("filesystem");
+    if (!client) return; // Not started yet - initialize() will use it
+
+    this.clients.delete("filesystem");
+    try {
+      await client.close();
+    } catch (error) {
+      console.error("[MCPService] Error closing filesystem server:", error);
+    }
+    await this.connectToServer("filesystem");
+  }
+
+  /**
+   * Get the names of servers we currently hold a live connection to
+   */
+  public getConnectedServers(): string[] {
+    return Array.from(this.clients.keys());
   }
 
   /**

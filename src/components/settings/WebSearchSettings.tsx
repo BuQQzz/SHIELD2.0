@@ -20,10 +20,6 @@ export function WebSearchSettings({ settings }: WebSearchSettingsProps) {
     updateSettings({ webSearch: { ...settings, cacheEnabled } });
   };
 
-  const handleToggleReasoning = (showReasoning: boolean) => {
-    updateSettings({ webSearch: { ...settings, showReasoning } });
-  };
-
   const handleMaxResultsChange = (value: number[]) => {
     if (value[0] !== undefined) {
       updateSettings({ webSearch: { ...settings, maxResults: value[0] } });
@@ -49,8 +45,8 @@ export function WebSearchSettings({ settings }: WebSearchSettingsProps) {
       <div>
         <h3 className="text-lg font-medium mb-2">Web Search Configuration</h3>
         <p className="text-sm text-muted-foreground">
-          Enable privacy-first web search to enhance AI responses with real-time
-          information
+          Let the model search the web and read pages when an answer needs
+          current information
         </p>
       </div>
 
@@ -61,7 +57,8 @@ export function WebSearchSettings({ settings }: WebSearchSettingsProps) {
           <div>
             <Label htmlFor="web-search-enabled">Enable Web Search</Label>
             <p className="text-xs text-muted-foreground mt-1">
-              Allow the AI to search the web for current information
+              Gives the model two tools, web search and read page. It decides
+              when to use them; in Ask mode you approve each one.
             </p>
           </div>
         </div>
@@ -74,25 +71,6 @@ export function WebSearchSettings({ settings }: WebSearchSettingsProps) {
 
       {settings.enabled && (
         <>
-          {/* Show Reasoning Toggle */}
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <Globe className="h-4 w-4 text-muted-foreground" />
-              <div>
-                <Label htmlFor="show-reasoning">Show AI Reasoning Steps</Label>
-                <p className="text-xs text-muted-foreground mt-1">
-                  Display how the AI analyzes search results (helpful for
-                  understanding answers)
-                </p>
-              </div>
-            </div>
-            <Switch
-              id="show-reasoning"
-              checked={settings.showReasoning}
-              onCheckedChange={handleToggleReasoning}
-            />
-          </div>
-
           {/* Max Results */}
           <div className="space-y-2">
             <div className="flex items-center gap-2">
@@ -171,7 +149,11 @@ export function WebSearchSettings({ settings }: WebSearchSettingsProps) {
               <p className="font-medium text-foreground">Privacy Protected</p>
               <ul className="list-disc list-inside space-y-0.5 ml-1">
                 <li>All searches go through DuckDuckGo (no tracking)</li>
-                <li>No personal identifiers sent to search providers</li>
+                <li>
+                  The model writes the search words and is told never to include
+                  private details from your files
+                </li>
+                <li>Pages on this PC or your local network are never opened</li>
                 <li>All data cached locally on your device</li>
                 <li>No search history shared with external services</li>
               </ul>

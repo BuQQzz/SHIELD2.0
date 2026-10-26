@@ -17,13 +17,7 @@ export type PromptCapability =
  * Model family identifiers for prompt selection
  */
 export type ModelFamily =
-  | "llama"
-  | "qwen"
-  | "mistral"
-  | "phi"
-  | "gemma"
-  | "deepseek"
-  | "generic";
+  "llama" | "qwen" | "mistral" | "phi" | "gemma" | "deepseek" | "generic";
 
 /**
  * Configuration for building a system prompt
@@ -37,10 +31,16 @@ export interface SystemPromptConfig {
   customPrompt?: string;
   /** Whether MCP tools are enabled */
   mcpEnabled?: boolean;
-  /** Whether web search is enabled */
-  webSearchEnabled?: boolean;
+  /** Supply function definitions through the model's native tool interface */
+  nativeTools?: boolean;
   /** Available MCP tools (for tool descriptions) */
   availableTools?: ToolDefinition[];
+  /** Directories the MCP servers are permitted to touch */
+  allowedPaths?: string[];
+  /**
+   * Plan mode: read tools can investigate; changes are described, not executed.
+   */
+  planOnly?: boolean;
 }
 
 /**
@@ -55,6 +55,13 @@ export interface ToolDefinition {
   serverName?: string;
   /** Parameter definitions */
   parameters?: ToolParameter[];
+  /** Complete MCP JSON Schema, preserved for native function calling */
+  inputSchema?: Record<string, unknown>;
+  /** MCP tool annotations, when the server supplies them */
+  annotations?: {
+    /** Server's own claim that the tool does not change anything */
+    readOnlyHint?: boolean;
+  };
 }
 
 /**
