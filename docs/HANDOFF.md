@@ -1,7 +1,7 @@
 # SHIELD — Session Handoff
 
 **Last session:** 2026-10-25 → 26, on Linux (previous: 2026-10-23 → 24, 2026-10-21 → 22 and 2026-10-20 → 21 on Linux; 2026-09-26 → 28 on Windows)  
-**Branch:** `feat/model-library`, 50 commits past the 2026-09-28 tip (`57d5baf`). **Pushed to the public repo on 2026-10-24 at the user's request, up to and including this handoff commit** (the remote had been at `a26dba2`). Pushed again on 2026-10-24 evening at the user's request, up to `171c352`; the 12 commits after it (`1fc3d96` … `ca7cda1`, listed under "Update — 2026-10-25 → 26") are **local only, not pushed**. Nothing is merged to `main`. Only the user says when to push or open a PR.
+**Branch:** `feat/model-library`, 50 commits past the 2026-09-28 tip (`57d5baf`). **Pushed to the public repo on 2026-10-24 at the user's request, up to and including this handoff commit** (the remote had been at `a26dba2`). Pushed again on 2026-10-24 evening at the user's request, up to `171c352`; the commits after it (`1fc3d96` onwards, listed under "Update — 2026-10-25 → 26") were **pushed on 2026-10-26 at the user's request**, up to and including this handoff commit. Nothing is merged to `main`. Only the user says when to push or open a PR.
 **Tests:** 1166 passing, 7 skipped (`npx vitest run`) · `npx tsc --noEmit`, `npx eslint src electron scripts --ext ts,tsx --max-warnings 0` clean. `prettier --check` flags `src/components/ui/button.tsx` and `scripts/bench/mcp.ts`, which were already unformatted: do not run `prettier --write` over whole folders (it reformats `button.tsx`; `git checkout` it).
 
 **Tested in the app with (2026-10-20):** Bonsai 27B Q1_0 on an RTX 2070 SUPER 8 GB (Ubuntu 26.04), SHIELD-managed Prism llama-server at 32K, ~19 tok/s. Earlier sessions: Qwen3-Coder-30B and Gemma 4 12B on Windows (see the older updates).
@@ -38,7 +38,7 @@ Order agreed with the user on 2026-09-26: the Code view, then the terminal, then
 
 The user's direction is unchanged: short, capped window runs, each result shown before the next. **Every window check now runs with `SHIELD_SERVER_LOG=$PWD/tmp/ui-check/<name>.log`** (see below). Details and numbers: the subsections "The orchestrator prompt never reached the app" and "Redoing the in-app checks with the prompt in place" under 2026-10-23 → 24.
 
-### Commits (local, not pushed)
+### Commits (pushed 2026-10-26)
 - `1fc3d96` **the orchestrator prompt was never sent** (since `a6f3a90`, 2026-10-22): `useMCPSystemPrompt` took any prompt opening "You are SHIELD" for the built-in default; now `isBuiltInPrompt` ("You are SHIELD, a helpful"). Team mode had run on `BASE_PROMPT` + delegate; all in-app team results from 10-22 to 10-25 were without the orchestrator rules.
 - `02a104e` **report requests without thinking** (`AgentRunDeps.chat(id, msg, { thinking })`): a reviewer thought 8,192 tokens on "write your HANDOFF block"; after, 277 tokens in 1.5 s.
 - `db72362` **thinking-loop guard** (`src/services/llamaServer/repetition.ts`, `LlamaServerProvider.chat`): newest 150 characters of `reasoning_content` written three times → abort, resend with thinking off. Tuned on 11 real traces (`tmp/hang-hunt/traces/`): 10 normal never fire, a real 29,926-character loop caught at ~8,850. **Not yet seen firing in the app.**
