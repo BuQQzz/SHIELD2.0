@@ -1,6 +1,7 @@
 import { ipcMain, BrowserWindow } from "electron";
 import { getModelRuntime } from "../../src/services/ModelRuntime.js";
 import type { ToolDefinition } from "../../src/types/prompts.js";
+import type { RescueAction } from "../../src/services/llamaServer/rescue.js";
 
 /**
  * Register all Llama.cpp related IPC handlers
@@ -231,6 +232,19 @@ export function registerLlamaHandlers(
         error: error instanceof Error ? error.message : "Unknown error",
       };
     }
+  });
+
+  // A request that looks stuck: how long it has run, and what to do about it
+  ipcMain.handle("llama:requestStatus", async () => ({
+    success: true,
+    status: llamaService.requestStatus(),
+  }));
+
+  ipcMain.handle("llama:rescue", async (_event, action: RescueAction) => {
+    if (!["nudge", "skip", "restart"].includes(action)) {
+      return { success: false, error: `Unknown action ${String(action)}` };
+    }
+    return { success: true, cutOff: llamaService.rescue(action) };
   });
 
   // Sub-agent sessions: a chat of their own on the loaded llama-server model

@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { SKIPPED_BY_USER } from "../services/llamaServer/rescue";
 import {
   MAX_ORCHESTRATOR_ROUNDS,
   orchestratorRounds,
@@ -161,6 +162,20 @@ describe("formatReport", () => {
     expect(text).not.toContain("reviewer edit_file p/a.sh. Do not");
     expect(text).not.toContain("continue_from");
     expect(formatReport(base)).not.toContain("THE USER DENIED");
+  });
+
+  // Live (2026-10-26): told "delegate again" and given continue_from, the
+  // orchestrator sent the coder straight back to the step the user skipped
+  it("tells the orchestrator to move on from a step the user skipped", () => {
+    const text = formatReport({
+      ...base,
+      status: "PARTIAL",
+      summary: "",
+      reason: SKIPPED_BY_USER,
+    });
+    expect(text).toContain("THE USER SKIPPED this step to move on");
+    expect(text).not.toContain("continue_from");
+    expect(text).not.toContain("delegate again if");
   });
 
   it("warns the orchestrator when an agent reported nothing", () => {

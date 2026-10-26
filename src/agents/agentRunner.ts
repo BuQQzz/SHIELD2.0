@@ -19,6 +19,7 @@
  * injected, so the same code runs in the app and in a headless test.
  */
 
+import { SKIPPED_BY_USER } from "../services/llamaServer/rescue";
 import {
   extractToolCalls,
   type ToolCallRequest,
@@ -73,6 +74,11 @@ export interface AgentRunDeps {
   buildPrompt(spec: RoleSpec): string;
   workspaceFolder?: string;
   isStopped?: () => boolean;
+  /**
+   * The user skipped this agent's step in the stuck bar: it ends with what
+   * it has, like Stop, and the orchestrator goes on (rescue.ts)
+   */
+  isSkipped?: () => boolean;
   /** Share of the window at which an agent must hand over; default 70% */
   checkpointAt?: number;
   /** One line per step, for the user to see what the agent is doing */
@@ -451,7 +457,7 @@ export async function runAgent(
         onToolCallDetected: execute,
         addMessage: () => {},
         continueConversation: async (text) => {
-          if (deps.isStopped?.()) {
+          if (deps.isStopped?.() || deps.isSkipped?.()) {
             stoppedByUser = true;
             return reply;
           }
@@ -479,10 +485,11 @@ export async function runAgent(
         workspaceFolder: deps.workspaceFolder,
         isStopped: () =>
           deps.isStopped?.() === true ||
+          deps.isSkipped?.() === true ||
           refusalsAfterCheckpoint >= MAX_REFUSALS_AFTER_CHECKPOINT,
       }
     );
-    if (deps.isStopped?.()) stoppedByUser = true;
+    if (deps.isStopped?.() || deps.isSkipped?.()) stoppedByUser = true;
 
     // Still calling tools: the step limit, a checkpoint it ignored, or Stop
     const unfinished =
@@ -496,7 +503,7 @@ export async function runAgent(
     const wroteHandoff = parseHandoff(reply).found;
     const needsReport = unfinished || !wroteHandoff;
     if (stoppedByUser) {
-      reason = "the user stopped it";
+      reason = deps.isSkipped?.() ? SKIPPED_BY_USER : "the user stopped it";
     } else if (needsReport) {
       if (unfinished || checkpointing) {
         reason = checkpointing

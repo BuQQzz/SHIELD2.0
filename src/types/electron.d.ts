@@ -4,6 +4,10 @@ import type { NativeToolResult } from "./nativeTools";
 import type { ToolDefinition } from "./prompts";
 import type { Plan } from "../config/plan";
 import type { AgentRunView } from "../agents/runView";
+import type {
+  RequestStatus,
+  RescueAction,
+} from "../services/llamaServer/rescue";
 
 export type { SavedCapsule };
 
@@ -264,6 +268,17 @@ export interface LlamaAPI {
     sessionId: string
   ) => Promise<{ success: boolean; error?: string }>;
   stopGeneration: () => Promise<{ success: boolean; error?: string }>;
+  /** The request in progress (null when none), for the stuck bar */
+  requestStatus: () => Promise<{
+    success: boolean;
+    status?: RequestStatus | null;
+  }>;
+  /** Nudge, skip or restart a request that looks stuck; false if none ran */
+  rescue: (action: RescueAction) => Promise<{
+    success: boolean;
+    cutOff?: boolean;
+    error?: string;
+  }>;
   setSystemPrompt: (
     prompt: string,
     tools?: ToolDefinition[]

@@ -29,6 +29,11 @@ import {
 } from "./llamaServer/sse.js";
 import { RepetitionWatch } from "./llamaServer/repetition.js";
 import {
+  NUDGE_NOTE,
+  type RequestStatus,
+  type RescueAction,
+} from "./llamaServer/rescue.js";
+import {
   CLEAR_TO,
   COMPACT_AT,
   compactHistory,
@@ -142,7 +147,30 @@ function logStallDetails(requestBody: object): void {
 
 export class LlamaServerProvider {
   private process: ChildProcess | null = null;
-  private baseUrl = "";
+  private ownBaseUrl = "";
+  /** A forked session follows its parent's server, also across a restart */
+  private get baseUrl(): string {
+    return this.parent ? this.parent.baseUrl : this.ownBaseUrl;
+  }
+  private set baseUrl(url: string) {
+    this.ownBaseUrl = url;
+  }
+  /** What the server was started with, to start it again (restartServer) */
+  private loadOptions: ServerLoadOptions | null = null;
+  private restarting: Promise<void> | null = null;
+  /**
+   * The request in progress on this server, of whichever session: the server
+   * has one slot, so there is at most one (rescue.ts). On the root only.
+   */
+  private inFlight: {
+    session: LlamaServerProvider;
+    startedAt: number;
+    lastProgressAt: number;
+    phase: RequestStatus["phase"];
+  } | null = null;
+  /** Set by rescue() on the session whose request it cut off */
+  private rescueAction: RescueAction | null = null;
+  private rescueController: AbortController | null = null;
   private contextSize = 0;
   private trainContextSize = 0;
   private systemPrompt = "You are a helpful AI assistant.";
@@ -203,7 +231,6 @@ export class LlamaServerProvider {
     }
     const session = new LlamaServerProvider();
     session.parent = this;
-    session.baseUrl = this.baseUrl;
     session.contextSize = this.contextSize;
     session.trainContextSize = this.trainContextSize;
     session.systemPrompt = systemPrompt;
@@ -240,6 +267,20 @@ export class LlamaServerProvider {
       );
     }
 
+    this.systemPrompt = options.systemPrompt;
+    this.history = [];
+    this.capsule = null;
+    this.capsuleReplacedEntries = 0;
+    this.savedCapsule = null;
+    this.loadOptions = options;
+    await this.start(binary, options);
+  }
+
+  /** Spawn the server and wait until it answers; the chat is left as it is */
+  private async start(
+    binary: string,
+    options: ServerLoadOptions
+  ): Promise<void> {
     const port = await freePort();
     const args = buildServerArgs({
       modelPath: options.modelPath,
@@ -258,11 +299,6 @@ export class LlamaServerProvider {
     const child = spawn(binary, args, { windowsHide: true });
     this.process = child;
     this.baseUrl = `http://127.0.0.1:${port}`;
-    this.systemPrompt = options.systemPrompt;
-    this.history = [];
-    this.capsule = null;
-    this.capsuleReplacedEntries = 0;
-    this.savedCapsule = null;
     this.pidFile = options.pidFile;
     if (this.pidFile && child.pid) {
       fs.writeFileSync(this.pidFile, String(child.pid));
@@ -349,6 +385,67 @@ export class LlamaServerProvider {
     if (this.pidFile) fs.rmSync(this.pidFile, { force: true });
   }
 
+  /**
+   * Kill the server and start it again on the same model, keeping every
+   * session's chat: for a server that froze mid-reply (rescue.ts). A second
+   * caller waits for the restart already under way.
+   */
+  async restartServer(): Promise<void> {
+    if (this.parent) return this.parent.restartServer();
+    if (this.restarting) return this.restarting;
+    const options = this.loadOptions;
+    const binary = findLlamaServer();
+    if (!options || !binary) {
+      throw new Error("No model loaded. Call loadModel() first");
+    }
+    this.restarting = (async () => {
+      console.log("[LlamaServer] Restarting the server");
+      appendServerLog("[SHIELD] restarting llama-server");
+      const child = this.process;
+      this.process = null;
+      if (child && child.exitCode === null) {
+        await new Promise<void>((resolve) => {
+          // A frozen decode loop may never act on SIGTERM
+          const force = setTimeout(() => child.kill("SIGKILL"), 3000);
+          child.once("exit", () => {
+            clearTimeout(force);
+            resolve();
+          });
+          child.kill();
+        });
+      }
+      await this.start(binary, options);
+    })().finally(() => {
+      this.restarting = null;
+    });
+    return this.restarting;
+  }
+
+  /**
+   * Cut off the request in progress, of whichever session, and handle it as
+   * the user chose (rescue.ts). False when nothing is running.
+   */
+  rescue(action: RescueAction): boolean {
+    const session = (this.parent ?? this).inFlight?.session;
+    if (!session?.rescueController) return false;
+    session.rescueAction = action;
+    session.rescueController.abort();
+    return true;
+  }
+
+  /** The request in progress on this server, for the stuck bar */
+  requestStatus(): RequestStatus | null {
+    const flight = (this.parent ?? this).inFlight;
+    if (!flight) return null;
+    const now = Date.now();
+    return {
+      agent: flight.session.parent !== null,
+      phase: flight.phase,
+      elapsedMs: now - flight.startedAt,
+      idleMs: now - flight.lastProgressAt,
+    };
+  }
+
   private async get(route: string): Promise<unknown> {
     const response = await fetch(`${this.baseUrl}${route}`);
     if (!response.ok) throw new Error(`${route}: HTTP ${response.status}`);
@@ -404,13 +501,29 @@ export class LlamaServerProvider {
     );
   }
 
-  async chat(message: string, options: ChatOptions = {}): Promise<string> {
+  /** `restarts`: times the server was restarted after a stall during this message */
+  async chat(
+    message: string,
+    options: ChatOptions = {},
+    restarts = 0
+  ): Promise<string> {
     if (!this.isRunning()) {
       throw new Error("No model loaded. Call loadModel() first");
     }
 
     this.abortController = new AbortController();
     const signal = options.signal ?? this.abortController.signal;
+    const root = this.parent ?? this;
+    this.rescueAction = null;
+    const rescued = new AbortController();
+    this.rescueController = rescued;
+    const flight = {
+      session: this as LlamaServerProvider,
+      startedAt: Date.now(),
+      lastProgressAt: Date.now(),
+      phase: "reading" as RequestStatus["phase"],
+    };
+    root.inFlight = flight;
     this.lastSummary = null;
     this.lastCapsule = null;
     const userMessage: ChatMessage = { role: "user", content: message };
@@ -422,6 +535,7 @@ export class LlamaServerProvider {
     const thoughtWatch = new RepetitionWatch();
     let stallTimer: ReturnType<typeof setTimeout> | undefined;
     const watchForStall = () => {
+      flight.lastProgressAt = Date.now();
       clearTimeout(stallTimer);
       stallTimer = setTimeout(() => stalled.abort(), STALL_MS);
     };
@@ -439,13 +553,23 @@ export class LlamaServerProvider {
     /** The whole prompt, once the server says how long it is */
     let promptTokens = 0;
     let retryWithoutThinking = false;
+    let restartAfterStall = false;
+    let rescue: RescueAction | null = null;
     /** What was sent, kept for the server log when it stalls */
     let requestBody: object = {};
 
     try {
       // Inside the try: Stop while summarising ends the turn like Stop
       // while replying
-      await this.makeRoom(message, signal, options.onProgress);
+      await this.makeRoom(
+        message,
+        AbortSignal.any([signal, rescued.signal]),
+        (progress) => {
+          if (progress.phase === "summarising") flight.phase = "summarising";
+          options.onProgress?.(progress);
+        }
+      );
+      flight.phase = "reading";
 
       watchForStall();
       appendServerLog(
@@ -472,7 +596,12 @@ export class LlamaServerProvider {
       const response = await fetch(`${this.baseUrl}/v1/chat/completions`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        signal: AbortSignal.any([signal, stalled.signal, looping.signal]),
+        signal: AbortSignal.any([
+          signal,
+          stalled.signal,
+          looping.signal,
+          rescued.signal,
+        ]),
         body: JSON.stringify(requestBody),
       });
       if (!response.ok || !response.body) {
@@ -504,6 +633,9 @@ export class LlamaServerProvider {
               ? progress.done > furthestRead
               : progress?.phase === "writing" &&
                 progress.generated > furthestWritten;
+          if (text || thought || progress?.phase === "writing") {
+            flight.phase = "writing";
+          }
           if (progress?.phase === "reading") {
             furthestRead = Math.max(furthestRead, progress.done);
           } else if (progress?.phase === "writing") {
@@ -517,7 +649,15 @@ export class LlamaServerProvider {
         }
       }
     } catch (error) {
-      if (looping.signal.aborted && !signal.aborted) {
+      if (rescued.signal.aborted && !signal.aborted) {
+        console.log(
+          `[LlamaServer] Request cut off by the user: ${this.rescueAction}`
+        );
+        appendServerLog(
+          `[SHIELD] request cut off by the user: ${this.rescueAction}`
+        );
+        rescue = this.rescueAction;
+      } else if (looping.signal.aborted && !signal.aborted) {
         console.log(
           "[LlamaServer] The model's thinking repeated itself; sending the message again without thinking"
         );
@@ -539,17 +679,39 @@ export class LlamaServerProvider {
           );
           logStallDetails(requestBody);
         }
-        throw new Error(
-          `llama-server made no progress for ${STALL_MS / 60000} minutes and was given up on; the model server may have hung. Stop and reload the model.`
-        );
+        // Once: a server that freezes again on the same message is not
+        // helped by a third try
+        if (restarts > 0) {
+          throw new Error(
+            `llama-server made no progress for ${STALL_MS / 60000} minutes, also after a restart, and was given up on. Stop and reload the model.`
+          );
+        }
+        restartAfterStall = true;
       } else if (!signal.aborted) throw error;
     } finally {
       clearTimeout(stallTimer);
       this.abortController = null;
+      this.rescueController = null;
+      if (root.inFlight === flight) root.inFlight = null;
     }
-    // Nothing of the dropped reply is kept: the history is as it was
+    // Nothing of a dropped reply is kept: the history is as it was
+    if (rescue === "nudge") {
+      const nudged = message.endsWith(NUDGE_NOTE)
+        ? message
+        : message + NUDGE_NOTE;
+      return this.chat(nudged, { ...options, thinking: false }, restarts);
+    }
+    if (rescue === "restart" || restartAfterStall) {
+      await this.restartServer();
+      return this.chat(
+        message,
+        options,
+        restarts + (restartAfterStall ? 1 : 0)
+      );
+    }
+    // "skip" goes on like Stop: what was written is kept
     if (retryWithoutThinking) {
-      return this.chat(message, { ...options, thinking: false });
+      return this.chat(message, { ...options, thinking: false }, restarts);
     }
 
     this.history.push(userMessage, { role: "assistant", content: reply });

@@ -128,6 +128,20 @@ export interface LlamaAPI {
     sessionId: string
   ) => Promise<{ success: boolean; error?: string }>;
   stopGeneration: () => Promise<{ success: boolean; error?: string }>;
+  requestStatus: () => Promise<{
+    success: boolean;
+    status?: {
+      agent: boolean;
+      phase: "summarising" | "reading" | "writing";
+      elapsedMs: number;
+      idleMs: number;
+    } | null;
+  }>;
+  rescue: (action: "nudge" | "skip" | "restart") => Promise<{
+    success: boolean;
+    cutOff?: boolean;
+    error?: string;
+  }>;
   setSystemPrompt: (
     prompt: string,
     tools?: ToolDefinition[]
@@ -237,6 +251,8 @@ const llamaAPI: LlamaAPI = {
     ipcRenderer.invoke("llama:agentContext", sessionId),
   agentClose: (sessionId) => ipcRenderer.invoke("llama:agentClose", sessionId),
   stopGeneration: () => ipcRenderer.invoke("llama:stopGeneration"),
+  requestStatus: () => ipcRenderer.invoke("llama:requestStatus"),
+  rescue: (action) => ipcRenderer.invoke("llama:rescue", action),
   setSystemPrompt: (prompt, tools) =>
     ipcRenderer.invoke("llama:setSystemPrompt", prompt, tools),
   getSystemPrompt: () => ipcRenderer.invoke("llama:getSystemPrompt"),

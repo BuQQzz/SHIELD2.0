@@ -45,6 +45,12 @@ interface GenerationStore {
    */
   stopRequested: boolean;
   setStopRequested: (value: boolean) => void;
+  /**
+   * The user skipped the running agent's step in the stuck bar. Ends that
+   * agent's run only; cleared when the next agent starts.
+   */
+  skipRequested: boolean;
+  setSkipRequested: (value: boolean) => void;
 }
 
 export const useGenerationStore = create<GenerationStore>((set) => ({
@@ -71,6 +77,8 @@ export const useGenerationStore = create<GenerationStore>((set) => ({
   setContext: (context) => set({ context: context ?? null }),
   stopRequested: false,
   setStopRequested: (value) => set({ stopRequested: value }),
+  skipRequested: false,
+  setSkipRequested: (value) => set({ skipRequested: value }),
   refreshContext: async () => {
     try {
       const result = await window.llama.getContextUsage();

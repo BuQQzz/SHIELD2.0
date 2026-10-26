@@ -4,6 +4,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { LlamaServerProvider, STALL_MS } from "./LlamaServerProvider";
+import { NUDGE_NOTE } from "./llamaServer/rescue";
 import type { SavedMessage } from "./taskCapsule";
 
 interface SentRequest {
@@ -489,7 +490,7 @@ describe("LlamaServerProvider a server that goes silent", () => {
     vi.unstubAllGlobals();
   });
 
-  it("gives up after STALL_MS with no bytes, instead of waiting forever", async () => {
+  it("restarts the server after STALL_MS with no bytes, then gives up if it stalls again", async () => {
     vi.useFakeTimers();
     const provider = new LlamaServerProvider();
     Object.assign(provider, {
@@ -512,12 +513,21 @@ describe("LlamaServerProvider a server that goes silent", () => {
       })
     );
 
+    const restart = vi
+      .spyOn(provider, "restartServer")
+      .mockResolvedValue(undefined);
+
     const outcome = provider.chat("hello").then(
       () => "returned",
       (error: Error) => error.message
     );
     await vi.advanceTimersByTimeAsync(STALL_MS + 1000);
-    expect(await outcome).toContain("made no progress for 5 minutes");
+    expect(restart).toHaveBeenCalledTimes(1);
+    await vi.advanceTimersByTimeAsync(STALL_MS + 1000);
+    expect(await outcome).toContain(
+      "made no progress for 5 minutes, also after a restart"
+    );
+    expect(restart).toHaveBeenCalledTimes(1);
   });
 
   // The second hang (2026-10-21): the server's main thread spun at 100% and
@@ -556,11 +566,13 @@ describe("LlamaServerProvider a server that goes silent", () => {
       })
     );
 
+    vi.spyOn(provider, "restartServer").mockResolvedValue(undefined);
+
     const outcome = provider.chat("hello").then(
       () => "returned",
       (error: Error) => error.message
     );
-    await vi.advanceTimersByTimeAsync(STALL_MS + 61_000);
+    await vi.advanceTimersByTimeAsync(2 * (STALL_MS + 61_000));
     expect(await outcome).toContain("made no progress for 5 minutes");
   });
 });
@@ -774,5 +786,123 @@ describe("LlamaServerProvider SHIELD_SERVER_LOG", () => {
     });
     expect(request.stream).toBe(true);
     fs.rmSync(dir, { recursive: true, force: true });
+  });
+});
+
+// The stuck bar (rescue.ts): the user cuts off one request, not the turn
+describe("LlamaServerProvider a request the user rescues", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.restoreAllMocks();
+  });
+
+  /**
+   * The first request writes "going round" and then hangs until cut off;
+   * every later one answers "done"
+   */
+  function stuckOnce() {
+    const provider = new LlamaServerProvider();
+    Object.assign(provider, {
+      process: { exitCode: null },
+      baseUrl: "http://server",
+      contextSize: 32768,
+    });
+    const sent: (SentRequest & {
+      chat_template_kwargs?: { enable_thinking: boolean };
+    })[] = [];
+    const urls: string[] = [];
+    const encoder = new TextEncoder();
+    const line = (event: object) =>
+      encoder.encode(`data: ${JSON.stringify(event)}\n\n`);
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: string, init: RequestInit) => {
+        urls.push(url);
+        sent.push(JSON.parse(init.body as string));
+        const first = sent.length === 1;
+        const body = new ReadableStream({
+          start(controller) {
+            if (!first) {
+              controller.enqueue(
+                line({ choices: [{ delta: { content: "done" } }] })
+              );
+              controller.close();
+              return;
+            }
+            controller.enqueue(
+              line({ choices: [{ delta: { content: "going round" } }] })
+            );
+            init.signal?.addEventListener("abort", () =>
+              controller.error(new DOMException("aborted", "AbortError"))
+            );
+          },
+        });
+        return new Response(body);
+      })
+    );
+    vi.spyOn(console, "log").mockImplementation(() => {});
+    return { provider, sent, urls };
+  }
+
+  const writing = (provider: LlamaServerProvider) =>
+    vi.waitFor(() => expect(provider.requestStatus()?.phase).toBe("writing"));
+
+  it("has nothing to cut off when no request runs", () => {
+    const { provider } = stuckOnce();
+    expect(provider.requestStatus()).toBeNull();
+    expect(provider.rescue("nudge")).toBe(false);
+  });
+
+  it("nudge: sends the message again without thinking, with a note", async () => {
+    const { provider, sent } = stuckOnce();
+    const reply = provider.chat("fix calc.py");
+    await writing(provider);
+    expect(provider.requestStatus()?.agent).toBe(false);
+
+    expect(provider.rescue("nudge")).toBe(true);
+    expect(await reply).toBe("done");
+    expect(sent).toHaveLength(2);
+    expect(sent[1]!.messages.at(-1)?.content).toBe(`fix calc.py${NUDGE_NOTE}`);
+    expect(sent[1]!.chat_template_kwargs).toEqual({ enable_thinking: false });
+    expect(provider.requestStatus()).toBeNull();
+  });
+
+  it("skip: ends the request with what was written, and sends nothing more", async () => {
+    const { provider, sent } = stuckOnce();
+    const reply = provider.chat("fix calc.py");
+    await writing(provider);
+
+    provider.rescue("skip");
+    expect(await reply).toBe("going round");
+    expect(sent).toHaveLength(1);
+  });
+
+  it("restart: restarts the server and sends the same message again", async () => {
+    const { provider, sent } = stuckOnce();
+    const restart = vi
+      .spyOn(provider, "restartServer")
+      .mockResolvedValue(undefined);
+    const reply = provider.chat("fix calc.py");
+    await writing(provider);
+
+    provider.rescue("restart");
+    expect(await reply).toBe("done");
+    expect(restart).toHaveBeenCalledTimes(1);
+    expect(sent[1]!.messages.at(-1)?.content).toBe("fix calc.py");
+  });
+
+  it("reaches an agent's request from the main server, which a restart moves", async () => {
+    const { provider, urls } = stuckOnce();
+    vi.spyOn(provider, "restartServer").mockImplementation(async () => {
+      Object.assign(provider, { baseUrl: "http://restarted" });
+    });
+    const agent = provider.fork("You are the coder.");
+    const reply = agent.chat("fix calc.py");
+    await writing(provider);
+    expect(provider.requestStatus()?.agent).toBe(true);
+
+    expect(provider.rescue("restart")).toBe(true);
+    expect(await reply).toBe("done");
+    expect(urls[1]).toBe("http://restarted/v1/chat/completions");
   });
 });

@@ -164,6 +164,7 @@ export function useAgentTeam({
           }).prompt,
         workspaceFolder,
         isStopped: () => useGenerationStore.getState().stopRequested,
+        isSkipped: () => useGenerationStore.getState().skipRequested,
         onProgress: setActivity,
         onEvent: (event) => {
           const id = conversationId ?? "no-conversation";
@@ -173,6 +174,7 @@ export function useAgentTeam({
         },
       };
 
+      useGenerationStore.getState().setSkipRequested(false);
       try {
         return await handleDelegate(request.arguments, team, deps);
       } finally {

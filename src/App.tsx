@@ -16,6 +16,7 @@ import { MessageList } from "./components/chat/MessageList";
 import { ChatInput, type ChatInputRef } from "./components/chat/ChatInput";
 import { LazySettingsDialog, LazyTemplateSelector } from "./components/lazy";
 import { ToolPermissionBar } from "./components/chat/ToolPermissionBar";
+import { StuckBar } from "./components/chat/StuckBar";
 import { ThemeProvider } from "./components/theme/ThemeProvider";
 import { toast } from "sonner";
 import { Toaster } from "./components/ui/sonner";
@@ -579,6 +580,7 @@ function App() {
             onApprove={handleApprove}
             onDeny={handleDeny}
           />
+          <StuckBar isGenerating={isGenerating} />
           {isCodeSession &&
             isModelLoaded &&
             folderReady &&

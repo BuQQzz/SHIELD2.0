@@ -33,6 +33,7 @@ import {
   type ModelConfig,
 } from "./LlamaService.js";
 import { LlamaServerProvider } from "./LlamaServerProvider.js";
+import type { RequestStatus, RescueAction } from "./llamaServer/rescue.js";
 import type { SavedCapsule, SavedMessage } from "./taskCapsule.js";
 import type { ToolDefinition } from "../types/prompts.js";
 
@@ -284,6 +285,16 @@ export class ModelRuntime {
     for (const session of this.agentSessions.values()) {
       session.stopGeneration();
     }
+  }
+
+  /** The request in progress, for the stuck bar; the in-process engine has none */
+  requestStatus(): RequestStatus | null {
+    return this.engine === "server" ? this.server.requestStatus() : null;
+  }
+
+  /** Nudge, skip or restart a request that looks stuck (rescue.ts) */
+  rescue(action: RescueAction): boolean {
+    return this.engine === "server" && this.server.rescue(action);
   }
 
   /**

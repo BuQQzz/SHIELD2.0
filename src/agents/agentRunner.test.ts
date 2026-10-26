@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
+import { SKIPPED_BY_USER } from "../services/llamaServer/rescue";
 import {
   changedChecks,
   namedFilesNote,
@@ -32,6 +33,7 @@ function harness(
     size?: number;
     execute?: AgentRunDeps["execute"];
     isStopped?: () => boolean;
+    isSkipped?: () => boolean;
     openSession?: AgentRunDeps["openSession"];
   } = {}
 ) {
@@ -63,6 +65,7 @@ function harness(
       }),
     buildPrompt: (spec) => `PROMPT for ${spec.role}`,
     isStopped: options.isStopped,
+    isSkipped: options.isSkipped,
   };
   return { deps, sent, thinking, executed };
 }
@@ -488,6 +491,31 @@ describe("runAgent", () => {
     );
     expect(report.status).toBe("PARTIAL");
     expect(report.reason).toBe("the user stopped it");
+  });
+
+  it("ends the run PARTIAL, saying so, when the user skips the step", async () => {
+    let skipped = false;
+    const { deps, sent } = harness(
+      [
+        call("read_text_file", { path: "/p/a.js" }),
+        call("read_text_file", { path: "/p/b.js" }),
+      ],
+      {
+        isSkipped: () => skipped,
+        execute: async () => {
+          skipped = true;
+          return ok("done");
+        },
+      }
+    );
+    const report = await runAgent(
+      { role: "coder", task: "t", team: new TeamRun() },
+      deps
+    );
+    expect(report.status).toBe("PARTIAL");
+    expect(report.reason).toBe(SKIPPED_BY_USER);
+    // No report asked for: the user wants to move on
+    expect(sent).toHaveLength(1);
   });
 
   it("seeds a fresh agent with the earlier hand-off and the team notes, not the old chat", async () => {
