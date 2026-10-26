@@ -82,6 +82,11 @@ function repeatNote(
   if (result.blocked) {
     return `This exact call (${toolCall.tool}) was already refused in this turn, so it was not run again: ${result.error ?? ""} Do not send it again.`;
   }
+  // The cached report again taught the orchestrator nothing: it sent one
+  // delegate call three times after a run that changed nothing (2026-10-25)
+  if (result.success && toolCall.tool === "delegate") {
+    return `You already gave the ${callTarget(toolCall) ?? "agent"} exactly this task in this turn, and nothing has changed since, so it was not run again: it would end the same way. If that run did not finish the work, delegate again with what the agent lacked (the exact file name, the error it hit, what to do differently), or tell the user what was not done.`;
+  }
   if (!result.success) {
     if (result.error === "User denied permission") {
       return `The user already declined this exact call (${toolCall.tool}) in this turn, so it was not asked again. Do not try it again; tell the user it was not done.`;
@@ -357,6 +362,10 @@ export async function processMCPToolCalls(
         if (count >= MAX_REPEATS) stuckOn = toolCall;
       } else {
         result = await runToolCall(toolCall, onToolCallDetected);
+        // delegate counts as read-only, but its agent may have changed files:
+        // a tester sent the same task after a fix must run again. The run
+        // itself is kept, so the same task right after it is not redone.
+        if (result.changed) completedCalls.clear();
         // A call sent back before it ran ("Not run: ...") is not remembered:
         // a rewrite sent back once must go through when sent again. The same
         // call sent back again and again still ends the turn.

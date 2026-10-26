@@ -34,6 +34,7 @@ import {
   parseHandoff,
   stripHandoff,
 } from "./handoff";
+import { isChangeRequest } from "./teamRouting";
 import {
   CHECKPOINT_AT,
   checkToolUse,
@@ -500,6 +501,25 @@ export async function runAgent(
     } else {
       status = "PARTIAL";
       reason ??= "it ended without a report";
+    }
+    // A coder that misread a path and stopped was filed DONE with "files:
+    // none changed", and the orchestrator took the change as made (2026-10-25)
+    if (
+      status === "DONE" &&
+      role === "coder" &&
+      isChangeRequest(input.task) &&
+      work.commands.length === 0 &&
+      ![work, input.continueFrom?.work].some((done) =>
+        done?.files.some((file) => file.ok)
+      )
+    ) {
+      status = "PARTIAL";
+      reason = [
+        reason,
+        "it was asked for a change but changed no file. If the change was already in place, tell the user; otherwise give it what it lacked",
+      ]
+        .filter(Boolean)
+        .join("; ");
     }
     if (status === "PARTIAL" && !reason && checkpointing) {
       reason = `its context reached ${Math.round(checkpointAt * 100)}%`;

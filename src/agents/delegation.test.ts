@@ -27,14 +27,31 @@ const text = (r: Awaited<ReturnType<typeof handleDelegate>>) =>
 describe("handleDelegate", () => {
   it("runs the agent and answers with its report", async () => {
     const result = await handleDelegate(
-      { role: "coder", task: "fix it" },
+      { role: "coder", task: "look at it" },
       new TeamRun(),
       deps()
     );
     expect(result.success).toBe(true);
+    expect(result.changed).toBe(false);
     expect(text(result)).toContain("[coder · DONE");
     expect(text(result)).toContain("AGENT'S SUMMARY: All done.");
     expect(text(result)).toContain("Checked by SHIELD");
+  });
+
+  // delegate counts as read-only, so the tool loop needs this to know that
+  // what the turn found earlier may no longer hold
+  it("says when the agent changed a file or ran a command", async () => {
+    const edit =
+      '<tool_call>\n<server>filesystem</server>\n<tool>write_file</tool>\n<arguments>{"path":"/p/a.py","content":"x"}</arguments>\n</tool_call>';
+    const d = deps();
+    d.chat.mockResolvedValueOnce(edit);
+    const result = await handleDelegate(
+      { role: "coder", task: "write a.py" },
+      new TeamRun(),
+      d
+    );
+    expect(text(result)).toContain("[coder · DONE");
+    expect(result.changed).toBe(true);
   });
 
   it("refuses bad arguments with what a good call looks like, and runs nothing", async () => {
@@ -92,7 +109,7 @@ describe("handleDelegate", () => {
 
     const second = deps();
     const result = await handleDelegate(
-      { role: "coder", task: "fix calc.py line 2" },
+      { role: "coder", task: "carry on with calc.py line 2" },
       team,
       second
     );

@@ -13,9 +13,10 @@ import {
 } from "./delegate";
 import type { TeamRun } from "./team";
 
-const reportResult = (text: string): MCPToolResult => ({
+const reportResult = (text: string, changed: boolean): MCPToolResult => ({
   success: true,
   data: { content: [{ type: "text", text }] },
+  changed,
 });
 
 export async function handleDelegate(
@@ -70,5 +71,9 @@ export async function handleDelegate(
       error: `The ${role} could not run: ${report.reason ?? "unknown error"}. Tell the user; do not do its work yourself.`,
     };
   }
-  return reportResult(formatReport(report));
+  // A command may have changed files too
+  const changed =
+    report.work.files.some((file) => file.ok) ||
+    report.work.commands.length > 0;
+  return reportResult(formatReport(report), changed);
 }

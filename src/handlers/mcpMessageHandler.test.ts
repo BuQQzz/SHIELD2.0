@@ -595,6 +595,54 @@ describe("repeated calls within a turn", () => {
     );
   });
 
+  // Live (2026-10-25): the same delegate call three times after a run that
+  // changed nothing, each answered with the same cached report
+  it("answers a repeated delegation with what to do, not the old report", async () => {
+    const delegate = call("delegate", '{"role":"coder","task":"fix calc.py"}');
+    const onToolCallDetected = vi.fn().mockResolvedValue({
+      success: true,
+      data: "[coder · DONE · 2 steps] files: none changed",
+      changed: false,
+    });
+    const continueConversation = vi
+      .fn()
+      .mockResolvedValueOnce(delegate)
+      .mockResolvedValueOnce("I could not make the change.");
+
+    await processMCPToolCalls(
+      { id: "d", role: "assistant", content: delegate, timestamp: new Date() },
+      { onToolCallDetected, addMessage: vi.fn(), continueConversation }
+    );
+
+    expect(onToolCallDetected).toHaveBeenCalledTimes(1);
+    const second = continueConversation.mock.calls[1]?.[0] as string;
+    expect(second).toContain("already gave the coder exactly this task");
+    expect(second).toContain("what the agent lacked");
+    expect(second).not.toContain("files: none changed");
+  });
+
+  // delegate counts as read-only, but its agent may change files: a tester
+  // sent the same task after a coder's fix has to run again
+  it("runs a repeated call again after a delegation changed something", async () => {
+    const test = call("delegate", '{"role":"tester","task":"run the tests"}');
+    const fix = call("delegate", '{"role":"coder","task":"fix calc.py"}');
+    const onToolCallDetected = vi
+      .fn()
+      .mockResolvedValue({ success: true, data: "report", changed: true });
+    const continueConversation = vi
+      .fn()
+      .mockResolvedValueOnce(fix)
+      .mockResolvedValueOnce(test)
+      .mockResolvedValueOnce("The tests pass now.");
+
+    await processMCPToolCalls(
+      { id: "t", role: "assistant", content: test, timestamp: new Date() },
+      { onToolCallDetected, addMessage: vi.fn(), continueConversation }
+    );
+
+    expect(onToolCallDetected).toHaveBeenCalledTimes(3);
+  });
+
   // A rewrite SHIELD sends back once has to go through when sent again
   it("does not answer a call sent back before it ran from memory", async () => {
     const write = call("write_file", '{"path":"C:/a.js","content":"x"}');

@@ -496,6 +496,11 @@ export interface MCPToolResult {
   blocked?: boolean;
   data?: unknown; // Changed from result to match backend
   error?: string;
+  /**
+   * A delegation whose agent changed a file or ran a command: what earlier
+   * calls of the turn found may no longer hold
+   */
+  changed?: boolean;
 }
 
 export interface MCPServerConfig {

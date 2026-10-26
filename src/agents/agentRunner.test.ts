@@ -309,6 +309,37 @@ describe("runAgent", () => {
     expect(report.reason).toContain("wrote no HANDOFF block");
   });
 
+  // Live (2026-10-25): a coder misread calc.py as calcul.py, stopped, and
+  // was filed DONE with no file changed; the orchestrator took it as made
+  it("does not file a coder DONE when it was asked for a change and changed nothing", async () => {
+    const { deps } = harness([
+      call("read_text_file", { path: "/p/calcul.py" }),
+      `I need to fix the path.\n\n${HANDOFF_DONE}`,
+    ]);
+    const report = await runAgent(
+      {
+        role: "coder",
+        task: "Make add in calc.py take a third number",
+        team: new TeamRun(),
+      },
+      deps
+    );
+    expect(report.status).toBe("PARTIAL");
+    expect(report.reason).toContain("changed no file");
+
+    // a coder only asked to look, or a reviewer, is done as before
+    const look = harness([`Read it.\n\n${HANDOFF_DONE}`]);
+    const read = await runAgent(
+      {
+        role: "coder",
+        task: "Read calc.py and say what add returns",
+        team: new TeamRun(),
+      },
+      look.deps
+    );
+    expect(read.status).toBe("DONE");
+  });
+
   it("never reports DONE for an agent that said nothing", async () => {
     const { deps } = harness([""]);
     const report = await runAgent(
