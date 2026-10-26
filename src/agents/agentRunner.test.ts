@@ -1,5 +1,10 @@
 import { describe, expect, it, vi } from "vitest";
-import { namedFilesNote, runAgent, type AgentRunDeps } from "./agentRunner";
+import {
+  changedChecks,
+  namedFilesNote,
+  runAgent,
+  type AgentRunDeps,
+} from "./agentRunner";
 import { TeamRun } from "./team";
 import type { AgentEvent } from "./events";
 import type { MCPToolResult } from "../types/electron";
@@ -769,5 +774,57 @@ describe("namedFilesNote", () => {
     expect(sent[0]).toContain(
       "TASK:\nRead calc.py\n\n[Files named in the task, in the project folder: /p/calc.py]"
     );
+  });
+});
+
+// Live (2026-10-26): a coder made a failing test pass by rewriting its three
+// old asserts to the new, wrong values
+describe("changedChecks", () => {
+  const old =
+    "assert add(2, 3) == 5\nassert add(0, 0) == 0\nassert add(-1, 1) == 0";
+
+  it("counts existing checks an edit changed or took out", () => {
+    expect(
+      changedChecks([
+        {
+          oldText: old,
+          newText:
+            "assert add(2, 3) == 7\nassert add(0, 0) == 2\nassert add(-1, 1) == 2\nassert add(2, 3, 4) == 9",
+        },
+      ])
+    ).toBe(3);
+    expect(
+      changedChecks([{ oldText: "expect(sum(1, 2)).toBe(3);", newText: "" }])
+    ).toBe(1);
+  });
+
+  it("does not count checks kept as they were, added ones, or other lines", () => {
+    expect(
+      changedChecks([
+        { oldText: old, newText: `${old}\nassert add(1, 2, 3) == 6` },
+        {
+          oldText: "from calc import add",
+          newText: "from calc import add, sub",
+        },
+      ])
+    ).toBe(0);
+    expect(changedChecks(undefined)).toBe(0);
+  });
+
+  it("is in the report, for an edit of a test file only", async () => {
+    const edits = [{ oldText: old, newText: "assert add(2, 3) == 7" }];
+    const { deps } = harness([
+      call("edit_file", { path: "/p/test_calc.py", edits }),
+      call("edit_file", { path: "/p/calc.py", edits }),
+      `Tests pass.\n\n${HANDOFF_DONE}`,
+    ]);
+    const report = await runAgent(
+      { role: "coder", task: "fix calc.py and its test", team: new TeamRun() },
+      deps
+    );
+    expect(report.work.files).toEqual([
+      { path: "p/test_calc.py", action: "edited", ok: true, changedChecks: 3 },
+      { path: "p/calc.py", action: "edited", ok: true },
+    ]);
   });
 });

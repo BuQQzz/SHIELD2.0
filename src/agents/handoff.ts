@@ -93,7 +93,11 @@ export function stripHandoff(text: string): string {
 }
 
 const action = (file: VerifiedWork["files"][number]) =>
-  `${file.path} ${file.action}${file.ok ? "" : " (FAILED)"}`;
+  `${file.path} ${file.action}${file.ok ? "" : " (FAILED)"}${
+    file.changedChecks
+      ? ` (changed ${file.changedChecks} existing test check${file.changedChecks === 1 ? "" : "s"}: tell the user)`
+      : ""
+  }`;
 
 /** Ends a `refused` entry for a call the user turned down at the approval bar */
 export const DENIED_BY_USER = "(denied by the user)";

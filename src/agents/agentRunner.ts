@@ -38,6 +38,7 @@ import { isChangeRequest } from "./teamRouting";
 import {
   CHECKPOINT_AT,
   checkToolUse,
+  isTestFile,
   roleSpec,
   TEAM_NOTE_TOOL_NAME,
   type RoleSpec,
@@ -158,6 +159,32 @@ function resultText(result: MCPToolResult): string {
   return (data?.content ?? []).map((part) => part.text ?? "").join("\n");
 }
 
+/** A line that checks a result: assert x == 1, expect(x).toBe(1), self.assertEqual(...) */
+const CHECK_LINE = /\b(assert\w*|expect)\b|\.(toBe|toEqual|should)\b/;
+
+/**
+ * Checks in a test file that an edit changed or took out. A coder made a
+ * failing test pass by rewriting its three old asserts to the new, wrong
+ * values (2026-10-26); the report has to say so.
+ */
+export function changedChecks(edits: unknown): number {
+  if (!Array.isArray(edits)) return 0;
+  let count = 0;
+  for (const edit of edits) {
+    const { oldText, newText } = (edit ?? {}) as {
+      oldText?: unknown;
+      newText?: unknown;
+    };
+    if (typeof oldText !== "string" || typeof newText !== "string") continue;
+    const kept = new Set(newText.split("\n").map((line) => line.trim()));
+    count += oldText
+      .split("\n")
+      .map((line) => line.trim())
+      .filter((line) => CHECK_LINE.test(line) && !kept.has(line)).length;
+  }
+  return count;
+}
+
 function recordCall(
   work: VerifiedWork,
   call: ToolCallRequest,
@@ -173,10 +200,15 @@ function recordCall(
   };
   const action = fileActions[call.tool];
   if (action) {
+    const changed =
+      call.tool === "edit_file" && result.success && isTestFile(path)
+        ? changedChecks(call.arguments.edits)
+        : 0;
     work.files.push({
       path: shortPath(path) || path,
       action,
       ok: result.success,
+      ...(changed ? { changedChecks: changed } : {}),
     });
     return;
   }

@@ -18,6 +18,8 @@ export interface VerifiedFile {
   path: string;
   action: "written" | "edited" | "moved" | "deleted" | "directory";
   ok: boolean;
+  /** Checks already in a test file that an edit changed or took out */
+  changedChecks?: number;
 }
 
 export interface VerifiedCommand {

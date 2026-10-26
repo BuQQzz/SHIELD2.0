@@ -278,6 +278,19 @@ describe("describeWork", () => {
     expect(lines[1]).toContain("exit 0 (2 output lines looked like failures)");
     expect(lines[2]).toContain("refused: tester may only change test files");
   });
+
+  it("says when an edit changed checks already in a test file", () => {
+    const lines = describeWork({
+      files: [
+        { path: "test_calc.py", action: "edited", ok: true, changedChecks: 3 },
+      ],
+      commands: [],
+      refused: [],
+    });
+    expect(lines[0]).toBe(
+      "- files: test_calc.py edited (changed 3 existing test checks: tell the user)"
+    );
+  });
 });
 
 describe("toolsForRole", () => {
