@@ -7,7 +7,10 @@
  */
 
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
-import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
+import {
+  StdioClientTransport,
+  getDefaultEnvironment,
+} from "@modelcontextprotocol/sdk/client/stdio.js";
 import path from "path";
 import os from "os";
 import { app, shell } from "electron";
@@ -121,9 +124,14 @@ class MCPService {
       console.log(`[MCPService] Starting server with args:`, serverArgs);
 
       // Create client with stdio transport
+      // Installed, the server is read from inside app.asar, which only the
+      // app's own Electron can do (and a user may have no node at all)
       const transport = new StdioClientTransport({
-        command: "node",
+        command: app.isPackaged ? process.execPath : "node",
         args: serverArgs,
+        ...(app.isPackaged
+          ? { env: { ...getDefaultEnvironment(), ELECTRON_RUN_AS_NODE: "1" } }
+          : {}),
         // Anything the server resolves itself starts in the user's folder
         ...(serverName === "filesystem"
           ? { cwd: this.baseFolder(config) }
@@ -157,9 +165,10 @@ class MCPService {
    * Get the path to an installed MCP server package
    */
   private getServerPath(packageName: string): string {
-    // In production, look in app's node_modules
+    // In production, look in app's node_modules (packed: only some
+    // native modules are unpacked)
     const appPath = app.isPackaged
-      ? path.join(process.resourcesPath, "app.asar.unpacked", "node_modules")
+      ? path.join(process.resourcesPath, "app.asar", "node_modules")
       : path.join(process.cwd(), "node_modules");
 
     // Path to server executable (typically dist/index.js or similar)
