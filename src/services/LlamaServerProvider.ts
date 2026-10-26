@@ -94,6 +94,21 @@ export interface ServerLoadOptions {
  */
 export const STALL_MS = 5 * 60 * 1000;
 
+/**
+ * SHIELD_SERVER_LOG=<file>: llama-server's output and SHIELD's notes on its
+ * requests, timestamped and appended there. Off by default; for finding the
+ * hang, whose server output was otherwise only an in-memory tail.
+ */
+function appendServerLog(line: string): void {
+  const file = process.env.SHIELD_SERVER_LOG;
+  if (!file) return;
+  try {
+    fs.appendFileSync(file, `${new Date().toISOString()} ${line}\n`);
+  } catch {
+    // A diagnostic only: never fail a reply over it
+  }
+}
+
 export class LlamaServerProvider {
   private process: ChildProcess | null = null;
   private baseUrl = "";
@@ -225,6 +240,7 @@ export class LlamaServerProvider {
     const record = (data: Buffer) => {
       for (const line of data.toString().split(/\r?\n/)) {
         if (!line.trim()) continue;
+        appendServerLog(line);
         this.logTail.push(line);
         if (this.logTail.length > LOG_TAIL_LINES) this.logTail.shift();
       }
@@ -393,6 +409,9 @@ export class LlamaServerProvider {
       await this.makeRoom(message, signal, options.onProgress);
 
       watchForStall();
+      appendServerLog(
+        `[SHIELD] chat request, thinking ${options.thinking === false ? "off" : "on"}`
+      );
       const response = await fetch(`${this.baseUrl}/v1/chat/completions`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -461,10 +480,23 @@ export class LlamaServerProvider {
         console.log(
           "[LlamaServer] The model's thinking repeated itself; sending the message again without thinking"
         );
+        appendServerLog(
+          "[SHIELD] thinking repeated itself: request aborted, sending it again without thinking"
+        );
         retryWithoutThinking = true;
       }
       // Stopped by the user: keep what was generated, like LlamaChatSession
       else if (stalled.signal.aborted && !signal.aborted) {
+        if (process.env.SHIELD_SERVER_LOG) {
+          appendServerLog(
+            `[SHIELD] no progress for ${STALL_MS / 60000} minutes: request given up. /slots: ${await fetch(
+              `${this.baseUrl}/slots`,
+              { signal: AbortSignal.timeout(3000) }
+            )
+              .then((r) => r.text())
+              .catch((e: Error) => `unreadable (${e.message})`)}`
+          );
+        }
         throw new Error(
           `llama-server made no progress for ${STALL_MS / 60000} minutes and was given up on; the model server may have hung. Stop and reload the model.`
         );

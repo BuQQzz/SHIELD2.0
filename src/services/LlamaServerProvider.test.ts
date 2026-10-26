@@ -1,5 +1,8 @@
 // @vitest-environment node
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
 import { LlamaServerProvider, STALL_MS } from "./LlamaServerProvider";
 import type { SavedMessage } from "./taskCapsule";
 
@@ -627,5 +630,27 @@ describe("LlamaServerProvider thinking in circles", () => {
         (m) => m.content
       )
     ).toEqual(["next step?", "Reading calc.py."]);
+  });
+});
+
+describe("LlamaServerProvider SHIELD_SERVER_LOG", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.unstubAllEnvs();
+  });
+
+  it("notes each request in the file it names, and nothing without it", async () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "shield-log-"));
+    const file = path.join(dir, "server.log");
+    vi.stubEnv("SHIELD_SERVER_LOG", file);
+    const { provider } = connected(32768);
+    await provider.chat("hello", { thinking: false });
+    expect(fs.readFileSync(file, "utf8")).toMatch(
+      /^\d{4}-\d\d-\d\dT[\d:.]+Z \[SHIELD\] chat request, thinking off\n$/
+    );
+    vi.stubEnv("SHIELD_SERVER_LOG", "");
+    await provider.chat("again");
+    expect(fs.readFileSync(file, "utf8").split("\n")).toHaveLength(2);
+    fs.rmSync(dir, { recursive: true, force: true });
   });
 });
