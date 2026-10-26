@@ -867,14 +867,26 @@ describe("LlamaServerProvider a request the user rescues", () => {
     expect(provider.requestStatus()).toBeNull();
   });
 
-  it("skip: ends the request with what was written, and sends nothing more", async () => {
+  it("skip: ends an agent's request with what was written, and sends nothing more", async () => {
     const { provider, sent } = stuckOnce();
-    const reply = provider.chat("fix calc.py");
+    const reply = provider.fork("You are the coder.").chat("fix calc.py");
     await writing(provider);
 
-    provider.rescue("skip");
+    expect(provider.rescue("skip")).toBe(true);
     expect(await reply).toBe("going round");
     expect(sent).toHaveLength(1);
+  });
+
+  // The bar offered Skip for the coder's request; by the click the
+  // orchestrator's was the one running
+  it("skip: leaves a request that is not an agent's alone", async () => {
+    const { provider } = stuckOnce();
+    void provider.chat("fix calc.py").catch(() => {});
+    await writing(provider);
+
+    expect(provider.rescue("skip")).toBe(false);
+    expect(provider.requestStatus()).not.toBeNull();
+    provider.stopGeneration();
   });
 
   it("restart: restarts the server and sends the same message again", async () => {

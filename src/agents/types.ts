@@ -77,6 +77,8 @@ export interface AgentReport {
   contextPercent: number;
   /** Why a PARTIAL, BLOCKED or FAILED run ended */
   reason?: string;
+  /** The user skipped it in the stuck bar, to move on */
+  skipped?: boolean;
   /** What the user sent while it worked, which it was given */
   steered?: string[];
 }

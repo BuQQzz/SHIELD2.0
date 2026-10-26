@@ -179,8 +179,10 @@ describe("formatReport", () => {
       ...base,
       status: "PARTIAL",
       summary: "",
-      reason: SKIPPED_BY_USER,
+      reason: `${SKIPPED_BY_USER}; SHIELD gave it the hand-off of the earlier coder run h1, which ended PARTIAL`,
+      skipped: true,
     });
+    // A continued run's reason has more after it: the flag decides
     expect(text).toContain("THE USER SKIPPED this step to move on");
     expect(text).not.toContain("continue_from");
     expect(text).not.toContain("delegate again if");

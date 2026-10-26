@@ -38,6 +38,7 @@ import { TeamPanel } from "./components/team/TeamPanel";
 import { useTeamStore } from "./stores/team-store";
 import { useGenerationStore } from "./store/generationStore";
 import { sendWhatWaits } from "./handlers/steer";
+import { generateMessageId } from "./handlers/messageHandler";
 import { restoreRuns } from "./agents/runView";
 import { ORCHESTRATOR_PROMPT } from "./agents/roles";
 import { teamFor } from "./agents/team";
@@ -406,36 +407,21 @@ function App() {
   conversationIdRef.current = currentConversation?.id;
 
   // A new user message lets the orchestrator delegate again
-  const handleSendMessage = useCallback(
-    async (...args: Parameters<typeof sendMessage>) => {
-      const [content] = args;
-      // A turn is running: the message steers it, taken with the next tool
-      // result (handlers/steer.ts)
-      if (isGeneratingRef.current) {
-        const message: Message = {
-          id: `steer-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
-          role: "user",
-          content,
-          timestamp: new Date(),
-          steer: true,
-        };
-        setMessages((prev) => [...prev, message]);
-        addMessage(message);
-        useGenerationStore.getState().addSteer(content);
-        return;
-      }
-      const beginTurn = () => {
-        if (!currentConversation) return;
-        teamFor(currentConversation.id).beginTurn();
-        useTeamStore.getState().beginTurn(currentConversation.id);
-      };
-      beginTurn();
-      await sendRef.current(...args);
+  const beginTurn = useCallback(() => {
+    if (!currentConversation) return;
+    teamFor(currentConversation.id).beginTurn();
+    useTeamStore.getState().beginTurn(currentConversation.id);
+  }, [currentConversation]);
+
+  // What was sent or queued during a turn, once it ends - whichever handler
+  // ran it: Continue and Regenerate mark the chat busy too
+  const afterTurn = useCallback(
+    (conversationId: string | undefined) => {
       const generation = useGenerationStore.getState;
-      await sendWhatWaits({
+      return sendWhatWaits({
         canGoOn: () =>
           !generation().stopRequested &&
-          conversationIdRef.current === currentConversation?.id,
+          conversationIdRef.current === conversationId,
         takeSteer: () => generation().takeSteer(),
         nextQueued: () => generation().nextQueued(),
         takeQueue: () => generation().takeQueue(),
@@ -446,7 +432,54 @@ function App() {
         restore: (text) => inputRef.current?.restore(text),
       });
     },
-    [currentConversation, setMessages, addMessage]
+    [beginTurn]
+  );
+
+  const handleSendMessage = useCallback(
+    async (...args: Parameters<typeof sendMessage>) => {
+      const [content] = args;
+      // A turn is running: the message steers it, taken with the next tool
+      // result (handlers/steer.ts)
+      if (isGeneratingRef.current) {
+        const message: Message = {
+          id: generateMessageId(),
+          role: "user",
+          content,
+          timestamp: new Date(),
+          steer: true,
+        };
+        setMessages((prev) => [...prev, message]);
+        addMessage(message);
+        useGenerationStore.getState().addSteer(content);
+        return;
+      }
+      beginTurn();
+      await sendRef.current(...args);
+      await afterTurn(currentConversation?.id);
+    },
+    [currentConversation, setMessages, addMessage, beginTurn, afterTurn]
+  );
+
+  const handleContinueTurn = useCallback(
+    async (messageId: string) => {
+      await handleContinue(messageId);
+      await afterTurn(currentConversation?.id);
+    },
+    [handleContinue, afterTurn, currentConversation]
+  );
+  const handleEditTurn = useCallback(
+    async (...args: Parameters<typeof handleEditMessage>) => {
+      await handleEditMessage(...args);
+      await afterTurn(currentConversation?.id);
+    },
+    [handleEditMessage, afterTurn, currentConversation]
+  );
+  const handleRegenerateTurn = useCallback(
+    async (...args: Parameters<typeof handleRegenerateMessage>) => {
+      await handleRegenerateMessage(...args);
+      await afterTurn(currentConversation?.id);
+    },
+    [handleRegenerateMessage, afterTurn, currentConversation]
   );
 
   // Held for its own turn once the running one ends (handleSendMessage)
@@ -608,9 +641,9 @@ function App() {
               messages={messages}
               streamingContent={streamingContent}
               isGenerating={isGenerating}
-              onContinue={handleContinue}
-              onEditMessage={handleEditMessage}
-              onRegenerateMessage={handleRegenerateMessage}
+              onContinue={handleContinueTurn}
+              onEditMessage={handleEditTurn}
+              onRegenerateMessage={handleRegenerateTurn}
               runningTool={
                 runningTool ??
                 (teamActivity

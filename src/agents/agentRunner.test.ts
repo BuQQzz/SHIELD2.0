@@ -532,6 +532,7 @@ describe("runAgent", () => {
     );
     expect(report.status).toBe("PARTIAL");
     expect(report.reason).toBe(SKIPPED_BY_USER);
+    expect(report.skipped).toBe(true);
     // No report asked for: the user wants to move on
     expect(sent).toHaveLength(1);
   });

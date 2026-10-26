@@ -589,6 +589,7 @@ export async function runAgent(
       contextPercent: lastPercent,
       reason,
       ...(steered.length ? { steered } : {}),
+      ...(stoppedByUser && deps.isSkipped?.() ? { skipped: true } : {}),
     };
     emit(endEvent(report));
     return report;

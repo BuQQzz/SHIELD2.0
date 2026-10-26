@@ -69,7 +69,13 @@ export function StuckBar({ isGenerating }: StuckBarProps) {
       useGenerationStore.getState().setSkipRequested(true);
     }
     const result = await window.llama.rescue(action).catch(() => null);
-    if (!result?.cutOff) setActing(null);
+    if (!result?.cutOff) {
+      setActing(null);
+      // Nothing of an agent's was running to skip
+      if (action === "skip") {
+        useGenerationStore.getState().setSkipRequested(false);
+      }
+    }
   };
 
   // Short: the bar shares a narrow column with its buttons

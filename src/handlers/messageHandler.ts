@@ -122,7 +122,7 @@ export function refersToFiles(content: string): boolean {
  * Generate a unique message ID
  */
 let messageIdCounter = 0;
-function generateMessageId(): string {
+export function generateMessageId(): string {
   return `${Date.now()}-${messageIdCounter++}`;
 }
 
@@ -462,51 +462,48 @@ export function createMessageHandler({
 
             const toolMessageId = generateMessageId();
 
-            try {
-              const returned = await sendStreamingMessage(
-                toolPrompt,
-                (token) => {
-                  streamingContentRef.current += token;
-                  setStreamingContent(streamingContentRef.current);
-                },
-                {
-                  temperature: modelSettings.temperature,
-                  maxTokens: modelSettings.maxTokens,
-                  topP: modelSettings.topP,
-                  topK: modelSettings.topK,
-                  repeatPenalty: modelSettings.repeatPenalty,
-                  ...(toolResults?.length ? { toolResults } : {}),
-                  ...(teamMode ? { thinking: false } : {}),
-                }
-              );
+            // Not setIsGenerating(false) after: the turn runs on (the next
+            // tool, a delegation) until handleSend's own finally. Set false
+            // here, the Stop button went and the input opened mid-turn
+            const returned = await sendStreamingMessage(
+              toolPrompt,
+              (token) => {
+                streamingContentRef.current += token;
+                setStreamingContent(streamingContentRef.current);
+              },
+              {
+                temperature: modelSettings.temperature,
+                maxTokens: modelSettings.maxTokens,
+                topP: modelSettings.topP,
+                topK: modelSettings.topK,
+                repeatPenalty: modelSettings.repeatPenalty,
+                ...(toolResults?.length ? { toolResults } : {}),
+                ...(teamMode ? { thinking: false } : {}),
+              }
+            );
 
-              const rawToolReply = returned || streamingContentRef.current;
-              const toolReply = hasUnsupportedNativeToolCall(rawToolReply)
-                ? UNSUPPORTED_NATIVE_TOOL_CALL_MESSAGE
-                : rawToolReply;
+            const rawToolReply = returned || streamingContentRef.current;
+            const toolReply = hasUnsupportedNativeToolCall(rawToolReply)
+              ? UNSUPPORTED_NATIVE_TOOL_CALL_MESSAGE
+              : rawToolReply;
 
-              const toolResponseMessage: Message = {
-                id: toolMessageId,
-                role: "assistant",
-                content: toolReply,
-                timestamp: new Date(),
-                stats: useGenerationStore.getState().lastStats ?? undefined,
-                summary: useGenerationStore.getState().lastSummary ?? undefined,
-                capsule: useGenerationStore.getState().lastCapsule ?? undefined,
-              };
+            const toolResponseMessage: Message = {
+              id: toolMessageId,
+              role: "assistant",
+              content: toolReply,
+              timestamp: new Date(),
+              stats: useGenerationStore.getState().lastStats ?? undefined,
+              summary: useGenerationStore.getState().lastSummary ?? undefined,
+              capsule: useGenerationStore.getState().lastCapsule ?? undefined,
+            };
 
-              setMessages((prev) => [...prev, toolResponseMessage]);
-              addMessage(toolResponseMessage);
-              setStreamingContent("");
-              streamingContentRef.current = "";
+            setMessages((prev) => [...prev, toolResponseMessage]);
+            addMessage(toolResponseMessage);
+            setStreamingContent("");
+            streamingContentRef.current = "";
 
-              // Hand the reply back so follow-up tool calls get executed too
-              return toolReply;
-            } finally {
-              // Not setIsGenerating(false): the turn runs on (the next tool,
-              // a delegation) until handleSend's own finally. Set false here,
-              // the Stop button went and the input opened mid-turn
-            }
+            // Hand the reply back so follow-up tool calls get executed too
+            return toolReply;
           },
         });
       }

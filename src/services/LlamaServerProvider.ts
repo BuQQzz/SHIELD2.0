@@ -428,6 +428,9 @@ export class LlamaServerProvider {
   rescue(action: RescueAction): boolean {
     const session = (this.parent ?? this).inFlight?.session;
     if (!session?.rescueController) return false;
+    // Skip ends an agent's step. The bar offered it for an agent's request;
+    // by the click the orchestrator's may be the one running
+    if (action === "skip" && !session.parent) return false;
     session.rescueAction = action;
     session.rescueController.abort();
     return true;

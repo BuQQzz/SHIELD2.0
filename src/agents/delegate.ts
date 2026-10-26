@@ -7,7 +7,6 @@
  * good one looks like, instead of being passed on.
  */
 
-import { SKIPPED_BY_USER } from "../services/llamaServer/rescue";
 import { DENIED_BY_USER, describeWork } from "./handoff";
 import { AGENT_ROLES, type AgentReport, type AgentRole } from "./types";
 import { DELEGATE_TOOL_NAME, TEAM_NOTE_TOOL_NAME } from "./roles";
@@ -178,7 +177,8 @@ export function formatReport(report: AgentReport): string {
   // The same for a step the user skipped: "continue it" was taken, and the
   // coder sent straight back to the step the user had moved on from
   // (2026-10-26)
-  const skipped = report.reason === SKIPPED_BY_USER;
+  // A flag, not the reason: a continued run's reason has more after it
+  const skipped = report.skipped === true;
 
   return [
     head,
