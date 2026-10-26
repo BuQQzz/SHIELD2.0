@@ -36,6 +36,7 @@ import { useToolPolicy } from "./hooks/useToolPolicy";
 import { useAgentTeam } from "./hooks/useAgentTeam";
 import { TeamPanel } from "./components/team/TeamPanel";
 import { useTeamStore } from "./stores/team-store";
+import { useGenerationStore } from "./store/generationStore";
 import { restoreRuns } from "./agents/runView";
 import { ORCHESTRATOR_PROMPT } from "./agents/roles";
 import { teamFor } from "./agents/team";
@@ -395,16 +396,52 @@ function App() {
     }
   }, [openConversationId, savedRuns]);
 
+  // The latest of each, for a turn that outlives the render it began in
+  const sendRef = useRef(sendMessage);
+  sendRef.current = sendMessage;
+  const isGeneratingRef = useRef(isGenerating);
+  isGeneratingRef.current = isGenerating;
+
   // A new user message lets the orchestrator delegate again
   const handleSendMessage = useCallback(
-    (...args: Parameters<typeof sendMessage>) => {
-      if (currentConversation) {
+    async (...args: Parameters<typeof sendMessage>) => {
+      const [content] = args;
+      // A turn is running: the message steers it, taken with the next tool
+      // result (handlers/steer.ts)
+      if (isGeneratingRef.current) {
+        const message: Message = {
+          id: `steer-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
+          role: "user",
+          content,
+          timestamp: new Date(),
+          steer: true,
+        };
+        setMessages((prev) => [...prev, message]);
+        addMessage(message);
+        useGenerationStore.getState().addSteer(content);
+        return;
+      }
+      const beginTurn = () => {
+        if (!currentConversation) return;
         teamFor(currentConversation.id).beginTurn();
         useTeamStore.getState().beginTurn(currentConversation.id);
+      };
+      beginTurn();
+      await sendRef.current(...args);
+      // Sent while it worked, but no tool result came after to take it: the
+      // next message. After Stop, back in the box for the user to decide.
+      for (;;) {
+        const left = useGenerationStore.getState().takeSteer();
+        if (left.length === 0) return;
+        if (useGenerationStore.getState().stopRequested) {
+          inputRef.current?.restore(left.join("\n\n"));
+          return;
+        }
+        beginTurn();
+        await sendRef.current(left.join("\n\n"), { shown: true });
       }
-      return sendMessage(...args);
     },
-    [sendMessage, currentConversation]
+    [currentConversation, setMessages, addMessage]
   );
 
   // A new Code session starts in a folder the user picks - or in its

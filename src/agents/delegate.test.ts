@@ -166,6 +166,14 @@ describe("formatReport", () => {
 
   // Live (2026-10-26): told "delegate again" and given continue_from, the
   // orchestrator sent the coder straight back to the step the user skipped
+  it("tells the orchestrator what the user said to the agent while it worked", () => {
+    const text = formatReport({ ...base, steered: ["use pytest"] });
+    expect(text).toContain(
+      'THE USER SAID while the coder worked (it was given this): "use pytest"'
+    );
+    expect(formatReport(base)).not.toContain("THE USER SAID");
+  });
+
   it("tells the orchestrator to move on from a step the user skipped", () => {
     const text = formatReport({
       ...base,

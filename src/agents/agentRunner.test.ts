@@ -493,6 +493,24 @@ describe("runAgent", () => {
     expect(report.reason).toBe("the user stopped it");
   });
 
+  it("gives the agent what the user sent while it worked, with its next result", async () => {
+    const waiting = ["use pytest"];
+    const { deps, sent } = harness([
+      call("read_text_file", { path: "/p/a.js" }),
+      call("read_text_file", { path: "/p/b.js" }),
+      `Read both.\n\n${HANDOFF_DONE}`,
+    ]);
+    deps.takeSteer = () => waiting.splice(0);
+    const report = await runAgent(
+      { role: "coder", task: "t", team: new TeamRun() },
+      deps
+    );
+    expect(sent[1]).toContain('while you were working: "use pytest"');
+    // Once: the next result does not carry it again
+    expect(sent[2]).not.toContain("use pytest");
+    expect(report.steered).toEqual(["use pytest"]);
+  });
+
   it("ends the run PARTIAL, saying so, when the user skips the step", async () => {
     let skipped = false;
     const { deps, sent } = harness(

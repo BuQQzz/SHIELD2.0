@@ -40,6 +40,8 @@ export interface Message {
   unrunToolCalls?: string[];
   /** SHIELD's record under a reply that claims a change never made */
   recordNote?: string;
+  /** Sent while the turn ran (handlers/steer.ts) */
+  steer?: boolean;
   /**
    * Set when this message is an MCP tool result rather than something the
    * user typed. It is stored with role "user" because that is how the model's

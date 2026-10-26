@@ -1,4 +1,5 @@
 import type { Message } from "../hooks/useLlama";
+import { withSteer } from "./steer";
 import type { ModelSettings } from "../types/settings";
 import type { NativeToolResult } from "../types/nativeTools";
 import { useSettingsStore } from "../store/settingsStore";
@@ -181,7 +182,12 @@ export function createMessageHandler({
   // than a search run before the message
   // `modelNote` goes to the model with the message but is not shown or
   // saved as what the user typed (the facts behind "Draft AGENTS.md")
-  return async (content: string, options?: { modelNote?: string }) => {
+  // `shown`: the message is in the chat already (steer left over at the end
+  // of a turn, sent as the next message)
+  return async (
+    content: string,
+    options?: { modelNote?: string; shown?: boolean }
+  ) => {
     if (!isModelLoaded) {
       return;
     }
@@ -194,8 +200,10 @@ export function createMessageHandler({
       timestamp: new Date(),
     };
 
-    setMessages((prev) => [...prev, userMessage]);
-    addMessage(userMessage);
+    if (!options?.shown) {
+      setMessages((prev) => [...prev, userMessage]);
+      addMessage(userMessage);
+    }
     useGenerationStore.getState().setStopRequested(false);
 
     setIsGenerating(true);
@@ -442,7 +450,11 @@ export function createMessageHandler({
               (useGenerationStore.getState().context?.size ?? 8192) * 0.35 * 3
             )
           ),
-          continueConversation: async (toolPrompt: string, toolResults) => {
+          continueConversation: async (resultPrompt: string, toolResults) => {
+            const toolPrompt = withSteer(
+              resultPrompt,
+              useGenerationStore.getState().takeSteer()
+            );
             // Continue the conversation with tool results
             setIsGenerating(true);
             setStreamingContent("");
@@ -491,7 +503,9 @@ export function createMessageHandler({
               // Hand the reply back so follow-up tool calls get executed too
               return toolReply;
             } finally {
-              setIsGenerating(false);
+              // Not setIsGenerating(false): the turn runs on (the next tool,
+              // a delegation) until handleSend's own finally. Set false here,
+              // the Stop button went and the input opened mid-turn
             }
           },
         });

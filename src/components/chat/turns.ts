@@ -27,7 +27,9 @@ export type TurnPart =
    * Tool steps, summaries and the short lines the model wrote between
    * them, shown as one collapsible block
    */
-  | { kind: "work"; items: WorkItem[] };
+  | { kind: "work"; items: WorkItem[] }
+  /** What the user sent while the reply ran (steer) */
+  | { kind: "steer"; message: Message };
 
 export type Turn =
   | { kind: "user"; message: Message }
@@ -77,6 +79,10 @@ function toParts(messages: Message[]): TurnPart[] {
     else parts.push({ kind: "work", items: [item] });
   };
   for (const [i, message] of messages.entries()) {
+    if (message.steer) {
+      parts.push({ kind: "steer", message });
+      continue;
+    }
     if (message.summary) work({ kind: "summary", message });
     if (isBareCall(message, messages[i + 1])) continue;
     if (message.toolResult) work({ kind: "tool", message });
@@ -104,7 +110,8 @@ export function groupIntoTurns(messages: Message[]): Turn[] {
   for (const message of messages) {
     // Tool results are stored on the user role (the chat template wants
     // them there), but they belong to the reply
-    if (message.role === "user" && !message.toolResult) {
+    // as is steer, sent while the reply ran
+    if (message.role === "user" && !message.toolResult && !message.steer) {
       flush();
       turns.push({ kind: "user", message });
     } else {

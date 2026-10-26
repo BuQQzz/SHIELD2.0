@@ -19,6 +19,7 @@
  * injected, so the same code runs in the app and in a headless test.
  */
 
+import { withSteer } from "../handlers/steer";
 import { SKIPPED_BY_USER } from "../services/llamaServer/rescue";
 import {
   extractToolCalls,
@@ -79,6 +80,8 @@ export interface AgentRunDeps {
    * it has, like Stop, and the orchestrator goes on (rescue.ts)
    */
   isSkipped?: () => boolean;
+  /** What the user sent while the team worked, emptied (handlers/steer.ts) */
+  takeSteer?: () => string[];
   /** Share of the window at which an agent must hand over; default 70% */
   checkpointAt?: number;
   /** One line per step, for the user to see what the agent is doing */
@@ -363,6 +366,8 @@ export async function runAgent(
   let lastPercent = 0;
   let reply = "";
   let stoppedByUser = false;
+  /** The user's messages this agent was given while it worked */
+  const steered: string[] = [];
 
   const refuse = (why: string): MCPToolResult => ({
     success: false,
@@ -466,7 +471,12 @@ export async function runAgent(
           const fraction = (context.used + text.length / 3) / context.size;
           lastPercent = Math.round(fraction * 100);
           emit({ type: "context", runId: handoffId, percent: lastPercent });
-          let message = `${text}\n[Context: ${lastPercent}% used]`;
+          const notes = deps.takeSteer?.() ?? [];
+          steered.push(...notes);
+          let message = withSteer(
+            `${text}\n[Context: ${lastPercent}% used]`,
+            notes
+          );
           if (!checkpointing && fraction >= checkpointAt) {
             checkpointing = true;
             emit({
@@ -578,6 +588,7 @@ export async function runAgent(
       steps,
       contextPercent: lastPercent,
       reason,
+      ...(steered.length ? { steered } : {}),
     };
     emit(endEvent(report));
     return report;

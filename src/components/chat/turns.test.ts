@@ -31,6 +31,27 @@ const tool = (name: string, target?: string, success = true): Message =>
   });
 
 describe("groupIntoTurns", () => {
+  it("keeps a message sent while the reply ran inside that reply", () => {
+    const turns = groupIntoTurns([
+      msg("user", "fix calc.py"),
+      msg("assistant", "Reading it"),
+      tool("read_text_file", "calc.py"),
+      msg("user", "use pytest", { steer: true }),
+      tool("edit_file", "calc.py"),
+      msg("assistant", "Done"),
+    ]);
+    expect(turns.map((t) => t.kind)).toEqual(["user", "assistant"]);
+    const reply = turns[1]!;
+    if (reply.kind !== "assistant") throw new Error("expected a reply");
+    expect(reply.parts.map((p) => p.kind)).toEqual([
+      "text",
+      "work",
+      "steer",
+      "work",
+      "text",
+    ]);
+  });
+
   it("puts a reply's text and tool calls under one turn", () => {
     const messages = [
       msg("user", "build it"),

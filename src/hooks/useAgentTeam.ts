@@ -165,6 +165,7 @@ export function useAgentTeam({
         workspaceFolder,
         isStopped: () => useGenerationStore.getState().stopRequested,
         isSkipped: () => useGenerationStore.getState().skipRequested,
+        takeSteer: () => useGenerationStore.getState().takeSteer(),
         onProgress: setActivity,
         onEvent: (event) => {
           const id = conversationId ?? "no-conversation";

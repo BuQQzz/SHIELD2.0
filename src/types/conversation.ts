@@ -44,6 +44,11 @@ export interface Message {
    */
   recordNote?: string;
   /**
+   * Sent while the turn was running (steer, handlers/steer.ts): shown inside
+   * the reply it went into, not as a new turn
+   */
+  steer?: boolean;
+  /**
    * Set when this message is an MCP tool result rather than something the
    * user typed. It is stored with role "user" because that is how the model's
    * chat template expects tool output, but it must not be rendered as if the

@@ -11,7 +11,7 @@
 
 import { memo, useState, type ReactNode } from "react";
 import { motion } from "framer-motion";
-import { Bot, Check, Copy, RefreshCw, Zap } from "lucide-react";
+import { Bot, Check, Copy, RefreshCw, User, Zap } from "lucide-react";
 import { formatTokens } from "@/lib/format";
 import { stripToolCallMarkup } from "@/handlers/mcpToolHandler";
 import { ChatMessage } from "./ChatMessage";
@@ -70,6 +70,21 @@ function Part({
   if (part.kind === "text") {
     return <TextPart message={part.message} onContinue={onContinue} />;
   }
+  if (part.kind === "steer") {
+    return (
+      <div className="flex items-start gap-2 rounded-md bg-muted/50 px-2.5 py-1.5 text-sm">
+        <User className="mt-0.5 h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+        <div className="min-w-0">
+          <span className="text-xs text-muted-foreground">
+            You, while it worked:{" "}
+          </span>
+          <span className="whitespace-pre-wrap break-words">
+            {part.message.content}
+          </span>
+        </div>
+      </div>
+    );
+  }
 
   // Finished and on its own, a step needs no group around it
   const only = part.items.length === 1 ? part.items[0]! : null;
@@ -110,7 +125,7 @@ function Part({
 
 /** Stable while a group grows: keyed by where it starts */
 function partKey(part: TurnPart): string {
-  if (part.kind === "text") return part.message.id;
+  if (part.kind === "text" || part.kind === "steer") return part.message.id;
   const first = part.items[0]!;
   return `work-${first.kind}-${first.message.id}`;
 }
@@ -131,7 +146,7 @@ export const AssistantTurn = memo(function AssistantTurn({
 
   const handleCopy = async () => {
     const text = messages
-      .filter((m) => !m.toolResult)
+      .filter((m) => !m.toolResult && !m.steer)
       .map((m) => stripToolCallMarkup(m.content))
       .filter(Boolean)
       .join("\n\n");

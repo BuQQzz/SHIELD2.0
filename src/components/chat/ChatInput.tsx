@@ -31,6 +31,8 @@ interface ChatInputProps {
 
 export interface ChatInputRef {
   focus: () => void;
+  /** Put text back in the box, before what is there (unsent steer) */
+  restore: (text: string) => void;
 }
 
 export const ChatInput = forwardRef<ChatInputRef, ChatInputProps>(
@@ -53,6 +55,8 @@ export const ChatInput = forwardRef<ChatInputRef, ChatInputProps>(
     // Expose focus method via ref
     useImperativeHandle(ref, () => ({
       focus: () => textareaRef.current?.focus(),
+      restore: (text: string) =>
+        setInput((current) => (current ? `${text}\n\n${current}` : text)),
     }));
 
     // Auto-focus on mount and when not generating
@@ -74,7 +78,8 @@ export const ChatInput = forwardRef<ChatInputRef, ChatInputProps>(
         disabled
       );
 
-      if (input.trim() && !isGenerating && !disabled) {
+      // While a turn runs, a message steers it (handlers/steer.ts)
+      if (input.trim() && !disabled) {
         onSend(input.trim());
         setInput("");
         if (textareaRef.current) {
@@ -117,12 +122,28 @@ export const ChatInput = forwardRef<ChatInputRef, ChatInputProps>(
               value={input}
               onChange={handleInput}
               onKeyDown={handleKeyDown}
-              placeholder="Type your message... (Shift+Enter for new line)"
+              placeholder={
+                isGenerating
+                  ? "Add to the task while it works... (it reads this after its next step)"
+                  : "Type your message... (Shift+Enter for new line)"
+              }
               rows={1}
               className="max-h-32 min-h-[40px] flex-1 resize-none bg-transparent px-2 py-2 text-sm outline-none placeholder:text-muted-foreground"
-              disabled={isGenerating || disabled}
+              disabled={disabled}
             />
 
+            {isGenerating && input.trim() && (
+              <motion.button
+                whileTap={{ scale: 0.92 }}
+                onClick={handleSubmit}
+                disabled={disabled}
+                className="shrink-0 rounded-md p-2 transition-colors"
+                aria-label="Send while it works"
+                title="Send while it works: it reads this after its next step"
+              >
+                <Send className="h-5 w-5 text-primary transition-colors" />
+              </motion.button>
+            )}
             {isGenerating ? (
               <motion.button
                 whileTap={{ scale: 0.92 }}

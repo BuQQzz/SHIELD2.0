@@ -188,6 +188,9 @@ export function formatReport(report: AgentReport): string {
     report.summary || skipped
       ? ""
       : "WARNING: the agent reported nothing. Do not assume it found or checked anything - delegate again if the result matters.",
+    report.steered?.length
+      ? `THE USER SAID while the ${report.role} worked (it was given this): ${report.steered.map((note) => `"${note}"`).join(", then ")}. Hold to it in what you do next.`
+      : "",
     `AGENT'S SUMMARY: ${summary}`,
     ...narrative,
     "Checked by SHIELD from the tools' real results (trust this over the summary):",

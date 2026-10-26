@@ -51,9 +51,17 @@ interface GenerationStore {
    */
   skipRequested: boolean;
   setSkipRequested: (value: boolean) => void;
+  /**
+   * Messages the user sent while the turn ran, not yet delivered: the next
+   * tool result takes them (handlers/steer.ts)
+   */
+  steer: string[];
+  addSteer: (text: string) => void;
+  /** The waiting messages, emptied */
+  takeSteer: () => string[];
 }
 
-export const useGenerationStore = create<GenerationStore>((set) => ({
+export const useGenerationStore = create<GenerationStore>((set, get) => ({
   lastStats: null,
   context: null,
   lastSummary: null,
@@ -79,6 +87,13 @@ export const useGenerationStore = create<GenerationStore>((set) => ({
   setStopRequested: (value) => set({ stopRequested: value }),
   skipRequested: false,
   setSkipRequested: (value) => set({ skipRequested: value }),
+  steer: [],
+  addSteer: (text) => set((state) => ({ steer: [...state.steer, text] })),
+  takeSteer: () => {
+    const notes = get().steer;
+    if (notes.length) set({ steer: [] });
+    return notes;
+  },
   refreshContext: async () => {
     try {
       const result = await window.llama.getContextUsage();
