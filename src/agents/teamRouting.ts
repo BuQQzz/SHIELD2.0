@@ -44,4 +44,4 @@ export function isChangeRequest(message: string): boolean {
 }
 
 export const CHANGE_NOTE =
-  "[SHIELD: this message asks for a change. Delegate it now to the coder (or to the tester if it is only about tests); the agent reads the files it needs. Do not send the reviewer to look first.]";
+  "[SHIELD: this message asks for a change. Delegate it now to the coder (or to the tester if it is only about tests); the agent reads the files it needs. Do not send the reviewer to look first. A command to run afterwards goes in the same task; add the tester only if the message asks for testing.]";
