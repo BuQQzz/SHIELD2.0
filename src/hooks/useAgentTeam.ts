@@ -123,9 +123,12 @@ export function useAgentTeam({
           );
           return opened.sessionId ?? "";
         },
-        chat: async (sessionId, message) => {
+        chat: async (sessionId, message, options) => {
           const reply = must(
-            await window.llama.agentChat(sessionId, message, sampling),
+            await window.llama.agentChat(sessionId, message, {
+              ...sampling,
+              ...options,
+            }),
             "The agent's model request"
           );
           return reply.response ?? "";

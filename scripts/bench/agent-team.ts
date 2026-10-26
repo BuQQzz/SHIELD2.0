@@ -138,8 +138,11 @@ const deps: AgentRunDeps = {
     runningSession += 1;
     return runtime.createAgentSession(prompt);
   },
-  chat: async (sessionId, message) => {
-    const reply = await runtime.agentChat(sessionId, message, sampling);
+  chat: async (sessionId, message, options) => {
+    const reply = await runtime.agentChat(sessionId, message, {
+      ...sampling,
+      ...options,
+    });
     log.push(`--- session ${sessionId} reply ---\n${reply}`);
     return reply;
   },

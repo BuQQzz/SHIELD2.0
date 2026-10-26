@@ -115,6 +115,7 @@ export interface LlamaAPI {
       topP?: number;
       topK?: number;
       repeatPenalty?: number;
+      thinking?: boolean;
     }
   ) => Promise<{ success: boolean; response?: string; error?: string }>;
   agentContext: (sessionId: string) => Promise<{

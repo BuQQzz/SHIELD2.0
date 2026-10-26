@@ -31,12 +31,14 @@ function harness(
   } = {}
 ) {
   const sent: string[] = [];
+  const thinking: (boolean | undefined)[] = [];
   const executed: string[] = [];
   let turn = 0;
   const deps: AgentRunDeps = {
     openSession: options.openSession ?? (async () => "s1"),
-    chat: async (_id, message) => {
+    chat: async (_id, message, chatOptions) => {
       sent.push(message);
+      thinking.push(chatOptions?.thinking);
       const reply = replies[Math.min(turn, replies.length - 1)] ?? "";
       turn += 1;
       return reply;
@@ -57,7 +59,7 @@ function harness(
     buildPrompt: (spec) => `PROMPT for ${spec.role}`,
     isStopped: options.isStopped,
   };
-  return { deps, sent, executed };
+  return { deps, sent, thinking, executed };
 }
 
 describe("runAgent", () => {
@@ -223,7 +225,7 @@ describe("runAgent", () => {
   });
 
   it("stops at the checkpoint, asks for the hand-off, and reports PARTIAL", async () => {
-    const { deps, sent, executed } = harness(
+    const { deps, sent, thinking, executed } = harness(
       [
         call("read_text_file", { path: "/p/a.js" }),
         // told to stop, it keeps calling tools twice
@@ -243,6 +245,9 @@ describe("runAgent", () => {
     expect(sent[1]).toContain("Stop working now");
     expect(executed).toHaveLength(1); // only the read before the checkpoint ran
     expect(sent.at(-1)).toContain("stop here. Do not call any tool");
+    // the report request alone is sent without thought
+    expect(thinking.at(-1)).toBe(false);
+    expect(thinking.slice(0, -1).every((t) => t === undefined)).toBe(true);
     expect(report.status).toBe("PARTIAL");
     expect(report.reason).toBe("its context reached 70%");
     expect(report.parsed.next).toBe("read b.js and c.js, then fix the bug");

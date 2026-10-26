@@ -53,7 +53,12 @@ import type {
 
 export interface AgentRunDeps {
   openSession(systemPrompt: string): Promise<string>;
-  chat(sessionId: string, message: string): Promise<string>;
+  /** `thinking: false` asks a thinking model to answer without thought */
+  chat(
+    sessionId: string,
+    message: string,
+    options?: { thinking?: boolean }
+  ): Promise<string>;
   /** Tokens the session's last request used, and the window */
   contextOf(sessionId: string): Promise<{ used: number; size: number }>;
   closeSession(sessionId: string): Promise<void>;
@@ -276,8 +281,8 @@ export async function runAgent(
   emit({ type: "session", runId: handoffId, sessionId });
 
   /** A model reply, shown as the agent speaking (its tool-call markup left out) */
-  const chat = async (message: string) => {
-    const text = await deps.chat(sessionId, message);
+  const chat = async (message: string, options?: { thinking?: boolean }) => {
+    const text = await deps.chat(sessionId, message, options);
     const said = withoutToolCalls(text);
     if (said) emit({ type: "reply", runId: handoffId, text: said });
     return text;
@@ -436,9 +441,11 @@ export async function runAgent(
           ? `its context reached ${Math.round(checkpointAt * 100)}%`
           : `it used all ${spec.maxRounds} steps it is allowed`;
       }
-      finalText = await chat(REPORT_REQUEST);
+      // Without thought: a reviewer that had already answered thought for
+      // 8,192 tokens on this request and never wrote it (2026-10-26)
+      finalText = await chat(REPORT_REQUEST, { thinking: false });
       if (!finalText.trim()) {
-        finalText = await chat(SHORT_REPORT_REQUEST);
+        finalText = await chat(SHORT_REPORT_REQUEST, { thinking: false });
       }
     }
 
