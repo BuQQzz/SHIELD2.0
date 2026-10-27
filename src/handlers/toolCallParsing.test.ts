@@ -625,3 +625,24 @@ describe("a key written with escaped quotes (Bonsai 27B, 2026-10-21)", () => {
     );
   });
 });
+
+describe("arguments the model ended without closing the string", () => {
+  const unclosed =
+    '<tool_call>\n<server>filesystem</server>\n<tool>write_file</tool>\n<arguments>{"path":"/p/list.md","content":"# List\\n\\n| A | B |\n|---|---|\\n- [ ] Water\\n</arguments>\n</tool_call>';
+
+  it("closes the content and runs the call", () => {
+    const [call] = extractToolCalls(unclosed);
+    expect(call?.argumentsError).toBeUndefined();
+    expect(call?.arguments.content).toBe(
+      "# List\n\n| A | B |\n|---|---|\n- [ ] Water\n"
+    );
+  });
+
+  it("still treats a reply cut off mid-string as cut off", () => {
+    const cut = unclosed.replace("\\n</arguments>\n</tool_call>", "");
+    expect(extractToolCalls(cut)).toEqual([]);
+    expect(cutOffToolCall(cut)?.argumentsError).toContain(
+      "The tool call was cut off"
+    );
+  });
+});

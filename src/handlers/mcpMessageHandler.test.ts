@@ -758,7 +758,7 @@ describe("repeated calls within a turn", () => {
   it("ends the turn when the same unreadable call keeps coming", async () => {
     // A task string cut off in the middle: no repair can close it
     const bad =
-      '<tool_call>\n<server>agents</server>\n<tool>delegate</tool>\n<arguments>{"role":"coder","task":"Fix it {{</arguments>\n</tool_call>';
+      '<tool_call>\n<server>agents</server>\n<tool>delegate</tool>\n<arguments>{"role":"coder" "task":"Fix it"}</arguments>\n</tool_call>';
     const onToolCallDetected = vi.fn();
     const continueConversation = vi.fn().mockResolvedValue(bad);
     const added: { content: string }[] = [];

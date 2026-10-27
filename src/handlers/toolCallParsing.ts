@@ -197,8 +197,17 @@ export function dropTrailingClosers(input: string): string | null {
  * Bonsai 27B wrote edit_file as `"edits":[{"oldText":"...","newText":"..."]}`
  * - the edit object never closed - three times in a row, and each time was
  * told "not valid JSON" and sent the same shape again (2026-10-20).
+ *
+ * With `closeString`, a string still open at the end is closed first.
+ * Bonsai 27B ended three write_file calls in a row with the whole file and
+ * then `\n</arguments>`, never closing the content string or the object
+ * (2026-10-27). Only for arguments the model ended itself, inside a whole
+ * call block: a reply cut off mid-string goes to cutOffToolCall instead.
  */
-export function closeOpenBrackets(input: string): string | null {
+export function closeOpenBrackets(
+  input: string,
+  { closeString = false }: { closeString?: boolean } = {}
+): string | null {
   const stack: string[] = [];
   let out = "";
   let inString = false;
@@ -233,7 +242,10 @@ export function closeOpenBrackets(input: string): string | null {
       out += ch;
     }
   }
-  if (inString) return null;
+  if (inString) {
+    if (!closeString) return null;
+    out += '"';
+  }
   return out + stack.reverse().join("");
 }
 
@@ -264,7 +276,11 @@ export function unescapeKeyQuotes(input: string): string | null {
   return input.replace(pattern, '$1$2":"');
 }
 
-function parseJson(input: string): unknown | null {
+/**
+ * `finished`: the model ended the arguments itself, so a string left open
+ * at the end may be closed (closeOpenBrackets)
+ */
+function parseJson(input: string, finished = false): unknown | null {
   const repaired = repairJsonStrings(input);
   const candidates = [input, repaired];
   // before escapeStrayQuotes, which would read the escaped key as text
@@ -305,10 +321,28 @@ function parseJson(input: string): unknown | null {
       // try the next repair
     }
   }
+  if (!finished) return null;
+  // Not on the stray-quote guesses: escaping a closing quote leaves a
+  // string open, and closing it made `{"path": "C:/a.txt",` a path ending
+  // in `",`
+  for (const candidate of [input, repaired]) {
+    const closed = closeOpenBrackets(candidate.trimEnd(), {
+      closeString: true,
+    });
+    if (closed === null) continue;
+    try {
+      return JSON.parse(closed);
+    } catch {
+      // try the next repair
+    }
+  }
   return null;
 }
 
-function parseArguments(value: unknown): {
+function parseArguments(
+  value: unknown,
+  finished = false
+): {
   args: Record<string, unknown>;
   error?: string;
 } {
@@ -324,7 +358,7 @@ function parseArguments(value: unknown): {
     if (value.trim() === "") {
       return { args: {} };
     }
-    const parsed = parseJson(value);
+    const parsed = parseJson(value, finished);
     if (isRecord(parsed) && !Array.isArray(parsed)) {
       return { args: parsed };
     }
@@ -713,7 +747,10 @@ function extractXmlToolCalls(rawContent: string): ToolCallRequest[] {
           if (elements) {
             args = elements;
           } else {
-            ({ args, error: argumentsError } = parseArguments(body));
+            // A whole <tool_call> block: the model ended these arguments
+            // (a reply cut off inside them is closed only once
+            // </arguments> is written, repairToolCallMarkup)
+            ({ args, error: argumentsError } = parseArguments(body, true));
           }
         }
 
