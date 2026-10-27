@@ -43,6 +43,8 @@ import { restoreRuns } from "./agents/runView";
 import { ORCHESTRATOR_PROMPT } from "./agents/roles";
 import { teamFor } from "./agents/team";
 import { useInstalledModels } from "./hooks/useInstalledModels";
+import { useCloudStore } from "./stores/cloud-store";
+import { cloudModelOptions } from "./lib/cloudModels";
 import { useRecommendedSampling } from "./hooks/useRecommendedSampling";
 import { effectiveSampling } from "./services/modelSampling";
 import { sameFolder, useApplyWorkspace } from "./hooks/useApplyWorkspace";
@@ -101,6 +103,23 @@ function App() {
     setSystemPrompt,
   } = useLlama();
 
+  // Hosted models next to the installed ones. The providers are a local file,
+  // read at once; their models are fetched only when the user opens the
+  // picker or Settings - never at startup.
+  const cloudProviders = useCloudStore((state) => state.providers);
+  const cloudFetched = useCloudStore((state) => state.fetched);
+  const loadCloudProviders = useCloudStore((state) => state.loadProviders);
+  useEffect(() => {
+    void loadCloudProviders();
+  }, [loadCloudProviders]);
+  const modelOptions = useMemo(
+    () => [
+      ...installedModels,
+      ...cloudModelOptions(cloudProviders, cloudFetched, currentModel),
+    ],
+    [installedModels, cloudProviders, cloudFetched, currentModel]
+  );
+
   const {
     currentConversation,
     conversations,
@@ -138,7 +157,7 @@ function App() {
   // is offered delegate and the plan only, and its sub-agents work under the
   // session's normal policy.
   const teamFit = teamAvailability(
-    installedModels.find((m) => m.id === currentModelId)
+    modelOptions.find((m) => m.id === currentModelId)
   );
   // Team on, but the model in use should not run it: it goes off, with a
   // note, and the toggle explains how to turn it on anyway
@@ -211,9 +230,7 @@ function App() {
   }, [isMCPReady, isMCPInitializing, initializeMCP]);
 
   // MCP system prompt management - builds model-specific prompts
-  const currentModelConfig = installedModels.find(
-    (m) => m.id === currentModelId
-  );
+  const currentModelConfig = modelOptions.find((m) => m.id === currentModelId);
   // The open code session's AGENTS.md, read into its prompt
   const projectInstructions = useInstructionsStore((state) => state.text);
   // Real tool list from the connected MCP servers
@@ -574,7 +591,7 @@ function App() {
           onNewChat={handleNew}
           onNewFromTemplate={() => setTemplateSelectorOpen(true)}
           onOpenSettings={() => setSettingsOpen(true)}
-          models={installedModels}
+          models={modelOptions}
           currentModelId={currentModelId}
           isModelLoading={isLoading}
           isModelLoaded={isModelLoaded}
@@ -603,11 +620,16 @@ function App() {
       >
         <div className="flex h-full min-w-0 flex-1 flex-col">
           <ChatHeader
-            modelName={currentModel?.name}
+            modelName={
+              // A hosted model's id names its provider too: show its own name
+              currentModelConfig?.runtime === "remote"
+                ? currentModelConfig.displayName
+                : currentModel?.name
+            }
             isLoading={isLoading || isLoadingModels}
             error={error}
             warning={warning}
-            availableModels={installedModels}
+            availableModels={modelOptions}
             currentModelId={currentModelId}
             onClearHistory={handleClearHistory}
           />
@@ -685,7 +707,7 @@ function App() {
           {isCodeSession && isModelLoaded && (
             <CodeModelHint
               currentModelId={currentModelId}
-              models={installedModels}
+              models={modelOptions}
               onLoad={handleModelSelect}
             />
           )}
@@ -715,7 +737,7 @@ function App() {
           open={settingsOpen}
           onOpenChange={setSettingsOpen}
           onApplySystemPrompt={setSystemPrompt}
-          currentModel={installedModels.find((m) => m.id === currentModelId)}
+          currentModel={modelOptions.find((m) => m.id === currentModelId)}
         />
       </Suspense>
 

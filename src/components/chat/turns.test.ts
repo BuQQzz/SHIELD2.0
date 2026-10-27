@@ -334,6 +334,58 @@ describe("turnStats", () => {
       tokensPerSecond: 50,
     });
   });
+
+  describe("for a hosted model", () => {
+    const hosted = (
+      servedBy: { provider?: string; zdr?: boolean } | undefined
+    ) =>
+      msg("assistant", "x", {
+        stats: {
+          outputTokens: 10,
+          tokensPerSecond: 10,
+          durationMs: 1000,
+          servedBy,
+        },
+      });
+
+    it("says zero retention only if every generation reported it", () => {
+      expect(
+        turnStats([
+          hosted({ provider: "bedrock", zdr: true }),
+          tool("web_search"),
+          hosted({ provider: "bedrock", zdr: true }),
+        ])?.servedBy
+      ).toEqual({ provider: "bedrock", zdr: true });
+    });
+
+    it("turns to may-keep-data if one generation was served by a route that may", () => {
+      expect(
+        turnStats([
+          hosted({ provider: "bedrock", zdr: true }),
+          hosted({ provider: "bedrock", zdr: false }),
+        ])?.servedBy?.zdr
+      ).toBe(false);
+    });
+
+    it("names several providers when they differ, and claims nothing when one is silent", () => {
+      expect(
+        turnStats([
+          hosted({ provider: "bedrock", zdr: true }),
+          hosted({ provider: "fireworks", zdr: true }),
+        ])?.servedBy
+      ).toEqual({ provider: "several providers", zdr: true });
+      expect(
+        turnStats([
+          hosted({ provider: "a", zdr: true }),
+          hosted({ provider: "a" }),
+        ])?.servedBy?.zdr
+      ).toBeUndefined();
+    });
+
+    it("has none for a local model", () => {
+      expect(turnStats([hosted(undefined)])).not.toHaveProperty("servedBy");
+    });
+  });
 });
 
 describe("update_plan steps", () => {

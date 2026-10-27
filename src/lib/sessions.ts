@@ -9,6 +9,7 @@
 import type { ConversationKind } from "@/types/conversation";
 import type { AppView } from "@/stores/chat-store";
 import { getModelById } from "@/config/models";
+import { isRemoteModelId } from "@/services/remote/remoteEndpoint";
 
 /** The kind of session a view shows; the library and plugins show none */
 export function viewKind(view: AppView): ConversationKind | null {
@@ -60,6 +61,8 @@ export function folderName(folder: string): string {
 
 /** Made for coding or agent work, by the catalog's roles */
 export function isCodingModel(modelId: string | undefined): boolean {
+  // A hosted model is not the catalog's to rank: never nudge away from it
+  if (isRemoteModelId(modelId)) return true;
   const roles = modelId ? getModelById(modelId)?.roles : undefined;
   return !!roles && (roles.includes("coding") || roles.includes("agent"));
 }

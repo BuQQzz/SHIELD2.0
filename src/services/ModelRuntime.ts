@@ -36,15 +36,31 @@ import { LlamaServerProvider } from "./LlamaServerProvider.js";
 import type { RequestStatus, RescueAction } from "./llamaServer/rescue.js";
 import type { SavedCapsule, SavedMessage } from "./taskCapsule.js";
 import type { ToolDefinition } from "../types/prompts.js";
+import {
+  isRemoteModelId,
+  parseRemoteModelId,
+  type GatewayPosture,
+  type RemoteProviderSource,
+} from "./remote/remoteEndpoint.js";
+import {
+  catalogBase,
+  fetchCatalogContext,
+  listRemoteModels,
+  zdrBlock,
+} from "./remote/remoteModels.js";
 
-type Engine = "node" | "server";
+type Engine = "node" | "server" | "remote";
 
 export class ModelRuntime {
   private readonly node: LlamaService = getLlamaService();
   private readonly server = new LlamaServerProvider();
+  /** Chats with a hosted model: the same chat handling, no process (attach) */
+  private readonly remote = new LlamaServerProvider();
+  private providers: RemoteProviderSource | null = null;
   private engine: Engine = "node";
   private systemPrompt = "You are a helpful AI assistant.";
   private serverModel: ModelConfig | null = null;
+  private remoteModel: ModelConfig | null = null;
   private requestedServerContext: number | undefined;
   private serverPlans = new Map<string, Promise<ContextPlan>>();
   private samplings = new Map<string, Promise<RecommendedSampling | null>>();
@@ -73,6 +89,31 @@ export class ModelRuntime {
     this.node.setCustomModelsDir(dir);
   }
 
+  /** Where saved providers and their keys are found (the ProviderStore) */
+  setProviderSource(source: RemoteProviderSource): void {
+    this.providers = source;
+  }
+
+  /**
+   * The provider that serves the loaded model, whichever engine: the local
+   * server or the hosted model. Null for the in-process engine.
+   */
+  private get hosted(): LlamaServerProvider | null {
+    if (this.engine === "server") return this.server;
+    if (this.engine === "remote") return this.remote;
+    return null;
+  }
+
+  /** Stop using a provider that was removed, if its model is the loaded one */
+  async forgetProvider(providerId: string): Promise<void> {
+    const loaded = parseRemoteModelId(this.remoteModel?.id ?? "");
+    if (this.engine !== "remote" || loaded?.providerId !== providerId) return;
+    this.closeAgentSessions();
+    await this.remote.stop();
+    this.remoteModel = null;
+    this.engine = "node";
+  }
+
   initialize(): Promise<void> {
     return this.node.initialize();
   }
@@ -89,6 +130,13 @@ export class ModelRuntime {
   async loadModel(
     config: ModelConfig
   ): Promise<{ warning?: string; memory?: MemoryCheck }> {
+    // A hosted model needs none of this machine's memory, and frees what the
+    // model it replaces held
+    if (isRemoteModelId(config.id)) {
+      this.held = undefined;
+      return this.loadEngine(config);
+    }
+
     // Reading free commit takes ~1.5 s on Windows; overlap it with the plan
     const system = config.allowLowMemory ? undefined : readSystemMemory();
     const need = await this.estimateMemory(config);
@@ -128,8 +176,83 @@ export class ModelRuntime {
     }
   }
 
+  /**
+   * Attach to a hosted model. The provider is asked for its model list first:
+   * that proves the key works, gives the model's context window, and shows
+   * before anything is sent whether a required zero-retention route exists.
+   */
+  private async loadRemote(config: ModelConfig): Promise<{ warning?: string }> {
+    const parsed = parseRemoteModelId(config.id);
+    const resolved = parsed && this.providers?.resolve(parsed.providerId);
+    if (!parsed || !resolved) {
+      throw new Error(
+        "That provider is not set up, or its key could not be read. Add it again in Settings > Providers."
+      );
+    }
+    const { config: provider, apiKey } = resolved;
+
+    // Asked together: the list proves the key, the catalog gives the window
+    const base = catalogBase(provider);
+    const [listed, catalog] = await Promise.all([
+      listRemoteModels({
+        name: provider.name,
+        baseUrl: provider.baseUrl,
+        apiKey,
+      }),
+      base ? fetchCatalogContext(base, parsed.model) : undefined,
+    ]);
+    if (!listed.ok) throw new Error(listed.error);
+    const model = listed.models?.find((m) => m.id === parsed.model);
+    if (provider.requireZdr && model) {
+      const blocked = zdrBlock(provider.name, model);
+      if (blocked) throw new Error(blocked);
+    }
+
+    // Nothing runs here: free the GPU and RAM a local model held
+    if (this.server.isRunning()) await this.server.stop();
+    await this.node.cleanup();
+    this.serverModel = null;
+
+    // The user's own choice, else what the provider says this model takes
+    // (every model differs: a flash model at 1M, another at 128K), else the
+    // provider's default for a model it does not describe
+    const contextSize =
+      config.contextSize ??
+      catalog?.usable ??
+      model?.contextLength ??
+      provider.defaultContext;
+    console.log(
+      `[Remote] Context ${contextSize} for ${parsed.model} (${
+        config.contextSize
+          ? "chosen"
+          : catalog
+            ? `provider catalog: window ${catalog.contextWindow ?? "?"}, input ${catalog.maxInputTokens ?? "?"}`
+            : model?.contextLength
+              ? "provider's model list"
+              : "default, the provider did not say"
+      })`
+    );
+    await this.remote.attach(
+      {
+        providerId: provider.id,
+        providerName: provider.name,
+        baseUrl: provider.baseUrl,
+        apiKey,
+        model: parsed.model,
+        contextSize,
+        requireZdr: provider.requireZdr,
+      },
+      this.systemPrompt
+    );
+    this.engine = "remote";
+    this.remoteModel = { ...config, contextSize };
+    return {};
+  }
+
   private async loadEngine(config: ModelConfig): Promise<{ warning?: string }> {
     this.closeAgentSessions();
+    if (isRemoteModelId(config.id)) return this.loadRemote(config);
+    if (this.remote.isRunning()) await this.remote.stop();
     const model = getModelById(config.id);
     if (!usesLlamaServer(model?.runtime)) {
       if (this.server.isRunning()) await this.server.stop();
@@ -166,6 +289,19 @@ export class ModelRuntime {
   }
 
   async getContextPlan(modelId: string): Promise<ContextPlan> {
+    // A hosted model's window is the provider's, not a trade against this GPU
+    const remote = parseRemoteModelId(modelId);
+    if (remote) {
+      const context =
+        this.providers?.resolve(remote.providerId)?.config.defaultContext ??
+        32768;
+      return {
+        trainContextSize: context,
+        totalLayers: 0,
+        options: [{ contextSize: context, gpuLayers: 0 }],
+        recommended: context,
+      };
+    }
     const model = getModelById(modelId);
     if (!model || !usesLlamaServer(model.runtime)) {
       return this.node.getContextPlan(modelId);
@@ -189,6 +325,7 @@ export class ModelRuntime {
    * else the catalog's (Qwen3-Coder's file has none), else null.
    */
   getRecommendedSampling(modelId: string): Promise<RecommendedSampling | null> {
+    if (isRemoteModelId(modelId)) return Promise.resolve(null);
     let found = this.samplings.get(modelId);
     if (!found) {
       found = this.node
@@ -215,8 +352,8 @@ export class ModelRuntime {
   }
 
   chat(message: string, options: ChatOptions = {}): Promise<string> {
-    return this.engine === "server"
-      ? this.server.chat(message, options)
+    return this.hosted
+      ? this.hosted.chat(message, options)
       : this.node.chat(message, options);
   }
 
@@ -229,58 +366,69 @@ export class ModelRuntime {
   }
 
   getLastStats(): GenerationStats | null {
-    return this.engine === "server"
-      ? this.server.getLastStats()
-      : this.node.getLastStats();
+    return this.hosted ? this.hosted.getLastStats() : this.node.getLastStats();
   }
 
   /** The capsule the last request wrote to make room (llama-server only) */
   getLastSummary(): string | null {
-    return this.engine === "server" ? this.server.getLastSummary() : null;
+    return this.hosted?.getLastSummary() ?? null;
   }
 
   /** The same capsule for the chat to save and restore from */
   getLastCapsule(): SavedCapsule | null {
-    return this.engine === "server" ? this.server.getLastCapsule() : null;
+    return this.hosted?.getLastCapsule() ?? null;
+  }
+
+  /** The loaded model runs at a provider: what is said to it leaves this device */
+  isHosted(): boolean {
+    return this.engine === "remote";
+  }
+
+  /**
+   * How a hosted provider said the last request was served: which provider
+   * answered, and whether it reported zero data retention. Null for a local
+   * model, which sends nothing anywhere.
+   */
+  getLastServedBy(): GatewayPosture | null {
+    return this.engine === "remote" ? this.remote.getLastServedBy() : null;
   }
 
   async getContextUsage(): Promise<ContextUsage | null> {
-    return this.engine === "server"
-      ? this.server.getContextUsage()
+    return this.hosted
+      ? this.hosted.getContextUsage()
       : this.node.getContextUsage();
   }
 
   async getContextBreakdown(): Promise<ContextBreakdown | null> {
-    return this.engine === "server"
-      ? this.server.getContextBreakdown()
+    return this.hosted
+      ? this.hosted.getContextBreakdown()
       : this.node.getContextBreakdown();
   }
 
   getModelInfo(): ModelConfig | null {
+    if (this.engine === "remote") return this.remoteModel;
     return this.engine === "server"
       ? this.serverModel
       : this.node.getModelInfo();
   }
 
   isModelLoaded(): boolean {
-    return this.engine === "server"
-      ? this.server.isRunning()
-      : this.node.isModelLoaded();
+    return this.hosted ? this.hosted.isRunning() : this.node.isModelLoaded();
   }
 
   /** node-llama-cpp restores the chat whole; it has no capsules */
   setChatHistory(messages: SavedMessage[]): void {
-    if (this.engine === "server") this.server.setChatHistory(messages);
+    if (this.hosted) this.hosted.setChatHistory(messages);
     else this.node.setChatHistory(messages);
   }
 
   clearHistory(): void {
-    if (this.engine === "server") this.server.clearHistory();
+    if (this.hosted) this.hosted.clearHistory();
     else this.node.clearHistory();
   }
 
   stopGeneration(): void {
-    if (this.engine === "server") this.server.stopGeneration();
+    if (this.hosted) this.hosted.stopGeneration();
     else this.node.stopGeneration();
     for (const session of this.agentSessions.values()) {
       session.stopGeneration();
@@ -289,29 +437,30 @@ export class ModelRuntime {
 
   /** The request in progress, for the stuck bar; the in-process engine has none */
   requestStatus(): RequestStatus | null {
-    return this.engine === "server" ? this.server.requestStatus() : null;
+    return this.hosted?.requestStatus() ?? null;
   }
 
   /** Nudge, skip or restart a request that looks stuck (rescue.ts) */
   rescue(action: RescueAction): boolean {
-    return this.engine === "server" && this.server.rescue(action);
+    return this.hosted?.rescue(action) ?? false;
   }
 
   /**
    * A chat for a sub-agent: own system prompt and history, on the model that
-   * is loaded. Only models run by llama-server can host one; the in-process
-   * engine has a single chat session.
+   * is loaded. Only a llama-server model or a hosted one can host one; the
+   * in-process engine has a single chat session.
    */
   createAgentSession(systemPrompt: string): string {
-    if (this.engine !== "server" || !this.server.isRunning()) {
+    const host = this.hosted;
+    if (!host || !host.isRunning()) {
       throw new Error(
-        "Agent teams need a model that runs on llama-server (Bonsai, Qwen3-Coder). The loaded model does not, or none is loaded."
+        "Agent teams need a model that runs on llama-server (Bonsai, Qwen3-Coder) or a hosted model. The loaded model does not, or none is loaded."
       );
     }
     const id = `agent-${this.nextAgentSession++}`;
     this.agentSessions.set(
       id,
-      this.server.fork(systemPrompt, { keepWholeHistory: true })
+      host.fork(systemPrompt, { keepWholeHistory: true })
     );
     return id;
   }
@@ -353,6 +502,7 @@ export class ModelRuntime {
   ): Promise<void> {
     this.systemPrompt = prompt;
     this.server.applySystemPrompt(prompt);
+    this.remote.applySystemPrompt(prompt);
     await this.node.applySystemPrompt(prompt, tools);
   }
 
@@ -361,14 +511,15 @@ export class ModelRuntime {
   }
 
   generateTitle(userMessage: string): Promise<string> {
-    return this.engine === "server"
-      ? this.server.generateTitle(userMessage)
+    return this.hosted
+      ? this.hosted.generateTitle(userMessage)
       : this.node.generateTitle(userMessage);
   }
 
   async dispose(): Promise<void> {
     this.closeAgentSessions();
     await this.server.stop();
+    await this.remote.stop();
     await this.node.dispose();
   }
 }

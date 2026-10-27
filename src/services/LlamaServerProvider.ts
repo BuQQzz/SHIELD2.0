@@ -16,7 +16,7 @@ import {
   type ContextBreakdown,
   type HistoryItem,
 } from "./contextBreakdown.js";
-import { cleanTitle } from "./titleGenerator.js";
+import { cleanTitle, titleFromMessage } from "./titleGenerator.js";
 import {
   buildServerArgs,
   defaultThreads,
@@ -28,6 +28,15 @@ import {
   type ChatStreamChunk,
 } from "./llamaServer/sse.js";
 import { RepetitionWatch } from "./llamaServer/repetition.js";
+import {
+  adaptRequestBody,
+  checkPosture,
+  completionsUrl,
+  describeHttpError,
+  requestHeaders,
+  type GatewayPosture,
+  type RemoteEndpoint,
+} from "./remote/remoteEndpoint.js";
 import {
   NUDGE_NOTE,
   type RequestStatus,
@@ -147,6 +156,18 @@ function logStallDetails(requestBody: object): void {
 
 export class LlamaServerProvider {
   private process: ChildProcess | null = null;
+  /**
+   * Set when this provider talks to a hosted model rather than a server of
+   * its own: the chat, summaries and stall handling are the same, the
+   * requests go to the provider (remote/remoteEndpoint.ts).
+   */
+  private remote: RemoteEndpoint | null = null;
+  /** The hosted model this session talks to; a fork's is its parent's */
+  private get endpoint(): RemoteEndpoint | null {
+    return this.parent ? this.parent.endpoint : this.remote;
+  }
+  /** How the provider said the last request was served (hosted models only) */
+  private lastServedBy: GatewayPosture | null = null;
   private ownBaseUrl = "";
   /** A forked session follows its parent's server, also across a restart */
   private get baseUrl(): string {
@@ -211,6 +232,7 @@ export class LlamaServerProvider {
 
   isRunning(): boolean {
     if (this.parent) return this.parent.isRunning();
+    if (this.remote) return true;
     return this.process !== null && this.process.exitCode === null;
   }
 
@@ -274,6 +296,32 @@ export class LlamaServerProvider {
     this.savedCapsule = null;
     this.loadOptions = options;
     await this.start(binary, options);
+  }
+
+  /**
+   * Use a hosted model instead of starting a server. Nothing runs on this
+   * machine; the window is the model's, and the chat is managed against it
+   * as it is for a local server.
+   */
+  async attach(endpoint: RemoteEndpoint, systemPrompt: string): Promise<void> {
+    if (this.parent) throw new Error("A forked session cannot attach");
+    await this.stop();
+
+    this.remote = endpoint;
+    this.loadOptions = null;
+    this.contextSize = endpoint.contextSize;
+    this.trainContextSize = endpoint.contextSize;
+    this.systemPrompt = systemPrompt;
+    this.history = [];
+    this.capsule = null;
+    this.capsuleReplacedEntries = 0;
+    this.savedCapsule = null;
+    this.lastServedBy = null;
+    console.log(
+      `[Remote] Using ${endpoint.model} on ${endpoint.providerName}, ` +
+        `context ${endpoint.contextSize}` +
+        (endpoint.requireZdr ? ", zero data retention required" : "")
+    );
   }
 
   /** Spawn the server and wait until it answers; the chat is left as it is */
@@ -361,6 +409,7 @@ export class LlamaServerProvider {
   async stop(): Promise<void> {
     this.abortController?.abort();
     if (this.parent) return;
+    this.remote = null;
     const child = this.process;
     this.process = null;
     this.contextSize = 0;
@@ -392,6 +441,8 @@ export class LlamaServerProvider {
    */
   async restartServer(): Promise<void> {
     if (this.parent) return this.parent.restartServer();
+    // A hosted model has no process to restart: the message is sent again
+    if (this.remote) return;
     if (this.restarting) return this.restarting;
     const options = this.loadOptions;
     const binary = findLlamaServer();
@@ -467,6 +518,69 @@ export class LlamaServerProvider {
       );
     }
     return response.json();
+  }
+
+  /** Where chat completions go: this server, or the hosted provider */
+  private chatUrl(): string {
+    const endpoint = this.endpoint;
+    return endpoint
+      ? completionsUrl(endpoint)
+      : `${this.baseUrl}/v1/chat/completions`;
+  }
+
+  private chatHeaders(): Record<string, string> {
+    const endpoint = this.endpoint;
+    return endpoint
+      ? requestHeaders(endpoint)
+      : { "Content-Type": "application/json" };
+  }
+
+  /** A request written for llama-server, as the endpoint takes it */
+  private shape(body: Record<string, unknown>): Record<string, unknown> {
+    const endpoint = this.endpoint;
+    return endpoint ? adaptRequestBody(body, endpoint) : body;
+  }
+
+  /** What to call the thing that serves the chat, in an error */
+  private serverName(): string {
+    return this.endpoint?.providerName ?? "llama-server";
+  }
+
+  private httpError(status: number, text: string): string {
+    const endpoint = this.endpoint;
+    return endpoint
+      ? describeHttpError(endpoint.providerName, status, text)
+      : `llama-server: HTTP ${status} ${text}`;
+  }
+
+  /**
+   * One chat completion that is not streamed (a summary, a title), sent the
+   * way the chat's own requests are: to a hosted provider it carries the key
+   * and the zero-retention demand, and is dropped unless that is confirmed.
+   */
+  private async completion(
+    body: Record<string, unknown>,
+    signal?: AbortSignal
+  ): Promise<{ choices?: { message?: { content?: string } }[] }> {
+    const response = await fetch(this.chatUrl(), {
+      method: "POST",
+      headers: this.chatHeaders(),
+      signal,
+      body: JSON.stringify(this.shape(body)),
+    });
+    if (!response.ok) {
+      throw new Error(this.httpError(response.status, await response.text()));
+    }
+    const endpoint = this.endpoint;
+    if (endpoint) checkPosture(endpoint, response.headers);
+    return (await response.json()) as {
+      choices?: { message?: { content?: string } }[];
+    };
+  }
+
+  /** How the provider said the last request was served; null for a local server */
+  getLastServedBy(): GatewayPosture | null {
+    return this.lastServedBy;
   }
 
   /** The capsule within its share of the window */
@@ -559,7 +673,7 @@ export class LlamaServerProvider {
     let restartAfterStall = false;
     let rescue: RescueAction | null = null;
     /** What was sent, kept for the server log when it stalls */
-    let requestBody: object = {};
+    let requestBody: Record<string, unknown> = {};
 
     try {
       // Inside the try: Stop while summarising ends the turn like Stop
@@ -578,7 +692,7 @@ export class LlamaServerProvider {
       appendServerLog(
         `[SHIELD] chat request, thinking ${options.thinking === false ? "off" : "on"}`
       );
-      requestBody = {
+      requestBody = this.shape({
         messages: this.messages(userMessage),
         stream: true,
         stream_options: { include_usage: true },
@@ -595,10 +709,10 @@ export class LlamaServerProvider {
         ...(options.thinking === false
           ? { chat_template_kwargs: { enable_thinking: false } }
           : {}),
-      };
-      const response = await fetch(`${this.baseUrl}/v1/chat/completions`, {
+      });
+      const response = await fetch(this.chatUrl(), {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: this.chatHeaders(),
         signal: AbortSignal.any([
           signal,
           stalled.signal,
@@ -608,9 +722,19 @@ export class LlamaServerProvider {
         body: JSON.stringify(requestBody),
       });
       if (!response.ok || !response.body) {
-        throw new Error(
-          `llama-server: HTTP ${response.status} ${await response.text()}`
-        );
+        throw new Error(this.httpError(response.status, await response.text()));
+      }
+      // A hosted provider says how it served the request, before the reply:
+      // when zero data retention is required and it did not, stop here and
+      // keep nothing of what it would have said
+      const endpoint = this.endpoint;
+      if (endpoint) {
+        try {
+          this.lastServedBy = checkPosture(endpoint, response.headers);
+        } catch (error) {
+          await response.body.cancel().catch(() => undefined);
+          throw error;
+        }
       }
 
       const parser = new SseParser();
@@ -671,7 +795,9 @@ export class LlamaServerProvider {
       }
       // Stopped by the user: keep what was generated, like LlamaChatSession
       else if (stalled.signal.aborted && !signal.aborted) {
-        if (process.env.SHIELD_SERVER_LOG) {
+        // Never for a hosted model: the stalled request is the user's
+        // messages, and there is no local server to look at
+        if (process.env.SHIELD_SERVER_LOG && !this.endpoint) {
           appendServerLog(
             `[SHIELD] no progress for ${STALL_MS / 60000} minutes: request given up. /slots: ${await fetch(
               `${this.baseUrl}/slots`,
@@ -686,7 +812,9 @@ export class LlamaServerProvider {
         // helped by a third try
         if (restarts > 0) {
           throw new Error(
-            `llama-server made no progress for ${STALL_MS / 60000} minutes, also after a restart, and was given up on. Stop and reload the model.`
+            this.endpoint
+              ? `${this.serverName()} made no progress for ${STALL_MS / 60000} minutes, also on a second try, and was given up on.`
+              : `llama-server made no progress for ${STALL_MS / 60000} minutes, also after a restart, and was given up on. Stop and reload the model.`
           );
         }
         restartAfterStall = true;
@@ -726,13 +854,25 @@ export class LlamaServerProvider {
     const endedAt = performance.now();
     const outputTokens =
       final?.timings?.predicted_n ?? final?.usage?.completion_tokens ?? 0;
+    const hostedBy = this.endpoint ? this.lastServedBy : null;
     this.lastStats = {
       outputTokens,
       tokensPerSecond:
         final?.timings?.predicted_per_second ??
+        // A hosted model's count includes thinking the stream never shows,
+        // so timing from the first visible word would overstate its speed:
+        // over the whole reply it is the speed the user actually got
         outputTokens /
-          Math.max((endedAt - (firstTokenAt ?? startedAt)) / 1000, 1e-3),
+          Math.max(
+            (endedAt -
+              (this.endpoint ? startedAt : (firstTokenAt ?? startedAt))) /
+              1000,
+            1e-3
+          ),
       durationMs: endedAt - startedAt,
+      ...(hostedBy
+        ? { servedBy: { provider: hostedBy.provider, zdr: hostedBy.zdr } }
+        : {}),
     };
     const readingSeconds = ((firstTokenAt ?? endedAt) - startedAt) / 1000;
     console.log(
@@ -907,11 +1047,8 @@ export class LlamaServerProvider {
     nextMessage: string,
     signal: AbortSignal
   ): Promise<string> {
-    const response = await fetch(`${this.baseUrl}/v1/chat/completions`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      signal,
-      body: JSON.stringify({
+    const result = await this.completion(
+      {
         messages: [
           { role: "system", content: this.systemContent() },
           ...older,
@@ -920,16 +1057,9 @@ export class LlamaServerProvider {
         cache_prompt: true,
         temperature: 0.2,
         max_tokens: NOTE_MAX_TOKENS,
-      }),
-    });
-    if (!response.ok) {
-      throw new Error(
-        `llama-server: HTTP ${response.status} ${await response.text()}`
-      );
-    }
-    const result = (await response.json()) as {
-      choices?: { message?: { content?: string } }[];
-    };
+      },
+      signal
+    );
     return result.choices?.[0]?.message?.content ?? "";
   }
 
@@ -972,6 +1102,17 @@ export class LlamaServerProvider {
       ),
     ];
 
+    // A hosted model has no tokenizer to ask and no chat template to render:
+    // the provider's count of the last request stands for the whole chat, the
+    // parts are estimated at about three characters a token
+    if (this.endpoint) {
+      return breakDownContext(history, (text) => Math.ceil(text.length / 3), {
+        rendered: this.lastContextTokens || Math.ceil(this.estimateTokens()),
+        size: this.contextSize,
+        trainContextSize: this.trainContextSize,
+      });
+    }
+
     // Some templates refuse a chat without a user message (Bonsai's, built on
     // Qwen3.5's, raises "No user query found"), which is what a new chat is.
     // The pieces counted below stand in for the rendered total then.
@@ -1009,7 +1150,8 @@ export class LlamaServerProvider {
 
   /** A title from the first message, without touching the chat history */
   async generateTitle(userMessage: string): Promise<string> {
-    const result = (await this.post("/v1/chat/completions", {
+    const hosted = !!this.endpoint;
+    const result = await this.completion({
       messages: [
         {
           role: "user",
@@ -1017,12 +1159,21 @@ export class LlamaServerProvider {
         },
       ],
       temperature: 0.3,
-      max_tokens: 20,
+      // A hosted thinking model cannot be switched off through the standard
+      // fields, so its thought counts against this limit: room for some
+      max_tokens: hosted ? 400 : 20,
       cache_prompt: false,
       // A thinking model spends all 20 tokens on thought and returns an empty
       // title; templates without the switch ignore it
       chat_template_kwargs: { enable_thinking: false },
-    })) as { choices?: { message?: { content?: string } }[] };
-    return cleanTitle(result.choices?.[0]?.message?.content ?? "");
+    });
+    const title = result.choices?.[0]?.message?.content ?? "";
+    if (hosted && !title.trim()) {
+      console.log(
+        "[Remote] The title request came back empty (a thinking model may have used its whole budget thinking); titling the chat from the message instead"
+      );
+      return titleFromMessage(userMessage);
+    }
+    return cleanTitle(title);
   }
 }

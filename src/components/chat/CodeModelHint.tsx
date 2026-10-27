@@ -25,7 +25,10 @@ export function CodeModelHint({
   onLoad,
 }: CodeModelHintProps) {
   if (!currentModelId || isCodingModel(currentModelId)) return null;
-  const coder = models.find((model) => isCodingModel(model.id));
+  // Never suggest a hosted model: loading one is a choice to send things away
+  const coder = models.find(
+    (model) => model.runtime !== "remote" && isCodingModel(model.id)
+  );
   if (!coder) return null;
   const current = models.find((model) => model.id === currentModelId);
 

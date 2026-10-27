@@ -1,5 +1,6 @@
 import { cn } from "@/lib/utils";
 import { formatTokens } from "@/lib/format";
+import { ServedBadge } from "./ServedBadge";
 import {
   Bot,
   User,
@@ -421,6 +422,7 @@ export const ChatMessage = memo(function ChatMessage({
             className="flex items-center justify-end gap-1 text-[11px] text-muted-foreground/60"
             title={`${stats.outputTokens} tokens in ${(stats.durationMs / 1000).toFixed(1)}s, generated at ${stats.tokensPerSecond.toFixed(1)} tokens per second`}
           >
+            {stats.servedBy && <ServedBadge servedBy={stats.servedBy} />}
             <Zap className="h-3 w-3" />
             <span>
               {stats.tokensPerSecond.toFixed(1)} tok/s ·{" "}

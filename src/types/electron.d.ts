@@ -8,6 +8,12 @@ import type {
   RequestStatus,
   RescueAction,
 } from "../services/llamaServer/rescue";
+import type { GatewayPosture } from "../services/remote/remoteEndpoint";
+import type {
+  ProviderInput,
+  ProviderSummary,
+  ProviderTestResult,
+} from "./providers";
 
 export type { SavedCapsule };
 
@@ -104,6 +110,8 @@ export interface GenerationStats {
   outputTokens: number;
   tokensPerSecond: number;
   durationMs: number;
+  /** For a hosted model: who answered, and whether it reported zero retention */
+  servedBy?: { provider?: string; zdr?: boolean };
 }
 
 /** How full the model's context window is */
@@ -165,6 +173,32 @@ export interface ChatResult {
   summary?: string | null;
   /** The same summary for the chat to save, so a restore need not redo it */
   capsule?: SavedCapsule | null;
+  /**
+   * For a hosted model: which provider answered and whether it reported zero
+   * data retention. Null for a model that runs on this machine.
+   */
+  served?: GatewayPosture | null;
+}
+
+/** Remote providers: keys stay in the main process (electron/ipc/providerHandlers) */
+export interface ProvidersAPI {
+  list: () => Promise<{
+    success: boolean;
+    providers: ProviderSummary[];
+    encryptionAvailable: boolean;
+  }>;
+  /** Without `apiKey` a saved provider keeps its key */
+  save: (
+    input: ProviderInput,
+    apiKey?: string
+  ) => Promise<{
+    success: boolean;
+    provider?: ProviderSummary;
+    error?: string;
+  }>;
+  remove: (id: string) => Promise<{ success: boolean; error?: string }>;
+  /** The provider's models, which also shows whether the saved key works */
+  models: (id: string) => Promise<ProviderTestResult>;
 }
 
 /**
@@ -696,6 +730,7 @@ export interface AutoUpdateAPI {
 declare global {
   interface Window {
     llama: LlamaAPI;
+    providers: ProvidersAPI;
     conversations: ConversationAPI;
     electronAPI: {
       settings: SettingsAPI;

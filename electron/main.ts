@@ -9,6 +9,7 @@ import { registerConversationHandlers } from "./ipc/conversationHandlers.js";
 import { registerMcpHandlers } from "./ipc/mcpHandlers.js";
 import { registerMemoryHandlers } from "./ipc/memoryHandlers.js";
 import { registerProjectHandlers } from "./ipc/projectHandlers.js";
+import { registerProviderHandlers } from "./ipc/providerHandlers.js";
 import { registerSearchHandlers } from "./ipc/searchHandlers.js";
 import { registerSettingsHandlers } from "./ipc/settingsHandlers.js";
 import { registerModelHandlers } from "./ipc/modelHandlers.js";
@@ -56,6 +57,7 @@ async function setupIpcHandlers() {
   // Register all IPC handlers
   // Pass a getter function for mainWindow so handlers can access it after it's created
   const llamaService = registerLlamaHandlers(() => mainWindow);
+  registerProviderHandlers(llamaService);
   registerConversationHandlers();
   registerProjectHandlers();
   registerMemoryHandlers();
