@@ -334,12 +334,78 @@ describe("multi-round tool chaining", () => {
     const notice = addMessage.mock.calls.at(-1)?.[0] as Message;
     expect(notice.role).toBe("assistant");
     expect(notice.content).toContain("write_file");
-    expect(notice.content).toContain("continue");
+    expect(notice.content).toContain("Continue");
+    expect(notice.resumable).toBe(true);
     // Kept so the next prompt can tell the model the call never happened
     expect(notice.unrunToolCalls).toEqual(["write_file a.txt"]);
     expect(unrunToolCallsNote(notice.unrunToolCalls!)).toContain(
       "never executed"
     );
+  });
+
+  it("keeps researching past any fixed cap while each round finds something new", async () => {
+    let n = 0;
+    const continueConversation = vi.fn(async () =>
+      ++n < 25 ? call("search", `{"query":"q${n}"}`) : "Here is what I found."
+    );
+    const addMessage = vi.fn();
+
+    await processMCPToolCalls(
+      {
+        id: "assistant-research",
+        role: "assistant",
+        content: call("search", '{"query":"q0"}'),
+        timestamp: new Date(),
+      },
+      {
+        onToolCallDetected: vi.fn().mockResolvedValue({ success: true }),
+        addMessage,
+        continueConversation,
+        maxToolRounds: Infinity,
+        progressCheckEvery: 10,
+      }
+    );
+
+    expect(continueConversation).toHaveBeenCalledTimes(25);
+    const notices = addMessage.mock.calls
+      .map(([message]) => message as Message)
+      .filter((message) => message.role === "assistant");
+    expect(notices).toEqual([]);
+  });
+
+  it("pauses at a check when the last rounds found nothing new", async () => {
+    let n = 0;
+    const continueConversation = vi.fn(async () =>
+      call("fetch_page", `{"url":"https://example.com/${++n}"}`)
+    );
+    const addMessage = vi.fn();
+
+    await processMCPToolCalls(
+      {
+        id: "assistant-circles",
+        role: "assistant",
+        content: call("fetch_page", '{"url":"https://example.com/0"}'),
+        timestamp: new Date(),
+      },
+      {
+        // Every page fails: rounds go by with no new result
+        onToolCallDetected: vi
+          .fn()
+          .mockResolvedValue({ success: false, error: "404" }),
+        addMessage,
+        continueConversation,
+        maxToolRounds: Infinity,
+        progressCheckEvery: 10,
+      }
+    );
+
+    expect(continueConversation).toHaveBeenCalledTimes(10);
+    const notice = addMessage.mock.calls.at(-1)?.[0] as Message;
+    expect(notice.content).toContain("Paused after 10 rounds");
+    expect(notice.resumable).toBe(true);
+    expect(notice.unrunToolCalls).toEqual([
+      "fetch_page https://example.com/10",
+    ]);
   });
 
   it("keeps going when a reply is cut off mid-call", async () => {

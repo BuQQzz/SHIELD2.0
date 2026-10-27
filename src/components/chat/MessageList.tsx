@@ -15,6 +15,8 @@ interface MessageListProps {
   streamingContent?: string;
   isGenerating?: boolean;
   onContinue?: (messageId: string) => void;
+  /** Carries on a turn that was paused (a notice marked resumable) */
+  onResume?: () => void;
   onEditMessage?: (messageId: string, newContent: string) => void;
   onRegenerateMessage?: (messageId: string) => void;
   /** A tool call currently executing, shown at the end of the thread */
@@ -26,6 +28,7 @@ export function MessageList({
   streamingContent,
   isGenerating,
   onContinue,
+  onResume,
   onEditMessage,
   onRegenerateMessage,
   runningTool,
@@ -149,6 +152,7 @@ export function MessageList({
               isLive={live && isLastTurn}
               live={isLastTurn ? liveWork : null}
               onContinue={onContinue}
+              onResume={isLastTurn && !live ? onResume : undefined}
               onRegenerate={
                 onRegenerateMessage
                   ? () => onRegenerateMessage(turn.id)

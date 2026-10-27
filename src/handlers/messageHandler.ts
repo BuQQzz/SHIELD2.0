@@ -95,6 +95,9 @@ import { detectTruncation } from "../utils/messageTruncation";
 import { kindOf } from "../lib/sessions";
 import type { ConversationKind } from "../types/conversation";
 
+/** A solo turn's tool rounds are checked for progress this often */
+const PROGRESS_CHECK_ROUNDS = 10;
+
 const FILE_WORDS =
   /\b(?:folders?|director(?:y|ies)|dirs?|workspace|files?|paths?|projects?|repos?|repositor(?:y|ies)|codebase|readme)\b|\bin here\b/i;
 /** main.ts, notes.txt, package.json */
@@ -437,9 +440,13 @@ export function createMessageHandler({
           addMessage,
           enableHybridParser: true,
           maxToolCallsPerTurn: settings.mcp.maxToolCallsPerTurn,
+          // Alone, no fixed cap: a research turn ran past 20 rounds while
+          // still finding new pages, and stopped (2026-10-27). It is
+          // checked for progress every 10 instead.
           maxToolRounds: teamMode
             ? orchestratorRounds(settings.mcp.maxToolRounds)
-            : settings.mcp.maxToolRounds,
+            : Infinity,
+          progressCheckEvery: teamMode ? undefined : PROGRESS_CHECK_ROUNDS,
           workspaceFolder: settings.mcp.workspaceFolder,
           isStopped: () => useGenerationStore.getState().stopRequested,
           // About a third of the context window for any one result (~3 chars

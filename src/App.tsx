@@ -460,6 +460,11 @@ function App() {
     [currentConversation, setMessages, addMessage, beginTurn, afterTurn]
   );
 
+  // The Continue button on a paused turn: the same as replying "continue"
+  const handleResume = useCallback(
+    () => void handleSendMessage("continue"),
+    [handleSendMessage]
+  );
   const handleContinueTurn = useCallback(
     async (messageId: string) => {
       await handleContinue(messageId);
@@ -642,6 +647,7 @@ function App() {
               streamingContent={streamingContent}
               isGenerating={isGenerating}
               onContinue={handleContinueTurn}
+              onResume={handleResume}
               onEditMessage={handleEditTurn}
               onRegenerateMessage={handleRegenerateTurn}
               runningTool={

@@ -38,6 +38,11 @@ export interface Message {
    * notice shown to the user; the next prompt tells the model about them.
    */
   unrunToolCalls?: string[];
+  /**
+   * On a notice that ended a turn early (tool-round limit, no progress, a
+   * repeated step): the last one in the chat gets a Continue button
+   */
+  resumable?: boolean;
   /** SHIELD's record under a reply that claims a change never made */
   recordNote?: string;
   /** Sent while the turn ran (handlers/steer.ts) */

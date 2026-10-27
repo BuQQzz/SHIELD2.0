@@ -35,7 +35,6 @@ interface MessageProps {
   role: "user" | "assistant";
   content: string;
   isStreaming?: boolean;
-  truncated?: boolean;
   sources?: SearchResult[];
   thinking?: string; // Chain-of-thought analysis from models
   isThinking?: boolean; // True while streaming thinking content
@@ -57,7 +56,6 @@ export const ChatMessage = memo(function ChatMessage({
   role,
   content: rawContent,
   isStreaming,
-  truncated,
   sources,
   thinking,
   isThinking,
@@ -262,7 +260,7 @@ export const ChatMessage = memo(function ChatMessage({
           <span>{recordNote}</span>
         </div>
       )}
-      {truncated && !isStreaming && (
+      {onContinue && !isStreaming && (
         <Button
           onClick={onContinue}
           variant="outline"
