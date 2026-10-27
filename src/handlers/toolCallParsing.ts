@@ -4,6 +4,8 @@
  * Parses OpenAI-style and XML-style tool calls into a normalized request shape.
  */
 
+import { stoppedForLooping } from "../utils/loopGuard";
+
 export interface ToolCallRequest {
   serverName: string;
   tool: string;
@@ -934,6 +936,17 @@ export function cutOffToolCall(content: string): ToolCallRequest | null {
   if (!/<arguments>|"arguments"\s*:/.test(tail)) return null;
 
   const tool = pendingTool || "tool";
+  // Bonsai 27B writing a checklist went "- [ ] Trash bags" until the loop
+  // guard stopped it; ended like Stop, the turn showed nothing (2026-10-27)
+  if (stoppedForLooping(content)) {
+    return {
+      serverName: "filesystem",
+      tool,
+      arguments: {},
+      format: "xml",
+      argumentsError: `${CUT_OFF_ERROR_PREFIX}: partway through the ${tool} arguments your reply began repeating the same lines over and over, so SHIELD stopped it. It was not run and nothing changed. Do it in smaller steps (write_file with the first section, then edit_file to add each next section), and list each item once.`,
+    };
+  }
   return {
     serverName: "filesystem",
     tool,

@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { LOOP_NOTE } from "../utils/loopGuard";
 import {
   cutOffToolCall,
   closeOpenBrackets,
@@ -336,6 +337,15 @@ describe("cutOffToolCall", () => {
       text: "The file is ready.",
       pendingTool: null,
     });
+  });
+
+  it("says a call stopped for looping was repeating, not too long", () => {
+    const looping = `<tool_call>\n<server>filesystem</server>\n<tool>write_file</tool>\n<arguments>{"path":"/p/list.md","content":"# List\\n${"- [ ] Trash bags\\n".repeat(30)}${LOOP_NOTE}`;
+    const call = cutOffToolCall(looping);
+    expect(call?.tool).toBe("write_file");
+    expect(call?.argumentsError).toContain("The tool call was cut off");
+    expect(call?.argumentsError).toContain("repeating the same lines");
+    expect(call?.argumentsError).not.toContain("length limit");
   });
 
   it("still detects truncated JSON after a complete native envelope", () => {
