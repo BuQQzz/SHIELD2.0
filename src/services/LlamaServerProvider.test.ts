@@ -7,7 +7,7 @@ import {
   LlamaServerProvider,
   replyTokenLimit,
   STALL_MS,
-  THINKING_MIN_REPLY_TOKENS,
+  MIN_REPLY_TOKENS,
 } from "./LlamaServerProvider";
 import { NUDGE_NOTE } from "./llamaServer/rescue";
 import type { SavedMessage } from "./taskCapsule";
@@ -925,16 +925,12 @@ describe("LlamaServerProvider a request the user rescues", () => {
 });
 
 describe("replyTokenLimit", () => {
-  it("raises a thinking reply to the minimum", () => {
-    expect(replyTokenLimit(2048, undefined)).toBe(THINKING_MIN_REPLY_TOKENS);
-    expect(replyTokenLimit(2048, true)).toBe(THINKING_MIN_REPLY_TOKENS);
+  it("raises a small setting to the minimum", () => {
+    expect(replyTokenLimit(2048)).toBe(MIN_REPLY_TOKENS);
+    expect(replyTokenLimit(undefined)).toBe(MIN_REPLY_TOKENS);
   });
 
   it("keeps a larger setting", () => {
-    expect(replyTokenLimit(16384, undefined)).toBe(16384);
-  });
-
-  it("keeps the setting when thinking is off", () => {
-    expect(replyTokenLimit(2048, false)).toBe(2048);
+    expect(replyTokenLimit(16384)).toBe(16384);
   });
 });

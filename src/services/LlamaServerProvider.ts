@@ -100,22 +100,19 @@ export interface ServerLoadOptions {
 export const STALL_MS = 5 * 60 * 1000;
 
 /**
- * The fewest tokens a thinking reply gets, whatever Max Tokens says. Bonsai
+ * The fewest tokens a chat reply gets, whatever Max Tokens says. Bonsai
  * 27B's thought counts against the limit: at the default 2,048 it thought
  * until the limit and wrote no answer, or was cut off partway through a
- * write_file and failed the same call three times (2026-10-27).
+ * write_file and failed the same call three times (2026-10-27). Without
+ * thinking too: sent again with thinking off (its thought went in circles),
+ * a 9.6k-character write_file stopped at exactly 2,048 tokens (2026-10-28).
+ * A ceiling, not a target: a short answer still ends when it is done.
  */
-export const THINKING_MIN_REPLY_TOKENS = 8192;
+export const MIN_REPLY_TOKENS = 8192;
 
-/** max_tokens for a request: the setting, raised for a thinking reply */
-export function replyTokenLimit(
-  maxTokens: number | undefined,
-  thinking: boolean | undefined
-): number {
-  const limit = maxTokens ?? 512;
-  return thinking === false
-    ? limit
-    : Math.max(limit, THINKING_MIN_REPLY_TOKENS);
+/** max_tokens for a chat request: the setting, raised to MIN_REPLY_TOKENS */
+export function replyTokenLimit(maxTokens: number | undefined): number {
+  return Math.max(maxTokens ?? 512, MIN_REPLY_TOKENS);
 }
 
 /**
@@ -607,7 +604,7 @@ export class LlamaServerProvider {
         timings_per_token: true,
         cache_prompt: true,
         temperature: options.temperature ?? 0.7,
-        max_tokens: replyTokenLimit(options.maxTokens, options.thinking),
+        max_tokens: replyTokenLimit(options.maxTokens),
         top_p: options.topP ?? 0.9,
         top_k: options.topK ?? 40,
         repeat_penalty: options.repeatPenalty ?? 1.1,
