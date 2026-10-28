@@ -11,7 +11,7 @@ import {
   recordNoteFor,
   takeLedgerNote,
 } from "./workLedger";
-import { resultPayload } from "./mcpToolHandler";
+import { readProjectFile } from "./projectFile";
 import { recallFor } from "./memoryRecall";
 import { checkPlan, planRemarks, takePlanNote } from "./sessionPlan";
 import { useConversationStore } from "@/stores/conversation-store";
@@ -28,18 +28,6 @@ import {
  * A file's current contents for SHIELD's own checks, through the filesystem
  * server (so only inside the allowed folder); null when it cannot be read.
  */
-async function readProjectFile(path: string): Promise<string | null> {
-  const result = await window.electronAPI?.mcp?.callTool({
-    serverName: "filesystem",
-    tool: "read_text_file",
-    arguments: { path },
-  });
-  if (!result?.success || (result.data as { isError?: unknown })?.isError) {
-    return null;
-  }
-  return resultPayload(result.data);
-}
-
 /**
  * After a turn in a code session: when the final reply talks about a change
  * whose edit failed and is still not in the file, put SHIELD's record under
@@ -449,6 +437,7 @@ export function createMessageHandler({
           progressCheckEvery: teamMode ? undefined : PROGRESS_CHECK_ROUNDS,
           workspaceFolder: settings.mcp.workspaceFolder,
           isStopped: () => useGenerationStore.getState().stopRequested,
+          readFile: readProjectFile,
           // About a third of the context window for any one result (~3 chars
           // per token for code), so the request and the reply still fit
           maxResultChars: Math.max(

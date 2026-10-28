@@ -408,6 +408,37 @@ describe("multi-round tool chaining", () => {
     ]);
   });
 
+  it("shows the file's closest lines when an edit finds no exact match", async () => {
+    const addMessage = vi.fn();
+    const readFile = vi
+      .fn()
+      .mockResolvedValue("# List\n| 📍 Long Island | N/A | Local\n- Water");
+    await processMCPToolCalls(
+      {
+        id: "assistant-miss",
+        role: "assistant",
+        content: call(
+          "edit_file",
+          '{"path":"/p/a.md","edits":[{"oldText":"| 📍 Long Island | N/A | Local |","newText":"x"}]}'
+        ),
+        timestamp: new Date(),
+      },
+      {
+        onToolCallDetected: vi.fn().mockResolvedValue({
+          success: false,
+          error: "Could not find exact match for edit: | 📍 Long Island",
+        }),
+        addMessage,
+        continueConversation: vi.fn().mockResolvedValue("ok"),
+        readFile,
+      }
+    );
+    expect(readFile).toHaveBeenCalledWith("/p/a.md");
+    const result = (addMessage.mock.calls[0]?.[0] as Message).content;
+    expect(result).toContain("at line 2");
+    expect(result).toContain("BEGIN\n| 📍 Long Island | N/A | Local\nEND");
+  });
+
   it("never runs a call from a reply that copied a removal note", async () => {
     const onToolCallDetected = vi.fn();
     const addMessage = vi.fn();

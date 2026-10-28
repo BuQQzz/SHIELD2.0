@@ -24,6 +24,7 @@ import { RUN_COMMAND_TOOL_NAME } from "../config/commandSafety";
 import type { NativeToolResult } from "../types/nativeTools";
 import { hostOs, type HostOs } from "../utils/platform";
 import { isRemovalNote } from "../services/historyCompaction";
+import { closestLines } from "../utils/closestLines";
 
 export interface MCPMessageHandlerProps {
   onToolCallDetected: (toolCall: ToolCallRequest) => Promise<MCPToolResult>;
@@ -63,6 +64,11 @@ export interface MCPMessageHandlerProps {
    * one cut off at the length limit (2026-09-24).
    */
   isStopped?: () => boolean;
+  /**
+   * Reads a file as it is now, or null. When an edit_file finds no exact
+   * match, the file's closest lines go into the error (closestLines.ts).
+   */
+  readFile?: (path: string) => Promise<string | null>;
 }
 
 /** Answers from memory to one call before the turn is ended */
@@ -213,23 +219,56 @@ export function unrunToolCallsNote(calls: string[]): string {
 const EDIT_MISS_HINT =
   "\n\nThe oldText must be copied exactly from the file as it is now. Read the file with read_text_file first, then send an edit whose oldText is only the few lines you are changing. To replace the whole file, use write_file instead.";
 
-function withEditHint(
+/** Most missed edits in one call given the file's closest lines */
+const MAX_HINTED_EDITS = 3;
+
+/** For each oldText not in the file: the lines nearest to it, or that there are none */
+async function closestLinesHint(
   toolCall: ToolCallRequest,
-  result: MCPToolResult
-): MCPToolResult {
+  readFile: (path: string) => Promise<string | null>
+): Promise<string> {
+  const { path, edits } = toolCall.arguments;
+  if (typeof path !== "string" || !Array.isArray(edits)) return "";
+  const content = await readFile(path).catch(() => null);
+  if (content === null) return "";
+  const missed = edits
+    .map((edit) => (edit as { oldText?: unknown })?.oldText)
+    .filter(
+      (oldText): oldText is string =>
+        typeof oldText === "string" && !content.includes(oldText)
+    )
+    .slice(0, MAX_HINTED_EDITS);
+  return missed
+    .map((oldText) => {
+      const found = closestLines(content, oldText);
+      const first = oldText.trim().split("\n")[0]!.slice(0, 80);
+      return found
+        ? `\n\nThe closest text in the file to the oldText starting "${first}" is at line ${found.line}. Copy oldText from it character for character:\nBEGIN\n${found.text}\nEND`
+        : `\n\nNothing in the file is close to the oldText starting "${first}": that text is not in the file. Edit a part of the file that is there.`;
+    })
+    .join("");
+}
+
+async function withEditHint(
+  toolCall: ToolCallRequest,
+  result: MCPToolResult,
+  readFile?: (path: string) => Promise<string | null>
+): Promise<MCPToolResult> {
   if (
     toolCall.tool === "edit_file" &&
     !result.success &&
     /could not find exact match/i.test(result.error ?? "")
   ) {
-    return { ...result, error: `${result.error}${EDIT_MISS_HINT}` };
+    const closest = readFile ? await closestLinesHint(toolCall, readFile) : "";
+    return { ...result, error: `${result.error}${EDIT_MISS_HINT}${closest}` };
   }
   return result;
 }
 
 async function runToolCall(
   toolCall: ToolCallRequest,
-  onToolCallDetected: MCPMessageHandlerProps["onToolCallDetected"]
+  onToolCallDetected: MCPMessageHandlerProps["onToolCallDetected"],
+  readFile?: MCPMessageHandlerProps["readFile"]
 ): Promise<MCPToolResult> {
   try {
     console.log(
@@ -244,12 +283,13 @@ async function runToolCall(
     // Passed on as success, edit_file's "Input validation error" showed as a
     // green row and was wrapped as an ordinary result (2026-09-24).
     if (result.success && (result.data as { isError?: unknown })?.isError) {
-      return withEditHint(toolCall, {
-        success: false,
-        error: resultPayload(result.data),
-      });
+      return await withEditHint(
+        toolCall,
+        { success: false, error: resultPayload(result.data) },
+        readFile
+      );
     }
-    return withEditHint(toolCall, result);
+    return await withEditHint(toolCall, result, readFile);
   } catch (error) {
     console.error("[MCP] Error processing tool call:", error);
     return {
@@ -278,6 +318,7 @@ export async function processMCPToolCalls(
     workspaceFolder,
     maxResultChars,
     isStopped,
+    readFile,
   } = props;
 
   // A single request usually needs several tool calls in sequence: list a
@@ -393,7 +434,7 @@ export async function processMCPToolCalls(
         repeats.set(signature, count);
         if (count >= MAX_REPEATS) stuckOn = toolCall;
       } else {
-        result = await runToolCall(toolCall, onToolCallDetected);
+        result = await runToolCall(toolCall, onToolCallDetected, readFile);
         // delegate counts as read-only, but its agent may have changed files:
         // a tester sent the same task after a fix must run again. The run
         // itself is kept, so the same task right after it is not redone.
