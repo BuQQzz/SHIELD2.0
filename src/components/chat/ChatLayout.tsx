@@ -24,7 +24,7 @@ export function ChatLayout({ children, sidebar }: ChatLayoutProps) {
       {/* Sidebar */}
       <aside
         className={cn(
-          "fixed left-0 top-0 z-40 h-full bg-background transition-all duration-300 ease-in-out md:relative md:z-0",
+          "fixed left-0 top-0 z-40 h-full shrink-0 bg-background transition-all duration-300 ease-in-out md:relative md:z-0",
           sidebarOpen
             ? "translate-x-0"
             : "-translate-x-full md:-translate-x-0 md:w-0"
@@ -34,10 +34,12 @@ export function ChatLayout({ children, sidebar }: ChatLayoutProps) {
         {sidebar}
       </aside>
 
-      {/* Main Content */}
+      {/* Main Content: min-w-0 lets it narrow with the window. Without it
+          the column kept the width of its widest line (a long tool step)
+          and a narrowed window cut the chat off on the right (2026-10-28) */}
       <main
         className={cn(
-          "flex flex-1 flex-col transition-all duration-200 ease-in-out",
+          "flex min-w-0 flex-1 flex-col transition-all duration-200 ease-in-out",
           sidebarOpen ? "md:ml-0" : "ml-0"
         )}
       >
