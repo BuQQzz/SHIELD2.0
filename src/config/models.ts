@@ -306,6 +306,60 @@ export const MODEL_FAMILIES: ModelFamilyEntry[] = [
           recommendedRAM: 32,
         },
       },
+      {
+        id: "qwen3.5-9b",
+        name: "Qwen3.5-9B",
+        displayName: "Qwen3.5 9B",
+        description:
+          "Small Qwen for agent work on an 8 GB GPU: the usual pick at this size for tool calling. Q6_K on a 12 GB GPU.",
+        contextSize: 32768,
+        provider: "Alibaba",
+        releaseDate: "2026-03",
+        chatTemplate: "qwen",
+        roles: ["agent", "coding", "chat"],
+        runtime: "llama-server",
+        team: {
+          fit: "untested",
+          note: "Added 2026-10-28 for a comparison with Bonsai; not run as a team yet.",
+        },
+        // Qwen's model card: thinking mode for precise coding tasks
+        sampling: {
+          temperature: 0.6,
+          topP: 0.95,
+          topK: 20,
+          repeatPenalty: 1.0,
+        },
+        files: [
+          {
+            name: "Qwen3.5-9B-Q6_K.gguf",
+            hfRepo: "unsloth/Qwen3.5-9B-GGUF",
+            sizeBytes: 7_460_000_000,
+            minVRAM: 12,
+          },
+          {
+            name: "Qwen3.5-9B-Q4_K_M.gguf",
+            hfRepo: "unsloth/Qwen3.5-9B-GGUF",
+            sizeBytes: 5_680_000_000,
+            minVRAM: 0,
+          },
+        ],
+        capabilities: {
+          toolCalling: true,
+          complexReasoning: true,
+          webSearch: true,
+          structuredOutput: true,
+          longContext: true,
+          codeGeneration: true,
+          multilingual: "good",
+          temperatureRange: { min: 0.1, max: 1.0, default: 0.6 },
+        },
+        hardware: {
+          minVRAM: 8,
+          recommendedVRAM: 12,
+          minRAM: 16,
+          recommendedRAM: 16,
+        },
+      },
     ]),
   },
   {
