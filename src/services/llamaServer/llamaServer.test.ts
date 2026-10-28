@@ -26,6 +26,21 @@ describe("buildServerArgs", () => {
     expect(value("--threads")).toBe("8");
   });
 
+  it("puts every layer on the GPU, with the model's batch size, for a fixed placement", () => {
+    const fixed = buildServerArgs({
+      modelPath: "m.gguf",
+      contextSize: 24576,
+      port: 1,
+      threads: 4,
+      placement: { allLayersOnGpu: true, ubatchSize: 512 },
+    });
+    const at = (flag: string) => fixed[fixed.indexOf(flag) + 1];
+    expect(at("--fit")).toBe("off");
+    expect(at("--n-gpu-layers")).toBe("all");
+    expect(at("--ubatch-size")).toBe("512");
+    expect(args).not.toContain("--n-gpu-layers");
+  });
+
   // llama-server cuts a thought off at the budget and the model carries on
   // thinking in the visible answer, so it is not on unless asked for
   it("does not cap thinking by default, and passes a budget only when given one", () => {

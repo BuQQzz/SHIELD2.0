@@ -9,6 +9,7 @@
 import fs from "fs";
 import os from "os";
 import path from "path";
+import type { ServerPlacement } from "../../config/models.js";
 
 export interface LaunchOptions {
   modelPath: string;
@@ -32,6 +33,8 @@ export interface LaunchOptions {
    * Bonsai 27B server hang (2026-10-21).
    */
   specType?: "ngram-mod" | "none";
+  /** A fixed placement instead of `--fit` (ServerPlacement) */
+  placement?: ServerPlacement;
 }
 
 /**
@@ -63,12 +66,13 @@ export function buildServerArgs(options: LaunchOptions): string[] {
     String(options.contextSize),
     "--parallel",
     "1",
-    "--fit",
-    "on",
+    ...(options.placement?.allLayersOnGpu
+      ? ["--fit", "off", "--n-gpu-layers", "all"]
+      : ["--fit", "on"]),
     "--flash-attn",
     "on",
     "--ubatch-size",
-    "2048",
+    String(options.placement?.ubatchSize ?? 2048),
     "--batch-size",
     "2048",
     "--threads",

@@ -44,6 +44,14 @@ describe("planUnsizedServerContext", () => {
     },
   });
 
+  it("offers and recommends the catalog's size when it is not a step", () => {
+    const plan = planUnsizedServerContext(info(262144) as never, 24576);
+    expect(plan.options.map((o) => o.contextSize)).toEqual([
+      8192, 16384, 24576, 32768, 65536,
+    ]);
+    expect(plan.recommended).toBe(24576);
+  });
+
   it("offers sizes up to 64k with no memory estimate, so loads go unchecked", () => {
     const plan = planUnsizedServerContext(info(262144) as never, 32768);
     expect(plan.options.map((o) => o.contextSize)).toEqual([

@@ -157,6 +157,7 @@ export class ModelRuntime {
       contextSize,
       systemPrompt: this.systemPrompt,
       pidFile: this.pidFile,
+      placement: model?.serverPlacement,
     });
 
     this.engine = "server";

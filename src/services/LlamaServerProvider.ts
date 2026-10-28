@@ -52,6 +52,7 @@ import {
   type SavedCapsule,
   type SavedMessage,
 } from "./taskCapsule.js";
+import type { ServerPlacement } from "../config/models.js";
 import type {
   ChatMessage,
   ChatOptions,
@@ -87,6 +88,8 @@ export interface ServerLoadOptions {
   systemPrompt: string;
   /** Where the server's PID is recorded, so a crash does not orphan it */
   pidFile?: string;
+  /** A fixed placement instead of `--fit` (catalog serverPlacement) */
+  placement?: ServerPlacement;
 }
 
 /**
@@ -304,6 +307,7 @@ export class LlamaServerProvider {
       port,
       threads: defaultThreads(),
       specType: process.env.SHIELD_SPEC_TYPE === "none" ? "none" : "ngram-mod",
+      placement: options.placement,
     });
     console.log(`[LlamaServer] Starting ${binary} ${args.join(" ")}`);
 

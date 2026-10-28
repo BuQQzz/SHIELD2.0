@@ -252,9 +252,19 @@ export function planUnsizedServerContext(
       arch ?? ""
     ]?.block_count ?? 0;
 
-  const options: ContextOption[] = CONTEXT_STEPS.filter(
-    (size) => size <= Math.min(trainContextSize, UNSIZED_MAX_CONTEXT)
-  ).map((contextSize) => ({ contextSize, gpuLayers: totalLayers }));
+  const cap = Math.min(trainContextSize, UNSIZED_MAX_CONTEXT);
+  // The catalog's own size too when it is not a step: Ternary Bonsai 2 27B
+  // is set to 24k for an 8 GB GPU, and without it the plan fell back to its
+  // largest step, 64k, which ran out of memory (2026-10-28)
+  const sizes = [
+    ...new Set([...CONTEXT_STEPS, ...(preferred <= cap ? [preferred] : [])]),
+  ]
+    .filter((size) => size <= cap)
+    .sort((a, b) => a - b);
+  const options: ContextOption[] = sizes.map((contextSize) => ({
+    contextSize,
+    gpuLayers: totalLayers,
+  }));
   const offered = options.map((o) => o.contextSize);
 
   return {

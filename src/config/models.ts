@@ -99,6 +99,20 @@ export interface ModelTeamFit {
   note: string;
 }
 
+/**
+ * Where llama-server puts a model, for one `--fit` misjudges: every layer
+ * on the GPU, with smaller batches so the compute buffer fits beside them.
+ * `--fit` kept moving Ternary Bonsai 2 27B's layers to the CPU on an 8 GB
+ * GPU, even with room to spare: 2.8 tok/s at 64k, 8.2 at 24k; all on the
+ * GPU at 24k with 512-token batches, 42.7 tok/s in 7.5 GB (2026-10-28).
+ * With 2048-token batches it ran out of memory. A fixed placement fails at
+ * load on a GPU too small for it, so hardware.minVRAM must cover it.
+ */
+export interface ServerPlacement {
+  allLayersOnGpu: true;
+  ubatchSize: number;
+}
+
 export interface ModelMetadata {
   /** Stable identifier - stored in settings and conversations */
   id: string;
@@ -129,6 +143,8 @@ export interface ModelMetadata {
   runtime: ModelRuntime;
   /** How it does as the model of an agent team; see TeamFit */
   team?: ModelTeamFit;
+  /** llama-server only: a fixed placement instead of `--fit` */
+  serverPlacement?: ServerPlacement;
   /** Quantizations, best quality first */
   files: ModelFile[];
   /** Requires HuggingFace authentication (gated model) */
@@ -574,8 +590,10 @@ export const MODEL_FAMILIES: ModelFamilyEntry[] = [
         name: "Ternary-Bonsai-2-27B",
         displayName: "Bonsai 2 27B",
         description:
-          "27B model at 1.58 bits per weight. Runs fully on a 12 GB GPU with a 64k context window.",
-        contextSize: 65536,
+          "27B model at 1.58 bits per weight. Runs fully on an 8 GB GPU with a 24k context window, about 43 tok/s on an RTX 2070 SUPER.",
+        // 32k ran out of memory on 8 GB; 24k used 7.5 GB (2026-10-28)
+        contextSize: 24576,
+        serverPlacement: { allLayersOnGpu: true, ubatchSize: 512 },
         provider: "PrismML",
         chatTemplate: "generic",
         roles: ["long-context", "chat"],
