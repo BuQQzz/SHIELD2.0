@@ -23,6 +23,8 @@ export interface ToolCallRequest {
 /** Set on the stand-in for a call the reply ended in the middle of */
 export const CUT_OFF_ERROR_PREFIX = "The tool call was cut off";
 export const UNREADABLE_ERROR_PREFIX = "The tool call could not be read";
+export const COPIED_NOTE_ERROR_PREFIX =
+  "The tool call copied one of SHIELD's notes";
 
 /** Gemma 4's native tool markers are not part of SHIELD's XML tool protocol. */
 export const UNSUPPORTED_NATIVE_TOOL_CALL_MESSAGE =
@@ -447,6 +449,23 @@ function normalizeEdit(edit: unknown): unknown {
   return edit;
 }
 
+/**
+ * One edit with its oldText or newText outside it, beside `edits`: Bonsai
+ * 27B wrote `"edits":[{"oldText":"## Resources"}],"newText":"..."` and the
+ * tool refused it (2026-10-28). The text goes back into the edit.
+ */
+function hoistedEditText(args: Record<string, unknown>): void {
+  const edits = args.edits as unknown[];
+  const [only] = edits;
+  if (edits.length !== 1 || !isRecord(only)) return;
+  for (const key of ["oldText", "newText"]) {
+    if (typeof args[key] === "string" && only[key] === undefined) {
+      only[key] = args[key];
+      delete args[key];
+    }
+  }
+}
+
 function normalizeFilesystemArguments(
   serverName: string,
   args: Record<string, unknown>,
@@ -462,6 +481,7 @@ function normalizeFilesystemArguments(
   }
   if (tool === "edit_file" && Array.isArray(normalizedArgs.edits)) {
     normalizedArgs.edits = normalizedArgs.edits.map(normalizeEdit);
+    hoistedEditText(normalizedArgs);
   }
 
   return normalizedArgs;
@@ -629,12 +649,19 @@ function closeUnfinishedCall(text: string): string {
   return UNCLOSED_CALL.test(text) ? `${text.trimEnd()}\n</tool_call>` : text;
 }
 
+/**
+ * `</tool>` for `</tool_call>` right after the arguments: Bonsai 27B closed
+ * a write_file this way (2026-10-28), and it was taken for a reply cut off
+ * at the length limit, 241 tokens in
+ */
+const TOOL_FOR_TOOL_CALL = /(<\/arguments>\s*)<\/tool>(?!_)/g;
+
 export function repairToolCallMarkup(content: string): string {
   const CLOSE = "</tool_call>";
   const OPEN = "<tool_call>";
 
   let output = "";
-  let rest = content;
+  let rest = content.replace(TOOL_FOR_TOOL_CALL, `$1${CLOSE}`);
 
   for (;;) {
     const closeIndex = rest.indexOf(CLOSE);
@@ -963,7 +990,9 @@ export function streamingToolCallPreview(content: string): {
  */
 export function cutOffToolCall(content: string): ToolCallRequest | null {
   if (hasUnsupportedNativeToolCall(content)) return null;
-  content = withoutCompleteOpenAICalls(content);
+  content = withoutCompleteOpenAICalls(
+    content.replace(TOOL_FOR_TOOL_CALL, "$1</tool_call>")
+  );
   const { pendingTool } = streamingToolCallPreview(content);
   if (pendingTool === null) return null;
 

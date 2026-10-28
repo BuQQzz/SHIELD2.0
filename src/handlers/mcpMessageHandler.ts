@@ -12,6 +12,7 @@ import {
   type ToolCallRequest,
 } from "./mcpToolHandler";
 import {
+  COPIED_NOTE_ERROR_PREFIX,
   CUT_OFF_ERROR_PREFIX,
   UNREADABLE_ERROR_PREFIX,
   cutOffToolCall,
@@ -22,6 +23,7 @@ import { isMutatingTool } from "../config/toolClassification";
 import { RUN_COMMAND_TOOL_NAME } from "../config/commandSafety";
 import type { NativeToolResult } from "../types/nativeTools";
 import { hostOs, type HostOs } from "../utils/platform";
+import { isRemovalNote } from "../services/historyCompaction";
 
 export interface MCPMessageHandlerProps {
   onToolCallDetected: (toolCall: ToolCallRequest) => Promise<MCPToolResult>;
@@ -314,7 +316,17 @@ export async function processMCPToolCalls(
     const cutOff = cutOffToolCall(text);
     if (cutOff) return [...calls, cutOff];
     const unreadable = calls.length === 0 ? unreadableToolCall(text) : null;
-    return unreadable ? [unreadable] : calls;
+    if (unreadable) return [unreadable];
+    // Old calls in the model's history are shortened to their path and a
+    // removal note; Bonsai 27B wrote one of those as its next write_file,
+    // with no content (2026-10-28). Never run a call from such a reply.
+    if (isRemovalNote(text)) {
+      return calls.map((call) => ({
+        ...call,
+        argumentsError: `${COPIED_NOTE_ERROR_PREFIX} ("[SHIELD removed from your context ...]"), so it was not run and nothing changed. That note only marks old calls in your history whose text was removed; it is not part of a call. Send ${call.tool} again with all of its arguments written out in full${call.tool === "write_file" ? " (path and the whole content)" : ""}.`,
+      }));
+    }
+    return calls;
   };
 
   for (let round = 1; round <= maxToolRounds; round++) {
@@ -355,9 +367,11 @@ export async function processMCPToolCalls(
         // the same malformed call.
         result = {
           success: false,
-          error: [CUT_OFF_ERROR_PREFIX, UNREADABLE_ERROR_PREFIX].some(
-            (prefix) => toolCall.argumentsError?.startsWith(prefix)
-          )
+          error: [
+            CUT_OFF_ERROR_PREFIX,
+            UNREADABLE_ERROR_PREFIX,
+            COPIED_NOTE_ERROR_PREFIX,
+          ].some((prefix) => toolCall.argumentsError?.startsWith(prefix))
             ? toolCall.argumentsError
             : `${toolCall.argumentsError} The call was not run. Send it again with the arguments as a valid JSON object, escaping line breaks inside strings as \\n.`,
         };

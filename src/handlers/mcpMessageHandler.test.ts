@@ -408,6 +408,31 @@ describe("multi-round tool chaining", () => {
     ]);
   });
 
+  it("never runs a call from a reply that copied a removal note", async () => {
+    const onToolCallDetected = vi.fn();
+    const addMessage = vi.fn();
+    await processMCPToolCalls(
+      {
+        id: "assistant-copied",
+        role: "assistant",
+        content:
+          '<tool_call>\n<server>filesystem</server>\n<tool>write_file</tool>\n<arguments>{"path":"/p/a.md"}</arguments>\n</tool>\n[SHIELD removed from your context to save space: 6,736 characters of the call above. The call already ran.]',
+        timestamp: new Date(),
+      },
+      {
+        onToolCallDetected,
+        addMessage,
+        continueConversation: vi.fn().mockResolvedValue("ok"),
+        maxToolRounds: 3,
+      }
+    );
+    expect(onToolCallDetected).not.toHaveBeenCalled();
+    const result = addMessage.mock.calls[0]?.[0] as Message;
+    expect(result.content).toContain("copied one of SHIELD's notes");
+    expect(result.content).toContain("path and the whole content");
+    expect(result.content).not.toContain("length limit");
+  });
+
   it("keeps going when a reply is cut off mid-call", async () => {
     const assistantMessage: Message = {
       id: "assistant-cut",

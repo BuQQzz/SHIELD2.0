@@ -646,3 +646,24 @@ describe("arguments the model ended without closing the string", () => {
     );
   });
 });
+
+describe("Bonsai 27B call shapes (2026-10-28)", () => {
+  it("puts a newText written beside edits back into the one edit", () => {
+    const [call] = extractToolCalls(
+      '<tool_call>\n<server>filesystem</server>\n<tool>edit_file</tool>\n<arguments>{"path":"/p/a.md","edits":[{"oldText":"## Resources"}],"newText":"## Resources\\n- 211"}</arguments>\n</tool_call>'
+    );
+    expect(call?.arguments).toEqual({
+      path: "/p/a.md",
+      edits: [{ oldText: "## Resources", newText: "## Resources\n- 211" }],
+    });
+  });
+
+  it("reads </tool> after the arguments as the end of the call", () => {
+    const text =
+      '<tool_call>\n<server>filesystem</server>\n<tool>read_text_file</tool>\n<arguments>{"path":"/p/a.md"}</arguments>\n</tool>';
+    expect(extractToolCalls(text)).toMatchObject([
+      { tool: "read_text_file", arguments: { path: "/p/a.md" } },
+    ]);
+    expect(cutOffToolCall(text)).toBeNull();
+  });
+});
