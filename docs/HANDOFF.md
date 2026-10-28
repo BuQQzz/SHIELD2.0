@@ -1,12 +1,12 @@
 # SHIELD — Session Handoff
 
-**Last session:** 2026-10-25 → 26, on Linux (previous: 2026-10-23 → 24, 2026-10-21 → 22 and 2026-10-20 → 21 on Linux; 2026-09-26 → 28 on Windows)  
-**Branch:** `feat/model-library`, 50 commits past the 2026-09-28 tip (`57d5baf`). **Pushed to the public repo on 2026-10-24 at the user's request, up to and including this handoff commit** (the remote had been at `a26dba2`). Pushed again on 2026-10-24 evening at the user's request, up to `171c352`; the commits after it (`1fc3d96` onwards, listed under "Update — 2026-10-25 → 26") were **pushed on 2026-10-26 at the user's request**, up to `ea05a4e`. `302f911` (the repeated-delegate fix), `8f93f19` (tester rule), `051752b` (no made-up details, old tests kept) and their handoff commits were **pushed on 2026-10-26 evening at the user's request**, up to `156df09`; `2ad521f`, `ea344df`, `f24dbdc`, the stuck bar (`05baa6f`), steer (`b5059a7`) and queue (`8754c39`) commits and their handoff commits (see "Queue", "Steer", "The stuck bar", "A second long run, no hang", "Later on 2026-10-26" and "The hang caught on one server") were **pushed on 2026-10-26 night at the user's request**, up to `8754c39`; this push-note commit was pushed with them. Nothing is merged to `main`. Only the user says when to push or open a PR.
-**Tests:** 1177 passing, 7 skipped (`npx vitest run`) · `npx tsc --noEmit`, `npx eslint src electron scripts --ext ts,tsx --max-warnings 0` clean. `prettier --check` flags `src/components/ui/button.tsx` and `scripts/bench/mcp.ts`, which were already unformatted: do not run `prettier --write` over whole folders (it reformats `button.tsx`; `git checkout` it).
+**Last session:** 2026-10-27 → 28, on Linux (previous: 2026-10-25 → 26, 2026-10-23 → 24, 2026-10-21 → 22 and 2026-10-20 → 21 on Linux; 2026-09-26 → 28 on Windows)  
+**Branch:** `feat/model-library`, 50 commits past the 2026-09-28 tip (`57d5baf`). **Pushed to the public repo on 2026-10-24 at the user's request, up to and including this handoff commit** (the remote had been at `a26dba2`). Pushed again on 2026-10-24 evening at the user's request, up to `171c352`; the commits after it (`1fc3d96` onwards, listed under "Update — 2026-10-25 → 26") were **pushed on 2026-10-26 at the user's request**, up to `ea05a4e`. `302f911` (the repeated-delegate fix), `8f93f19` (tester rule), `051752b` (no made-up details, old tests kept) and their handoff commits were **pushed on 2026-10-26 evening at the user's request**, up to `156df09`; `2ad521f`, `ea344df`, `f24dbdc`, the stuck bar (`05baa6f`), steer (`b5059a7`) and queue (`8754c39`) commits and their handoff commits (see "Queue", "Steer", "The stuck bar", "A second long run, no hang", "Later on 2026-10-26" and "The hang caught on one server") were **pushed on 2026-10-26 night at the user's request**, up to `8754c39`; this push-note commit was pushed with them. **The remote is at `c5d79aa`; `c6d1593` and everything in "Update — 2026-10-27 → 28" are local, not pushed.** Nothing is merged to `main`. Only the user says when to push or open a PR.
+**Tests:** 1216 passing, 7 skipped (`npx vitest run`) · `npx tsc --noEmit`, `npx eslint src electron scripts --ext ts,tsx --max-warnings 0` clean. `prettier --check` flags `src/components/ui/button.tsx` and `scripts/bench/mcp.ts`, which were already unformatted: do not run `prettier --write` over whole folders (it reformats `button.tsx`; `git checkout` it).
 
 **Tested in the app with (2026-10-20):** Bonsai 27B Q1_0 on an RTX 2070 SUPER 8 GB (Ubuntu 26.04), SHIELD-managed Prism llama-server at 32K, ~19 tok/s. Earlier sessions: Qwen3-Coder-30B and Gemma 4 12B on Windows (see the older updates).
 
-Read this first (start with "Update — 2026-10-25 → 26" just below; its details are in "The orchestrator prompt never reached the app" and "Redoing the in-app checks with the prompt in place" inside "Update — 2026-10-23 → 24"; then the sections "Update — 2026-10-23 → 24", "Update — 2026-10-21 → 22" and then "Update — 2026-10-20 → 21" are the current state), then [SHIELD_AGENT_ARCHITECTURE.md](./SHIELD_AGENT_ARCHITECTURE.md) (§21 agent teams, §17 decision log, §13 priorities, §20 evidence) and [testing/AGENT_BENCHMARK.md](./testing/AGENT_BENCHMARK.md).
+Read this first (start with "Update — 2026-10-27 → 28" just below, then "Update — 2026-10-25 → 26"; its details are in "The orchestrator prompt never reached the app" and "Redoing the in-app checks with the prompt in place" inside "Update — 2026-10-23 → 24"; then the sections "Update — 2026-10-23 → 24", "Update — 2026-10-21 → 22" and then "Update — 2026-10-20 → 21" are the current state), then [SHIELD_AGENT_ARCHITECTURE.md](./SHIELD_AGENT_ARCHITECTURE.md) (§21 agent teams, §17 decision log, §13 priorities, §20 evidence) and [testing/AGENT_BENCHMARK.md](./testing/AGENT_BENCHMARK.md).
 
 ---
 
@@ -34,7 +34,46 @@ Order agreed with the user on 2026-09-26: the Code view, then the terminal, then
 
 ---
 
-## Update — 2026-10-25 → 26: the orchestrator prompt reaches the app; four in-app rechecks pass (start here)
+## Update — 2026-10-27 → 28: Bonsai 27B in a real Code session; seven fixes; models to compare before deciding (start here)
+
+The user used the installed AppImage (`~/Applications/SHIELD.AppImage`) for a real task: a Code session in `~/Desktop/Projects/Prepping`, Bonsai 27B Q1_0, research disaster preparedness and write `Preparedness_Checklists.md`. Each failure was read from the saved chat (`~/.config/shield2.0/conversations/`) and fixed; the AppImage was rebuilt and replaced after each fix (`npm run build && npx electron-builder --linux AppImage --config electron-builder.yml`, then copy `release/0.1.5/SHIELD-0.1.5.AppImage` over it; the Oct 26 build is kept as `SHIELD.AppImage.bak-2026-10-26`). **Restarting SHIELD does not pick up source changes: the installed AppImage has to be rebuilt.**
+
+### Commits (local, not pushed)
+
+- `037a29e` **a reply gets at least 8,192 tokens** (`replyTokenLimit`, `LlamaServerProvider`): the user's Max Tokens was the default 2,048; Bonsai thought until the limit and wrote nothing, or was cut off inside a `write_file`. **Widened in `aad8dbe`:** first only with thinking on, but a reply resent with thinking off (the thinking-loop guard, `db72362`) still had 2,048, and a 9.6k-character `write_file` stopped at exactly 2,048 tokens; now every chat reply (`MIN_REPLY_TOKENS`).
+- `babb618` **no fixed round cap in a solo turn; a progress check every 10 rounds** (`progressCheckEvery`, `PROGRESS_MIN_STEPS` = 3 new successful calls) and a **Continue button** on the notice that ended a turn (`Message.resumable`; round limit, no progress, a repeated step). Team mode keeps its cap.
+- `d871e98` **the loop guard no longer acts as Stop**: Bonsai wrote "- [ ] Trash bags" until the guard tripped; the turn ended and its note sat inside the hidden tool call, so the user saw nothing. A call it cuts off now fails back to the model ("began repeating the same lines … smaller steps").
+- `da34536` **a string left open in a finished call is closed** (`closeOpenBrackets({ closeString })`, only inside a whole `<tool_call>` block, not on the stray-quote guesses): three `write_file` calls ended `…\n</arguments>` with no `"}`.
+- `ec939d3` **the chat column narrows with the window** (`min-w-0` on `<main>`, `shrink-0` on the sidebar): it kept its widest line's width and was cut off on the right (141 px past a 900 px window, reproduced in the browser preview with stubbed `window.*` APIs).
+- `1eaa7f9` **`newText`/`oldText` beside `edits` go back into the one edit; `</tool>` after the arguments closes a call** (was read as a reply cut off at the length limit); **a reply holding SHIELD's "removed from your context" note runs no call** (`COPIED_NOTE_ERROR_PREFIX`): Bonsai copied a shortened history call as its next `write_file`, path only.
+- `220364c` **a missed `edit_file` shows the file's closest lines** (`src/utils/closestLines.ts`, Dice over character pairs on oldText's longest line; `readFile` prop, `handlers/projectFile.ts`, solo and team): Bonsai built oldText from memory (a heading the file never had; a row with an extra " |").
+- Tests 1177 → 1216.
+
+### What the runs showed (Bonsai 27B Q1_0, 8 GB 2070 SUPER)
+
+- **Good:** 15-37 tok/s; research and summaries on topic and organised.
+- **Bad: exact format.** Every failure was a malformed call, a different shape each run: unclosed strings, misplaced or missing `newText`, `</tool>`, a copied removal note, oldText from memory, rewriting a whole 6-10k-character file in one call. After all the fixes, the last run still did not write the file (`newText` missing entirely; a shorter rewrite refused by the existing overwrite guard), and answered in chat instead. **`Preparedness_Checklists.md` is unchanged since 2026-10-27 21:53.**
+- So patching each new shape is a long tail. Two levers left: **grammar-constrained tool calls** (llama-server forcing calls to the tool's JSON schema, so malformed arguments cannot be written; SHIELD lets the model type calls as text today; effort not yet looked at), and **a more precise model**.
+
+### Next: compare models on the same task before deciding (the user's call, 2026-10-28)
+
+The user chose Bonsai for its very low-bit quants (speed and quality on 8 GB). No decision to drop or keep it until these runs are done. Same task for each, in a fresh Code session on a copy of `Prepping` (reset the files between runs): "add a Long Island, NY section to Preparedness_Checklists.md" (an edit) and "write a new 72-hour kit checklist file" (a write). Record per model: tok/s, rounds, failed calls and their kind, whether the file was really changed (check the file, not the answer), time.
+
+| Model                           | Why                                                                                                             | On disk                                                                          |
+| ------------------------------- | --------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------- |
+| Bonsai-27B Q1_0                 | the baseline from this session                                                                                  | yes                                                                              |
+| **Ternary-Bonsai-2-27B PTQ1_0** | newer (2026-09-17), ternary weights: more precise than 1-bit, already in the catalog (8 GB min, 12 recommended) | **no: download**                                                                 |
+| Ternary-Bonsai-2-9B PQ2_0       | smaller, faster ternary                                                                                         | yes                                                                              |
+| **Qwen3.5-9B Q4_K_M**           | the usual 8 GB pick for tool calling (vendor-reported BFCL-V4 66.1); upstream llama-server                      | **no: not in the catalog yet; check GGUF names and sizes on Hugging Face first** |
+| Gemma 4 12B                     | in the catalog; tight on 8 GB, comfortable on the 12 GB 4070; noted for reliable output format                  | check                                                                            |
+
+Not candidates for Code: **LFM3** (Liquid AI, 2026-10-27, six ~2B models; its card says not for agentic coding or multi-step reasoning: a fast chat model at most); Qwen 3.8 has no size under 27B. Fit rules: only models that fit the 8 GB card without spilling into RAM; the 4070 (12 GB) can take the 12 GB-class ones.
+
+Then: keep in the catalog what passes; a Bonsai that still fumbles the format with constrained calls stays for chat only. Grammar-constrained tool calls are worth doing whichever model wins.
+
+---
+
+## Update — 2026-10-25 → 26: the orchestrator prompt reaches the app; four in-app rechecks pass
 
 The user's direction is unchanged: short, capped window runs, each result shown before the next. **Every window check now runs with `SHIELD_SERVER_LOG=$PWD/tmp/ui-check/<name>.log`** (see below). Details and numbers: the subsections "The orchestrator prompt never reached the app" and "Redoing the in-app checks with the prompt in place" under 2026-10-23 → 24.
 
