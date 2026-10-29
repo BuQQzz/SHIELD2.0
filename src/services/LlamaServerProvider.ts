@@ -119,6 +119,24 @@ export function replyTokenLimit(maxTokens: number | undefined): number {
 }
 
 /**
+ * How much of the window the next request starts from: this prompt plus
+ * the reply as it stays in the history. Thought is in completion_tokens
+ * but is not sent back, and counted it made a thinking reply look up to
+ * 20% of the window larger than it was: Bonsai 2 27B at 24k cleared on
+ * consecutive rounds, each clearing a 10k-token re-read (2026-10-29).
+ * The visible reply is estimated at ~3 characters per token.
+ */
+export function nextPromptTokens(
+  usage: { prompt_tokens: number; completion_tokens: number },
+  reply: string
+): number {
+  return (
+    usage.prompt_tokens +
+    Math.min(usage.completion_tokens, Math.ceil(reply.length / 3))
+  );
+}
+
+/**
  * SHIELD_SERVER_LOG=<file>: llama-server's output and SHIELD's notes on its
  * requests, timestamped and appended there. Off by default; for finding the
  * hang, whose server output was otherwise only an in-memory tail.
@@ -739,8 +757,7 @@ export class LlamaServerProvider {
 
     this.history.push(userMessage, { role: "assistant", content: reply });
     if (final?.usage) {
-      this.lastContextTokens =
-        final.usage.prompt_tokens + final.usage.completion_tokens;
+      this.lastContextTokens = nextPromptTokens(final.usage, reply);
     }
 
     const endedAt = performance.now();

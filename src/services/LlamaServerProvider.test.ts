@@ -8,6 +8,7 @@ import {
   replyTokenLimit,
   STALL_MS,
   MIN_REPLY_TOKENS,
+  nextPromptTokens,
 } from "./LlamaServerProvider";
 import { NUDGE_NOTE } from "./llamaServer/rescue";
 import type { SavedMessage } from "./taskCapsule";
@@ -432,8 +433,9 @@ describe("LlamaServerProvider forked sessions", () => {
     const session = provider.fork("You are the tester.");
     expect(session.getMeasuredContext()).toEqual({ used: 0, size: 4000 });
     await session.chat("run the tests");
-    // the fake server reports 100 prompt + 5 reply tokens
-    expect(session.getMeasuredContext()).toEqual({ used: 105, size: 4000 });
+    // the fake server reports 100 prompt + 5 reply tokens; the reply is
+    // "ok", one token as it stays in the history (nextPromptTokens)
+    expect(session.getMeasuredContext()).toEqual({ used: 101, size: 4000 });
     expect(provider.getMeasuredContext().used).toBe(0);
   });
 
@@ -932,5 +934,26 @@ describe("replyTokenLimit", () => {
 
   it("keeps a larger setting", () => {
     expect(replyTokenLimit(16384)).toBe(16384);
+  });
+});
+
+describe("nextPromptTokens", () => {
+  it("counts the visible reply, not the thought that is not sent back", () => {
+    // 5,000 tokens of thinking and a 300-character answer
+    expect(
+      nextPromptTokens(
+        { prompt_tokens: 9000, completion_tokens: 5100 },
+        "x".repeat(300)
+      )
+    ).toBe(9100);
+  });
+
+  it("never counts more than the reply's tokens", () => {
+    expect(
+      nextPromptTokens(
+        { prompt_tokens: 100, completion_tokens: 10 },
+        "x".repeat(300)
+      )
+    ).toBe(110);
   });
 });
