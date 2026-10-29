@@ -1,6 +1,9 @@
 import { resultPayload } from "./mcpToolHandler";
 
-/** A file as it is now, read through the filesystem server; null when it cannot be read */
+/**
+ * A file's current contents for SHIELD's own checks, through the filesystem
+ * server (so only inside the allowed folder); null when it cannot be read.
+ */
 export async function readProjectFile(path: string): Promise<string | null> {
   const result = await window.electronAPI?.mcp?.callTool({
     serverName: "filesystem",

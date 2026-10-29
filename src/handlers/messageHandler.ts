@@ -26,15 +26,11 @@ import {
 } from "../agents/teamRouting";
 
 /**
- * A file's current contents for SHIELD's own checks, through the filesystem
- * server (so only inside the allowed folder); null when it cannot be read.
- */
-/**
  * After a turn in a code session: when the final reply talks about a change
  * whose edit failed and is still not in the file, put SHIELD's record under
  * the reply, for the user; and check the plan's completed steps the same way.
  */
-async function noteUnappliedEdits(workspace?: string): Promise<void> {
+async function noteUnappliedEdits(): Promise<void> {
   const conversation = useConversationStore.getState().currentConversation;
   const answer = conversation?.messages.at(-1);
   if (!conversation || answer?.role !== "assistant") return;
@@ -43,12 +39,7 @@ async function noteUnappliedEdits(workspace?: string): Promise<void> {
     readProjectFile
   );
   checkPlan(conversation.messages, files);
-  const note = recordNoteFor(
-    answer.content,
-    conversation.messages,
-    files,
-    workspace
-  );
+  const note = recordNoteFor(answer.content, conversation.messages, files);
   // An agent team's answer that credits a role which never ran
   const team = useTeamStore.getState();
   const teamNote = (conversation as { team?: boolean }).team
@@ -509,7 +500,7 @@ export function createMessageHandler({
         });
       }
 
-      if (fileTools) await noteUnappliedEdits(workspace);
+      if (fileTools) await noteUnappliedEdits();
 
       // Generate title for first message in conversation
       if (currentConversation && currentConversation.messages.length === 0) {
