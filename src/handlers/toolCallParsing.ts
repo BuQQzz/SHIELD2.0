@@ -727,6 +727,38 @@ function parseXmlArgumentElements(
   return found ? args : null;
 }
 
+/**
+ * The Qwen3-Coder call body: <function=NAME> with <parameter=KEY>VALUE
+ * </parameter> elements. Bonsai 2 27B (Qwen 3.5's architecture) falls back
+ * on it now and then instead of SHIELD's format (2026-10-29). A value that
+ * is a JSON array or object (edit_file's edits) is parsed; anything else is
+ * kept as text, less the line break the format puts around it. Null when
+ * the body is not this format.
+ */
+function qwenCoderCall(body: string): ToolCallRequest | null {
+  const fn = body.match(/<function=([\w.-]+)>/);
+  if (!fn?.[1]) return null;
+  const args: Record<string, unknown> = {};
+  for (const [, key, raw] of body.matchAll(
+    /<parameter=([\w-]+)>([\s\S]*?)<\/parameter>/g
+  )) {
+    const value = raw!.replace(/^\n/, "").replace(/\n$/, "");
+    const trimmed = value.trim();
+    const parsed =
+      trimmed.startsWith("[") || trimmed.startsWith("{")
+        ? parseJson(trimmed)
+        : null;
+    args[key!] = parsed ?? value;
+  }
+  const named = normalizeToolNameAndServer(fn[1]);
+  return {
+    serverName: named.serverName,
+    tool: named.tool,
+    arguments: args,
+    format: "xml",
+  };
+}
+
 function extractXmlToolCalls(rawContent: string): ToolCallRequest[] {
   const toolCalls: ToolCallRequest[] = [];
   const content = repairToolCallMarkup(rawContent);
@@ -793,6 +825,19 @@ function extractXmlToolCalls(rawContent: string): ToolCallRequest[] {
           });
           continue;
         }
+      }
+
+      const qwenCall = qwenCoderCall(toolCallContent);
+      if (qwenCall) {
+        toolCalls.push({
+          ...qwenCall,
+          arguments: normalizeFilesystemArguments(
+            qwenCall.serverName,
+            qwenCall.arguments,
+            qwenCall.tool
+          ),
+        });
+        continue;
       }
 
       const shorthandMatch = toolCallContent.match(
@@ -1023,23 +1068,25 @@ export function cutOffToolCall(content: string): ToolCallRequest | null {
 }
 
 /**
- * A finished call block with no tool name: `<server>filesystem</tool>` with
- * the name lost (Bonsai 27B, 2026-10-21). Nothing can run, and ending the
- * turn on it left a reviewer with no report. The stand-in tells the model
- * what was wrong so it can send the call again.
+ * A finished call block nothing could be read from: `<server>filesystem
+ * </tool>` with the name lost (Bonsai 27B, 2026-10-21), or a garbled
+ * Qwen3-Coder body, `<web><parameter=web_search</parameter>...` (Bonsai 2
+ * 27B, 2026-10-29). Nothing can run, and ending the turn on it - taken for
+ * the answer - left the task undone. The stand-in tells the model what was
+ * wrong so it can send the call again. Only asked when no call was read.
  */
 export function unreadableToolCall(content: string): ToolCallRequest | null {
   if (hasUnsupportedNativeToolCall(content)) return null;
   const repaired = repairToolCallMarkup(content);
   const blocks = [...repaired.matchAll(/<tool_call>([\s\S]*?)<\/tool_call>/g)];
   const last = blocks[blocks.length - 1]?.[1];
-  if (!last || !/<arguments>|<server>/.test(last)) return null;
+  if (!last?.trim()) return null;
   if (/<tool>[^<]+<\/tool>|<name>[^<]+<\/name>/.test(last)) return null;
   return {
     serverName: "filesystem",
     tool: "tool",
     arguments: {},
     format: "xml",
-    argumentsError: `${UNREADABLE_ERROR_PREFIX}: it has no <tool> element naming the tool, so nothing ran. Send it again in full: <tool_call><server>NAME</server><tool>TOOL</tool><arguments>{...}</arguments></tool_call>, with the tool's name between <tool> and </tool>.`,
+    argumentsError: `${UNREADABLE_ERROR_PREFIX}: no tool name could be read from it (no <tool> element), so nothing ran. Send it again in full: <tool_call><server>NAME</server><tool>TOOL</tool><arguments>{...}</arguments></tool_call>, with the tool's name between <tool> and </tool>.`,
   };
 }

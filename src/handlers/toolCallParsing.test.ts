@@ -667,3 +667,39 @@ describe("Bonsai 27B call shapes (2026-10-28)", () => {
     expect(cutOffToolCall(text)).toBeNull();
   });
 });
+
+describe("Qwen3-Coder call format (Bonsai 2 27B, 2026-10-29)", () => {
+  it("reads a search, a whole-file write and an edit", () => {
+    const text = [
+      "<tool_call>\n<function=web_search>\n<parameter=query>\nNOAA weather radio price 2026\n</parameter>\n</function>\n</tool_call>",
+      "<tool_call>\n<function=write_file>\n<parameter=path>\n/p/Prices.md\n</parameter>\n<parameter=content>\n# Prices\n\n- Radio: $40\n</parameter>\n</function>\n</tool_call>",
+      '<tool_call>\n<function=edit_file>\n<parameter=path>\n/p/a.md\n</parameter>\n<parameter=edits>\n[{"oldText":"a","newText":"b"}]\n</parameter>\n</function>\n</tool_call>',
+    ].join("\n");
+    expect(extractToolCalls(text)).toMatchObject([
+      {
+        tool: "web_search",
+        arguments: { query: "NOAA weather radio price 2026" },
+      },
+      {
+        tool: "write_file",
+        arguments: {
+          path: "/p/Prices.md",
+          content: "# Prices\n\n- Radio: $40",
+        },
+      },
+      {
+        tool: "edit_file",
+        arguments: { path: "/p/a.md", edits: [{ oldText: "a", newText: "b" }] },
+      },
+    ]);
+  });
+
+  it("sends a garbled call back as unreadable instead of taking it for the answer", () => {
+    const garbled =
+      "<tool_call>\n<web>\n<parameter=web_search</parameter>\n<parameter=query>\nNOAA weather radio price 2026 buy</parameter>\n</function>\n</tool_call>";
+    expect(extractToolCalls(garbled)).toEqual([]);
+    expect(unreadableToolCall(garbled)?.argumentsError).toContain(
+      "The tool call could not be read"
+    );
+  });
+});
