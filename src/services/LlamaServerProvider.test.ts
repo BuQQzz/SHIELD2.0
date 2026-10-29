@@ -957,3 +957,33 @@ describe("nextPromptTokens", () => {
     ).toBe(110);
   });
 });
+
+describe("reasoning effort", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.restoreAllMocks();
+  });
+
+  it("is sent with a reply that thinks, and kept by forked sessions", async () => {
+    const { provider, sent } = connected(8000);
+    Object.assign(provider, { reasoningEffort: "medium" });
+    await provider.chat("plan the kit");
+    expect((sent[0] as { reasoning_effort?: string }).reasoning_effort).toBe(
+      "medium"
+    );
+    await provider.fork("You are the coder.").chat("go");
+    expect((sent[1] as { reasoning_effort?: string }).reasoning_effort).toBe(
+      "medium"
+    );
+  });
+
+  it("is left out when thinking is off, or when the model has none", async () => {
+    const { provider, sent } = connected(8000);
+    Object.assign(provider, { reasoningEffort: "medium" });
+    await provider.chat("hi", { thinking: false });
+    expect(sent[0]).not.toHaveProperty("reasoning_effort");
+    Object.assign(provider, { reasoningEffort: undefined });
+    await provider.chat("hi");
+    expect(sent[1]).not.toHaveProperty("reasoning_effort");
+  });
+});

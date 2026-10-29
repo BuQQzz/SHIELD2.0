@@ -158,6 +158,7 @@ export class ModelRuntime {
       systemPrompt: this.systemPrompt,
       pidFile: this.pidFile,
       placement: model?.serverPlacement,
+      reasoningEffort: model?.reasoningEffort,
     });
 
     this.engine = "server";

@@ -90,6 +90,8 @@ export interface ServerLoadOptions {
   pidFile?: string;
   /** A fixed placement instead of `--fit` (catalog serverPlacement) */
   placement?: ServerPlacement;
+  /** Sent as reasoning_effort when the reply thinks (catalog reasoningEffort) */
+  reasoningEffort?: string;
 }
 
 /**
@@ -209,6 +211,8 @@ export class LlamaServerProvider {
   private rescueAction: RescueAction | null = null;
   private rescueController: AbortController | null = null;
   private contextSize = 0;
+  /** reasoning_effort for replies that think (ServerLoadOptions) */
+  private reasoningEffort: string | undefined;
   private trainContextSize = 0;
   private systemPrompt = "You are a helpful AI assistant.";
   private history: ChatMessage[] = [];
@@ -270,6 +274,7 @@ export class LlamaServerProvider {
     session.parent = this;
     session.contextSize = this.contextSize;
     session.trainContextSize = this.trainContextSize;
+    session.reasoningEffort = this.reasoningEffort;
     session.systemPrompt = systemPrompt;
     session.keepWholeHistory = options.keepWholeHistory ?? false;
     return session;
@@ -305,6 +310,7 @@ export class LlamaServerProvider {
     }
 
     this.systemPrompt = options.systemPrompt;
+    this.reasoningEffort = options.reasoningEffort;
     this.history = [];
     this.capsule = null;
     this.capsuleReplacedEntries = 0;
@@ -632,7 +638,9 @@ export class LlamaServerProvider {
         repeat_penalty: options.repeatPenalty ?? 1.1,
         ...(options.thinking === false
           ? { chat_template_kwargs: { enable_thinking: false } }
-          : {}),
+          : this.reasoningEffort
+            ? { reasoning_effort: this.reasoningEffort }
+            : {}),
       };
       const response = await fetch(`${this.baseUrl}/v1/chat/completions`, {
         method: "POST",

@@ -145,6 +145,11 @@ export interface ModelMetadata {
   team?: ModelTeamFit;
   /** llama-server only: a fixed placement instead of `--fit` */
   serverPlacement?: ServerPlacement;
+  /**
+   * llama-server only: `reasoning_effort` sent with each request that
+   * thinks, for a chat template that takes one (Bonsai 2's)
+   */
+  reasoningEffort?: string;
   /** Quantizations, best quality first */
   files: ModelFile[];
   /** Requires HuggingFace authentication (gated model) */
@@ -474,6 +479,11 @@ export const MODEL_FAMILIES: ModelFamilyEntry[] = [
         // 32k ran out of memory on 8 GB; 24k used 7.5 GB (2026-10-28)
         contextSize: 24576,
         serverPlacement: { allLayersOnGpu: true, ubatchSize: 512 },
+        // Prism's KNOWN_ISSUES: it loops on some prompts at the default
+        // xhigh, and medium thinks less at about the same accuracy. Same
+        // prompt, two runs each: default thought 2,518-7,333 tokens (62-179
+        // s), medium 1,899-2,439 (46-59 s) with fuller answers (2026-10-29)
+        reasoningEffort: "medium",
         provider: "PrismML",
         chatTemplate: "generic",
         roles: ["agent", "coding", "long-context", "chat"],
