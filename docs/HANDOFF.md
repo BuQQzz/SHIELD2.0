@@ -100,7 +100,7 @@ Same script and tasks (`compare-<tag>-r2`, `-r3`), on the build with `7a8615c`. 
 
 - **Bonsai 2 27B is the clear pick on this card:** all six tasks, one failed call in total, the cleanest files, about 1 minute per task. It supports the user's choice of very low-bit quants: a 27B at 1.58 bits beats a 9B at 4-5 bits here.
 - Bonsai 27B Q1_0 works now but is the least reliable and slowest; Bonsai 2 27B replaces it. Bonsai 2 9B is twice as fast but misses edits every run and writes sloppy content (duplicates, wrong units): chat, not Code. Qwen3.5 9B is no faster than Bonsai 2 27B on this card (~39 tok/s) and failed one edit outright.
-- **Not decided yet (the user's call):** whether to make Bonsai 2 27B the default for Code on 8 GB and drop Bonsai 27B Q1_0 from the catalog. Still open: server-enforced (grammar-constrained) tool calls, and Gemma 4 12B on the 12 GB 4070.
+- **Decided (the user, 2026-10-29): Bonsai 2 27B is the default** (`DEFAULT_MODEL_ID`, was Qwen3-Coder-30B; also the Code-mode suggestion and the recommended Bonsai) **and Bonsai 27B Q1_0 is out of the catalog.** A saved `lastModelId` of `bonsai-27b` falls back to the default (checked in the app with the test profile). Its file stays in `~/Desktop/Projects/Bonsai/models`, not deleted. Still open: server-enforced (grammar-constrained) tool calls, Bonsai 2 27B as a team (untested), and Gemma 4 12B on the 12 GB 4070.
 
 ### Bonsai 2 27B needed a placement fix (`7a8615c`; Qwen3.5-9B added in `8b205e0`)
 
