@@ -87,6 +87,21 @@ Then: keep in the catalog what passes; a Bonsai that still fumbles the format wi
 - **Bonsai 2 27B looks the best Bonsai** (fastest 27B, fewest failures, cleanest file); Bonsai 2 9B is fast but sloppy (chat at most). Qwen3.5 9B: one clean run, one failed run. Run 1's raw calls were lost (a later run cleared the profile's chats; the script now keeps each chat).
 - **Next:** two or three more runs per model on both tasks before ranking or removing anything; then look at grammar-constrained tool calls. Gemma 4 12B on the 12 GB 4070 only (7.1 GB file: would spill on 8 GB).
 
+### Rounds 2 and 3 (2026-10-29): three runs per model (four for Qwen)
+
+Same script and tasks (`compare-<tag>-r2`, `-r3`), on the build with `7a8615c`. "Partial": the file was written but the prompt's `- [ ]` checklist format was ignored (tables instead); no failed call.
+
+| Model               | Edit (3 runs)                                                      | Write (3 runs)  | Failed calls, all runs            | Speed       | Time per task |
+| ------------------- | ------------------------------------------------------------------ | --------------- | --------------------------------- | ----------- | ------------- |
+| **Bonsai 2 27B**    | **3/3**                                                            | **3/3**         | **1** (one JSON)                  | 36-39 tok/s | 50-98 s       |
+| Bonsai 27B Q1_0     | 2/3 (r2: 5 failed calls, paused by the progress check at round 10) | 3/3             | 10 (missed edits, loops, cut-off) | 22-37 tok/s | 104-373 s     |
+| Bonsai 2 9B         | 3/3                                                                | 2/3 + 1 partial | 6 (missed edits every run)        | 74-92 tok/s | 38-64 s       |
+| Qwen3.5 9B (4 runs) | 3/4 (run 1: broken JSON, turn stopped)                             | 3/4 + 1 partial | 6 (all broken JSON)               | ~39 tok/s   | 32-94 s       |
+
+- **Bonsai 2 27B is the clear pick on this card:** all six tasks, one failed call in total, the cleanest files, about 1 minute per task. It supports the user's choice of very low-bit quants: a 27B at 1.58 bits beats a 9B at 4-5 bits here.
+- Bonsai 27B Q1_0 works now but is the least reliable and slowest; Bonsai 2 27B replaces it. Bonsai 2 9B is twice as fast but misses edits every run and writes sloppy content (duplicates, wrong units): chat, not Code. Qwen3.5 9B is no faster than Bonsai 2 27B on this card (~39 tok/s) and failed one edit outright.
+- **Not decided yet (the user's call):** whether to make Bonsai 2 27B the default for Code on 8 GB and drop Bonsai 27B Q1_0 from the catalog. Still open: server-enforced (grammar-constrained) tool calls, and Gemma 4 12B on the 12 GB 4070.
+
 ### Bonsai 2 27B needed a placement fix (`7a8615c`; Qwen3.5-9B added in `8b205e0`)
 
 First run: **2.8 tok/s**, GPU 11% busy. node-llama-cpp cannot size the `PTQ1_0` format, so `planUnsizedServerContext` took the catalog's 64k unchecked, and `--fit on` moved layers to the CPU. Measured with llama-server alone (`scratchpad ctxbench.sh`, same flags as SHIELD otherwise): `--fit on` 3.1 tok/s at 64k, 4.6 at 32k, 7.6 at 16k, 8.2 at 24k with 512-token batches, 19.3 with `--fit-target 256`; **all layers on the GPU** (`--fit off -ngl all`): 42.7 tok/s at 8k-24k (24k in 7.5 GB); 32k, and 24k with 2048-token batches, ran out of memory. Now the catalog's `serverPlacement` (`--fit off --n-gpu-layers all --ubatch-size 512`) for this model only, its context 24k, and the unsized plan offers a catalog size that is not a step (it fell back to 64k and the fixed placement ran out of memory at load). In the app afterwards: 38-39 tok/s, both tasks passed. Ternary 2 9B (80 tok/s, 4 GB) and Qwen3.5 9B (62 tok/s, 6.7 GB at 32k) already ran fully on the GPU with `--fit on`. Prism's own notes agree: its `KNOWN_ISSUES.md` says 32k does not fit a 12 GB GPU in their scripts, and lists malformed tool calls as a known model limitation.
