@@ -63,11 +63,33 @@ describe("requestText", () => {
     ).toBe("make a notes.txt");
   });
 
-  it("keeps a long request to one short line", () => {
-    const text = requestText(`build ${"a very long request ".repeat(40)}`);
+  it("keeps a request on one line, cut only past its limit", () => {
+    const long = `build ${"a very long request ".repeat(40)}`;
+    expect(requestText(long)).toBe(long.trim());
+    const text = requestText(long, 300);
     expect(text.length).toBe(300);
     expect(text.endsWith("…")).toBe(true);
-    expect(text).not.toContain("\n");
+    expect(requestText("a\nb")).toBe("a b");
+  });
+});
+
+describe("the latest request in a capsule", () => {
+  it("is shown whole, older ones short", () => {
+    const task = `Make a shopping list. ${"Look up prices. ".repeat(30)}Write it to Shopping_List.md, then add one line to the checklist.`;
+    const capsule = addToCapsule(
+      null,
+      [
+        { role: "user", content: `First: ${"old request ".repeat(40)}` },
+        { role: "assistant", content: "ok" },
+        { role: "user", content: task },
+      ],
+      ""
+    );
+    const text = renderCapsule(capsule);
+    expect(text).toContain(
+      "Write it to Shopping_List.md, then add one line to the checklist."
+    );
+    expect(text).toMatch(/1\. "First: [^"]{0,300}…"/);
   });
 });
 

@@ -80,7 +80,15 @@ export function keepCharsFor(
 export const NOTE_MAX_TOKENS = 180;
 
 const MAX_REQUESTS = 12;
+/** An older request, in the capsule */
 const MAX_REQUEST_CHARS = 300;
+/**
+ * The latest request, kept nearly whole: it is the task under way. Cut to
+ * 300 characters, a 700-character request lost its file name, its grouping
+ * and its last step to a summary mid-task, and Bonsai 2 27B finished
+ * without them (2026-10-29).
+ */
+const MAX_LATEST_REQUEST_CHARS = 2000;
 const MAX_STEPS = 40;
 const MAX_NOTE_CHARS = 1200;
 
@@ -143,7 +151,10 @@ const VERBS: Record<string, string> = {
  * [Current folder], [Not run] and work-record notes, and the tool-retry
  * wrapper.
  */
-export function requestText(content: string): string {
+export function requestText(
+  content: string,
+  maxChars = MAX_LATEST_REQUEST_CHARS
+): string {
   let text = content.replace(
     /\s*\[(?:Current folder: |Not run: |SHIELD's record of |From SHIELD's memory |SHIELD: )[\s\S]*?\]\s*$/,
     ""
@@ -152,9 +163,11 @@ export function requestText(content: string): string {
     text = text.match(/\nUser request: ([\s\S]*)$/)?.[1] ?? text;
   }
   text = text.replace(/\s+/g, " ").trim();
-  return text.length > MAX_REQUEST_CHARS
-    ? `${text.slice(0, MAX_REQUEST_CHARS - 1)}…`
-    : text;
+  return shorten(text, maxChars);
+}
+
+function shorten(text: string, maxChars: number): string {
+  return text.length > maxChars ? `${text.slice(0, maxChars - 1)}…` : text;
 }
 
 /** What a call acted on, as the model wrote it */
@@ -300,7 +313,13 @@ function compose(capsule: Capsule): string {
     if (capsule.earlierRequests > 0) {
       lines.push(notListed(capsule.earlierRequests, "request"));
     }
-    capsule.requests.forEach((r, i) => lines.push(`${i + 1}. "${r}"`));
+    // Stored nearly whole; all but the latest shown short
+    const last = capsule.requests.length - 1;
+    capsule.requests.forEach((r, i) =>
+      lines.push(
+        `${i + 1}. "${i === last ? r : shorten(r, MAX_REQUEST_CHARS)}"`
+      )
+    );
   }
   if (capsule.steps.length > 0 || capsule.earlierSteps > 0) {
     lines.push("", "Your tool calls:");
