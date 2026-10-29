@@ -49,10 +49,30 @@ export interface Capsule {
   note: string;
 }
 
-/** Share of the window kept as it is after summarising */
+/** Share of the window kept as it is after summarising, at most */
 export const KEEP_SHARE = 0.25;
 /** Share of the window the capsule may take in the system message */
 export const CAPSULE_SHARE = 0.1;
+/** Least share of the window a summary keeps whole */
+const MIN_KEEP_SHARE = 0.1;
+
+/**
+ * Characters of recent history a summary keeps whole: what fits under
+ * CLEAR_TO beside the system prompt and the capsule, at most KEEP_SHARE.
+ * A flat KEEP_SHARE left Bonsai 2 27B at 24k with ~49% after each summary
+ * (a 3.4k-token system prompt, capsule and kept turns), so the next web
+ * page passed COMPACT_AT and it summarised every round, each time making
+ * the server read the whole prompt again (2026-10-29).
+ */
+export function keepCharsFor(
+  contextSize: number,
+  systemPromptChars: number,
+  clearTo: number
+): number {
+  const window = contextSize * 3;
+  const room = window * (clearTo - CAPSULE_SHARE) - systemPromptChars;
+  return Math.max(window * MIN_KEEP_SHARE, Math.min(window * KEEP_SHARE, room));
+}
 /**
  * Three short lines. Low, so a model that drifts into its reply instead
  * (it did at 300) is cut off within seconds.

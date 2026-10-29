@@ -41,7 +41,7 @@ import {
 } from "./historyCompaction.js";
 import {
   CAPSULE_SHARE,
-  KEEP_SHARE,
+  keepCharsFor,
   latestExchange,
   NOTE_MAX_TOKENS,
   noteRequest,
@@ -831,7 +831,7 @@ export class LlamaServerProvider {
     const summarised = await summariseOldest(
       this.history,
       this.capsule,
-      this.contextSize * KEEP_SHARE * 3,
+      keepCharsFor(this.contextSize, this.systemPrompt.length, CLEAR_TO),
       (older) => this.writeNote(older, nextMessage, signal)
     );
     if (!summarised) return;

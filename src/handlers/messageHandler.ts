@@ -12,6 +12,7 @@ import {
   takeLedgerNote,
 } from "./workLedger";
 import { readProjectFile } from "./projectFile";
+import { CLEAR_TO, COMPACT_AT } from "../services/historyCompaction";
 import { recallFor } from "./memoryRecall";
 import { checkPlan, planRemarks, takePlanNote } from "./sessionPlan";
 import { useConversationStore } from "@/stores/conversation-store";
@@ -438,12 +439,16 @@ export function createMessageHandler({
           workspaceFolder: settings.mcp.workspaceFolder,
           isStopped: () => useGenerationStore.getState().stopRequested,
           readFile: readProjectFile,
-          // About a third of the context window for any one result (~3 chars
-          // per token for code), so the request and the reply still fit
+          // One result at most the gap between CLEAR_TO and COMPACT_AT (~3
+          // chars per token): after making room, the next result does not
+          // set it off again. At a third of the window, each web page after
+          // a summary forced another one (Bonsai 2 27B at 24k, 2026-10-29)
           maxResultChars: Math.max(
             2000,
             Math.floor(
-              (useGenerationStore.getState().context?.size ?? 8192) * 0.35 * 3
+              (useGenerationStore.getState().context?.size ?? 8192) *
+                (COMPACT_AT - CLEAR_TO) *
+                3
             )
           ),
           continueConversation: async (resultPrompt: string, toolResults) => {

@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import {
+  keepCharsFor,
   addToCapsule,
   capsuleCut,
   cleanNote,
@@ -657,5 +658,23 @@ describe("restoreHistory", () => {
       user("which is longer?"),
       assistant("B."),
     ]);
+  });
+});
+
+describe("keepCharsFor", () => {
+  it("keeps what fits under CLEAR_TO beside the system prompt and capsule", () => {
+    // Bonsai 2 27B: 24k window, a 10k-character system prompt
+    const keep = keepCharsFor(24576, 10_000, 0.4);
+    expect(keep).toBeCloseTo(24576 * 3 * 0.3 - 10_000);
+    // Prompt, the largest capsule and the kept turns: 40% of the window
+    expect((10_000 + 24576 * 3 * 0.1 + keep) / (24576 * 3)).toBeCloseTo(0.4);
+  });
+
+  it("keeps at most a quarter of a large window", () => {
+    expect(keepCharsFor(131072, 10_000, 0.4)).toBe(131072 * 3 * 0.25);
+  });
+
+  it("always keeps a little, however small the window", () => {
+    expect(keepCharsFor(8192, 20_000, 0.4)).toBeCloseTo(8192 * 3 * 0.1);
   });
 });
