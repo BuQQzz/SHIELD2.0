@@ -493,6 +493,21 @@ have already made - if you already have the contents, use them.
 // =============================================================================
 
 /**
+ * Today's date for the model. Without it Bonsai 2 27B took the year to be
+ * its training data's: asked for current prices, it searched for "2025"
+ * and labelled the list "Prices are current estimates (2025)" (2026-10-29).
+ */
+export function dateLine(today: Date): string {
+  const date = today.toLocaleDateString("en-US", {
+    weekday: "long",
+    year: "numeric",
+    month: "long",
+    day: "numeric",
+  });
+  return `\nToday's date is ${date}. Use it for anything that depends on the date: what to search for when asked for current or recent information, and the dates and years you write.`;
+}
+
+/**
  * Build a complete system prompt based on configuration
  */
 export function buildSystemPrompt(config: SystemPromptConfig): BuiltPrompt {
@@ -571,6 +586,10 @@ export function buildSystemPrompt(config: SystemPromptConfig): BuiltPrompt {
       includedModules.push("mcp-tools");
     }
   }
+
+  // Last, so the change at midnight leaves the rest of the prompt cached
+  parts.push(dateLine(config.today ?? new Date()));
+  includedModules.push("date");
 
   const prompt = parts.join("\n");
 

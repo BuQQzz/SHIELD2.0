@@ -41,6 +41,8 @@ export interface SystemPromptConfig {
    * Plan mode: read tools can investigate; changes are described, not executed.
    */
   planOnly?: boolean;
+  /** Today, for the date line at the end; the current date when left out */
+  today?: Date;
 }
 
 /**
