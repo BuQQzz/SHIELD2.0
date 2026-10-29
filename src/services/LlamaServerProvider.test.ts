@@ -987,3 +987,101 @@ describe("reasoning effort", () => {
     expect(sent[1]).not.toHaveProperty("reasoning_effort");
   });
 });
+
+describe("native tool calls", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.restoreAllMocks();
+  });
+
+  it("sends the tools and turns streamed calls into SHIELD's text form", async () => {
+    const provider = new LlamaServerProvider();
+    Object.assign(provider, {
+      process: { exitCode: null },
+      baseUrl: "http://server",
+      contextSize: 8000,
+    });
+    provider.applySystemPrompt("You are SHIELD.", [
+      {
+        name: "web_search",
+        description: "Search",
+        serverName: "web",
+        inputSchema: { type: "object" },
+      },
+    ]);
+    const bodies: Record<string, unknown>[] = [];
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (_url: string, init: RequestInit) => {
+        bodies.push(JSON.parse(init.body as string));
+        const events = [
+          {
+            choices: [
+              {
+                delta: {
+                  tool_calls: [
+                    {
+                      index: 0,
+                      function: { name: "web_search", arguments: '{"query":' },
+                    },
+                  ],
+                },
+              },
+            ],
+          },
+          {
+            choices: [
+              {
+                delta: {
+                  tool_calls: [
+                    { index: 0, function: { arguments: '"radio"}' } },
+                  ],
+                },
+              },
+            ],
+          },
+          { choices: [], usage: { prompt_tokens: 50, completion_tokens: 9 } },
+        ];
+        return new Response(
+          [...events.map((e) => `data: ${JSON.stringify(e)}`), "data: [DONE]"]
+            .map((l) => `${l}\n\n`)
+            .join("")
+        );
+      })
+    );
+    const streamed: string[] = [];
+    const reply = await provider.chat("find radio prices", {
+      onToken: (t) => streamed.push(t),
+    });
+
+    expect(bodies[0]!.tools).toEqual([
+      {
+        type: "function",
+        function: {
+          name: "web_search",
+          description: "Search",
+          parameters: { type: "object" },
+        },
+      },
+    ]);
+    const text =
+      typeof reply === "string"
+        ? reply
+        : (reply as { response: string }).response;
+    expect(streamed.join("")).toBe(text);
+    expect(text).toBe(
+      '<tool_call>\n<server>web</server>\n<tool>web_search</tool>\n<arguments>{"query":"radio"}</arguments>\n</tool_call>\n'
+    );
+  });
+
+  it("sends no tools when none are set, and none from a forked session", async () => {
+    const { provider, sent } = connected(8000);
+    await provider.chat("hi");
+    expect(sent[0]).not.toHaveProperty("tools");
+    provider.applySystemPrompt("x", [
+      { name: "web_search", description: "Search" },
+    ]);
+    await provider.fork("You are the coder.").chat("go");
+    expect(sent[1]).not.toHaveProperty("tools");
+  });
+});

@@ -29,6 +29,13 @@ import {
 } from "./llamaServer/sse.js";
 import { RepetitionWatch } from "./llamaServer/repetition.js";
 import {
+  NativeCallWriter,
+  openAiTools,
+  type OpenAiTool,
+  type ToolCallDelta,
+} from "./llamaServer/nativeCalls.js";
+import type { ToolDefinition } from "../types/prompts.js";
+import {
   NUDGE_NOTE,
   type RequestStatus,
   type RescueAction,
@@ -213,6 +220,13 @@ export class LlamaServerProvider {
   private contextSize = 0;
   /** reasoning_effort for replies that think (ServerLoadOptions) */
   private reasoningEffort: string | undefined;
+  /**
+   * Tools sent as native function definitions, for a model whose catalog
+   * sets nativeToolCalls (llamaServer/nativeCalls.ts); empty otherwise.
+   * Not passed to forked sessions: agents keep the text form for now.
+   */
+  private nativeTools: OpenAiTool[] = [];
+  private toolServers = new Map<string, string>();
   private trainContextSize = 0;
   private systemPrompt = "You are a helpful AI assistant.";
   private history: ChatMessage[] = [];
@@ -636,6 +650,7 @@ export class LlamaServerProvider {
         top_p: options.topP ?? 0.9,
         top_k: options.topK ?? 40,
         repeat_penalty: options.repeatPenalty ?? 1.1,
+        ...(this.nativeTools.length > 0 ? { tools: this.nativeTools } : {}),
         ...(options.thinking === false
           ? { chat_template_kwargs: { enable_thinking: false } }
           : this.reasoningEffort
@@ -662,6 +677,9 @@ export class LlamaServerProvider {
       const parser = new SseParser();
       const decoder = new TextDecoder();
       const reader = response.body.getReader();
+      const calls = new NativeCallWriter(
+        (tool) => this.toolServers.get(tool) ?? "filesystem"
+      );
       for (;;) {
         const { done, value } = await reader.read();
         if (done) break;
@@ -670,7 +688,12 @@ export class LlamaServerProvider {
         )) {
           const thought = chunk.choices?.[0]?.delta?.reasoning_content;
           if (thought && thoughtWatch.push(thought)) looping.abort();
-          const text = chunk.choices?.[0]?.delta?.content;
+          const deltas = (
+            chunk.choices?.[0]?.delta as { tool_calls?: ToolCallDelta[] }
+          )?.tool_calls;
+          const text =
+            (chunk.choices?.[0]?.delta?.content ?? "") +
+            (deltas ? calls.push(deltas) : "");
           if (text) {
             firstTokenAt ??= performance.now();
             reply += text;
@@ -696,6 +719,11 @@ export class LlamaServerProvider {
           if (chunk.timings || chunk.usage)
             final = { ...(final ?? {}), ...chunk };
         }
+      }
+      const closing = calls.finish();
+      if (closing) {
+        reply += closing;
+        options.onToken?.(closing);
       }
     } catch (error) {
       if (rescued.signal.aborted && !signal.aborted) {
@@ -978,8 +1006,12 @@ export class LlamaServerProvider {
     return result.choices?.[0]?.message?.content ?? "";
   }
 
-  applySystemPrompt(prompt: string): void {
+  applySystemPrompt(prompt: string, tools: ToolDefinition[] = []): void {
     this.systemPrompt = prompt;
+    this.nativeTools = openAiTools(tools);
+    this.toolServers = new Map(
+      tools.map((tool) => [tool.name, tool.serverName ?? "filesystem"])
+    );
   }
 
   private async countTokens(texts: string[]): Promise<Map<string, number>> {

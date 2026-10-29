@@ -150,6 +150,13 @@ export interface ModelMetadata {
    * thinks, for a chat template that takes one (Bonsai 2's)
    */
   reasoningEffort?: string;
+  /**
+   * llama-server only: tools go to the server as native function
+   * definitions, and it holds each call to its schema with a grammar
+   * (llamaServer/nativeCalls.ts) instead of the model writing SHIELD's text
+   * form, which it could get wrong
+   */
+  nativeToolCalls?: boolean;
   /** Quantizations, best quality first */
   files: ModelFile[];
   /** Requires HuggingFace authentication (gated model) */
@@ -484,6 +491,7 @@ export const MODEL_FAMILIES: ModelFamilyEntry[] = [
         // prompt, two runs each: default thought 2,518-7,333 tokens (62-179
         // s), medium 1,899-2,439 (46-59 s) with fuller answers (2026-10-29)
         reasoningEffort: "medium",
+        nativeToolCalls: true,
         provider: "PrismML",
         chatTemplate: "generic",
         roles: ["agent", "coding", "long-context", "chat"],

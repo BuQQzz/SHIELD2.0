@@ -354,7 +354,7 @@ export class ModelRuntime {
     tools?: ToolDefinition[]
   ): Promise<void> {
     this.systemPrompt = prompt;
-    this.server.applySystemPrompt(prompt);
+    this.server.applySystemPrompt(prompt, tools);
     await this.node.applySystemPrompt(prompt, tools);
   }
 

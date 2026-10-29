@@ -13,6 +13,7 @@ import type {
   ToolDefinition,
 } from "../types/prompts";
 import { isMutatingTool } from "./toolClassification";
+import { MODEL_CATALOG } from "./models";
 import { osName, samplePath } from "../utils/platform";
 
 // =============================================================================
@@ -621,7 +622,12 @@ export function detectModelFamily(modelName: string): ModelFamily {
 
 /** Native tool transport is supported only for the Gemma 4 model family. */
 export function usesNativeToolCalling(modelName: string): boolean {
-  return /(?:^|[^a-z0-9])gemma[-_ ]?4(?=$|[^a-z0-9])/i.test(modelName);
+  return (
+    /(?:^|[^a-z0-9])gemma[-_ ]?4(?=$|[^a-z0-9])/i.test(modelName) ||
+    MODEL_CATALOG.some(
+      (model) => model.nativeToolCalls && model.name === modelName
+    )
+  );
 }
 
 /**
