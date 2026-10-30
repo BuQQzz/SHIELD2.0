@@ -203,7 +203,12 @@ export class ModelRuntime {
     ]);
     if (!listed.ok) throw new Error(listed.error);
     const model = listed.models?.find((m) => m.id === parsed.model);
-    if (provider.requireZdr && model) {
+    // A model the user allowed without a zero-retention route is not held to
+    // it, and its request does not ask for one (so the provider is free to
+    // serve it, and the reply's badge reports what it really was)
+    const allowedNoZdr = (provider.allowNoZdr ?? []).includes(parsed.model);
+    const requireZdr = provider.requireZdr && !allowedNoZdr;
+    if (requireZdr && model) {
       const blocked = zdrBlock(provider.name, model);
       if (blocked) throw new Error(blocked);
     }
@@ -240,7 +245,7 @@ export class ModelRuntime {
         apiKey,
         model: parsed.model,
         contextSize,
-        requireZdr: provider.requireZdr,
+        requireZdr,
       },
       this.systemPrompt
     );

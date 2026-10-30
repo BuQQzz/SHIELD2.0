@@ -728,6 +728,11 @@ function App() {
             teamAvailability={teamFit}
             modelId={currentModelId}
             modelName={currentModelConfig?.displayName}
+            models={modelOptions}
+            onSelectModel={handleModelSelect}
+            isModelLoading={isLoading}
+            onOpenLibrary={() => setActiveView("library")}
+            onOpenSettings={() => setSettingsOpen(true)}
           />
         </div>
         {isCodeSession && (

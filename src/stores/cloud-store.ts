@@ -26,6 +26,15 @@ interface CloudStore {
    * provider).
    */
   fetchModels: (force?: boolean) => Promise<void>;
+  /**
+   * Allow or stop allowing one model without a zero-retention route, then
+   * reload the providers so every surface (both pickers, Settings) agrees.
+   */
+  allowModel: (
+    providerId: string,
+    modelId: string,
+    allowed: boolean
+  ) => Promise<void>;
 }
 
 const REFRESH_AFTER_MS = 60_000;
@@ -86,6 +95,21 @@ export const useCloudStore = create<CloudStore>((set, get) => ({
       console.error("[cloud] Could not fetch the models:", error);
     } finally {
       set({ fetching: false });
+    }
+  },
+
+  allowModel: async (providerId, modelId, allowed) => {
+    try {
+      const result = await window.providers.allowModel(
+        providerId,
+        modelId,
+        allowed
+      );
+      if (result.success) await get().loadProviders();
+      else if (result.error)
+        console.error(`[cloud] Could not change the model: ${result.error}`);
+    } catch (error) {
+      console.error("[cloud] Could not change the model:", error);
     }
   },
 }));

@@ -162,6 +162,29 @@ describe("ProviderStore", () => {
     ).toBe(4096);
   });
 
+  it("allows one model without zero retention, sorted, kept across an edit", () => {
+    const store = new ProviderStore(file, fakeCipher());
+    const { id } = store.save(experiential, "xpl_abcdef123456");
+
+    expect(store.setAllowedModel(id, "claude-x", true).allowNoZdr).toEqual([
+      "claude-x",
+    ]);
+    store.setAllowedModel(id, "zebra-1", true);
+    expect(store.setAllowedModel(id, "claude-x", false).allowNoZdr).toEqual([
+      "zebra-1",
+    ]);
+    expect(store.list()[0]?.allowNoZdr).toEqual(["zebra-1"]);
+
+    // Editing the provider's other fields does not drop the opt-outs
+    const edited = store.save({ ...experiential, id, requireZdr: false });
+    expect(edited.allowNoZdr).toEqual(["zebra-1"]);
+
+    expect(() => store.setAllowedModel("gone", "m", true)).toThrow(
+      /provider is gone/
+    );
+    expect(() => store.setAllowedModel(id, "   ", true)).toThrow(/model id/);
+  });
+
   it("gives two providers of one name different ids, and removes by id", () => {
     const store = new ProviderStore(file, fakeCipher());
     const a = store.save(experiential, "xpl_aaaaaaaaaaaa");

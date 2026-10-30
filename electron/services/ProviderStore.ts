@@ -141,6 +141,8 @@ export class ProviderStore implements RemoteProviderSource {
       baseUrl,
       // Only a preset that can report how it served a request can be held to it
       requireZdr: preset.supportsZdr && input.requireZdr,
+      // The per-model opt-outs survive an edit of the provider's other fields
+      allowNoZdr: existing?.allowNoZdr ?? [],
       defaultContext: Math.min(
         MAX_CONTEXT,
         Math.max(MIN_CONTEXT, input.defaultContext ?? DEFAULT_CONTEXT)
@@ -177,6 +179,35 @@ export class ProviderStore implements RemoteProviderSource {
     if (kept.length === providers.length) return false;
     this.write(kept);
     return true;
+  }
+
+  /**
+   * Allow or stop allowing one of a provider's models without a
+   * zero-retention route. The model id comes from the provider's own list, so
+   * it is only checked for shape, not resolved against anything.
+   */
+  setAllowedModel(
+    id: string,
+    modelId: string,
+    allowed: boolean
+  ): ProviderSummary {
+    const model = typeof modelId === "string" ? modelId.trim() : "";
+    if (!model || model.length > 200) {
+      throw new Error("That is not a model id.");
+    }
+    const providers = this.read();
+    const index = providers.findIndex((p) => p.id === id);
+    if (index < 0) throw new Error("That provider is gone.");
+    const current = providers[index]!;
+    const models = new Set(current.allowNoZdr ?? []);
+    if (allowed) models.add(model);
+    else models.delete(model);
+    const updated: StoredProvider = {
+      ...current,
+      allowNoZdr: [...models].sort(),
+    };
+    this.write(providers.map((p, i) => (i === index ? updated : p)));
+    return ProviderStore.summary(updated);
   }
 
   /** The provider and its decrypted key; for the main process only */

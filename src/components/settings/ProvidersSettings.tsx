@@ -63,6 +63,9 @@ export function ProvidersSettings() {
                 {provider.requireZdr
                   ? "Zero data retention required"
                   : "Zero data retention not required"}
+                {provider.requireZdr && provider.allowNoZdr?.length
+                  ? ` · ${provider.allowNoZdr.length} model${provider.allowNoZdr.length === 1 ? "" : "s"} allowed without it`
+                  : ""}
                 {result && !result.error && ` · ${result.models.length} models`}
               </p>
               {result?.error && (

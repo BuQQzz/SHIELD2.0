@@ -54,6 +54,13 @@ export interface ProviderConfig {
    * data retention. Meaningful only for a preset that supportsZdr.
    */
   requireZdr: boolean;
+  /**
+   * Model ids the user allowed even though the provider reports no
+   * zero-retention route for them. Kept per model so one model can be used
+   * without dropping the requirement for every other model of the provider
+   * (its replies are marked "keeps data" instead of "zero retention").
+   */
+  allowNoZdr?: string[];
   /** Context window to assume for a model that does not report one */
   defaultContext: number;
   /** When the user accepted that their messages leave the device (ISO) */

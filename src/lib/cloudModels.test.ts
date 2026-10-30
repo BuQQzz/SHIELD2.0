@@ -66,6 +66,57 @@ describe("cloudModelOptions", () => {
     expect(option?.size).toBe("Experiential Labs · cloud");
   });
 
+  it("lets one model through once the user allowed it without a route", () => {
+    const [option] = cloudModelOptions(
+      [provider({ allowNoZdr: ["claude-x"] })],
+      {
+        "exp-1": {
+          models: [{ id: "claude-x", zdr: false, zdrOnRequest: false }],
+        },
+      }
+    );
+    expect(option?.cloud).toMatchObject({
+      noZdrRoute: true,
+      zdrAllowed: true,
+      zdrRequired: true,
+    });
+    expect(option?.cloud?.blocked).toBeUndefined();
+    expect(option?.size).toBe(
+      "Experiential Labs · no zero retention (you allowed it)"
+    );
+  });
+
+  it("still marks the other models of the same provider", () => {
+    const options = cloudModelOptions(
+      [provider({ allowNoZdr: ["claude-x"] })],
+      {
+        "exp-1": {
+          models: [
+            { id: "claude-x", zdr: false, zdrOnRequest: false },
+            { id: "llama-4", zdr: false, zdrOnRequest: false },
+          ],
+        },
+      }
+    );
+    expect(options[0]?.cloud?.blocked).toBeUndefined();
+    expect(options[1]?.cloud).toMatchObject({
+      noZdrRoute: true,
+      zdrAllowed: false,
+    });
+    expect(options[1]?.cloud?.blocked).toMatch(/No zero-retention route/);
+  });
+
+  it("offers no choice for a model that keeps data on request", () => {
+    const [option] = cloudModelOptions([provider()], {
+      "exp-1": { models: [{ id: "gpt-x", zdr: false, zdrOnRequest: true }] },
+    });
+    expect(option?.cloud).toMatchObject({
+      noZdrRoute: false,
+      zdrAllowed: false,
+    });
+    expect(option?.cloud?.blocked).toBeUndefined();
+  });
+
   it("skips a provider with no key, and one whose list has not been read", () => {
     expect(
       cloudModelOptions([provider({ hasKey: false })], {

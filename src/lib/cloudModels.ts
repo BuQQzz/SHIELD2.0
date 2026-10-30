@@ -42,15 +42,21 @@ export function cloudLine(option: Pick<ModelOption, "cloud">): string {
   const cloud = option.cloud;
   if (!cloud) return "";
   if (cloud.blocked) return `${cloud.providerName} · no zero-retention route`;
+  if (cloud.zdrRequired && cloud.noZdrRoute && cloud.zdrAllowed)
+    return `${cloud.providerName} · no zero retention (you allowed it)`;
   if (cloud.zdrRequired) return `${cloud.providerName} · zero retention`;
   return `${cloud.providerName} · cloud`;
 }
 
 function optionFor(provider: ProviderSummary, model: RemoteModel): ModelOption {
   const id = remoteModelId(provider.id, model.id);
-  const blocked = provider.requireZdr
-    ? zdrBlock(provider.name, model)
-    : undefined;
+  // The provider itself says no route for this model keeps nothing
+  const noZdrRoute = model.zdr === false && model.zdrOnRequest !== true;
+  const zdrAllowed = (provider.allowNoZdr ?? []).includes(model.id);
+  const blocked =
+    provider.requireZdr && !zdrAllowed
+      ? zdrBlock(provider.name, model)
+      : undefined;
   const option: ModelOption = {
     id,
     // The id, not the model's name: it is what the prompt builder reads to
@@ -68,8 +74,10 @@ function optionFor(provider: ProviderSummary, model: RemoteModel): ModelOption {
       providerName: provider.name,
       zdrRequired: provider.requireZdr,
       zdr: model.zdr,
+      noZdrRoute,
+      zdrAllowed,
       blocked: blocked
-        ? `No zero-retention route. Pick another model, or turn off the requirement in Settings.`
+        ? `No zero-retention route. Turn on the switch to use it anyway, or pick another model.`
         : undefined,
     },
   };

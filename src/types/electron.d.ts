@@ -199,6 +199,19 @@ export interface ProvidersAPI {
   remove: (id: string) => Promise<{ success: boolean; error?: string }>;
   /** The provider's models, which also shows whether the saved key works */
   models: (id: string) => Promise<ProviderTestResult>;
+  /**
+   * Allow or stop allowing one model even though the provider reports no
+   * zero-retention route for it (kept per model).
+   */
+  allowModel: (
+    id: string,
+    modelId: string,
+    allowed: boolean
+  ) => Promise<{
+    success: boolean;
+    provider?: ProviderSummary;
+    error?: string;
+  }>;
 }
 
 /**
