@@ -22,6 +22,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - A hosted model's chat title falls back to the start of the message when a thinking model returns none, and its speed is timed over the whole reply
 - Message text is no longer logged for hosted models
 
+### Fixed
+
+- **Hosted model tool calls**: the other shapes a hosted model writes are read instead of leaking into the chat as text — the DSML two-part form (server in `invoke`, tool in a value-less parameter), the tool as an attribute (`<tool_call name="write_file">`), `</arguments>` or `</tool_call>` written where `</tool>` belongs, and `<tool>` tags left out entirely (`src/handlers/toolCallParsing.ts`, `normaliseCallMarkup`). A stray trailing `</tool_call>` is no longer shown either (`ef4d086`).
+
 ## [0.1.5] - 2026-02-16
 
 ### Added

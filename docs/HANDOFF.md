@@ -1,12 +1,41 @@
 # SHIELD — Session Handoff
 
-**Last session:** 2026-10-27 → 30 on Linux (`feat/model-library`) and 2026-10-26 → 29 on Windows (`feat/remote-providers`); earlier sessions as listed below.  
-**Branches (2026-10-30):** `feat/model-library` merged into `main` and pushed (`7af6ee0`); `feat/remote-providers` (the other PC, PR #46) merged into local `main` on top, **not pushed yet**.  
+**Last session:** 2026-10-30 on Windows (`main`): PR #46 merged and the hosted model's other tool-call shapes fixed. Before that, 2026-10-27 → 30 on Linux (`feat/model-library`) and 2026-10-26 → 29 on Windows (`feat/remote-providers`); earlier sessions as listed below.  
+**Branches (2026-10-30):** everything is on `main` now. `feat/model-library` (`7af6ee0`) and `feat/remote-providers` (PR #46) are merged; `main` = `0aba405`, pushed. `feat/remote-providers` deleted locally and on the remote.  
 **Tests:** see the merge commit; run `npx vitest run`, `npx tsc --noEmit`. `prettier --check` flags `src/components/ui/button.tsx` and `scripts/bench/mcp.ts`, already unformatted: do not run `prettier --write` over whole folders.
 
 **Tested in the app with (2026-10-20):** Bonsai 27B Q1_0 on an RTX 2070 SUPER 8 GB (Ubuntu 26.04), SHIELD-managed Prism llama-server at 32K, ~19 tok/s. Earlier sessions: Qwen3-Coder-30B and Gemma 4 12B on Windows (see the older updates).
 
-Read this first (start with "Update — 2026-10-27 → 28" just below, then "Update — 2026-10-25 → 26"; its details are in "The orchestrator prompt never reached the app" and "Redoing the in-app checks with the prompt in place" inside "Update — 2026-10-23 → 24"; then the sections "Update — 2026-10-23 → 24", "Update — 2026-10-21 → 22" and then "Update — 2026-10-20 → 21" are the current state), then [SHIELD_AGENT_ARCHITECTURE.md](./SHIELD_AGENT_ARCHITECTURE.md) (§21 agent teams, §17 decision log, §13 priorities, §20 evidence) and [testing/AGENT_BENCHMARK.md](./testing/AGENT_BENCHMARK.md).
+Read this first (start with "Update — 2026-10-30" just below, then "Update — 2026-10-27 → 28", then "Update — 2026-10-25 → 26"; its details are in "The orchestrator prompt never reached the app" and "Redoing the in-app checks with the prompt in place" inside "Update — 2026-10-23 → 24"; then the sections "Update — 2026-10-23 → 24", "Update — 2026-10-21 → 22" and then "Update — 2026-10-20 → 21" are the current state), then [SHIELD_AGENT_ARCHITECTURE.md](./SHIELD_AGENT_ARCHITECTURE.md) (§21 agent teams, §17 decision log, §13 priorities, §20 evidence) and [testing/AGENT_BENCHMARK.md](./testing/AGENT_BENCHMARK.md).
+
+---
+
+## Update — 2026-10-30: PR #46 merged; the hosted model's other tool-call shapes (start here)
+
+Everything is on `main` now. `feat/remote-providers` (the other PC's branch, PR #46) was pushed its last two commits and **merged to `main` from GitHub as `0aba405`**; `feat/model-library` was already in. Both branches are deleted; `main` is the only branch left (local and remote). All four PR checks passed (Test Suite, Code Quality, Automated PR Review, File Size Analysis).
+
+### The fix (`ef4d086`) — five call shapes the hosted model wrote
+
+The user ran a real Code session on `remote:…:deepseek-v4.1-flash-1017` (Experiential, Windows) about their Chromecast work. Every reply looked broken: raw `<tool_call>` bodies sat in the chat, several calls failed with "no tool name could be read", and every paragraph ended with a stray `</tool_call>`.
+
+Read from the saved chat (`%APPDATA%\shield2.0\conversations\conv-1793322197763-*.json`, 82 messages). In one session the model wrote **five** call shapes other than SHIELD's; each either ran the wrong tool, was dropped (its whole JSON body — with literal `\n` — shown to the user as text), or was sent back unreadable while its arguments were thrown away. None of it was "thinking": the hosted reply's `reasoning_content` is still dropped, not shown (`LlamaServerProvider.chat` reads it only for the repetition guard).
+
+| Shape                                                                              | Before                                              | Now                                                               |
+| ---------------------------------------------------------------------------------- | --------------------------------------------------- | ----------------------------------------------------------------- |
+| DSML `<invoke name="filesystem">` + `<parameter name="list_directory_with_sizes">` | ran `filesystem.filesystem`                         | reads the server and the tool (`dsml.ts`, `splitToolCallName`)    |
+| `<tool_call name="write_file">` (the tool as an attribute, no `<tool>` element)    | dropped; its JSON body shown as text                | normalised to `<server>/<tool>`, on the right server for the tool |
+| `<tool>run_command</arguments>` then `<arguments>…`                                | the call closed early; its arguments were discarded | `</arguments>` read as `</tool>`                                  |
+| `<tool>run_command</tool_call>` then `<arguments>…`                                | the same                                            | `</tool_call>` read as `</tool>`                                  |
+| `<server>terminal</server>` then `<run_command</tool_call>` and the arguments      | unreadable                                          | the bare name read as the tool                                    |
+| an extra trailing `</tool_call>`                                                   | painted onto the paragraph                          | stripped                                                          |
+
+- One shared `normaliseCallMarkup` (`toolCallParsing.ts`) feeds parsing, rendering _and_ the live preview, so the three agree; `stripToolCallMarkup` drops the stray closer too. Built from the captured output; 9 new tests (`dsml.test.ts`, `toolCallParsing.test.ts`). Tests 1326 → 1335.
+- **Verified:** the whole 82-message saved conversation was replayed through the new parser — every call now parses. One is still unreadable (a bare `<run_command</tool_call>` with no arguments at all), which is correctly sent back to the model, and its markup no longer leaks into the chat. `npx tsc --noEmit`, `eslint src`, `prettier --check` on the touched files all clean.
+- **Not yet seen:** a fresh live hosted turn in the running app (a dev build on `main` was started; the saved chat and the tests are the evidence).
+
+### What carries over
+
+The hosted-model work still has its open todos from "Update — 2026-10-26 → 29" below (native function calling for hosted models; Team on a hosted model; the DSML shapes beyond these five are a long tail). The remote test layout changed: the endpoint tests moved to `src/services/remote/remoteEndpoint.test.ts` and the rest to `remoteModels.test.ts` (both under the 300-line limit).
 
 ---
 
@@ -155,12 +184,12 @@ Branch `feat/remote-providers` (from `feat/model-library` at `c5d79aa`), **PR #4
 - **Context window:** `/v1/models` does not give it. `fetchCatalogContext` asks the public catalog `GET <origin>/api/models/<slug>` (no key sent) at load: `max_input_tokens` first (655,360 for `deepseek-v4.1-flash-1017`; its `context_window` is 1,048,576 but counts the reply), else the model list, else the provider's default; a size the user chose still wins. The catalog is paginated (963 models), so it is asked per model.
 - **Logs:** the IPC and window message logs drop to a character count for a hosted model; the `SHIELD_SERVER_LOG` stall dump is skipped for it.
 - **Titles:** a thinking model can spend the title request's tokens thinking; a hosted title gets 400 tokens and falls back to the first six words (`titleFromMessage`).
-- **DeepSeek markup:** a hosted DeepSeek model wrote its native `<｜｜DSML｜｜ invoke ...>` calls (or a SHIELD call with a DSML closing tag); `src/handlers/dsml.ts` reads them as SHIELD's calls in the parser, the display and the live preview. Tested from the two real failing messages; **not yet seen firing in the app**.
+- **DeepSeek markup:** a hosted DeepSeek model wrote its native `<｜｜DSML｜｜ invoke ...>` calls (or a SHIELD call with a DSML closing tag); `src/handlers/dsml.ts` reads them as SHIELD's calls in the parser, the display and the live preview. It fired in a real session on 2026-10-29 (see "Update — 2026-10-30"), along with four more shapes the same model wrote; all five are read now (`ef4d086`).
 
 ### Verified / not verified
 
 - Verified: tests (new ones for the store, adapter, ZDR check, catalog and list parsing, hosted chat, cloud options, DSML), tsc, eslint, prettier, `vite build`; a fake gateway driven through `ModelRuntime` (`tmp/remote-e2e.mts`, git-ignored); by hand against the real API: cloud chat, a Code session with tools (list, search, write), the zero-retention badge, titles, context from the catalog.
-- **Not verified:** per-request zero retention needs a **Pro** Experiential org (else 403 `needs_subscription`); Team on a hosted model; the DSML fix live; `max_tokens` accepted by every gateway model.
+- **Not verified:** per-request zero retention needs a **Pro** Experiential org (else 403 `needs_subscription`); Team on a hosted model; `max_tokens` accepted by every gateway model.
 
 ### Todos
 
