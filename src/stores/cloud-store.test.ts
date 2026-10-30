@@ -30,6 +30,7 @@ function stubProviders(
         encryptionAvailable: true,
       })),
       models,
+      allowModel: vi.fn(async () => ({ success: true })),
     },
   });
   return models;
@@ -115,5 +116,17 @@ describe("cloud store", () => {
     stubProviders([provider("a")]);
     await useCloudStore.getState().loadProviders();
     expect(Object.keys(useCloudStore.getState().fetched)).toEqual(["a"]);
+  });
+
+  it("allows one model without zero retention, then reloads the providers", async () => {
+    stubProviders([provider("a")]);
+    await useCloudStore.getState().loadProviders();
+
+    await useCloudStore.getState().allowModel("a", "claude-x", true);
+
+    const allow = window.providers.allowModel as unknown as ReturnType<
+      typeof vi.fn
+    >;
+    expect(allow).toHaveBeenCalledWith("a", "claude-x", true);
   });
 });

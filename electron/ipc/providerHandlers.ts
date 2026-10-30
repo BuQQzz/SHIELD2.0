@@ -65,6 +65,21 @@ export function registerProviderHandlers(runtime: ModelRuntime): ProviderStore {
     }
   });
 
+  // Allow or stop allowing one model without a zero-retention route
+  ipcMain.handle(
+    "providers:allow-model",
+    (_event, id: string, modelId: string, allowed: boolean) => {
+      try {
+        return {
+          success: true,
+          provider: store.setAllowedModel(id, modelId, allowed),
+        };
+      } catch (error) {
+        return failure(error);
+      }
+    }
+  );
+
   // Also the check that a saved key works
   ipcMain.handle(
     "providers:models",

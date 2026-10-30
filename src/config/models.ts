@@ -205,6 +205,10 @@ export interface CloudModelInfo {
   zdrRequired: boolean;
   /** Every route for this model keeps no copy of a request */
   zdr?: boolean;
+  /** The provider reports no zero-retention route at all for this model */
+  noZdrRoute?: boolean;
+  /** The user allowed this model even though there is no such route */
+  zdrAllowed?: boolean;
   /** Why this model cannot be used under the provider's settings */
   blocked?: string;
 }

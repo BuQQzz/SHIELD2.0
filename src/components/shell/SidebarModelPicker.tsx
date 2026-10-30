@@ -1,15 +1,13 @@
-import { Check, ChevronsUpDown, Cloud, Library } from "lucide-react";
+import { ChevronsUpDown, Cloud } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { isRuntimeAvailable, type ModelOption } from "@/config/models";
+import { type ModelOption } from "@/config/models";
 import { useCloudStore } from "@/stores/cloud-store";
 import { cn } from "@/lib/utils";
+import { ModelPickerMenu } from "./ModelPickerMenu";
 
 interface SidebarModelPickerProps {
   /** Installed models, and hosted ones (runtime "remote") */
@@ -53,16 +51,11 @@ export function SidebarModelPicker({
   onOpenLibrary,
   onOpenSettings,
 }: SidebarModelPickerProps) {
-  const providers = useCloudStore((state) => state.providers);
-  const fetched = useCloudStore((state) => state.fetched);
-  const fetching = useCloudStore((state) => state.fetching);
   const fetchModels = useCloudStore((state) => state.fetchModels);
   const loadProviders = useCloudStore((state) => state.loadProviders);
 
   const installed = models.filter((m) => m.runtime !== "remote");
   const cloud = models.filter((m) => m.runtime === "remote");
-  const providersWithKey = providers.filter((p) => p.hasKey);
-  const fetchErrors = providersWithKey.filter((p) => fetched[p.id]?.error);
 
   const current = models.find((m) => m.id === currentModelId);
   const state = isLoading ? "loading" : isModelLoaded ? "ready" : "idle";
@@ -121,104 +114,13 @@ export function SidebarModelPicker({
         align="start"
         className="w-64"
       >
-        <DropdownMenuLabel className="text-xs font-normal text-muted-foreground">
-          Installed models
-        </DropdownMenuLabel>
-        {installed.length === 0 && (
-          <p className="px-2 pb-2 text-xs text-muted-foreground">
-            Nothing installed yet. Get one from the library.
-          </p>
-        )}
-        {installed.map((model) => {
-          const runnable = isRuntimeAvailable(model);
-          return (
-            <DropdownMenuItem
-              key={model.id}
-              disabled={!runnable}
-              onClick={() => onSelect(model)}
-              className="flex items-center gap-2 py-2"
-            >
-              <span className="min-w-0 flex-1">
-                <span className="block truncate text-sm">
-                  {model.displayName}
-                </span>
-                <span className="block truncate text-[11px] text-muted-foreground">
-                  {runnable ? (
-                    <span className="font-instrument">{model.size}</span>
-                  ) : (
-                    "Needs PrismML's runtime - coming soon"
-                  )}
-                </span>
-              </span>
-              {model.id === currentModelId && (
-                <Check className="h-4 w-4 shrink-0 text-signal" />
-              )}
-            </DropdownMenuItem>
-          );
-        })}
-
-        {(providersWithKey.length > 0 || cloud.length > 0) && (
-          <>
-            <DropdownMenuSeparator />
-            <DropdownMenuLabel className="flex items-center gap-1.5 text-xs font-normal text-muted-foreground">
-              <Cloud className="h-3 w-3" />
-              Cloud: what you send leaves this device
-            </DropdownMenuLabel>
-            {cloud.length === 0 && (
-              <p className="px-2 pb-2 text-xs text-muted-foreground">
-                {fetching ? "Asking your providers…" : "No models listed."}
-              </p>
-            )}
-            {cloud.map((model) => {
-              const blocked = model.cloud?.blocked;
-              return (
-                <DropdownMenuItem
-                  key={model.id}
-                  disabled={!!blocked}
-                  onClick={() => onSelect(model)}
-                  className="flex items-center gap-2 py-2"
-                >
-                  <span className="min-w-0 flex-1">
-                    <span className="block truncate text-sm">
-                      {model.displayName}
-                    </span>
-                    <span
-                      className="block truncate text-[11px] text-muted-foreground"
-                      title={blocked}
-                    >
-                      {model.size}
-                    </span>
-                  </span>
-                  {model.id === currentModelId && (
-                    <Check className="h-4 w-4 shrink-0 text-signal" />
-                  )}
-                </DropdownMenuItem>
-              );
-            })}
-            {fetchErrors.map((provider) => (
-              <p
-                key={provider.id}
-                className="px-2 pb-2 text-xs text-destructive"
-              >
-                {fetched[provider.id]?.error}
-              </p>
-            ))}
-          </>
-        )}
-
-        <DropdownMenuSeparator />
-        <DropdownMenuItem onClick={onOpenLibrary} className="gap-2 py-2">
-          <Library className="h-4 w-4" />
-          Open Model Library
-        </DropdownMenuItem>
-        {onOpenSettings && (
-          <DropdownMenuItem onClick={onOpenSettings} className="gap-2 py-2">
-            <Cloud className="h-4 w-4" />
-            {providers.length === 0
-              ? "Add a cloud provider…"
-              : "Manage cloud providers…"}
-          </DropdownMenuItem>
-        )}
+        <ModelPickerMenu
+          models={models}
+          currentModelId={currentModelId}
+          onSelect={onSelect}
+          onOpenLibrary={onOpenLibrary}
+          onOpenSettings={onOpenSettings}
+        />
       </DropdownMenuContent>
     </DropdownMenu>
   );

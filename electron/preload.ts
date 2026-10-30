@@ -268,6 +268,8 @@ const providersAPI: ProvidersAPI = {
   save: (input, apiKey) => ipcRenderer.invoke("providers:save", input, apiKey),
   remove: (id) => ipcRenderer.invoke("providers:remove", id),
   models: (id) => ipcRenderer.invoke("providers:models", id),
+  allowModel: (id, modelId, allowed) =>
+    ipcRenderer.invoke("providers:allow-model", id, modelId, allowed),
 };
 
 contextBridge.exposeInMainWorld("providers", providersAPI);

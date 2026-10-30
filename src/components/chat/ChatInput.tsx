@@ -14,7 +14,9 @@ import { motion } from "framer-motion";
 import { PermissionModeSelector } from "./PermissionModeSelector";
 import { WorkspaceSelector } from "./WorkspaceSelector";
 import { TeamToggle } from "./TeamToggle";
+import { ComposerModelPicker } from "./ComposerModelPicker";
 import type { TeamAvailability } from "@/agents/teamFit";
+import { type ModelOption } from "@/config/models";
 import { ContextRing } from "./ContextRing";
 
 interface ChatInputProps {
@@ -30,6 +32,13 @@ interface ChatInputProps {
   teamAvailability?: TeamAvailability;
   modelId?: string;
   modelName?: string;
+  /** Every model (installed and hosted), for the picker in the composer */
+  models?: ModelOption[];
+  onSelectModel?: (model: ModelOption) => void;
+  /** True while a model is loading (the picker is held shut then) */
+  isModelLoading?: boolean;
+  onOpenLibrary?: () => void;
+  onOpenSettings?: () => void;
 }
 
 export interface ChatInputRef {
@@ -50,6 +59,11 @@ export const ChatInput = forwardRef<ChatInputRef, ChatInputProps>(
       teamAvailability,
       modelId,
       modelName,
+      models,
+      onSelectModel,
+      isModelLoading,
+      onOpenLibrary,
+      onOpenSettings,
     },
     ref
   ) {
@@ -250,6 +264,16 @@ export const ChatInput = forwardRef<ChatInputRef, ChatInputProps>(
                 availability={teamAvailability}
                 modelId={modelId}
                 modelName={modelName}
+              />
+            )}
+            {models && onSelectModel && onOpenLibrary && (
+              <ComposerModelPicker
+                models={models}
+                currentModelId={modelId}
+                isLoading={isModelLoading}
+                onSelect={onSelectModel}
+                onOpenLibrary={onOpenLibrary}
+                onOpenSettings={onOpenSettings}
               />
             )}
             <ContextRing />
