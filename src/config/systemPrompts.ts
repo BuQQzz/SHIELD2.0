@@ -13,6 +13,7 @@ import type {
   ToolDefinition,
 } from "../types/prompts";
 import { isMutatingTool } from "./toolClassification";
+import { MODEL_CATALOG } from "./models";
 import { osName, samplePath } from "../utils/platform";
 
 // =============================================================================
@@ -230,7 +231,7 @@ Always use a full path beginning with one of these. Never guess a path such as "
         : "";
   const editRule = callableTools.some((tool) => tool.name === "edit_file")
     ? "\n- To change an existing file, use edit_file with only the lines that change. Copy oldText exactly from the file and supply the replacement in newText. Use write_file only to create a new file." +
-      "\n- When asked to fix, change or add something, make the change with these functions. Do not show the code for the user to apply unless they ask to see it first. When code is broken, fix the broken lines with edit_file - never write a new version of the whole file."
+      "\n- When asked to fix, change or add something, make the change with these functions. Do not show the code for the user to apply unless they ask to see it first. When code is broken, fix the broken lines with edit_file - never write a new version of the whole file. Afterwards, say in a sentence or two what you changed."
     : "";
   const commandRule = callableTools.some((tool) => tool.name === "run_command")
     ? `\n- ${CHECK_YOUR_WORK}`
@@ -242,7 +243,7 @@ Always use a full path beginning with one of these. Never guess a path such as "
     callableTools.length > 0
       ? `
 ## Tool Usage
-- Use the available functions when the request needs information or action from the computer or web.
+- Use the available functions when the request needs information or action from the computer or web, and call only the ones it needs.
 - Make a native function call, then wait for its real result. Never invent a tool result or claim success before a successful result arrives.
 - Use only functions provided to you, with arguments matching their schemas.
 - After a result arrives, either call the next function needed for the request or answer the user.
@@ -493,6 +494,21 @@ have already made - if you already have the contents, use them.
 // =============================================================================
 
 /**
+ * Today's date for the model. Without it Bonsai 2 27B took the year to be
+ * its training data's: asked for current prices, it searched for "2025"
+ * and labelled the list "Prices are current estimates (2025)" (2026-10-29).
+ */
+export function dateLine(today: Date): string {
+  const date = today.toLocaleDateString("en-US", {
+    weekday: "long",
+    year: "numeric",
+    month: "long",
+    day: "numeric",
+  });
+  return `\nToday's date is ${date}. Use it for anything that depends on the date: what to search for when asked for current or recent information, and the dates and years you write.`;
+}
+
+/**
  * Build a complete system prompt based on configuration
  */
 export function buildSystemPrompt(config: SystemPromptConfig): BuiltPrompt {
@@ -572,6 +588,10 @@ export function buildSystemPrompt(config: SystemPromptConfig): BuiltPrompt {
     }
   }
 
+  // Last, so the change at midnight leaves the rest of the prompt cached
+  parts.push(dateLine(config.today ?? new Date()));
+  includedModules.push("date");
+
   const prompt = parts.join("\n");
 
   // Rough token estimate (1 token ≈ 4 chars for English)
@@ -602,7 +622,12 @@ export function detectModelFamily(modelName: string): ModelFamily {
 
 /** Native tool transport is supported only for the Gemma 4 model family. */
 export function usesNativeToolCalling(modelName: string): boolean {
-  return /(?:^|[^a-z0-9])gemma[-_ ]?4(?=$|[^a-z0-9])/i.test(modelName);
+  return (
+    /(?:^|[^a-z0-9])gemma[-_ ]?4(?=$|[^a-z0-9])/i.test(modelName) ||
+    MODEL_CATALOG.some(
+      (model) => model.nativeToolCalls && model.name === modelName
+    )
+  );
 }
 
 /**

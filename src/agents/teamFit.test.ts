@@ -34,9 +34,10 @@ describe("teamAvailability", () => {
   });
 
   it("matches what the catalog says about the models tried so far", () => {
-    expect(teamAvailability(getModelById("bonsai-27b")).state).toBe(
-      "available"
-    );
+    expect(teamAvailability(getModelById("bonsai-2-27b"))).toMatchObject({
+      state: "available",
+      untested: true,
+    });
     expect(teamAvailability(getModelById("bonsai-2-9b"))).toMatchObject({
       state: "available",
       untested: true,
@@ -83,7 +84,15 @@ describe("shouldTurnTeamOff", () => {
 
 describe("teamLabel", () => {
   it("says what the model card should say for each case", () => {
-    expect(teamLabel(getModelById("bonsai-27b")).label).toBe("Team: works");
+    expect(
+      teamLabel({
+        ...getModelById("bonsai-2-27b")!,
+        team: { fit: "good", note: "ran" },
+      }).label
+    ).toBe("Team: works");
+    expect(teamLabel(getModelById("bonsai-2-27b")).label).toBe(
+      "Team: untested"
+    );
     expect(teamLabel(getModelById("bonsai-2-9b")).label).toBe("Team: untested");
     expect(teamLabel(getModelById("bonsai-8b"))).toMatchObject({
       label: "Team: not suited",

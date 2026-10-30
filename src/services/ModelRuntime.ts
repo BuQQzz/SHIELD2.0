@@ -157,6 +157,8 @@ export class ModelRuntime {
       contextSize,
       systemPrompt: this.systemPrompt,
       pidFile: this.pidFile,
+      placement: model?.serverPlacement,
+      reasoningEffort: model?.reasoningEffort,
     });
 
     this.engine = "server";
@@ -352,7 +354,7 @@ export class ModelRuntime {
     tools?: ToolDefinition[]
   ): Promise<void> {
     this.systemPrompt = prompt;
-    this.server.applySystemPrompt(prompt);
+    this.server.applySystemPrompt(prompt, tools);
     await this.node.applySystemPrompt(prompt, tools);
   }
 

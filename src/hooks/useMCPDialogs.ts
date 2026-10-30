@@ -35,6 +35,7 @@ import { isAgentsMd } from "@/config/agentsMd";
 import { modelWrittenFiles } from "@/handlers/workLedger";
 import { savePlanFromCall } from "@/handlers/sessionPlan";
 import { changePreview, type ChangePreview } from "@/utils/changePreview";
+import { ambiguousEdit, type AmbiguousEdit } from "@/utils/editMatches";
 
 /**
  * A command that asks the user carries the model's reason, shown in the
@@ -105,6 +106,9 @@ const REWRITE_WARNING_MS = 10 * 60_000;
 
 const rewriteMessage = (path: string, size: number) =>
   `Not run: ${path} already exists (${size.toLocaleString("en-US")} characters). Change it with edit_file, replacing only the lines that need to change: rewriting resends the whole file into your context and can drop code that works. If most of the file really has to change, tell the user why, then send the same write_file again.`;
+
+const ambiguousMessage = (path: string, found: AmbiguousEdit) =>
+  `Not run: the oldText of edit ${found.edit} is in ${path} ${found.lines.length} times (lines ${found.lines.join(", ")}), and edit_file changes only the first. Nothing was changed. Send the edit again with an oldText that matches one place only: include a line that is unique to the place you mean, such as the heading above it.`;
 
 /** Longest script shown in the permission bar */
 const SCRIPT_PREVIEW_CHARS = 20_000;
@@ -266,6 +270,38 @@ export function useMCPDialogs({
   );
 
   /**
+   * The reason to send back an edit_file whose oldText matches several
+   * places in the file (utils/editMatches.ts), or null. Not remembered:
+   * the same ambiguous edit is sent back each time.
+   */
+  const ambiguityWarning = useCallback(
+    async (tool: string, args: Record<string, unknown>) => {
+      if (
+        tool !== "edit_file" ||
+        typeof args.path !== "string" ||
+        !Array.isArray(args.edits)
+      ) {
+        return null;
+      }
+      try {
+        const read = await callTool({
+          serverName: "filesystem",
+          tool: "read_text_file",
+          arguments: { path: args.path },
+        });
+        if (!read.success || (read.data as { isError?: unknown })?.isError) {
+          return null;
+        }
+        const found = ambiguousEdit(resultPayload(read.data), args.edits);
+        return found ? ambiguousMessage(args.path, found) : null;
+      } catch {
+        return null;
+      }
+    },
+    [callTool]
+  );
+
+  /**
    * The scripts a command runs that the model wrote, with their contents:
    * written since SHIELD started, or earlier in the open conversation
    */
@@ -381,6 +417,13 @@ export function useMCPDialogs({
       // A whole existing file rewritten is sent back once
       const rewrite = await rewriteWarning(toolCall.tool, toolCall.arguments);
       if (rewrite) return { success: false, error: rewrite };
+
+      // An edit that would change the first of several matches, never
+      const ambiguous = await ambiguityWarning(
+        toolCall.tool,
+        toolCall.arguments
+      );
+      if (ambiguous) return { success: false, error: ambiguous };
 
       // Reads in auto/plan/readonly run without interrupting the user
       if (decision === "run") {

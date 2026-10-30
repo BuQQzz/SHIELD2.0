@@ -174,6 +174,8 @@ The runtime should track call signatures per turn and make repeated identical ca
 
 ---
 
+**llama-server, grammar-held calls (2026-10-29):** for a model whose catalog sets `nativeToolCalls` (Bonsai 2 27B), `LlamaServerProvider` sends the tools as OpenAI functions; the Prism llama-server's template-derived parser (`peg-native`) then holds each call to its tool's JSON schema with a lazy grammar from the call marker on, so a call cannot be malformed. The calls are written into the reply as SHIELD's XML text as they stream (`src/services/llamaServer/nativeCalls.ts`), so the rest of the tool loop is shared with the text path. Measured: 9 of 9 direct calls valid; in the app 0 malformed calls over four tasks, where the text path had 1-3 per task. Details: docs/HANDOFF.md, "Server-enforced tool calls".
+
 # 5. Prompt architecture
 
 ## Direction: stable system prompt, dynamic turn state

@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { LOOP_NOTE } from "../utils/loopGuard";
 import {
   cutOffToolCall,
   closeOpenBrackets,
@@ -338,6 +339,15 @@ describe("cutOffToolCall", () => {
     });
   });
 
+  it("says a call stopped for looping was repeating, not too long", () => {
+    const looping = `<tool_call>\n<server>filesystem</server>\n<tool>write_file</tool>\n<arguments>{"path":"/p/list.md","content":"# List\\n${"- [ ] Trash bags\\n".repeat(30)}${LOOP_NOTE}`;
+    const call = cutOffToolCall(looping);
+    expect(call?.tool).toBe("write_file");
+    expect(call?.argumentsError).toContain("The tool call was cut off");
+    expect(call?.argumentsError).toContain("repeating the same lines");
+    expect(call?.argumentsError).not.toContain("length limit");
+  });
+
   it("still detects truncated JSON after a complete native envelope", () => {
     const partial =
       '```json\n{"tool_calls":[{"function":{"name":"filesystem.write_file","arguments":{"path":"C:/out.txt","content":"unfinished';
@@ -612,6 +622,84 @@ describe("a key written with escaped quotes (Bonsai 27B, 2026-10-21)", () => {
     ).toBeNull();
     expect(unescapeKeyQuotes('{"a":"b","reason\\":\\"x"}')).toBe(
       '{"a":"b","reason":"x"}'
+    );
+  });
+});
+
+describe("arguments the model ended without closing the string", () => {
+  const unclosed =
+    '<tool_call>\n<server>filesystem</server>\n<tool>write_file</tool>\n<arguments>{"path":"/p/list.md","content":"# List\\n\\n| A | B |\n|---|---|\\n- [ ] Water\\n</arguments>\n</tool_call>';
+
+  it("closes the content and runs the call", () => {
+    const [call] = extractToolCalls(unclosed);
+    expect(call?.argumentsError).toBeUndefined();
+    expect(call?.arguments.content).toBe(
+      "# List\n\n| A | B |\n|---|---|\n- [ ] Water\n"
+    );
+  });
+
+  it("still treats a reply cut off mid-string as cut off", () => {
+    const cut = unclosed.replace("\\n</arguments>\n</tool_call>", "");
+    expect(extractToolCalls(cut)).toEqual([]);
+    expect(cutOffToolCall(cut)?.argumentsError).toContain(
+      "The tool call was cut off"
+    );
+  });
+});
+
+describe("Bonsai 27B call shapes (2026-10-28)", () => {
+  it("puts a newText written beside edits back into the one edit", () => {
+    const [call] = extractToolCalls(
+      '<tool_call>\n<server>filesystem</server>\n<tool>edit_file</tool>\n<arguments>{"path":"/p/a.md","edits":[{"oldText":"## Resources"}],"newText":"## Resources\\n- 211"}</arguments>\n</tool_call>'
+    );
+    expect(call?.arguments).toEqual({
+      path: "/p/a.md",
+      edits: [{ oldText: "## Resources", newText: "## Resources\n- 211" }],
+    });
+  });
+
+  it("reads </tool> after the arguments as the end of the call", () => {
+    const text =
+      '<tool_call>\n<server>filesystem</server>\n<tool>read_text_file</tool>\n<arguments>{"path":"/p/a.md"}</arguments>\n</tool>';
+    expect(extractToolCalls(text)).toMatchObject([
+      { tool: "read_text_file", arguments: { path: "/p/a.md" } },
+    ]);
+    expect(cutOffToolCall(text)).toBeNull();
+  });
+});
+
+describe("Qwen3-Coder call format (Bonsai 2 27B, 2026-10-29)", () => {
+  it("reads a search, a whole-file write and an edit", () => {
+    const text = [
+      "<tool_call>\n<function=web_search>\n<parameter=query>\nNOAA weather radio price 2026\n</parameter>\n</function>\n</tool_call>",
+      "<tool_call>\n<function=write_file>\n<parameter=path>\n/p/Prices.md\n</parameter>\n<parameter=content>\n# Prices\n\n- Radio: $40\n</parameter>\n</function>\n</tool_call>",
+      '<tool_call>\n<function=edit_file>\n<parameter=path>\n/p/a.md\n</parameter>\n<parameter=edits>\n[{"oldText":"a","newText":"b"}]\n</parameter>\n</function>\n</tool_call>',
+    ].join("\n");
+    expect(extractToolCalls(text)).toMatchObject([
+      {
+        tool: "web_search",
+        arguments: { query: "NOAA weather radio price 2026" },
+      },
+      {
+        tool: "write_file",
+        arguments: {
+          path: "/p/Prices.md",
+          content: "# Prices\n\n- Radio: $40",
+        },
+      },
+      {
+        tool: "edit_file",
+        arguments: { path: "/p/a.md", edits: [{ oldText: "a", newText: "b" }] },
+      },
+    ]);
+  });
+
+  it("sends a garbled call back as unreadable instead of taking it for the answer", () => {
+    const garbled =
+      "<tool_call>\n<web>\n<parameter=web_search</parameter>\n<parameter=query>\nNOAA weather radio price 2026 buy</parameter>\n</function>\n</tool_call>";
+    expect(extractToolCalls(garbled)).toEqual([]);
+    expect(unreadableToolCall(garbled)?.argumentsError).toContain(
+      "The tool call could not be read"
     );
   });
 });

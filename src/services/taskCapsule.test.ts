@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import {
+  keepCharsFor,
   addToCapsule,
   capsuleCut,
   cleanNote,
@@ -62,11 +63,33 @@ describe("requestText", () => {
     ).toBe("make a notes.txt");
   });
 
-  it("keeps a long request to one short line", () => {
-    const text = requestText(`build ${"a very long request ".repeat(40)}`);
+  it("keeps a request on one line, cut only past its limit", () => {
+    const long = `build ${"a very long request ".repeat(40)}`;
+    expect(requestText(long)).toBe(long.trim());
+    const text = requestText(long, 300);
     expect(text.length).toBe(300);
     expect(text.endsWith("…")).toBe(true);
-    expect(text).not.toContain("\n");
+    expect(requestText("a\nb")).toBe("a b");
+  });
+});
+
+describe("the latest request in a capsule", () => {
+  it("is shown whole, older ones short", () => {
+    const task = `Make a shopping list. ${"Look up prices. ".repeat(30)}Write it to Shopping_List.md, then add one line to the checklist.`;
+    const capsule = addToCapsule(
+      null,
+      [
+        { role: "user", content: `First: ${"old request ".repeat(40)}` },
+        { role: "assistant", content: "ok" },
+        { role: "user", content: task },
+      ],
+      ""
+    );
+    const text = renderCapsule(capsule);
+    expect(text).toContain(
+      "Write it to Shopping_List.md, then add one line to the checklist."
+    );
+    expect(text).toMatch(/1\. "First: [^"]{0,300}…"/);
   });
 });
 
@@ -657,5 +680,23 @@ describe("restoreHistory", () => {
       user("which is longer?"),
       assistant("B."),
     ]);
+  });
+});
+
+describe("keepCharsFor", () => {
+  it("keeps what fits under CLEAR_TO beside the system prompt and capsule", () => {
+    // Bonsai 2 27B: 24k window, a 10k-character system prompt
+    const keep = keepCharsFor(24576, 10_000, 0.4);
+    expect(keep).toBeCloseTo(24576 * 3 * 0.3 - 10_000);
+    // Prompt, the largest capsule and the kept turns: 40% of the window
+    expect((10_000 + 24576 * 3 * 0.1 + keep) / (24576 * 3)).toBeCloseTo(0.4);
+  });
+
+  it("keeps at most a quarter of a large window", () => {
+    expect(keepCharsFor(131072, 10_000, 0.4)).toBe(131072 * 3 * 0.25);
+  });
+
+  it("always keeps a little, however small the window", () => {
+    expect(keepCharsFor(8192, 20_000, 0.4)).toBeCloseTo(8192 * 3 * 0.1);
   });
 });

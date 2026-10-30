@@ -334,12 +334,134 @@ describe("multi-round tool chaining", () => {
     const notice = addMessage.mock.calls.at(-1)?.[0] as Message;
     expect(notice.role).toBe("assistant");
     expect(notice.content).toContain("write_file");
-    expect(notice.content).toContain("continue");
+    expect(notice.content).toContain("Continue");
+    expect(notice.resumable).toBe(true);
     // Kept so the next prompt can tell the model the call never happened
     expect(notice.unrunToolCalls).toEqual(["write_file a.txt"]);
     expect(unrunToolCallsNote(notice.unrunToolCalls!)).toContain(
       "never executed"
     );
+  });
+
+  it("keeps researching past any fixed cap while each round finds something new", async () => {
+    let n = 0;
+    const continueConversation = vi.fn(async () =>
+      ++n < 25 ? call("search", `{"query":"q${n}"}`) : "Here is what I found."
+    );
+    const addMessage = vi.fn();
+
+    await processMCPToolCalls(
+      {
+        id: "assistant-research",
+        role: "assistant",
+        content: call("search", '{"query":"q0"}'),
+        timestamp: new Date(),
+      },
+      {
+        onToolCallDetected: vi.fn().mockResolvedValue({ success: true }),
+        addMessage,
+        continueConversation,
+        maxToolRounds: Infinity,
+        progressCheckEvery: 10,
+      }
+    );
+
+    expect(continueConversation).toHaveBeenCalledTimes(25);
+    const notices = addMessage.mock.calls
+      .map(([message]) => message as Message)
+      .filter((message) => message.role === "assistant");
+    expect(notices).toEqual([]);
+  });
+
+  it("pauses at a check when the last rounds found nothing new", async () => {
+    let n = 0;
+    const continueConversation = vi.fn(async () =>
+      call("fetch_page", `{"url":"https://example.com/${++n}"}`)
+    );
+    const addMessage = vi.fn();
+
+    await processMCPToolCalls(
+      {
+        id: "assistant-circles",
+        role: "assistant",
+        content: call("fetch_page", '{"url":"https://example.com/0"}'),
+        timestamp: new Date(),
+      },
+      {
+        // Every page fails: rounds go by with no new result
+        onToolCallDetected: vi
+          .fn()
+          .mockResolvedValue({ success: false, error: "404" }),
+        addMessage,
+        continueConversation,
+        maxToolRounds: Infinity,
+        progressCheckEvery: 10,
+      }
+    );
+
+    expect(continueConversation).toHaveBeenCalledTimes(10);
+    const notice = addMessage.mock.calls.at(-1)?.[0] as Message;
+    expect(notice.content).toContain("Paused after 10 rounds");
+    expect(notice.resumable).toBe(true);
+    expect(notice.unrunToolCalls).toEqual([
+      "fetch_page https://example.com/10",
+    ]);
+  });
+
+  it("shows the file's closest lines when an edit finds no exact match", async () => {
+    const addMessage = vi.fn();
+    const readFile = vi
+      .fn()
+      .mockResolvedValue("# List\n| 📍 Long Island | N/A | Local\n- Water");
+    await processMCPToolCalls(
+      {
+        id: "assistant-miss",
+        role: "assistant",
+        content: call(
+          "edit_file",
+          '{"path":"/p/a.md","edits":[{"oldText":"| 📍 Long Island | N/A | Local |","newText":"x"}]}'
+        ),
+        timestamp: new Date(),
+      },
+      {
+        onToolCallDetected: vi.fn().mockResolvedValue({
+          success: false,
+          error: "Could not find exact match for edit: | 📍 Long Island",
+        }),
+        addMessage,
+        continueConversation: vi.fn().mockResolvedValue("ok"),
+        readFile,
+      }
+    );
+    expect(readFile).toHaveBeenCalledWith("/p/a.md");
+    const result = (addMessage.mock.calls[0]?.[0] as Message).content;
+    expect(result).toContain("at line 2");
+    expect(result).toContain("BEGIN\n| 📍 Long Island | N/A | Local\nEND");
+  });
+
+  it("never runs a call from a reply that copied a removal note", async () => {
+    const onToolCallDetected = vi.fn();
+    const addMessage = vi.fn();
+    await processMCPToolCalls(
+      {
+        id: "assistant-copied",
+        role: "assistant",
+        content:
+          '<tool_call>\n<server>filesystem</server>\n<tool>write_file</tool>\n<arguments>{"path":"/p/a.md"}</arguments>\n</tool>\n[SHIELD removed from your context to save space: 6,736 characters of the call above. The call already ran.]',
+        timestamp: new Date(),
+      },
+      {
+        onToolCallDetected,
+        addMessage,
+        continueConversation: vi.fn().mockResolvedValue("ok"),
+        maxToolRounds: 3,
+      }
+    );
+    expect(onToolCallDetected).not.toHaveBeenCalled();
+    const result = addMessage.mock.calls[0]?.[0] as Message;
+    expect(result.content).toContain("copied one of SHIELD's notes");
+    expect(result.content).toContain("path and the whole content");
+    expect(result.content).not.toContain("length limit");
   });
 
   it("keeps going when a reply is cut off mid-call", async () => {
@@ -692,7 +814,7 @@ describe("repeated calls within a turn", () => {
   it("ends the turn when the same unreadable call keeps coming", async () => {
     // A task string cut off in the middle: no repair can close it
     const bad =
-      '<tool_call>\n<server>agents</server>\n<tool>delegate</tool>\n<arguments>{"role":"coder","task":"Fix it {{</arguments>\n</tool_call>';
+      '<tool_call>\n<server>agents</server>\n<tool>delegate</tool>\n<arguments>{"role":"coder" "task":"Fix it"}</arguments>\n</tool_call>';
     const onToolCallDetected = vi.fn();
     const continueConversation = vi.fn().mockResolvedValue(bad);
     const added: { content: string }[] = [];

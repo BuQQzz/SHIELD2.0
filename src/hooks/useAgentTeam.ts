@@ -24,6 +24,7 @@ import type { ToolCallRequest } from "@/handlers/mcpToolHandler";
 import type { MCPToolResult } from "@/types/electron";
 import type { ToolDefinition } from "@/types/prompts";
 import type { ToolPolicy } from "./useToolPolicy";
+import { readProjectFile } from "@/handlers/projectFile";
 
 interface Sampling {
   temperature?: number;
@@ -163,6 +164,7 @@ export function useAgentTeam({
             allowedPaths,
           }).prompt,
         workspaceFolder,
+        readFile: readProjectFile,
         isStopped: () => useGenerationStore.getState().stopRequested,
         isSkipped: () => useGenerationStore.getState().skipRequested,
         takeSteer: () => useGenerationStore.getState().takeSteer(),
