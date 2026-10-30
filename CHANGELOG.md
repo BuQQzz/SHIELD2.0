@@ -5,6 +5,23 @@ All notable changes to SHIELD will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- **Remote providers**: run the harness on a hosted model with your own API key (Settings > Providers), Experiential Labs first, any OpenAI-compatible API supported
+  - Keys are encrypted with the system credential store and never leave the main process
+  - Zero data retention is required by default for Experiential: each request asks for it and a reply the gateway does not confirm is thrown away
+  - A Cloud section in the model picker; a provider's models are fetched only when the picker or Settings is opened, never at startup
+  - Each hosted reply shows who served it and whether that route reported zero retention
+  - A model's context window is read from the provider's catalog (its input limit) when it loads
+- **DeepSeek tool-call markup**: a hosted DeepSeek model's native `<｜｜DSML｜｜ invoke ...>` calls are read as SHIELD's calls (`src/handlers/dsml.ts`)
+
+### Changed
+
+- A hosted model's chat title falls back to the start of the message when a thinking model returns none, and its speed is timed over the whole reply
+- Message text is no longer logged for hosted models
+
 ## [0.1.5] - 2026-02-16
 
 ### Added

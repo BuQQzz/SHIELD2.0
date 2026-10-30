@@ -1,8 +1,8 @@
 # SHIELD — Session Handoff
 
-**Last session:** 2026-10-25 → 26, on Linux (previous: 2026-10-23 → 24, 2026-10-21 → 22 and 2026-10-20 → 21 on Linux; 2026-09-26 → 28 on Windows)  
-**Branch:** `feat/model-library`, 50 commits past the 2026-09-28 tip (`57d5baf`). **Pushed to the public repo on 2026-10-24 at the user's request, up to and including this handoff commit** (the remote had been at `a26dba2`). Pushed again on 2026-10-24 evening at the user's request, up to `171c352`; the commits after it (`1fc3d96` onwards, listed under "Update — 2026-10-25 → 26") were **pushed on 2026-10-26 at the user's request**, up to `ea05a4e`. `302f911` (the repeated-delegate fix), `8f93f19` (tester rule), `051752b` (no made-up details, old tests kept) and their handoff commits were **pushed on 2026-10-26 evening at the user's request**, up to `156df09`; `2ad521f`, `ea344df`, `f24dbdc`, the stuck bar (`05baa6f`), steer (`b5059a7`) and queue (`8754c39`) commits and their handoff commits (see "Queue", "Steer", "The stuck bar", "A second long run, no hang", "Later on 2026-10-26" and "The hang caught on one server") were **pushed on 2026-10-26 night at the user's request**, up to `8754c39`; this push-note commit was pushed with them. Nothing is merged to `main`. Only the user says when to push or open a PR.
-**Tests:** 1177 passing, 7 skipped (`npx vitest run`) · `npx tsc --noEmit`, `npx eslint src electron scripts --ext ts,tsx --max-warnings 0` clean. `prettier --check` flags `src/components/ui/button.tsx` and `scripts/bench/mcp.ts`, which were already unformatted: do not run `prettier --write` over whole folders (it reformats `button.tsx`; `git checkout` it).
+**Last session:** 2026-10-26 → 29, on Windows (previous: 2026-10-25 → 26, 2026-10-23 → 24, 2026-10-21 → 22 and 2026-10-20 → 21 on Linux; 2026-09-26 → 28 on Windows)  
+**Branch:** `feat/model-library`, 50 commits past the 2026-09-28 tip (`57d5baf`). **Pushed to the public repo on 2026-10-24 at the user's request, up to and including this handoff commit** (the remote had been at `a26dba2`). Pushed again on 2026-10-24 evening at the user's request, up to `171c352`; the commits after it (`1fc3d96` onwards, listed under "Update — 2026-10-25 → 26") were **pushed on 2026-10-26 at the user's request**, up to `ea05a4e`. `302f911` (the repeated-delegate fix), `8f93f19` (tester rule), `051752b` (no made-up details, old tests kept) and their handoff commits were **pushed on 2026-10-26 evening at the user's request**, up to `156df09`; `2ad521f`, `ea344df`, `f24dbdc`, the stuck bar (`05baa6f`), steer (`b5059a7`) and queue (`8754c39`) commits and their handoff commits (see "Queue", "Steer", "The stuck bar", "A second long run, no hang", "Later on 2026-10-26" and "The hang caught on one server") were **pushed on 2026-10-26 night at the user's request**, up to `8754c39`; this push-note commit was pushed with them. `main` has held this branch since PR #45 (2026-10-26 evening); later work is on `feat/remote-providers` (PR #46). Only the user says when to push or open a PR.
+**Tests:** 1288 passing, 14 skipped (`npx vitest run`) · `npx tsc --noEmit`, `npx eslint src electron scripts --ext ts,tsx --max-warnings 0` clean. `prettier --check` flags `src/components/ui/button.tsx` and `scripts/bench/mcp.ts`, which were already unformatted: do not run `prettier --write` over whole folders (it reformats `button.tsx`; `git checkout` it).
 
 **Tested in the app with (2026-10-20):** Bonsai 27B Q1_0 on an RTX 2070 SUPER 8 GB (Ubuntu 26.04), SHIELD-managed Prism llama-server at 32K, ~19 tok/s. Earlier sessions: Qwen3-Coder-30B and Gemma 4 12B on Windows (see the older updates).
 
@@ -34,7 +34,40 @@ Order agreed with the user on 2026-09-26: the Code view, then the terminal, then
 
 ---
 
-## Update — 2026-10-25 → 26: the orchestrator prompt reaches the app; four in-app rechecks pass (start here)
+## Update — 2026-10-26 → 29: remote providers, a hosted model on the same harness (start here)
+
+Branch `feat/remote-providers` (from `feat/model-library` at `c5d79aa`), **PR #46 into `main`**. `main` already holds `feat/model-library` (PR #45, merge `764386c`, no file changes against this branch's base). The user asked for this on 2026-10-26: let users plug in their own LLM provider with an API key, **Experiential Labs** first, so people who want SHIELD's privacy can use zero-data-retention hosted models. Decided with the user: generic OpenAI-compatible providers with an Experiential preset, **zero data retention required by default**.
+
+**Also this session (Windows, RTX 4070 12 GB):** Bonsai 2 27B (PTQ1_0, 5.5 GB) loads fully on the GPU at 32K (8.25 GB of VRAM, ~35-40 tok/s, Team on: a read-only question and a change task both passed in the app). In Auto, a command that is not read-only still asks every time (`commandSafety.ts`, decided 2026-09-26); the Auto menu label says "Run everything automatically", which is wrong for commands.
+
+### How it works
+
+- **Engine:** `ModelRuntime` has a third engine, `remote`. `LlamaServerProvider.attach(endpoint)` points the same chat handling (history, summaries, stall and stuck-bar handling, sub-agent forks) at a provider instead of a process. `src/services/remote/remoteEndpoint.ts` cuts a request to the standard fields, adds the key, and for Experiential adds `provider: {zdr: true}`; a reply is **thrown away unless the gateway answers `x-gateway-zdr: true`** (`ZdrNotConfirmedError`).
+- **Ids:** `remote:<providerId>:<model id>`. `detectModelFamily` gives them the generic prompt; Team is available (untried).
+- **Keys:** `electron/services/ProviderStore.ts` encrypts with Electron `safeStorage` (never plain text; no key saved where the system cannot encrypt); only the main process decrypts; the window gets a summary (`window.providers`). The HF token still sits in plain text in settings.json.
+- **UI:** Settings > Providers (`ProvidersSettings.tsx`, `ProviderForm.tsx`); a Cloud section in `SidebarModelPicker`. A provider's models are fetched only when the picker or Settings opens (at most once a minute, `cloud-store.ts`), **never at startup**. A badge under each hosted reply says who served it and whether that route reported zero retention.
+- **Context window:** `/v1/models` does not give it. `fetchCatalogContext` asks the public catalog `GET <origin>/api/models/<slug>` (no key sent) at load: `max_input_tokens` first (655,360 for `deepseek-v4.1-flash-1017`; its `context_window` is 1,048,576 but counts the reply), else the model list, else the provider's default; a size the user chose still wins. The catalog is paginated (963 models), so it is asked per model.
+- **Logs:** the IPC and window message logs drop to a character count for a hosted model; the `SHIELD_SERVER_LOG` stall dump is skipped for it.
+- **Titles:** a thinking model can spend the title request's tokens thinking; a hosted title gets 400 tokens and falls back to the first six words (`titleFromMessage`).
+- **DeepSeek markup:** a hosted DeepSeek model wrote its native `<｜｜DSML｜｜ invoke ...>` calls (or a SHIELD call with a DSML closing tag); `src/handlers/dsml.ts` reads them as SHIELD's calls in the parser, the display and the live preview. Tested from the two real failing messages; **not yet seen firing in the app**.
+
+### Verified / not verified
+
+- Verified: tests (new ones for the store, adapter, ZDR check, catalog and list parsing, hosted chat, cloud options, DSML), tsc, eslint, prettier, `vite build`; a fake gateway driven through `ModelRuntime` (`tmp/remote-e2e.mts`, git-ignored); by hand against the real API: cloud chat, a Code session with tools (list, search, write), the zero-retention badge, titles, context from the catalog.
+- **Not verified:** per-request zero retention needs a **Pro** Experiential org (else 403 `needs_subscription`); Team on a hosted model; the DSML fix live; `max_tokens` accepted by every gateway model.
+
+### Todos
+
+- [ ] **Native function calling for hosted models** (send `tools`, turn `delta.tool_calls` back into SHIELD's call text; sub-agent sessions need their tool lists too) so other model families do not depend on prompt formats.
+- [ ] **Auto and commands:** allow a command prefix for the session, and let installs from the project's manifest run (Claude Code's auto mode drops blanket interpreter and `npm run` rules and allows manifest installs; Codex uses a sandbox plus approval rules). At least fix the Auto label.
+- [ ] A cap on very large windows (cost per request), and the window shown in the picker.
+- [ ] Split `LlamaServerProvider.ts` (1,179 lines: process management vs chat handling); the 300-line review bot flags it and several older files.
+- [ ] **In-app runtime updater** (Prism / llama.cpp): parked, design saved in memory (`todo-runtime-updater`). Installed Prism build 10685; latest 10826.
+- [ ] A "Served by" detail for the badge name (`experiential_cloud` reads raw).
+
+---
+
+## Update — 2026-10-25 → 26: the orchestrator prompt reaches the app; four in-app rechecks pass
 
 The user's direction is unchanged: short, capped window runs, each result shown before the next. **Every window check now runs with `SHIELD_SERVER_LOG=$PWD/tmp/ui-check/<name>.log`** (see below). Details and numbers: the subsections "The orchestrator prompt never reached the app" and "Redoing the in-app checks with the prompt in place" under 2026-10-23 → 24.
 
