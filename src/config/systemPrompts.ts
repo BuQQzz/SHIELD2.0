@@ -231,7 +231,7 @@ Always use a full path beginning with one of these. Never guess a path such as "
         : "";
   const editRule = callableTools.some((tool) => tool.name === "edit_file")
     ? "\n- To change an existing file, use edit_file with only the lines that change. Copy oldText exactly from the file and supply the replacement in newText. Use write_file only to create a new file." +
-      "\n- When asked to fix, change or add something, make the change with these functions. Do not show the code for the user to apply unless they ask to see it first. When code is broken, fix the broken lines with edit_file - never write a new version of the whole file."
+      "\n- When asked to fix, change or add something, make the change with these functions. Do not show the code for the user to apply unless they ask to see it first. When code is broken, fix the broken lines with edit_file - never write a new version of the whole file. Afterwards, say in a sentence or two what you changed."
     : "";
   const commandRule = callableTools.some((tool) => tool.name === "run_command")
     ? `\n- ${CHECK_YOUR_WORK}`
@@ -243,7 +243,7 @@ Always use a full path beginning with one of these. Never guess a path such as "
     callableTools.length > 0
       ? `
 ## Tool Usage
-- Use the available functions when the request needs information or action from the computer or web.
+- Use the available functions when the request needs information or action from the computer or web, and call only the ones it needs.
 - Make a native function call, then wait for its real result. Never invent a tool result or claim success before a successful result arrives.
 - Use only functions provided to you, with arguments matching their schemas.
 - After a result arrives, either call the next function needed for the request or answer the user.
