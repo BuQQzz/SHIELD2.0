@@ -1,5 +1,6 @@
 import { emptyReplyMessage } from "@/utils/emptyReply";
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
+import { isRemoteModelId } from "../services/remote/remoteEndpoint";
 import type { NativeToolResult } from "../types/nativeTools";
 import type { ToolDefinition } from "../types/prompts";
 import type {
@@ -135,6 +136,12 @@ export function useLlama() {
   const [isInitialized, setIsInitialized] = useState(false);
   const [isModelLoaded, setIsModelLoaded] = useState(false);
   const [currentModel, setCurrentModel] = useState<ModelInfo | null>(null);
+  // Whether the loaded model runs at a provider, for callbacks that must not
+  // log what the user says to it
+  const hostedRef = useRef(false);
+  useEffect(() => {
+    hostedRef.current = isRemoteModelId(currentModel?.id);
+  }, [currentModel]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [warning, setWarning] = useState<string | null>(null);
@@ -282,7 +289,13 @@ export function useLlama() {
       }
     ) => {
       console.log("[useLlama] sendStreamingMessage called");
-      console.log("[useLlama] Message:", message.substring(0, 50));
+      // To a hosted model the message is on its way out: log its size only
+      console.log(
+        "[useLlama] Message:",
+        hostedRef.current
+          ? `${message.length} characters`
+          : message.substring(0, 50)
+      );
       console.log("[useLlama] Options:", JSON.stringify(options));
 
       setError(null);

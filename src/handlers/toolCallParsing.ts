@@ -5,6 +5,7 @@
  */
 
 import { stoppedForLooping } from "../utils/loopGuard";
+import { normaliseDsml, withoutDsmlTags } from "./dsml";
 
 export interface ToolCallRequest {
   serverName: string;
@@ -661,7 +662,8 @@ export function repairToolCallMarkup(content: string): string {
   const OPEN = "<tool_call>";
 
   let output = "";
-  let rest = content.replace(TOOL_FOR_TOOL_CALL, `$1${CLOSE}`);
+  // DeepSeek's own markup, read as the call SHIELD already knows (dsml.ts)
+  let rest = normaliseDsml(content).replace(TOOL_FOR_TOOL_CALL, `$1${CLOSE}`);
 
   for (;;) {
     const closeIndex = rest.indexOf(CLOSE);
@@ -928,7 +930,9 @@ export function stripToolCallMarkup(content: string): string {
     return UNSUPPORTED_NATIVE_TOOL_CALL_MESSAGE;
   }
   return (
-    content
+    // DeepSeek's markup becomes a call first, and whatever DSML tag is left
+    // (a call that never finished) is not shown either
+    withoutDsmlTags(normaliseDsml(content))
       // Well-formed calls
       .replace(/<tool_call>[\s\S]*?<\/tool_call>/g, "")
       // Opener with no closer (truncated generation)
@@ -948,7 +952,7 @@ export function stripToolCallMarkup(content: string): string {
 
 /** Where a tool call that is still being written starts */
 const CALL_START =
-  /<tool_call|<server>|<tool>|<name>|```json\s*\{\s*"tool_calls"/;
+  /<tool_call|<server>|<tool>|<name>|<\s*[｜|]+\s*DSML|```json\s*\{\s*"tool_calls"/;
 
 /** Completed JSON calls are not unfinished calls, even without an XML closer. */
 function withoutCompleteOpenAICalls(content: string): string {
@@ -982,6 +986,9 @@ export function streamingToolCallPreview(content: string): {
   // Native calls arrive as complete JSON envelopes. Exclude only parsed
   // blocks, so a later incomplete JSON or XML request remains visible here.
   content = withoutCompleteOpenAICalls(content);
+  // A finished call in DeepSeek's markup is a call; one still being written
+  // is held back like any other unfinished call (CALL_START)
+  content = normaliseDsml(content);
 
   const CLOSE = "</tool_call>";
   const lastClose = content.lastIndexOf(CLOSE);
@@ -1003,14 +1010,18 @@ export function streamingToolCallPreview(content: string): {
   const unfinished = content.slice(start);
   const name =
     unfinished.match(/<(?:tool|name)>([^<]+)<\//)?.[1]?.trim() ??
+    unfinished.match(/invoke\s+name\s*=\s*"([^"]+)"/)?.[1] ??
     unfinished.match(/"name"\s*:\s*"([^"]+)"/)?.[1] ??
     "";
 
   // A value holding markup is not a path: the Team panel once read
   // "Reading tool> <arguments>{…" (2026-10-24)
-  const target = unfinished
-    .match(/"(?:path|source)"\s*:\s*"([^"]+)"/)?.[1]
-    ?.match(/^[^<>{}]+$/)?.[0];
+  const target = (
+    unfinished.match(/"(?:path|source)"\s*:\s*"([^"]+)"/)?.[1] ??
+    unfinished.match(
+      /parameter\s+name\s*=\s*"(?:path|source)"[^>]*>([^<]+)/
+    )?.[1]
+  )?.match(/^[^<>{}]+$/)?.[0];
 
   return {
     text: stripToolCallMarkup(content.slice(0, start))
@@ -1044,7 +1055,9 @@ export function cutOffToolCall(content: string): ToolCallRequest | null {
   const CLOSE = "</tool_call>";
   const lastClose = content.lastIndexOf(CLOSE);
   const tail = content.slice(lastClose === -1 ? 0 : lastClose + CLOSE.length);
-  if (!/<arguments>|"arguments"\s*:/.test(tail)) return null;
+  if (!/<arguments>|"arguments"\s*:|parameter\s+name\s*=/.test(tail)) {
+    return null;
+  }
 
   const tool = pendingTool || "tool";
   // Bonsai 27B writing a checklist went "- [ ] Trash bags" until the loop

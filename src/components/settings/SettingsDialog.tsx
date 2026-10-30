@@ -10,6 +10,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ModelSettings } from "./ModelSettings";
 import { SystemSettings } from "./SystemSettings";
 import { PrivacySettings } from "./PrivacySettings";
+import { ProvidersSettings } from "./ProvidersSettings";
 import { WebSearchSettings } from "./WebSearchSettings";
 import { MCPSettings } from "./MCPSettings";
 import { HelpSettings } from "./HelpSettings";
@@ -74,6 +75,10 @@ export function SettingsDialog({
                   />
                 </div>
               </div>
+            </div>
+            <div className="space-y-3 pt-3 border-t">
+              <h3 className="text-sm font-semibold">Providers</h3>
+              <ProvidersSettings />
             </div>
             <div className="space-y-3 pt-3 border-t">
               <h3 className="text-sm font-semibold">Privacy</h3>

@@ -4,7 +4,7 @@
  * failed the check is off until the user accepts a caution; the rest are on.
  */
 
-import { usesLlamaServer, type ModelOption } from "@/config/models";
+import { canHostAgents, type ModelOption } from "@/config/models";
 
 export type TeamAvailability =
   /** Allowed: "good", or "untested" with nothing against it */
@@ -19,11 +19,11 @@ type Candidate = Pick<ModelOption, "runtime" | "team"> | undefined | null;
 export function teamAvailability(model: Candidate): TeamAvailability {
   // No model chosen yet: no opinion
   if (!model) return { state: "available", untested: false };
-  if (!usesLlamaServer(model.runtime)) {
+  if (!canHostAgents(model.runtime)) {
     return {
       state: "unavailable",
       reason:
-        "A team needs a model that runs on SHIELD's llama-server (such as Bonsai or Qwen3 Coder); this one does not.",
+        "A team needs a model that runs on SHIELD's llama-server (such as Bonsai or Qwen3 Coder) or a hosted model; this one does not.",
     };
   }
   const known = model.team;

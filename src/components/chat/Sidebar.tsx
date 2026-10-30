@@ -312,6 +312,7 @@ export function Sidebar({
               if (!viewKind(activeView)) setActiveView(sessionKind);
             }}
             onOpenLibrary={() => setActiveView("library")}
+            onOpenSettings={onOpenSettings}
           />
         </div>
       </div>

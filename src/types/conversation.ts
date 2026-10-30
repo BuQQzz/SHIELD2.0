@@ -16,6 +16,8 @@ export interface Message {
     outputTokens: number;
     tokensPerSecond: number;
     durationMs: number;
+    /** For a hosted model: who answered, and whether it reported zero retention */
+    servedBy?: { provider?: string; zdr?: boolean };
   };
   /**
    * The model's history was too full before this reply, and its oldest

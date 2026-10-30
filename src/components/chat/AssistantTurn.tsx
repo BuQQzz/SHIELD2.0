@@ -13,6 +13,7 @@ import { memo, useState, type ReactNode } from "react";
 import { motion } from "framer-motion";
 import { Bot, Check, Copy, RefreshCw, User, Zap } from "lucide-react";
 import { formatTokens } from "@/lib/format";
+import { ServedBadge } from "./ServedBadge";
 import { stripToolCallMarkup } from "@/handlers/mcpToolHandler";
 import { ChatMessage } from "./ChatMessage";
 import { ReadingIndicator } from "./ReadingIndicator";
@@ -244,6 +245,7 @@ export const AssistantTurn = memo(function AssistantTurn({
             className="flex items-center justify-end gap-1 text-[11px] text-muted-foreground/60"
             title={`${stats.outputTokens} tokens in ${(stats.durationMs / 1000).toFixed(1)}s across this reply, ${stats.tokensPerSecond.toFixed(1)} tokens per second`}
           >
+            {stats.servedBy && <ServedBadge servedBy={stats.servedBy} />}
             <Zap className="h-3 w-3" />
             <span>
               {stats.tokensPerSecond.toFixed(1)} tok/s ·{" "}

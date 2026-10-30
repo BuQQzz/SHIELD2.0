@@ -57,6 +57,11 @@ export interface GenerationStats {
   tokensPerSecond: number;
   /** Whole reply, including prompt processing before the first token */
   durationMs: number;
+  /**
+   * For a hosted model: which provider answered and whether it reported zero
+   * data retention. Absent for a model that runs on this machine.
+   */
+  servedBy?: { provider?: string; zdr?: boolean };
 }
 
 /** How full the model's context window is */

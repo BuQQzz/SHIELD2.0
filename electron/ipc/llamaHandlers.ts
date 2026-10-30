@@ -52,6 +52,7 @@ export function registerLlamaHandlers(
         context: await llamaService.getContextUsage(),
         summary: llamaService.getLastSummary(),
         capsule: llamaService.getLastCapsule(),
+        served: llamaService.getLastServedBy(),
       };
     } catch (error) {
       return {
@@ -63,9 +64,12 @@ export function registerLlamaHandlers(
 
   // Send a streaming chat message
   ipcMain.handle("llama:chatStreaming", async (_event, message, options) => {
+    // To a hosted model the message is the user's, on its way out: the log
+    // keeps its size only
     console.log(
-      "[IPC] chatStreaming called with message:",
-      message.substring(0, 50)
+      llamaService.isHosted()
+        ? `[IPC] chatStreaming called (${message.length} characters)`
+        : `[IPC] chatStreaming called with message: ${message.substring(0, 50)}`
     );
     console.log("[IPC] Options:", JSON.stringify(options));
 
@@ -106,6 +110,7 @@ export function registerLlamaHandlers(
         context: await llamaService.getContextUsage(),
         summary: llamaService.getLastSummary(),
         capsule: llamaService.getLastCapsule(),
+        served: llamaService.getLastServedBy(),
       };
     } catch (error) {
       console.error("[IPC] chatStreaming error:", error);

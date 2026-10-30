@@ -412,21 +412,45 @@ export interface TurnStats {
   outputTokens: number;
   tokensPerSecond: number;
   durationMs: number;
+  /**
+   * For a hosted model: who answered and whether it reported zero retention,
+   * over every generation in the reply. Zero retention only if each one was.
+   */
+  servedBy?: { provider?: string; zdr?: boolean };
 }
 
 /** One line for the whole reply: every generation in it, summed */
 export function turnStats(messages: Message[]): TurnStats | null {
   let outputTokens = 0;
   let durationMs = 0;
+  let servedBy: TurnStats["servedBy"];
   for (const m of messages) {
     if (!m.stats || m.stats.outputTokens <= 0) continue;
     outputTokens += m.stats.outputTokens;
     durationMs += m.stats.durationMs;
+    const served = m.stats.servedBy;
+    if (served) {
+      servedBy = servedBy
+        ? {
+            provider:
+              servedBy.provider === served.provider
+                ? served.provider
+                : "several providers",
+            zdr:
+              servedBy.zdr === true && served.zdr === true
+                ? true
+                : servedBy.zdr === false || served.zdr === false
+                  ? false
+                  : undefined,
+          }
+        : { ...served };
+    }
   }
   if (outputTokens === 0 || durationMs <= 0) return null;
   return {
     outputTokens,
     durationMs,
     tokensPerSecond: outputTokens / (durationMs / 1000),
+    ...(servedBy ? { servedBy } : {}),
   };
 }

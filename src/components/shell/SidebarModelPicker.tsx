@@ -1,4 +1,4 @@
-import { Check, ChevronsUpDown, Library } from "lucide-react";
+import { Check, ChevronsUpDown, Cloud, Library } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -8,9 +8,11 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { isRuntimeAvailable, type ModelOption } from "@/config/models";
+import { useCloudStore } from "@/stores/cloud-store";
 import { cn } from "@/lib/utils";
 
 interface SidebarModelPickerProps {
+  /** Installed models, and hosted ones (runtime "remote") */
   models: ModelOption[];
   currentModelId?: string;
   isLoading: boolean;
@@ -18,6 +20,7 @@ interface SidebarModelPickerProps {
   collapsed: boolean;
   onSelect: (model: ModelOption) => void;
   onOpenLibrary: () => void;
+  onOpenSettings?: () => void;
 }
 
 /** Status light: lit when a model is ready, pulsing while one loads */
@@ -48,19 +51,39 @@ export function SidebarModelPicker({
   collapsed,
   onSelect,
   onOpenLibrary,
+  onOpenSettings,
 }: SidebarModelPickerProps) {
+  const providers = useCloudStore((state) => state.providers);
+  const fetched = useCloudStore((state) => state.fetched);
+  const fetching = useCloudStore((state) => state.fetching);
+  const fetchModels = useCloudStore((state) => state.fetchModels);
+  const loadProviders = useCloudStore((state) => state.loadProviders);
+
+  const installed = models.filter((m) => m.runtime !== "remote");
+  const cloud = models.filter((m) => m.runtime === "remote");
+  const providersWithKey = providers.filter((p) => p.hasKey);
+  const fetchErrors = providersWithKey.filter((p) => fetched[p.id]?.error);
+
   const current = models.find((m) => m.id === currentModelId);
   const state = isLoading ? "loading" : isModelLoaded ? "ready" : "idle";
   const status = isLoading
     ? "Loading…"
     : isModelLoaded && current
       ? current.size
-      : models.length === 0
+      : installed.length === 0 && cloud.length === 0
         ? "No models installed"
         : "No model loaded";
 
   return (
-    <DropdownMenu>
+    <DropdownMenu
+      onOpenChange={(open) => {
+        // The provider's models are asked for now, not at startup: the user
+        // reached for them
+        if (open) {
+          void loadProviders().then(() => fetchModels());
+        }
+      }}
+    >
       <DropdownMenuTrigger asChild>
         <button
           disabled={isLoading}
@@ -75,8 +98,13 @@ export function SidebarModelPicker({
           {!collapsed && (
             <>
               <span className="min-w-0 flex-1">
-                <span className="block truncate text-sm font-medium">
-                  {current?.displayName ?? "Choose a model"}
+                <span className="flex items-center gap-1.5 truncate text-sm font-medium">
+                  {current?.runtime === "remote" && (
+                    <Cloud className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                  )}
+                  <span className="truncate">
+                    {current?.displayName ?? "Choose a model"}
+                  </span>
                 </span>
                 <span className="block truncate font-instrument text-[11px] text-muted-foreground">
                   {status}
@@ -96,12 +124,12 @@ export function SidebarModelPicker({
         <DropdownMenuLabel className="text-xs font-normal text-muted-foreground">
           Installed models
         </DropdownMenuLabel>
-        {models.length === 0 && (
+        {installed.length === 0 && (
           <p className="px-2 pb-2 text-xs text-muted-foreground">
             Nothing installed yet. Get one from the library.
           </p>
         )}
-        {models.map((model) => {
+        {installed.map((model) => {
           const runnable = isRuntimeAvailable(model);
           return (
             <DropdownMenuItem
@@ -128,11 +156,69 @@ export function SidebarModelPicker({
             </DropdownMenuItem>
           );
         })}
+
+        {(providersWithKey.length > 0 || cloud.length > 0) && (
+          <>
+            <DropdownMenuSeparator />
+            <DropdownMenuLabel className="flex items-center gap-1.5 text-xs font-normal text-muted-foreground">
+              <Cloud className="h-3 w-3" />
+              Cloud: what you send leaves this device
+            </DropdownMenuLabel>
+            {cloud.length === 0 && (
+              <p className="px-2 pb-2 text-xs text-muted-foreground">
+                {fetching ? "Asking your providers…" : "No models listed."}
+              </p>
+            )}
+            {cloud.map((model) => {
+              const blocked = model.cloud?.blocked;
+              return (
+                <DropdownMenuItem
+                  key={model.id}
+                  disabled={!!blocked}
+                  onClick={() => onSelect(model)}
+                  className="flex items-center gap-2 py-2"
+                >
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate text-sm">
+                      {model.displayName}
+                    </span>
+                    <span
+                      className="block truncate text-[11px] text-muted-foreground"
+                      title={blocked}
+                    >
+                      {model.size}
+                    </span>
+                  </span>
+                  {model.id === currentModelId && (
+                    <Check className="h-4 w-4 shrink-0 text-signal" />
+                  )}
+                </DropdownMenuItem>
+              );
+            })}
+            {fetchErrors.map((provider) => (
+              <p
+                key={provider.id}
+                className="px-2 pb-2 text-xs text-destructive"
+              >
+                {fetched[provider.id]?.error}
+              </p>
+            ))}
+          </>
+        )}
+
         <DropdownMenuSeparator />
         <DropdownMenuItem onClick={onOpenLibrary} className="gap-2 py-2">
           <Library className="h-4 w-4" />
           Open Model Library
         </DropdownMenuItem>
+        {onOpenSettings && (
+          <DropdownMenuItem onClick={onOpenSettings} className="gap-2 py-2">
+            <Cloud className="h-4 w-4" />
+            {providers.length === 0
+              ? "Add a cloud provider…"
+              : "Manage cloud providers…"}
+          </DropdownMenuItem>
+        )}
       </DropdownMenuContent>
     </DropdownMenu>
   );

@@ -610,6 +610,11 @@ export function buildSystemPrompt(config: SystemPromptConfig): BuiltPrompt {
 export function detectModelFamily(modelName: string): ModelFamily {
   const name = modelName.toLowerCase();
 
+  // A hosted model is reached through a chat API that shapes its prompt: the
+  // local families' templates and tool markers do not apply, whatever the
+  // model is called
+  if (name.startsWith("remote:")) return "generic";
+
   if (name.includes("llama")) return "llama";
   if (name.includes("qwen")) return "qwen";
   if (name.includes("mistral") || name.includes("mixtral")) return "mistral";
@@ -622,6 +627,7 @@ export function detectModelFamily(modelName: string): ModelFamily {
 
 /** Native tool transport is supported only for the Gemma 4 model family. */
 export function usesNativeToolCalling(modelName: string): boolean {
+  if (modelName.toLowerCase().startsWith("remote:")) return false;
   return (
     /(?:^|[^a-z0-9])gemma[-_ ]?4(?=$|[^a-z0-9])/i.test(modelName) ||
     MODEL_CATALOG.some(

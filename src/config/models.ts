@@ -63,9 +63,12 @@ export type ModelRole =
  * - prism-llama-server: PrismML's llama.cpp fork, for the Bonsai low-bit
  *   formats (Q1_0, PQ2_0). SHIELD runs it like llama-server; the fork is a
  *   superset of upstream, so `SHIELD_LLAMA_SERVER` may point at either.
+ * - remote: a hosted model reached through an OpenAI-compatible API with the
+ *   user's own key (Settings > Providers). Not in the library: its models
+ *   come from the provider, and what is said to one leaves this device.
  */
 export type ModelRuntime =
-  "node-llama-cpp" | "llama-server" | "prism-llama-server";
+  "node-llama-cpp" | "llama-server" | "prism-llama-server" | "remote";
 
 /** One downloadable GGUF file (one quantization) of a variant */
 export interface ModelFile {
@@ -190,6 +193,20 @@ export interface ModelOption {
   chatTemplate?: string;
   runtime: ModelRuntime;
   team?: ModelTeamFit;
+  /** Set for a hosted model: where it runs, and what that provider keeps */
+  cloud?: CloudModelInfo;
+}
+
+/** What the pickers show about a hosted model */
+export interface CloudModelInfo {
+  providerId: string;
+  providerName: string;
+  /** The provider holds requests to zero data retention (the user's choice) */
+  zdrRequired: boolean;
+  /** Every route for this model keeps no copy of a request */
+  zdr?: boolean;
+  /** Why this model cannot be used under the provider's settings */
+  blocked?: string;
 }
 
 /** The host's GPU memory and system RAM, in GB. null when unknown. */
@@ -632,12 +649,24 @@ export function getModelById(id: string): ModelMetadata | undefined {
 
 /** True for variants SHIELD can run today */
 export function isRuntimeAvailable(model: Pick<ModelMetadata, "runtime">) {
-  return model.runtime === "node-llama-cpp" || usesLlamaServer(model.runtime);
+  return (
+    model.runtime === "node-llama-cpp" ||
+    model.runtime === "remote" ||
+    usesLlamaServer(model.runtime)
+  );
 }
 
 /** Whether a runtime is served by a SHIELD-managed llama-server process */
 export function usesLlamaServer(runtime: ModelRuntime | undefined): boolean {
   return runtime === "llama-server" || runtime === "prism-llama-server";
+}
+
+/**
+ * Whether a runtime can give each sub-agent a chat of its own (agent teams):
+ * a llama-server, or a hosted model. The in-process engine has one session.
+ */
+export function canHostAgents(runtime: ModelRuntime | undefined): boolean {
+  return usesLlamaServer(runtime) || runtime === "remote";
 }
 
 // ---------------------------------------------------------------------------

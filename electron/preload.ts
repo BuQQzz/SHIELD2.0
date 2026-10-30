@@ -31,6 +31,7 @@ import type {
   ContextPlan,
   ContextUsage,
   MemoryCheck,
+  ProvidersAPI,
 } from "../src/types/electron";
 import type { RecommendedSampling } from "../src/services/modelSampling";
 
@@ -261,6 +262,15 @@ const llamaAPI: LlamaAPI = {
 };
 
 contextBridge.exposeInMainWorld("llama", llamaAPI);
+
+const providersAPI: ProvidersAPI = {
+  list: () => ipcRenderer.invoke("providers:list"),
+  save: (input, apiKey) => ipcRenderer.invoke("providers:save", input, apiKey),
+  remove: (id) => ipcRenderer.invoke("providers:remove", id),
+  models: (id) => ipcRenderer.invoke("providers:models", id),
+};
+
+contextBridge.exposeInMainWorld("providers", providersAPI);
 
 const conversationAPI: ConversationAPI = {
   save: (conversation) =>
