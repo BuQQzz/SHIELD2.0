@@ -9,7 +9,10 @@
  * `<｜｜DSML｜｜ parameter name="path" string="true">` per argument. The call
  * never ran and the markup sat in the chat as text (deepseek-v4.1-flash-1017
  * through Experiential, 2026-10-26). It also mixes the two: a SHIELD call
- * whose `</tool>` came out as a closing DSML tag.
+ * whose `</tool>` came out as a closing DSML tag. And it sometimes puts the
+ * server in the invoke's name with the tool in a value-less parameter -
+ * `<invoke name="filesystem">` then `<parameter name="list_directory_with_sizes">`
+ * - before the real arguments (2026-10-29).
  *
  * `normaliseDsml` rewrites both into the call SHIELD already reads, so
  * running, showing and previewing a call need nothing else. The bars are the
@@ -32,6 +35,16 @@ const PARAMETER = new RegExp(
 const ANY_TAG = new RegExp(`${TAG_START}[A-Za-z_]*[^>]*>`, "g");
 /** A DSML closing tag where a SHIELD one belongs: `<tool>name</｜｜DSML｜｜ x>` */
 const STRAY_CLOSER = `<\\s*\\/\\s*${BARS}\\s*DSML\\s*${BARS}\\s*[A-Za-z_]*\\s*>`;
+/**
+ * The tool given as a parameter with no value, followed by the first real
+ * argument: `<parameter name="list_directory_with_sizes">` then
+ * `<parameter name="path" ...>`. Some replies put the server in the invoke's
+ * name and the tool here.
+ */
+const BARE_TOOL = new RegExp(
+  `^\\s*<\\s*${BARS}\\s*DSML\\s*${BARS}\\s*parameter\\s+name\\s*=\\s*"([^"]+)"[^>]*>\\s*` +
+    `(?=<\\s*${BARS}\\s*DSML\\s*${BARS}\\s*parameter\\s+name\\s*=)`
+);
 const CORRUPT_NAME = new RegExp(
   `(<(server|tool)>[^<\\n]*?)\\s*${STRAY_CLOSER}`,
   "g"
@@ -67,16 +80,29 @@ function argumentValue(attributes: string, raw: string): unknown {
   return raw;
 }
 
+/**
+ * The server and tool a call's bare name names: the file tools are the
+ * default, the rest live on SHIELD's own servers, and a dotted
+ * "agents.delegate" carries its own server.
+ */
+export function splitToolCallName(name: string): {
+  server: string;
+  tool: string;
+} {
+  const dot = name.indexOf(".");
+  if (dot > 0) {
+    return { server: name.slice(0, dot), tool: name.slice(dot + 1) };
+  }
+  return { server: SERVER_OF[name] ?? "filesystem", tool: name };
+}
+
 function toToolCall(name: string, body: string): string {
   const args: Record<string, unknown> = {};
   for (const match of body.matchAll(PARAMETER)) {
     const [, key, attributes = "", raw = ""] = match;
     if (key) args[key] = argumentValue(attributes, raw);
   }
-  const dot = name.indexOf(".");
-  const server =
-    dot > 0 ? name.slice(0, dot) : (SERVER_OF[name] ?? "filesystem");
-  const tool = dot > 0 ? name.slice(dot + 1) : name;
+  const { server, tool } = splitToolCallName(name);
   return (
     `<tool_call>\n<server>${server}</server>\n<tool>${tool}</tool>\n` +
     `<arguments>${JSON.stringify(args)}</arguments>\n</tool_call>`
@@ -100,9 +126,15 @@ export function normaliseDsml(content: string): string {
       .replace(CORRUPT_NAME, "$1</$2>")
       .replace(CORRUPT_ARGUMENTS, "$1</arguments>$2")
       // A whole call in DeepSeek's markup
-      .replace(INVOKE, (_whole, name: string, body: string) =>
-        toToolCall(name, body)
-      )
+      .replace(INVOKE, (_whole, name: string, body: string) => {
+        // The server in the invoke's name and the tool in a value-less
+        // parameter: read it as <server>.<tool> (deepseek-v4.1-flash, 10-29)
+        const bare = body.match(BARE_TOOL);
+        if (bare?.[1]) {
+          return toToolCall(`${name}.${bare[1]}`, body.slice(bare[0].length));
+        }
+        return toToolCall(name, body);
+      })
       // The wrapper around the calls
       .replace(new RegExp(`${TAG_START}(?:function_)?calls\\s*>`, "gi"), "")
   );

@@ -703,3 +703,78 @@ describe("Qwen3-Coder call format (Bonsai 2 27B, 2026-10-29)", () => {
     );
   });
 });
+
+// A hosted deepseek-v4.1-flash-1017 session (Windows, 2026-10-29) wrote four
+// call shapes other than SHIELD's. Each was either run as the wrong tool,
+// silently dropped (its whole JSON body shown to the user as text), or sent
+// back as unreadable while its arguments were thrown away.
+describe("deepseek-v4.1-flash call shapes (2026-10-29)", () => {
+  it("reads the tool from an attribute on the opener, with no <tool> element", () => {
+    const text =
+      '<tool_call name="write_file">\n<arguments>{"path":"C:\\\\p\\\\LEADS.md","content":"# Leads\\n\\n- a"}</arguments>\n</tool_call>';
+    const calls = extractToolCalls(text);
+    expect(calls).toHaveLength(1);
+    expect(calls[0]).toMatchObject({
+      serverName: "filesystem",
+      tool: "write_file",
+    });
+    expect(calls[0]?.arguments.content).toBe("# Leads\n\n- a");
+    // And nothing of it is left on screen
+    expect(stripToolCallMarkup(`Writing it.\n${text}`)).toBe("Writing it.");
+  });
+
+  it("maps an attribute name onto its own server, e.g. run_command", () => {
+    const [call] = extractToolCalls(
+      '<tool_call name="run_command">\n<arguments>{"command":"ls"}</arguments>\n</tool_call>'
+    );
+    expect(call).toMatchObject({ serverName: "terminal", tool: "run_command" });
+  });
+
+  it("reads </arguments> written where </tool> belongs", () => {
+    const text =
+      '<tool_call>\n<server>terminal</server>\n<tool>run_command</arguments>\n<arguments>{"command":"ls"}</arguments>\n</tool_call>';
+    const calls = extractToolCalls(text);
+    expect(calls).toHaveLength(1);
+    expect(calls[0]?.arguments).toEqual({ command: "ls" });
+  });
+
+  it("reads </tool_call> written where </tool> belongs", () => {
+    const text =
+      '<tool_call>\n<server>terminal</server>\n<tool>run_command</tool_call>\n<arguments>{"command":"ls"}</arguments>\n</tool_call>';
+    const calls = extractToolCalls(text);
+    expect(calls).toHaveLength(1);
+    expect(calls[0]?.arguments).toEqual({ command: "ls" });
+  });
+
+  it("reads a call whose <tool> tags were left out entirely", () => {
+    const text =
+      '<tool_call>\n<server>terminal</server>\n<run_command</tool_call>\n<arguments>{"command":"ls"}</arguments>\n</tool_call>';
+    const [call] = extractToolCalls(text);
+    expect(call).toMatchObject({ serverName: "terminal", tool: "run_command" });
+    expect(call?.arguments).toEqual({ command: "ls" });
+  });
+
+  it("still answers a bare name with no arguments back as unreadable", () => {
+    const text =
+      "<tool_call>\n<server>terminal</server>\n<run_command</tool_call>\n</tool_call>";
+    expect(extractToolCalls(text)).toEqual([]);
+    expect(unreadableToolCall(text)?.argumentsError).toContain("no <tool>");
+  });
+
+  it("does not show the extra closer some replies end every call with", () => {
+    const text =
+      'Now.\n\n<tool_call>\n<server>filesystem</server>\n<tool>read_file</tool>\n<arguments>{"path":"/a"}</arguments>\n</tool_call>\n</tool_call>';
+    expect(stripToolCallMarkup(text)).toBe("Now.");
+  });
+
+  it("reads two calls of different wrongly-closed shapes in one reply", () => {
+    const text = [
+      "Retrying.",
+      '<tool_call>\n<server>terminal</server>\n<tool>run_command</tool_call>\n<arguments>{"command":"a"}</arguments>\n</tool_call>',
+      '<tool_call>\n<server>terminal</server>\n<run_command</tool_call>\n<arguments>{"command":"b"}</arguments>\n</tool_call>\n</tool_call>',
+    ].join("\n");
+    const calls = extractToolCalls(text);
+    expect(calls.map((c) => c.arguments.command)).toEqual(["a", "b"]);
+    expect(stripToolCallMarkup(text)).toBe("Retrying.");
+  });
+});

@@ -35,6 +35,23 @@ const UPDATE_PLAN = `<tool_call>
 <arguments>{"plan": [{"step": "Scaffold Next.js", "status": "in_progress"}, {"step": "Verify", "status": "pending"}]}</arguments>
 </tool_call>`;
 
+/**
+ * Message 2: the server in the invoke's name and the tool in a value-less
+ * parameter - `<invoke name="filesystem">` then
+ * `<parameter name="list_directory_with_sizes">` - before the real arguments.
+ * SHIELD read the server as the tool and ran filesystem.filesystem.
+ */
+const TWO_PART = `${open("calls>")}
+${open('invoke name="filesystem">')}
+${open('parameter name="list_directory_with_sizes">')}
+${open('parameter name="path" string="true">')}C:\\Users\\me\\Desktop\\New folder${close("parameter")}
+${close("invoke")}
+${open('invoke name="memory">')}
+${open('parameter name="search_memory">')}
+${open('parameter name="query" string="true">')}chromecast mod${close("parameter")}
+${close("invoke")}
+${close("calls")}`;
+
 describe("DeepSeek's tool-call markup", () => {
   it("is recognised only when it is there", () => {
     expect(hasDsml("plain text with <tool_call>")).toBe(false);
@@ -99,6 +116,18 @@ ${close("calls")}`
     expect(call?.arguments.plan).toHaveLength(2);
     // It was an "unreadable call" before; now there is nothing to complain of
     expect(unreadableToolCall(UPDATE_PLAN)).toBeNull();
+  });
+
+  it("reads the server from invoke and the tool from a value-less parameter", () => {
+    const calls = extractToolCalls(TWO_PART);
+    expect(calls.map((c) => [c.serverName, c.tool])).toEqual([
+      ["filesystem", "list_directory_with_sizes"],
+      ["memory", "search_memory"],
+    ]);
+    expect(calls[0]?.arguments).toEqual({
+      path: "C:\\Users\\me\\Desktop\\New folder",
+    });
+    expect(calls[1]?.arguments).toEqual({ query: "chromecast mod" });
   });
 
   it("does not show the markup to the user", () => {
