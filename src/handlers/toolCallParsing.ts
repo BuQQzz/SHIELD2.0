@@ -4,8 +4,8 @@
  * Parses OpenAI-style and XML-style tool calls into a normalized request shape.
  */
 
-import { normaliseDsml, withoutDsmlTags } from "./dsml";
 import { stoppedForLooping } from "../utils/loopGuard";
+import { normaliseDsml, withoutDsmlTags } from "./dsml";
 
 export interface ToolCallRequest {
   serverName: string;

@@ -29,6 +29,13 @@ import {
 } from "./llamaServer/sse.js";
 import { RepetitionWatch } from "./llamaServer/repetition.js";
 import {
+  NativeCallWriter,
+  openAiTools,
+  type OpenAiTool,
+  type ToolCallDelta,
+} from "./llamaServer/nativeCalls.js";
+import type { ToolDefinition } from "../types/prompts.js";
+import {
   adaptRequestBody,
   checkPosture,
   completionsUrl,
@@ -37,13 +44,6 @@ import {
   type GatewayPosture,
   type RemoteEndpoint,
 } from "./remote/remoteEndpoint.js";
-import {
-  NativeCallWriter,
-  openAiTools,
-  type OpenAiTool,
-  type ToolCallDelta,
-} from "./llamaServer/nativeCalls.js";
-import type { ToolDefinition } from "../types/prompts.js";
 import {
   NUDGE_NOTE,
   type RequestStatus,
@@ -760,7 +760,10 @@ export class LlamaServerProvider {
         timings_per_token: true,
         cache_prompt: true,
         temperature: options.temperature ?? 0.7,
-        max_tokens: replyTokenLimit(options.maxTokens),
+        // The local minimum only: a hosted model is billed per token
+        max_tokens: this.endpoint
+          ? (options.maxTokens ?? 512)
+          : replyTokenLimit(options.maxTokens),
         top_p: options.topP ?? 0.9,
         top_k: options.topK ?? 40,
         repeat_penalty: options.repeatPenalty ?? 1.1,

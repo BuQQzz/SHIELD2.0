@@ -627,7 +627,6 @@ export function detectModelFamily(modelName: string): ModelFamily {
 
 /** Native tool transport is supported only for the Gemma 4 model family. */
 export function usesNativeToolCalling(modelName: string): boolean {
-  // A hosted model is reached through a chat API that shapes its prompt
   if (modelName.toLowerCase().startsWith("remote:")) return false;
   return (
     /(?:^|[^a-z0-9])gemma[-_ ]?4(?=$|[^a-z0-9])/i.test(modelName) ||

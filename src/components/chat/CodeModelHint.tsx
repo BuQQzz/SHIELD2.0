@@ -25,9 +25,9 @@ export function CodeModelHint({
   onLoad,
 }: CodeModelHintProps) {
   if (!currentModelId || isCodingModel(currentModelId)) return null;
-  // Never suggest a hosted model: loading one is a choice to send things away
+  // The default first: it is the one picked for Code (models.ts). Never a
+  // hosted model: loading one is a choice to send things away
   const local = models.filter((model) => model.runtime !== "remote");
-  // The default first: it is the one picked for Code (models.ts)
   const coder =
     local.find((model) => model.id === DEFAULT_MODEL_ID) ??
     local.find((model) => isCodingModel(model.id));
