@@ -5,7 +5,7 @@
  */
 
 import { stoppedForLooping } from "../utils/loopGuard";
-import { normaliseDsml, withoutDsmlTags } from "./dsml";
+import { normaliseDsml, splitToolCallName, withoutDsmlTags } from "./dsml";
 
 export interface ToolCallRequest {
   serverName: string;
@@ -657,13 +657,56 @@ function closeUnfinishedCall(text: string): string {
  */
 const TOOL_FOR_TOOL_CALL = /(<\/arguments>\s*)<\/tool>(?!_)/g;
 
+/**
+ * Rewrite the call markup a model writes in its own dialect into the one
+ * SHIELD reads, so running, showing and previewing a call all see a single
+ * shape. On top of DeepSeek's DSML (dsml.ts), a hosted model wrote these
+ * variants in one session (deepseek-v4.1-flash-1017, 2026-10-29):
+ *
+ *   <tool_call name="write_file">      - the tool as an attribute on the
+ *     <arguments>{...}                   opener, with no <server>/<tool>
+ *                                        elements. The call parsed to
+ *                                        nothing, so its whole JSON body was
+ *                                        shown to the user as text.
+ *   <tool>run_command</arguments>      - </arguments> (or </tool_call>)
+ *     <arguments>{...}</arguments>       written where </tool> belongs. The
+ *                                        call closed before its arguments,
+ *                                        which were then discarded.
+ */
+export function normaliseCallMarkup(content: string): string {
+  return (
+    normaliseDsml(content)
+      .replace(/(<tool>[^<\n]+)<\/arguments>(\s*<arguments>)/g, "$1</tool>$2")
+      .replace(/(<tool>[^<\n]+)<\/tool_call>(\s*<arguments>)/g, "$1</tool>$2")
+      // The <tool> tags left out altogether, leaving the bare name before the
+      // closer: `<server>terminal</server>\n<run_command</tool_call>` then the
+      // arguments. The name is read as the tool.
+      .replace(
+        /(<tool_call>\s*(?:<server>[^<]*<\/server>\s*)?)<([A-Za-z_][\w.-]*)<\/tool_call>(\s*<arguments>)/g,
+        "$1<tool>$2</tool>$3"
+      )
+      .replace(
+        /<tool_call\s+name\s*=\s*"([^"]+)"\s*>/g,
+        (_whole, name: string) => {
+          const { server, tool } = splitToolCallName(name.trim());
+          return tool
+            ? `<tool_call>\n<server>${server}</server>\n<tool>${tool}</tool>\n`
+            : "<tool_call>";
+        }
+      )
+  );
+}
+
 export function repairToolCallMarkup(content: string): string {
   const CLOSE = "</tool_call>";
   const OPEN = "<tool_call>";
 
   let output = "";
-  // DeepSeek's own markup, read as the call SHIELD already knows (dsml.ts)
-  let rest = normaliseDsml(content).replace(TOOL_FOR_TOOL_CALL, `$1${CLOSE}`);
+  // The model's own dialects first, so one canonical shape is repaired
+  let rest = normaliseCallMarkup(content).replace(
+    TOOL_FOR_TOOL_CALL,
+    `$1${CLOSE}`
+  );
 
   for (;;) {
     const closeIndex = rest.indexOf(CLOSE);
@@ -930,13 +973,13 @@ export function stripToolCallMarkup(content: string): string {
     return UNSUPPORTED_NATIVE_TOOL_CALL_MESSAGE;
   }
   return (
-    // DeepSeek's markup becomes a call first, and whatever DSML tag is left
+    // Each model's markup becomes a call first, and whatever tag is left
     // (a call that never finished) is not shown either
-    withoutDsmlTags(normaliseDsml(content))
-      // Well-formed calls
-      .replace(/<tool_call>[\s\S]*?<\/tool_call>/g, "")
+    withoutDsmlTags(normaliseCallMarkup(content))
+      // Well-formed calls, with or without attributes on the opener
+      .replace(/<tool_call[^>]*>[\s\S]*?<\/tool_call>/g, "")
       // Opener with no closer (truncated generation)
-      .replace(/<tool_call>[\s\S]*$/g, "")
+      .replace(/<tool_call[^>]*>[\s\S]*$/g, "")
       // Body and closer with no opener
       .replace(/<server>[\s\S]*?<\/tool_call>/g, "")
       // Body with neither tag - the parser runs these (wrapBareCallBodies)
@@ -945,6 +988,9 @@ export function stripToolCallMarkup(content: string): string {
       .replace(/```(?:json)?\s*\{\s*"tool_calls"[\s\S]*?```/g, "")
       // A code fence the call was written in, now empty
       .replace(/```[a-z]*\s*```/gi, "")
+      // A stray closer the model appends after its calls (some write one
+      // more </tool_call> at the end of every reply)
+      .replace(/\s*<\/?tool_call[^>]*>/g, "")
       .replace(/\n{3,}/g, "\n\n")
       .trim()
   );
@@ -986,9 +1032,9 @@ export function streamingToolCallPreview(content: string): {
   // Native calls arrive as complete JSON envelopes. Exclude only parsed
   // blocks, so a later incomplete JSON or XML request remains visible here.
   content = withoutCompleteOpenAICalls(content);
-  // A finished call in DeepSeek's markup is a call; one still being written
-  // is held back like any other unfinished call (CALL_START)
-  content = normaliseDsml(content);
+  // A finished call in a model's own markup is a call; one still being
+  // written is held back like any other unfinished call (CALL_START)
+  content = normaliseCallMarkup(content);
 
   const CLOSE = "</tool_call>";
   const lastClose = content.lastIndexOf(CLOSE);
@@ -1011,6 +1057,7 @@ export function streamingToolCallPreview(content: string): {
   const name =
     unfinished.match(/<(?:tool|name)>([^<]+)<\//)?.[1]?.trim() ??
     unfinished.match(/invoke\s+name\s*=\s*"([^"]+)"/)?.[1] ??
+    unfinished.match(/<tool_call\s+name\s*=\s*"([^"]+)"/)?.[1] ??
     unfinished.match(/"name"\s*:\s*"([^"]+)"/)?.[1] ??
     "";
 
