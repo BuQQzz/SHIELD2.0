@@ -5,7 +5,7 @@
  * terminal tool; tool calls are approved automatically (Auto mode).
  *
  *   SHIELD_LLAMA_SERVER=... npx tsx scripts/bench/agent-team.ts \
- *     --models-dir ~/models --model bonsai-27b [--context 32768] \
+ *     --models-dir ~/models --model bonsai-2-27b [--context 32768] \
  *     [--scenario fix|build] [--checkpoint 0.7] [--max-tokens 4096]
  *
  * `--checkpoint 0.15` cuts agents off early on purpose, to see a fresh agent
@@ -39,7 +39,7 @@ const option = (name: string) =>
   args.includes(name) ? args[args.indexOf(name) + 1] : undefined;
 const modelsDir = option("--models-dir");
 if (!modelsDir) throw new Error("Supply --models-dir");
-const model = getModelById(option("--model") ?? "bonsai-27b");
+const model = getModelById(option("--model") ?? "bonsai-2-27b");
 if (!model) throw new Error(`Unknown model "${option("--model")}"`);
 const contextSize = Number(option("--context") ?? 32768);
 const maxTokens = Number(option("--max-tokens") ?? 4096);

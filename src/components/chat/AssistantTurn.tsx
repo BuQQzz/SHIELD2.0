@@ -31,28 +31,35 @@ interface AssistantTurnProps {
   /** What the reply in progress is doing right now */
   live?: LiveWork | null;
   onContinue?: (messageId: string) => void;
+  /** Picks up a turn that was paused: given to the latest turn only */
+  onResume?: () => void;
   onRegenerate?: () => void;
 }
 
 function TextPart({
   message,
   onContinue,
+  onResume,
 }: {
   message: Message;
   onContinue?: (messageId: string) => void;
+  onResume?: () => void;
 }) {
   return (
     <ChatMessage
       variant="part"
       role="assistant"
       content={message.content}
-      truncated={message.truncated}
       recordNote={message.recordNote}
       sources={message.sources}
       thinking={message.thinking}
       isThinking={message.isThinking}
       onContinue={
-        message.truncated ? () => onContinue?.(message.id) : undefined
+        message.truncated
+          ? () => onContinue?.(message.id)
+          : message.resumable
+            ? onResume
+            : undefined
       }
     />
   );
@@ -62,14 +69,22 @@ function Part({
   part,
   live,
   onContinue,
+  onResume,
 }: {
   part: TurnPart;
   /** Only for the live reply's latest part */
   live?: LiveWork | null;
   onContinue?: (messageId: string) => void;
+  onResume?: () => void;
 }) {
   if (part.kind === "text") {
-    return <TextPart message={part.message} onContinue={onContinue} />;
+    return (
+      <TextPart
+        message={part.message}
+        onContinue={onContinue}
+        onResume={onResume}
+      />
+    );
   }
   if (part.kind === "steer") {
     return (
@@ -116,6 +131,7 @@ function Part({
             key={item.message.id}
             message={item.message}
             onContinue={onContinue}
+            onResume={onResume}
           />
         ))}
       </>
@@ -138,6 +154,7 @@ export const AssistantTurn = memo(function AssistantTurn({
   isLive,
   live,
   onContinue,
+  onResume,
   onRegenerate,
 }: AssistantTurnProps) {
   const [copied, setCopied] = useState(false);
@@ -205,6 +222,9 @@ export const AssistantTurn = memo(function AssistantTurn({
             part={part}
             live={liveInGroup && i === parts.length - 1 ? live : null}
             onContinue={onContinue}
+            // Only the notice that ended the turn: an older one has been
+            // carried on from already
+            onResume={i === parts.length - 1 ? onResume : undefined}
           />
         ))}
         {live && !liveInGroup && live.runningTool && (

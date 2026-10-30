@@ -49,10 +49,30 @@ export interface Capsule {
   note: string;
 }
 
-/** Share of the window kept as it is after summarising */
+/** Share of the window kept as it is after summarising, at most */
 export const KEEP_SHARE = 0.25;
 /** Share of the window the capsule may take in the system message */
 export const CAPSULE_SHARE = 0.1;
+/** Least share of the window a summary keeps whole */
+const MIN_KEEP_SHARE = 0.1;
+
+/**
+ * Characters of recent history a summary keeps whole: what fits under
+ * CLEAR_TO beside the system prompt and the capsule, at most KEEP_SHARE.
+ * A flat KEEP_SHARE left Bonsai 2 27B at 24k with ~49% after each summary
+ * (a 3.4k-token system prompt, capsule and kept turns), so the next web
+ * page passed COMPACT_AT and it summarised every round, each time making
+ * the server read the whole prompt again (2026-10-29).
+ */
+export function keepCharsFor(
+  contextSize: number,
+  systemPromptChars: number,
+  clearTo: number
+): number {
+  const window = contextSize * 3;
+  const room = window * (clearTo - CAPSULE_SHARE) - systemPromptChars;
+  return Math.max(window * MIN_KEEP_SHARE, Math.min(window * KEEP_SHARE, room));
+}
 /**
  * Three short lines. Low, so a model that drifts into its reply instead
  * (it did at 300) is cut off within seconds.
@@ -60,7 +80,15 @@ export const CAPSULE_SHARE = 0.1;
 export const NOTE_MAX_TOKENS = 180;
 
 const MAX_REQUESTS = 12;
+/** An older request, in the capsule */
 const MAX_REQUEST_CHARS = 300;
+/**
+ * The latest request, kept nearly whole: it is the task under way. Cut to
+ * 300 characters, a 700-character request lost its file name, its grouping
+ * and its last step to a summary mid-task, and Bonsai 2 27B finished
+ * without them (2026-10-29).
+ */
+const MAX_LATEST_REQUEST_CHARS = 2000;
 const MAX_STEPS = 40;
 const MAX_NOTE_CHARS = 1200;
 
@@ -123,7 +151,10 @@ const VERBS: Record<string, string> = {
  * [Current folder], [Not run] and work-record notes, and the tool-retry
  * wrapper.
  */
-export function requestText(content: string): string {
+export function requestText(
+  content: string,
+  maxChars = MAX_LATEST_REQUEST_CHARS
+): string {
   let text = content.replace(
     /\s*\[(?:Current folder: |Not run: |SHIELD's record of |From SHIELD's memory |SHIELD: )[\s\S]*?\]\s*$/,
     ""
@@ -132,9 +163,11 @@ export function requestText(content: string): string {
     text = text.match(/\nUser request: ([\s\S]*)$/)?.[1] ?? text;
   }
   text = text.replace(/\s+/g, " ").trim();
-  return text.length > MAX_REQUEST_CHARS
-    ? `${text.slice(0, MAX_REQUEST_CHARS - 1)}…`
-    : text;
+  return shorten(text, maxChars);
+}
+
+function shorten(text: string, maxChars: number): string {
+  return text.length > maxChars ? `${text.slice(0, maxChars - 1)}…` : text;
 }
 
 /** What a call acted on, as the model wrote it */
@@ -280,7 +313,13 @@ function compose(capsule: Capsule): string {
     if (capsule.earlierRequests > 0) {
       lines.push(notListed(capsule.earlierRequests, "request"));
     }
-    capsule.requests.forEach((r, i) => lines.push(`${i + 1}. "${r}"`));
+    // Stored nearly whole; all but the latest shown short
+    const last = capsule.requests.length - 1;
+    capsule.requests.forEach((r, i) =>
+      lines.push(
+        `${i + 1}. "${i === last ? r : shorten(r, MAX_REQUEST_CHARS)}"`
+      )
+    );
   }
   if (capsule.steps.length > 0 || capsule.earlierSteps > 0) {
     lines.push("", "Your tool calls:");

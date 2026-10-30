@@ -327,11 +327,10 @@ describe("checking failed edits against the file", () => {
       const note = recordNoteFor(
         "I can confirm that **the GUID fix has been properly applied** to `set-radio.ps1`.",
         withFix,
-        files,
-        WORKSPACE
+        files
       );
       expect(note).toBe(
-        `SHIELD's record: an edit of set-radio.ps1 (replacing "${guid.oldText.split("\n")[0]!.slice(0, 57)}...") failed, and the file still does not have its change.`
+        `SHIELD's record: This edit failed, and the file still does not have the change, whatever the reply says.\n- set-radio.ps1: replacing "${guid.oldText.split("\n")[0]!.slice(0, 57)}..."`
       );
     });
 

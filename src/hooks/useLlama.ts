@@ -39,6 +39,11 @@ export interface Message {
    * notice shown to the user; the next prompt tells the model about them.
    */
   unrunToolCalls?: string[];
+  /**
+   * On a notice that ended a turn early (tool-round limit, no progress, a
+   * repeated step): the last one in the chat gets a Continue button
+   */
+  resumable?: boolean;
   /** SHIELD's record under a reply that claims a change never made */
   recordNote?: string;
   /** Sent while the turn ran (handlers/steer.ts) */
@@ -294,8 +299,10 @@ export function useLlama() {
       console.log("[useLlama] Options:", JSON.stringify(options));
 
       setError(null);
-      // A reply that repeats itself is stopped like the Stop button, with a
-      // note: otherwise it runs to the token limit, minutes on a local model
+      // A reply that repeats itself is stopped, with a note: otherwise it
+      // runs to the token limit, minutes on a local model. Not the Stop
+      // button: the turn goes on, and a call cut off by it is sent back to
+      // the model as failed (toolCallParsing.cutOffToolCall)
       const guard = new LoopGuard();
       try {
         // No per-token or full-response logging: both flooded the console
@@ -304,7 +311,6 @@ export function useLlama() {
           if (guard.push(token)) {
             console.warn("[useLlama] The reply is repeating itself; stopping");
             onToken(LOOP_NOTE);
-            useGenerationStore.getState().setStopRequested(true);
             void window.llama.stopGeneration();
           }
         });

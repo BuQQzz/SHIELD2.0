@@ -325,8 +325,7 @@ const baseName = (path: string) => path.split(/[\\/]/).pop() ?? path;
 export function recordNoteFor(
   answer: string,
   messages: Message[],
-  files: FileContents,
-  workspace?: string
+  files: FileContents
 ): string {
   if (!CLAIM.test(answer)) return "";
   const lowered = answer.toLowerCase();
@@ -336,11 +335,20 @@ export function recordNoteFor(
       lowered.includes(baseName(edit.path).toLowerCase())
   );
   if (missing.length === 0) return "";
-  const parts = missing.map((edit) => {
+  // One line per file and edit, a repeat counted: as one sentence, three
+  // tries at one edit with full paths ran to a paragraph nobody could read
+  // (2026-10-29). Lines after the first are shown as a list (ChatMessage).
+  const tries = new Map<string, number>();
+  for (const edit of missing) {
     const from = edit.oldTexts[0] ? firstLine(edit.oldTexts[0], 60) : "";
-    return `an edit of ${shortPath(edit.path, workspace)}${from ? ` (replacing "${from}")` : ""} failed, and the file still does not have its change`;
-  });
-  return `SHIELD's record: ${parts.join("; ")}.`;
+    const line = `${baseName(edit.path)}${from ? `: replacing "${from}"` : ""}`;
+    tries.set(line, (tries.get(line) ?? 0) + 1);
+  }
+  const lines = [...tries].map(
+    ([line, count]) => `- ${line}${count > 1 ? ` (${count} tries)` : ""}`
+  );
+  const what = tries.size === 1 ? "This edit" : `These ${tries.size} edits`;
+  return `SHIELD's record: ${what} failed, and the file still does not have the change, whatever the reply says.\n${lines.join("\n")}`;
 }
 
 /** Files the model wrote or edited in the conversation, as it named them */

@@ -9,7 +9,7 @@
  */
 
 import { Code2 } from "lucide-react";
-import type { ModelOption } from "@/config/models";
+import { DEFAULT_MODEL_ID, type ModelOption } from "@/config/models";
 import { isCodingModel } from "@/lib/sessions";
 
 interface CodeModelHintProps {
@@ -26,9 +26,11 @@ export function CodeModelHint({
 }: CodeModelHintProps) {
   if (!currentModelId || isCodingModel(currentModelId)) return null;
   // Never suggest a hosted model: loading one is a choice to send things away
-  const coder = models.find(
-    (model) => model.runtime !== "remote" && isCodingModel(model.id)
-  );
+  const local = models.filter((model) => model.runtime !== "remote");
+  // The default first: it is the one picked for Code (models.ts)
+  const coder =
+    local.find((model) => model.id === DEFAULT_MODEL_ID) ??
+    local.find((model) => isCodingModel(model.id));
   if (!coder) return null;
   const current = models.find((model) => model.id === currentModelId);
 

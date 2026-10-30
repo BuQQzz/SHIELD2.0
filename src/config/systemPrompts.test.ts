@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   buildSystemPrompt,
+  dateLine,
   generateMCPToolPrompt,
   generatePlanModePrompt,
   generateNativeToolPrompt,
@@ -537,5 +538,26 @@ describe("web search section", () => {
     });
     expect(includedModules).not.toContain("web-search");
     expect(prompt).not.toContain("## Web Search");
+  });
+});
+
+describe("today's date", () => {
+  const today = new Date(2026, 9, 29);
+
+  it("ends every prompt with today's date, custom ones too", () => {
+    for (const customPrompt of [undefined, "You are my helper."]) {
+      const { prompt, includedModules } = buildSystemPrompt({
+        modelFamily: "generic",
+        capabilities: [],
+        customPrompt,
+        today,
+      });
+      expect(prompt.trimEnd().split("\n").at(-1)).toBe(dateLine(today).trim());
+      expect(includedModules).toContain("date");
+    }
+  });
+
+  it("names the weekday, month, day and year", () => {
+    expect(dateLine(today)).toContain("Thursday, October 29, 2026");
   });
 });

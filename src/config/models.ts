@@ -102,6 +102,20 @@ export interface ModelTeamFit {
   note: string;
 }
 
+/**
+ * Where llama-server puts a model, for one `--fit` misjudges: every layer
+ * on the GPU, with smaller batches so the compute buffer fits beside them.
+ * `--fit` kept moving Ternary Bonsai 2 27B's layers to the CPU on an 8 GB
+ * GPU, even with room to spare: 2.8 tok/s at 64k, 8.2 at 24k; all on the
+ * GPU at 24k with 512-token batches, 42.7 tok/s in 7.5 GB (2026-10-28).
+ * With 2048-token batches it ran out of memory. A fixed placement fails at
+ * load on a GPU too small for it, so hardware.minVRAM must cover it.
+ */
+export interface ServerPlacement {
+  allLayersOnGpu: true;
+  ubatchSize: number;
+}
+
 export interface ModelMetadata {
   /** Stable identifier - stored in settings and conversations */
   id: string;
@@ -132,6 +146,20 @@ export interface ModelMetadata {
   runtime: ModelRuntime;
   /** How it does as the model of an agent team; see TeamFit */
   team?: ModelTeamFit;
+  /** llama-server only: a fixed placement instead of `--fit` */
+  serverPlacement?: ServerPlacement;
+  /**
+   * llama-server only: `reasoning_effort` sent with each request that
+   * thinks, for a chat template that takes one (Bonsai 2's)
+   */
+  reasoningEffort?: string;
+  /**
+   * llama-server only: tools go to the server as native function
+   * definitions, and it holds each call to its schema with a grammar
+   * (llamaServer/nativeCalls.ts) instead of the model writing SHIELD's text
+   * form, which it could get wrong
+   */
+  nativeToolCalls?: boolean;
   /** Quantizations, best quality first */
   files: ModelFile[];
   /** Requires HuggingFace authentication (gated model) */
@@ -323,6 +351,60 @@ export const MODEL_FAMILIES: ModelFamilyEntry[] = [
           recommendedRAM: 32,
         },
       },
+      {
+        id: "qwen3.5-9b",
+        name: "Qwen3.5-9B",
+        displayName: "Qwen3.5 9B",
+        description:
+          "Small Qwen for agent work on an 8 GB GPU: the usual pick at this size for tool calling. Q6_K on a 12 GB GPU.",
+        contextSize: 32768,
+        provider: "Alibaba",
+        releaseDate: "2026-03",
+        chatTemplate: "qwen",
+        roles: ["agent", "coding", "chat"],
+        runtime: "llama-server",
+        team: {
+          fit: "untested",
+          note: "Added 2026-10-28 for a comparison with Bonsai; not run as a team yet.",
+        },
+        // Qwen's model card: thinking mode for precise coding tasks
+        sampling: {
+          temperature: 0.6,
+          topP: 0.95,
+          topK: 20,
+          repeatPenalty: 1.0,
+        },
+        files: [
+          {
+            name: "Qwen3.5-9B-Q6_K.gguf",
+            hfRepo: "unsloth/Qwen3.5-9B-GGUF",
+            sizeBytes: 7_460_000_000,
+            minVRAM: 12,
+          },
+          {
+            name: "Qwen3.5-9B-Q4_K_M.gguf",
+            hfRepo: "unsloth/Qwen3.5-9B-GGUF",
+            sizeBytes: 5_680_000_000,
+            minVRAM: 0,
+          },
+        ],
+        capabilities: {
+          toolCalling: true,
+          complexReasoning: true,
+          webSearch: true,
+          structuredOutput: true,
+          longContext: true,
+          codeGeneration: true,
+          multilingual: "good",
+          temperatureRange: { min: 0.1, max: 1.0, default: 0.6 },
+        },
+        hardware: {
+          minVRAM: 8,
+          recommendedVRAM: 12,
+          minRAM: 16,
+          recommendedRAM: 16,
+        },
+      },
     ]),
   },
   {
@@ -413,25 +495,33 @@ export const MODEL_FAMILIES: ModelFamilyEntry[] = [
       "Ternary-weight models: a 27B model in 6 GB, with a long context window on a mid-range GPU.",
     variants: variants("bonsai", [
       {
-        id: "bonsai-27b",
-        name: "Bonsai-27B",
-        displayName: "Bonsai 27B",
+        id: "bonsai-2-27b",
+        name: "Ternary-Bonsai-2-27B",
+        displayName: "Bonsai 2 27B",
         description:
-          "27B model at 1 bit per weight: 3.8 GB on disk, about 6 GB of VRAM with a 32k window. Thinks before it answers and handles tools well.",
-        contextSize: 32768,
+          "27B model at 1.58 bits per weight. Runs fully on an 8 GB GPU with a 24k context window, about 43 tok/s on an RTX 2070 SUPER.",
+        // 32k ran out of memory on 8 GB; 24k used 7.5 GB (2026-10-28)
+        contextSize: 24576,
+        serverPlacement: { allLayersOnGpu: true, ubatchSize: 512 },
+        // Prism's KNOWN_ISSUES: it loops on some prompts at the default
+        // xhigh, and medium thinks less at about the same accuracy. Same
+        // prompt, two runs each: default thought 2,518-7,333 tokens (62-179
+        // s), medium 1,899-2,439 (46-59 s) with fuller answers (2026-10-29)
+        reasoningEffort: "medium",
+        nativeToolCalls: true,
         provider: "PrismML",
         chatTemplate: "generic",
-        roles: ["agent", "long-context", "chat"],
+        roles: ["agent", "coding", "long-context", "chat"],
         runtime: "prism-llama-server",
         team: {
-          fit: "good",
-          note: "Run as a team end to end: five finished test runs passed and it did a real bug fix in the app (2026-10). The slowest model, and a server hang was seen with speculative decoding on.",
+          fit: "untested",
+          note: "Passed all six solo Code tasks in a three-round comparison, with one failed call (2026-10-29). Not run as a team yet.",
         },
         files: [
           {
-            name: "Bonsai-27B-Q1_0.gguf",
-            hfRepo: "prism-ml/Bonsai-27B-gguf",
-            sizeBytes: 3_803_452_480,
+            name: "Ternary-Bonsai-2-27B-PTQ1_0.gguf",
+            hfRepo: "prism-ml/Ternary-Bonsai-2-27B-gguf",
+            sizeBytes: 5_950_000_000,
             minVRAM: 0,
           },
         ],
@@ -443,13 +533,13 @@ export const MODEL_FAMILIES: ModelFamilyEntry[] = [
           longContext: true,
           codeGeneration: true,
           multilingual: "good",
-          temperatureRange: { min: 0.1, max: 1.0, default: 0.5 },
+          temperatureRange: { min: 0.1, max: 1.0, default: 0.7 },
         },
         hardware: {
-          minVRAM: 6,
-          recommendedVRAM: 8,
-          minRAM: 8,
-          recommendedRAM: 16,
+          minVRAM: 8,
+          recommendedVRAM: 12,
+          minRAM: 16,
+          recommendedRAM: 32,
         },
       },
       {
@@ -532,42 +622,6 @@ export const MODEL_FAMILIES: ModelFamilyEntry[] = [
           recommendedRAM: 8,
         },
       },
-      {
-        id: "bonsai-2-27b",
-        name: "Ternary-Bonsai-2-27B",
-        displayName: "Bonsai 2 27B",
-        description:
-          "27B model at 1.58 bits per weight. Runs fully on a 12 GB GPU with a 64k context window.",
-        contextSize: 65536,
-        provider: "PrismML",
-        chatTemplate: "generic",
-        roles: ["long-context", "chat"],
-        runtime: "prism-llama-server",
-        files: [
-          {
-            name: "Ternary-Bonsai-2-27B-PTQ1_0.gguf",
-            hfRepo: "prism-ml/Ternary-Bonsai-2-27B-gguf",
-            sizeBytes: 5_950_000_000,
-            minVRAM: 0,
-          },
-        ],
-        capabilities: {
-          toolCalling: true,
-          complexReasoning: true,
-          webSearch: true,
-          structuredOutput: true,
-          longContext: true,
-          codeGeneration: true,
-          multilingual: "good",
-          temperatureRange: { min: 0.1, max: 1.0, default: 0.7 },
-        },
-        hardware: {
-          minVRAM: 8,
-          recommendedVRAM: 12,
-          minRAM: 16,
-          recommendedRAM: 32,
-        },
-      },
     ]),
   },
 ];
@@ -577,8 +631,14 @@ export const MODEL_CATALOG: ModelMetadata[] = MODEL_FAMILIES.flatMap(
   (family) => family.variants
 );
 
-/** Loaded at startup when nothing else has been chosen */
-export const DEFAULT_MODEL_ID = "qwen3-coder-30b";
+/**
+ * Loaded at startup when nothing else has been chosen, and suggested for
+ * Code. Bonsai 2 27B fits an 8 GB GPU whole and passed all six tasks of a
+ * three-round comparison (Bonsai 27B Q1_0, Bonsai 2 9B, Qwen3.5 9B each
+ * failed or half-did at least one; docs/HANDOFF.md, 2026-10-29). It
+ * replaced Qwen3-Coder-30B, whose experts spill into system RAM.
+ */
+export const DEFAULT_MODEL_ID = "bonsai-2-27b";
 
 /**
  * Get model by ID from catalog

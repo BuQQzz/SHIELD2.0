@@ -11,7 +11,8 @@ import {
   recordNoteFor,
   takeLedgerNote,
 } from "./workLedger";
-import { resultPayload } from "./mcpToolHandler";
+import { readProjectFile } from "./projectFile";
+import { CLEAR_TO, COMPACT_AT } from "../services/historyCompaction";
 import { recallFor } from "./memoryRecall";
 import { checkPlan, planRemarks, takePlanNote } from "./sessionPlan";
 import { useConversationStore } from "@/stores/conversation-store";
@@ -25,27 +26,11 @@ import {
 } from "../agents/teamRouting";
 
 /**
- * A file's current contents for SHIELD's own checks, through the filesystem
- * server (so only inside the allowed folder); null when it cannot be read.
- */
-async function readProjectFile(path: string): Promise<string | null> {
-  const result = await window.electronAPI?.mcp?.callTool({
-    serverName: "filesystem",
-    tool: "read_text_file",
-    arguments: { path },
-  });
-  if (!result?.success || (result.data as { isError?: unknown })?.isError) {
-    return null;
-  }
-  return resultPayload(result.data);
-}
-
-/**
  * After a turn in a code session: when the final reply talks about a change
  * whose edit failed and is still not in the file, put SHIELD's record under
  * the reply, for the user; and check the plan's completed steps the same way.
  */
-async function noteUnappliedEdits(workspace?: string): Promise<void> {
+async function noteUnappliedEdits(): Promise<void> {
   const conversation = useConversationStore.getState().currentConversation;
   const answer = conversation?.messages.at(-1);
   if (!conversation || answer?.role !== "assistant") return;
@@ -54,12 +39,7 @@ async function noteUnappliedEdits(workspace?: string): Promise<void> {
     readProjectFile
   );
   checkPlan(conversation.messages, files);
-  const note = recordNoteFor(
-    answer.content,
-    conversation.messages,
-    files,
-    workspace
-  );
+  const note = recordNoteFor(answer.content, conversation.messages, files);
   // An agent team's answer that credits a role which never ran
   const team = useTeamStore.getState();
   const teamNote = (conversation as { team?: boolean }).team
@@ -94,6 +74,9 @@ import { parseAllThinking } from "../utils/thinkingParser";
 import { detectTruncation } from "../utils/messageTruncation";
 import { kindOf } from "../lib/sessions";
 import type { ConversationKind } from "../types/conversation";
+
+/** A solo turn's tool rounds are checked for progress this often */
+const PROGRESS_CHECK_ROUNDS = 10;
 
 const FILE_WORDS =
   /\b(?:folders?|director(?:y|ies)|dirs?|workspace|files?|paths?|projects?|repos?|repositor(?:y|ies)|codebase|readme)\b|\bin here\b/i;
@@ -437,17 +420,26 @@ export function createMessageHandler({
           addMessage,
           enableHybridParser: true,
           maxToolCallsPerTurn: settings.mcp.maxToolCallsPerTurn,
+          // Alone, no fixed cap: a research turn ran past 20 rounds while
+          // still finding new pages, and stopped (2026-10-27). It is
+          // checked for progress every 10 instead.
           maxToolRounds: teamMode
             ? orchestratorRounds(settings.mcp.maxToolRounds)
-            : settings.mcp.maxToolRounds,
+            : Infinity,
+          progressCheckEvery: teamMode ? undefined : PROGRESS_CHECK_ROUNDS,
           workspaceFolder: settings.mcp.workspaceFolder,
           isStopped: () => useGenerationStore.getState().stopRequested,
-          // About a third of the context window for any one result (~3 chars
-          // per token for code), so the request and the reply still fit
+          readFile: readProjectFile,
+          // One result at most the gap between CLEAR_TO and COMPACT_AT (~3
+          // chars per token): after making room, the next result does not
+          // set it off again. At a third of the window, each web page after
+          // a summary forced another one (Bonsai 2 27B at 24k, 2026-10-29)
           maxResultChars: Math.max(
             2000,
             Math.floor(
-              (useGenerationStore.getState().context?.size ?? 8192) * 0.35 * 3
+              (useGenerationStore.getState().context?.size ?? 8192) *
+                (COMPACT_AT - CLEAR_TO) *
+                3
             )
           ),
           continueConversation: async (resultPrompt: string, toolResults) => {
@@ -508,7 +500,7 @@ export function createMessageHandler({
         });
       }
 
-      if (fileTools) await noteUnappliedEdits(workspace);
+      if (fileTools) await noteUnappliedEdits();
 
       // Generate title for first message in conversation
       if (currentConversation && currentConversation.messages.length === 0) {

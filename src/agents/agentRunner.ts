@@ -74,6 +74,8 @@ export interface AgentRunDeps {
   /** The system prompt for a role: its text plus the tools it may use */
   buildPrompt(spec: RoleSpec): string;
   workspaceFolder?: string;
+  /** Reads a file as it is now, for an edit that missed (closestLines.ts) */
+  readFile?: (path: string) => Promise<string | null>;
   isStopped?: () => boolean;
   /**
    * The user skipped this agent's step in the stuck bar: it ends with what
@@ -493,6 +495,7 @@ export async function runAgent(
         maxToolCallsPerTurn: 1,
         maxResultChars: Math.max(2000, Math.floor(size / 2)),
         workspaceFolder: deps.workspaceFolder,
+        readFile: deps.readFile,
         isStopped: () =>
           deps.isStopped?.() === true ||
           deps.isSkipped?.() === true ||

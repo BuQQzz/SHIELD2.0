@@ -40,6 +40,11 @@ export interface Message {
    */
   unrunToolCalls?: string[];
   /**
+   * On a notice that ended a turn early (tool-round limit, no progress, a
+   * repeated step): the last one in the chat gets a Continue button
+   */
+  resumable?: boolean;
+  /**
    * On a reply that talks about a change whose edit failed and is still not
    * in the file: SHIELD's record, shown to the user under the reply
    * (workLedger.recordNoteFor).

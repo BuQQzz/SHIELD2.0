@@ -31,6 +31,11 @@ const CHECK_EVERY = 200;
 export const LOOP_NOTE =
   "\n\n*SHIELD stopped this reply: the model kept repeating itself.*";
 
+/** Whether a reply was ended by the loop guard (it ends in LOOP_NOTE) */
+export function stoppedForLooping(text: string): boolean {
+  return text.endsWith(LOOP_NOTE);
+}
+
 function repeatedLines(text: string): boolean {
   const lines = text
     .slice(-12_000)

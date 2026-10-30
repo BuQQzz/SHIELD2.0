@@ -32,11 +32,44 @@ import {
 import { streamingToolCallPreview } from "@/handlers/toolCallParsing";
 import { stepLabel } from "./turns";
 
+/**
+ * SHIELD's record under a reply (workLedger.recordNoteFor): a heading line,
+ * then one line per edit. Small amber text in one block was hard to read.
+ */
+function RecordNote({ note }: { note: string }) {
+  const [heading, ...items] = note.split("\n");
+  return (
+    <div className="mt-2 rounded-md border border-amber-500/40 border-l-4 border-l-amber-500 bg-amber-500/10 px-3 py-2 text-sm text-foreground">
+      <div className="flex items-start gap-2">
+        <ShieldAlert className="mt-0.5 h-4 w-4 shrink-0 text-amber-500" />
+        <p className="leading-snug">
+          {heading?.replace(/^SHIELD's record:\s*/, "") ? (
+            <>
+              <span className="font-medium">SHIELD's record: </span>
+              {heading.replace(/^SHIELD's record:\s*/, "")}
+            </>
+          ) : (
+            heading
+          )}
+        </p>
+      </div>
+      {items.length > 0 && (
+        <ul className="mt-1.5 space-y-0.5 pl-6 text-[13px] text-muted-foreground">
+          {items.map((item) => (
+            <li key={item} className="break-words">
+              {item.replace(/^-\s*/, "")}
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
 interface MessageProps {
   role: "user" | "assistant";
   content: string;
   isStreaming?: boolean;
-  truncated?: boolean;
   sources?: SearchResult[];
   thinking?: string; // Chain-of-thought analysis from models
   isThinking?: boolean; // True while streaming thinking content
@@ -58,7 +91,6 @@ export const ChatMessage = memo(function ChatMessage({
   role,
   content: rawContent,
   isStreaming,
-  truncated,
   sources,
   thinking,
   isThinking,
@@ -257,13 +289,8 @@ export const ChatMessage = memo(function ChatMessage({
 
   const extras = (
     <>
-      {recordNote && !isStreaming && (
-        <div className="mt-2 flex items-start gap-1.5 rounded-md border border-amber-500/30 bg-amber-500/5 px-2.5 py-1.5 text-xs text-amber-700 dark:text-amber-300">
-          <ShieldAlert className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-          <span>{recordNote}</span>
-        </div>
-      )}
-      {truncated && !isStreaming && (
+      {recordNote && !isStreaming && <RecordNote note={recordNote} />}
+      {onContinue && !isStreaming && (
         <Button
           onClick={onContinue}
           variant="outline"

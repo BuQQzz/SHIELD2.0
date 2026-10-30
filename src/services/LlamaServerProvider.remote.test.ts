@@ -1,6 +1,6 @@
 // @vitest-environment node
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { LlamaServerProvider } from "./LlamaServerProvider";
+import { LlamaServerProvider, MIN_REPLY_TOKENS } from "./LlamaServerProvider";
 import {
   ZdrNotConfirmedError,
   type RemoteEndpoint,
@@ -106,7 +106,9 @@ describe("LlamaServerProvider on a hosted model", () => {
       model: "deepseek-v4",
       stream: true,
       temperature: 0.2,
-      max_tokens: 100,
+      // The reply limit is raised to the floor for every chat request, hosted
+      // or local (a thinking model needs room), whatever the setting says
+      max_tokens: MIN_REPLY_TOKENS,
       provider: { zdr: true },
     });
     expect(request?.body.messages).toEqual([

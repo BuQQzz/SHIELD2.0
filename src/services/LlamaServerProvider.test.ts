@@ -3,7 +3,13 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { LlamaServerProvider, STALL_MS } from "./LlamaServerProvider";
+import {
+  LlamaServerProvider,
+  replyTokenLimit,
+  STALL_MS,
+  MIN_REPLY_TOKENS,
+  nextPromptTokens,
+} from "./LlamaServerProvider";
 import { NUDGE_NOTE } from "./llamaServer/rescue";
 import type { SavedMessage } from "./taskCapsule";
 
@@ -427,8 +433,9 @@ describe("LlamaServerProvider forked sessions", () => {
     const session = provider.fork("You are the tester.");
     expect(session.getMeasuredContext()).toEqual({ used: 0, size: 4000 });
     await session.chat("run the tests");
-    // the fake server reports 100 prompt + 5 reply tokens
-    expect(session.getMeasuredContext()).toEqual({ used: 105, size: 4000 });
+    // the fake server reports 100 prompt + 5 reply tokens; the reply is
+    // "ok", one token as it stays in the history (nextPromptTokens)
+    expect(session.getMeasuredContext()).toEqual({ used: 101, size: 4000 });
     expect(provider.getMeasuredContext().used).toBe(0);
   });
 
@@ -916,5 +923,165 @@ describe("LlamaServerProvider a request the user rescues", () => {
     expect(provider.rescue("restart")).toBe(true);
     expect(await reply).toBe("done");
     expect(urls[1]).toBe("http://restarted/v1/chat/completions");
+  });
+});
+
+describe("replyTokenLimit", () => {
+  it("raises a small setting to the minimum", () => {
+    expect(replyTokenLimit(2048)).toBe(MIN_REPLY_TOKENS);
+    expect(replyTokenLimit(undefined)).toBe(MIN_REPLY_TOKENS);
+  });
+
+  it("keeps a larger setting", () => {
+    expect(replyTokenLimit(16384)).toBe(16384);
+  });
+});
+
+describe("nextPromptTokens", () => {
+  it("counts the visible reply, not the thought that is not sent back", () => {
+    // 5,000 tokens of thinking and a 300-character answer
+    expect(
+      nextPromptTokens(
+        { prompt_tokens: 9000, completion_tokens: 5100 },
+        "x".repeat(300)
+      )
+    ).toBe(9100);
+  });
+
+  it("never counts more than the reply's tokens", () => {
+    expect(
+      nextPromptTokens(
+        { prompt_tokens: 100, completion_tokens: 10 },
+        "x".repeat(300)
+      )
+    ).toBe(110);
+  });
+});
+
+describe("reasoning effort", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.restoreAllMocks();
+  });
+
+  it("is sent with a reply that thinks, and kept by forked sessions", async () => {
+    const { provider, sent } = connected(8000);
+    Object.assign(provider, { reasoningEffort: "medium" });
+    await provider.chat("plan the kit");
+    expect((sent[0] as { reasoning_effort?: string }).reasoning_effort).toBe(
+      "medium"
+    );
+    await provider.fork("You are the coder.").chat("go");
+    expect((sent[1] as { reasoning_effort?: string }).reasoning_effort).toBe(
+      "medium"
+    );
+  });
+
+  it("is left out when thinking is off, or when the model has none", async () => {
+    const { provider, sent } = connected(8000);
+    Object.assign(provider, { reasoningEffort: "medium" });
+    await provider.chat("hi", { thinking: false });
+    expect(sent[0]).not.toHaveProperty("reasoning_effort");
+    Object.assign(provider, { reasoningEffort: undefined });
+    await provider.chat("hi");
+    expect(sent[1]).not.toHaveProperty("reasoning_effort");
+  });
+});
+
+describe("native tool calls", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.restoreAllMocks();
+  });
+
+  it("sends the tools and turns streamed calls into SHIELD's text form", async () => {
+    const provider = new LlamaServerProvider();
+    Object.assign(provider, {
+      process: { exitCode: null },
+      baseUrl: "http://server",
+      contextSize: 8000,
+    });
+    provider.applySystemPrompt("You are SHIELD.", [
+      {
+        name: "web_search",
+        description: "Search",
+        serverName: "web",
+        inputSchema: { type: "object" },
+      },
+    ]);
+    const bodies: Record<string, unknown>[] = [];
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (_url: string, init: RequestInit) => {
+        bodies.push(JSON.parse(init.body as string));
+        const events = [
+          {
+            choices: [
+              {
+                delta: {
+                  tool_calls: [
+                    {
+                      index: 0,
+                      function: { name: "web_search", arguments: '{"query":' },
+                    },
+                  ],
+                },
+              },
+            ],
+          },
+          {
+            choices: [
+              {
+                delta: {
+                  tool_calls: [
+                    { index: 0, function: { arguments: '"radio"}' } },
+                  ],
+                },
+              },
+            ],
+          },
+          { choices: [], usage: { prompt_tokens: 50, completion_tokens: 9 } },
+        ];
+        return new Response(
+          [...events.map((e) => `data: ${JSON.stringify(e)}`), "data: [DONE]"]
+            .map((l) => `${l}\n\n`)
+            .join("")
+        );
+      })
+    );
+    const streamed: string[] = [];
+    const reply = await provider.chat("find radio prices", {
+      onToken: (t) => streamed.push(t),
+    });
+
+    expect(bodies[0]!.tools).toEqual([
+      {
+        type: "function",
+        function: {
+          name: "web_search",
+          description: "Search",
+          parameters: { type: "object" },
+        },
+      },
+    ]);
+    const text =
+      typeof reply === "string"
+        ? reply
+        : (reply as { response: string }).response;
+    expect(streamed.join("")).toBe(text);
+    expect(text).toBe(
+      '<tool_call>\n<server>web</server>\n<tool>web_search</tool>\n<arguments>{"query":"radio"}</arguments>\n</tool_call>\n'
+    );
+  });
+
+  it("sends no tools when none are set, and none from a forked session", async () => {
+    const { provider, sent } = connected(8000);
+    await provider.chat("hi");
+    expect(sent[0]).not.toHaveProperty("tools");
+    provider.applySystemPrompt("x", [
+      { name: "web_search", description: "Search" },
+    ]);
+    await provider.fork("You are the coder.").chat("go");
+    expect(sent[1]).not.toHaveProperty("tools");
   });
 });

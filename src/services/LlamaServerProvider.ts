@@ -38,6 +38,13 @@ import {
   type RemoteEndpoint,
 } from "./remote/remoteEndpoint.js";
 import {
+  NativeCallWriter,
+  openAiTools,
+  type OpenAiTool,
+  type ToolCallDelta,
+} from "./llamaServer/nativeCalls.js";
+import type { ToolDefinition } from "../types/prompts.js";
+import {
   NUDGE_NOTE,
   type RequestStatus,
   type RescueAction,
@@ -50,7 +57,7 @@ import {
 } from "./historyCompaction.js";
 import {
   CAPSULE_SHARE,
-  KEEP_SHARE,
+  keepCharsFor,
   latestExchange,
   NOTE_MAX_TOKENS,
   noteRequest,
@@ -61,6 +68,7 @@ import {
   type SavedCapsule,
   type SavedMessage,
 } from "./taskCapsule.js";
+import type { ServerPlacement } from "../config/models.js";
 import type {
   ChatMessage,
   ChatOptions,
@@ -96,6 +104,10 @@ export interface ServerLoadOptions {
   systemPrompt: string;
   /** Where the server's PID is recorded, so a crash does not orphan it */
   pidFile?: string;
+  /** A fixed placement instead of `--fit` (catalog serverPlacement) */
+  placement?: ServerPlacement;
+  /** Sent as reasoning_effort when the reply thinks (catalog reasoningEffort) */
+  reasoningEffort?: string;
 }
 
 /**
@@ -107,6 +119,40 @@ export interface ServerLoadOptions {
  * the whole team run waiting on it (2026-10-21).
  */
 export const STALL_MS = 5 * 60 * 1000;
+
+/**
+ * The fewest tokens a chat reply gets, whatever Max Tokens says. Bonsai
+ * 27B's thought counts against the limit: at the default 2,048 it thought
+ * until the limit and wrote no answer, or was cut off partway through a
+ * write_file and failed the same call three times (2026-10-27). Without
+ * thinking too: sent again with thinking off (its thought went in circles),
+ * a 9.6k-character write_file stopped at exactly 2,048 tokens (2026-10-28).
+ * A ceiling, not a target: a short answer still ends when it is done.
+ */
+export const MIN_REPLY_TOKENS = 8192;
+
+/** max_tokens for a chat request: the setting, raised to MIN_REPLY_TOKENS */
+export function replyTokenLimit(maxTokens: number | undefined): number {
+  return Math.max(maxTokens ?? 512, MIN_REPLY_TOKENS);
+}
+
+/**
+ * How much of the window the next request starts from: this prompt plus
+ * the reply as it stays in the history. Thought is in completion_tokens
+ * but is not sent back, and counted it made a thinking reply look up to
+ * 20% of the window larger than it was: Bonsai 2 27B at 24k cleared on
+ * consecutive rounds, each clearing a 10k-token re-read (2026-10-29).
+ * The visible reply is estimated at ~3 characters per token.
+ */
+export function nextPromptTokens(
+  usage: { prompt_tokens: number; completion_tokens: number },
+  reply: string
+): number {
+  return (
+    usage.prompt_tokens +
+    Math.min(usage.completion_tokens, Math.ceil(reply.length / 3))
+  );
+}
 
 /**
  * SHIELD_SERVER_LOG=<file>: llama-server's output and SHIELD's notes on its
@@ -193,6 +239,15 @@ export class LlamaServerProvider {
   private rescueAction: RescueAction | null = null;
   private rescueController: AbortController | null = null;
   private contextSize = 0;
+  /** reasoning_effort for replies that think (ServerLoadOptions) */
+  private reasoningEffort: string | undefined;
+  /**
+   * Tools sent as native function definitions, for a model whose catalog
+   * sets nativeToolCalls (llamaServer/nativeCalls.ts); empty otherwise.
+   * Not passed to forked sessions: agents keep the text form for now.
+   */
+  private nativeTools: OpenAiTool[] = [];
+  private toolServers = new Map<string, string>();
   private trainContextSize = 0;
   private systemPrompt = "You are a helpful AI assistant.";
   private history: ChatMessage[] = [];
@@ -255,6 +310,7 @@ export class LlamaServerProvider {
     session.parent = this;
     session.contextSize = this.contextSize;
     session.trainContextSize = this.trainContextSize;
+    session.reasoningEffort = this.reasoningEffort;
     session.systemPrompt = systemPrompt;
     session.keepWholeHistory = options.keepWholeHistory ?? false;
     return session;
@@ -290,6 +346,7 @@ export class LlamaServerProvider {
     }
 
     this.systemPrompt = options.systemPrompt;
+    this.reasoningEffort = options.reasoningEffort;
     this.history = [];
     this.capsule = null;
     this.capsuleReplacedEntries = 0;
@@ -336,6 +393,7 @@ export class LlamaServerProvider {
       port,
       threads: defaultThreads(),
       specType: process.env.SHIELD_SPEC_TYPE === "none" ? "none" : "ngram-mod",
+      placement: options.placement,
     });
     console.log(`[LlamaServer] Starting ${binary} ${args.join(" ")}`);
 
@@ -702,13 +760,16 @@ export class LlamaServerProvider {
         timings_per_token: true,
         cache_prompt: true,
         temperature: options.temperature ?? 0.7,
-        max_tokens: options.maxTokens ?? 512,
+        max_tokens: replyTokenLimit(options.maxTokens),
         top_p: options.topP ?? 0.9,
         top_k: options.topK ?? 40,
         repeat_penalty: options.repeatPenalty ?? 1.1,
+        ...(this.nativeTools.length > 0 ? { tools: this.nativeTools } : {}),
         ...(options.thinking === false
           ? { chat_template_kwargs: { enable_thinking: false } }
-          : {}),
+          : this.reasoningEffort
+            ? { reasoning_effort: this.reasoningEffort }
+            : {}),
       });
       const response = await fetch(this.chatUrl(), {
         method: "POST",
@@ -740,6 +801,9 @@ export class LlamaServerProvider {
       const parser = new SseParser();
       const decoder = new TextDecoder();
       const reader = response.body.getReader();
+      const calls = new NativeCallWriter(
+        (tool) => this.toolServers.get(tool) ?? "filesystem"
+      );
       for (;;) {
         const { done, value } = await reader.read();
         if (done) break;
@@ -748,7 +812,12 @@ export class LlamaServerProvider {
         )) {
           const thought = chunk.choices?.[0]?.delta?.reasoning_content;
           if (thought && thoughtWatch.push(thought)) looping.abort();
-          const text = chunk.choices?.[0]?.delta?.content;
+          const deltas = (
+            chunk.choices?.[0]?.delta as { tool_calls?: ToolCallDelta[] }
+          )?.tool_calls;
+          const text =
+            (chunk.choices?.[0]?.delta?.content ?? "") +
+            (deltas ? calls.push(deltas) : "");
           if (text) {
             firstTokenAt ??= performance.now();
             reply += text;
@@ -774,6 +843,11 @@ export class LlamaServerProvider {
           if (chunk.timings || chunk.usage)
             final = { ...(final ?? {}), ...chunk };
         }
+      }
+      const closing = calls.finish();
+      if (closing) {
+        reply += closing;
+        options.onToken?.(closing);
       }
     } catch (error) {
       if (rescued.signal.aborted && !signal.aborted) {
@@ -847,8 +921,7 @@ export class LlamaServerProvider {
 
     this.history.push(userMessage, { role: "assistant", content: reply });
     if (final?.usage) {
-      this.lastContextTokens =
-        final.usage.prompt_tokens + final.usage.completion_tokens;
+      this.lastContextTokens = nextPromptTokens(final.usage, reply);
     }
 
     const endedAt = performance.now();
@@ -951,7 +1024,7 @@ export class LlamaServerProvider {
     const summarised = await summariseOldest(
       this.history,
       this.capsule,
-      this.contextSize * KEEP_SHARE * 3,
+      keepCharsFor(this.contextSize, this.systemPrompt.length, CLEAR_TO),
       (older) => this.writeNote(older, nextMessage, signal)
     );
     if (!summarised) return;
@@ -1063,8 +1136,12 @@ export class LlamaServerProvider {
     return result.choices?.[0]?.message?.content ?? "";
   }
 
-  applySystemPrompt(prompt: string): void {
+  applySystemPrompt(prompt: string, tools: ToolDefinition[] = []): void {
     this.systemPrompt = prompt;
+    this.nativeTools = openAiTools(tools);
+    this.toolServers = new Map(
+      tools.map((tool) => [tool.name, tool.serverName ?? "filesystem"])
+    );
   }
 
   private async countTokens(texts: string[]): Promise<Map<string, number>> {

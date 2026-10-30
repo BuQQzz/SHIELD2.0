@@ -5,6 +5,7 @@
  */
 
 import { normaliseDsml, withoutDsmlTags } from "./dsml";
+import { stoppedForLooping } from "../utils/loopGuard";
 
 export interface ToolCallRequest {
   serverName: string;
@@ -23,6 +24,8 @@ export interface ToolCallRequest {
 /** Set on the stand-in for a call the reply ended in the middle of */
 export const CUT_OFF_ERROR_PREFIX = "The tool call was cut off";
 export const UNREADABLE_ERROR_PREFIX = "The tool call could not be read";
+export const COPIED_NOTE_ERROR_PREFIX =
+  "The tool call copied one of SHIELD's notes";
 
 /** Gemma 4's native tool markers are not part of SHIELD's XML tool protocol. */
 export const UNSUPPORTED_NATIVE_TOOL_CALL_MESSAGE =
@@ -197,8 +200,17 @@ export function dropTrailingClosers(input: string): string | null {
  * Bonsai 27B wrote edit_file as `"edits":[{"oldText":"...","newText":"..."]}`
  * - the edit object never closed - three times in a row, and each time was
  * told "not valid JSON" and sent the same shape again (2026-10-20).
+ *
+ * With `closeString`, a string still open at the end is closed first.
+ * Bonsai 27B ended three write_file calls in a row with the whole file and
+ * then `\n</arguments>`, never closing the content string or the object
+ * (2026-10-27). Only for arguments the model ended itself, inside a whole
+ * call block: a reply cut off mid-string goes to cutOffToolCall instead.
  */
-export function closeOpenBrackets(input: string): string | null {
+export function closeOpenBrackets(
+  input: string,
+  { closeString = false }: { closeString?: boolean } = {}
+): string | null {
   const stack: string[] = [];
   let out = "";
   let inString = false;
@@ -233,7 +245,10 @@ export function closeOpenBrackets(input: string): string | null {
       out += ch;
     }
   }
-  if (inString) return null;
+  if (inString) {
+    if (!closeString) return null;
+    out += '"';
+  }
   return out + stack.reverse().join("");
 }
 
@@ -264,7 +279,11 @@ export function unescapeKeyQuotes(input: string): string | null {
   return input.replace(pattern, '$1$2":"');
 }
 
-function parseJson(input: string): unknown | null {
+/**
+ * `finished`: the model ended the arguments itself, so a string left open
+ * at the end may be closed (closeOpenBrackets)
+ */
+function parseJson(input: string, finished = false): unknown | null {
   const repaired = repairJsonStrings(input);
   const candidates = [input, repaired];
   // before escapeStrayQuotes, which would read the escaped key as text
@@ -305,10 +324,28 @@ function parseJson(input: string): unknown | null {
       // try the next repair
     }
   }
+  if (!finished) return null;
+  // Not on the stray-quote guesses: escaping a closing quote leaves a
+  // string open, and closing it made `{"path": "C:/a.txt",` a path ending
+  // in `",`
+  for (const candidate of [input, repaired]) {
+    const closed = closeOpenBrackets(candidate.trimEnd(), {
+      closeString: true,
+    });
+    if (closed === null) continue;
+    try {
+      return JSON.parse(closed);
+    } catch {
+      // try the next repair
+    }
+  }
   return null;
 }
 
-function parseArguments(value: unknown): {
+function parseArguments(
+  value: unknown,
+  finished = false
+): {
   args: Record<string, unknown>;
   error?: string;
 } {
@@ -324,7 +361,7 @@ function parseArguments(value: unknown): {
     if (value.trim() === "") {
       return { args: {} };
     }
-    const parsed = parseJson(value);
+    const parsed = parseJson(value, finished);
     if (isRecord(parsed) && !Array.isArray(parsed)) {
       return { args: parsed };
     }
@@ -413,6 +450,23 @@ function normalizeEdit(edit: unknown): unknown {
   return edit;
 }
 
+/**
+ * One edit with its oldText or newText outside it, beside `edits`: Bonsai
+ * 27B wrote `"edits":[{"oldText":"## Resources"}],"newText":"..."` and the
+ * tool refused it (2026-10-28). The text goes back into the edit.
+ */
+function hoistedEditText(args: Record<string, unknown>): void {
+  const edits = args.edits as unknown[];
+  const [only] = edits;
+  if (edits.length !== 1 || !isRecord(only)) return;
+  for (const key of ["oldText", "newText"]) {
+    if (typeof args[key] === "string" && only[key] === undefined) {
+      only[key] = args[key];
+      delete args[key];
+    }
+  }
+}
+
 function normalizeFilesystemArguments(
   serverName: string,
   args: Record<string, unknown>,
@@ -428,6 +482,7 @@ function normalizeFilesystemArguments(
   }
   if (tool === "edit_file" && Array.isArray(normalizedArgs.edits)) {
     normalizedArgs.edits = normalizedArgs.edits.map(normalizeEdit);
+    hoistedEditText(normalizedArgs);
   }
 
   return normalizedArgs;
@@ -595,13 +650,20 @@ function closeUnfinishedCall(text: string): string {
   return UNCLOSED_CALL.test(text) ? `${text.trimEnd()}\n</tool_call>` : text;
 }
 
+/**
+ * `</tool>` for `</tool_call>` right after the arguments: Bonsai 27B closed
+ * a write_file this way (2026-10-28), and it was taken for a reply cut off
+ * at the length limit, 241 tokens in
+ */
+const TOOL_FOR_TOOL_CALL = /(<\/arguments>\s*)<\/tool>(?!_)/g;
+
 export function repairToolCallMarkup(content: string): string {
   const CLOSE = "</tool_call>";
   const OPEN = "<tool_call>";
 
   let output = "";
   // DeepSeek's own markup, read as the call SHIELD already knows (dsml.ts)
-  let rest = normaliseDsml(content);
+  let rest = normaliseDsml(content).replace(TOOL_FOR_TOOL_CALL, `$1${CLOSE}`);
 
   for (;;) {
     const closeIndex = rest.indexOf(CLOSE);
@@ -667,6 +729,38 @@ function parseXmlArgumentElements(
   return found ? args : null;
 }
 
+/**
+ * The Qwen3-Coder call body: <function=NAME> with <parameter=KEY>VALUE
+ * </parameter> elements. Bonsai 2 27B (Qwen 3.5's architecture) falls back
+ * on it now and then instead of SHIELD's format (2026-10-29). A value that
+ * is a JSON array or object (edit_file's edits) is parsed; anything else is
+ * kept as text, less the line break the format puts around it. Null when
+ * the body is not this format.
+ */
+function qwenCoderCall(body: string): ToolCallRequest | null {
+  const fn = body.match(/<function=([\w.-]+)>/);
+  if (!fn?.[1]) return null;
+  const args: Record<string, unknown> = {};
+  for (const [, key, raw] of body.matchAll(
+    /<parameter=([\w-]+)>([\s\S]*?)<\/parameter>/g
+  )) {
+    const value = raw!.replace(/^\n/, "").replace(/\n$/, "");
+    const trimmed = value.trim();
+    const parsed =
+      trimmed.startsWith("[") || trimmed.startsWith("{")
+        ? parseJson(trimmed)
+        : null;
+    args[key!] = parsed ?? value;
+  }
+  const named = normalizeToolNameAndServer(fn[1]);
+  return {
+    serverName: named.serverName,
+    tool: named.tool,
+    arguments: args,
+    format: "xml",
+  };
+}
+
 function extractXmlToolCalls(rawContent: string): ToolCallRequest[] {
   const toolCalls: ToolCallRequest[] = [];
   const content = repairToolCallMarkup(rawContent);
@@ -714,7 +808,10 @@ function extractXmlToolCalls(rawContent: string): ToolCallRequest[] {
           if (elements) {
             args = elements;
           } else {
-            ({ args, error: argumentsError } = parseArguments(body));
+            // A whole <tool_call> block: the model ended these arguments
+            // (a reply cut off inside them is closed only once
+            // </arguments> is written, repairToolCallMarkup)
+            ({ args, error: argumentsError } = parseArguments(body, true));
           }
         }
 
@@ -730,6 +827,19 @@ function extractXmlToolCalls(rawContent: string): ToolCallRequest[] {
           });
           continue;
         }
+      }
+
+      const qwenCall = qwenCoderCall(toolCallContent);
+      if (qwenCall) {
+        toolCalls.push({
+          ...qwenCall,
+          arguments: normalizeFilesystemArguments(
+            qwenCall.serverName,
+            qwenCall.arguments,
+            qwenCall.tool
+          ),
+        });
+        continue;
       }
 
       const shorthandMatch = toolCallContent.match(
@@ -936,7 +1046,9 @@ export function streamingToolCallPreview(content: string): {
  */
 export function cutOffToolCall(content: string): ToolCallRequest | null {
   if (hasUnsupportedNativeToolCall(content)) return null;
-  content = withoutCompleteOpenAICalls(content);
+  content = withoutCompleteOpenAICalls(
+    content.replace(TOOL_FOR_TOOL_CALL, "$1</tool_call>")
+  );
   const { pendingTool } = streamingToolCallPreview(content);
   if (pendingTool === null) return null;
 
@@ -948,6 +1060,17 @@ export function cutOffToolCall(content: string): ToolCallRequest | null {
   }
 
   const tool = pendingTool || "tool";
+  // Bonsai 27B writing a checklist went "- [ ] Trash bags" until the loop
+  // guard stopped it; ended like Stop, the turn showed nothing (2026-10-27)
+  if (stoppedForLooping(content)) {
+    return {
+      serverName: "filesystem",
+      tool,
+      arguments: {},
+      format: "xml",
+      argumentsError: `${CUT_OFF_ERROR_PREFIX}: partway through the ${tool} arguments your reply began repeating the same lines over and over, so SHIELD stopped it. It was not run and nothing changed. Do it in smaller steps (write_file with the first section, then edit_file to add each next section), and list each item once.`,
+    };
+  }
   return {
     serverName: "filesystem",
     tool,
@@ -958,23 +1081,25 @@ export function cutOffToolCall(content: string): ToolCallRequest | null {
 }
 
 /**
- * A finished call block with no tool name: `<server>filesystem</tool>` with
- * the name lost (Bonsai 27B, 2026-10-21). Nothing can run, and ending the
- * turn on it left a reviewer with no report. The stand-in tells the model
- * what was wrong so it can send the call again.
+ * A finished call block nothing could be read from: `<server>filesystem
+ * </tool>` with the name lost (Bonsai 27B, 2026-10-21), or a garbled
+ * Qwen3-Coder body, `<web><parameter=web_search</parameter>...` (Bonsai 2
+ * 27B, 2026-10-29). Nothing can run, and ending the turn on it - taken for
+ * the answer - left the task undone. The stand-in tells the model what was
+ * wrong so it can send the call again. Only asked when no call was read.
  */
 export function unreadableToolCall(content: string): ToolCallRequest | null {
   if (hasUnsupportedNativeToolCall(content)) return null;
   const repaired = repairToolCallMarkup(content);
   const blocks = [...repaired.matchAll(/<tool_call>([\s\S]*?)<\/tool_call>/g)];
   const last = blocks[blocks.length - 1]?.[1];
-  if (!last || !/<arguments>|<server>/.test(last)) return null;
+  if (!last?.trim()) return null;
   if (/<tool>[^<]+<\/tool>|<name>[^<]+<\/name>/.test(last)) return null;
   return {
     serverName: "filesystem",
     tool: "tool",
     arguments: {},
     format: "xml",
-    argumentsError: `${UNREADABLE_ERROR_PREFIX}: it has no <tool> element naming the tool, so nothing ran. Send it again in full: <tool_call><server>NAME</server><tool>TOOL</tool><arguments>{...}</arguments></tool_call>, with the tool's name between <tool> and </tool>.`,
+    argumentsError: `${UNREADABLE_ERROR_PREFIX}: no tool name could be read from it (no <tool> element), so nothing ran. Send it again in full: <tool_call><server>NAME</server><tool>TOOL</tool><arguments>{...}</arguments></tool_call>, with the tool's name between <tool> and </tool>.`,
   };
 }
