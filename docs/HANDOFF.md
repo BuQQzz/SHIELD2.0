@@ -1,12 +1,54 @@
 # SHIELD — Session Handoff
 
-**Last session:** 2026-10-30 on Windows (`main`): PR #46 merged and the hosted model's other tool-call shapes fixed. Before that, 2026-10-27 → 30 on Linux (`feat/model-library`) and 2026-10-26 → 29 on Windows (`feat/remote-providers`); earlier sessions as listed below.  
-**Branches (2026-10-30):** everything is on `main` now. `feat/model-library` (`7af6ee0`) and `feat/remote-providers` (PR #46) are merged; `main` = `0aba405`, pushed. `feat/remote-providers` deleted locally and on the remote.  
-**Tests:** see the merge commit; run `npx vitest run`, `npx tsc --noEmit`. `prettier --check` flags `src/components/ui/button.tsx` and `scripts/bench/mcp.ts`, already unformatted: do not run `prettier --write` over whole folders.
+**Last session:** 2026-10-30 → 11-02 on Windows (`main`): a per-model zero-data-retention opt-out (PR #47) and a caution with a handoff when switching models (PR #48). Before that, 2026-10-30 (PR #46, the hosted model's other call shapes), 2026-10-27 → 30 on Linux (`feat/model-library`) and 2026-10-26 → 29 on Windows (`feat/remote-providers`); earlier sessions as listed below.  
+**Branches (2026-11-02):** everything is on `main` now: `main` = `47aada9`, pushed. `feat/model-library`, `feat/remote-providers`, `feat/allow-no-zdr-model` and `feat/model-switch-caution` are all merged and deleted (local and remote).  
+**Tests:** 1349 passing; run `npx vitest run`, `npx tsc --noEmit`. `prettier --check` flags `src/components/ui/button.tsx` and `scripts/bench/mcp.ts`, already unformatted: do not run `prettier --write` over whole folders.
 
 **Tested in the app with (2026-10-20):** Bonsai 27B Q1_0 on an RTX 2070 SUPER 8 GB (Ubuntu 26.04), SHIELD-managed Prism llama-server at 32K, ~19 tok/s. Earlier sessions: Qwen3-Coder-30B and Gemma 4 12B on Windows (see the older updates).
 
-Read this first (start with "Update — 2026-10-30" just below, then "Update — 2026-10-27 → 28", then "Update — 2026-10-25 → 26"; its details are in "The orchestrator prompt never reached the app" and "Redoing the in-app checks with the prompt in place" inside "Update — 2026-10-23 → 24"; then the sections "Update — 2026-10-23 → 24", "Update — 2026-10-21 → 22" and then "Update — 2026-10-20 → 21" are the current state), then [SHIELD_AGENT_ARCHITECTURE.md](./SHIELD_AGENT_ARCHITECTURE.md) (§21 agent teams, §17 decision log, §13 priorities, §20 evidence) and [testing/AGENT_BENCHMARK.md](./testing/AGENT_BENCHMARK.md).
+Read this first (start with "Update — 2026-10-30 → 11-02" just below, then "Update — 2026-10-30", then "Update — 2026-10-27 → 28", then "Update — 2026-10-25 → 26"; its details are in "The orchestrator prompt never reached the app" and "Redoing the in-app checks with the prompt in place" inside "Update — 2026-10-23 → 24"; then the sections "Update — 2026-10-23 → 24", "Update — 2026-10-21 → 22" and then "Update — 2026-10-20 → 21" are the current state), then [SHIELD_AGENT_ARCHITECTURE.md](./SHIELD_AGENT_ARCHITECTURE.md) (§21 agent teams, §17 decision log, §13 priorities, §20 evidence) and [testing/AGENT_BENCHMARK.md](./testing/AGENT_BENCHMARK.md).
+
+---
+
+## Update — 2026-10-30 → 11-02: a per-model zero-retention opt-out, and a caution when switching models (start here)
+
+Everything is on `main` (`47aada9`). Two features landed from GitHub, each on its own branch and PR, both fully green (Test Suite, Code Quality, Automated PR Review, File Size Analysis): **#47** (`30088a1`, commit `6fb2101`) and **#48** (`47aada9`, commit `47f2ac5`). Every feature branch is deleted; `main` is the only branch left. **Tests 1330 → 1349.**
+
+### #47 — one hosted model may be used without zero-data retention (`6fb2101`)
+
+A provider often has models with **no zero-retention route** (frequently the wider, less censored ones). SHIELD blocked every one of them until the user turned the requirement off for the **whole provider**, from Settings. Now:
+
+- The **composer has a model picker**, next to the Team toggle (Chat and Code). Both it and the sidebar show one shared list (`components/shell/ModelPickerMenu.tsx`).
+- A hosted model with no such route carries its own **Allow** switch; it is **remembered per model** and leaves the requirement in place for the rest of the provider.
+- An allowed model's endpoint is attached with `requireZdr: false`, so the request asks for nothing and the reply's badge says **"keeps data"**, not "zero retention". Settings › Providers shows "N models allowed without it".
+- Data: `ProviderConfig.allowNoZdr`, `ProviderStore.setAllowedModel`, IPC `providers:allow-model`; `ModelRuntime.loadRemote` skips `zdrBlock` when the model is allowed; `cloudModels.optionFor` carries `noZdrRoute` / `zdrAllowed`.
+- The privacy-first default is unchanged (Experiential still requires it; the `custom` preset was never affected).
+
+**Not verified:** a real non-zero-retention model through the app (built, unit-tested and tried by hand in the dev build; no such model was actually run).
+
+### #48 — switching models in a used chat now asks, and offers a handoff (`47f2ac5`)
+
+The user asked whether switching models mid-chat degrades output, and to confirm before building. **It does, and it is not "the new model is worse" — it is a handoff context mismatch.** The evidence gathered (2026-11-02):
+
+- [arXiv 2603.03111](https://arxiv.org/html/2603.03111v1) "Performance Drift from Model Switching in Multi-Turn LLM Systems": a **single-turn** handoff swings strict success by **−8 to +13 points** and ±4 F1, "comparable to the no-switch gap between common model tiers". **Within-family ≈ zero; cross-family is where it bites.** Their own suggested mitigation is a short handoff briefing.
+- [arXiv 2610.19712](https://arxiv.org/html/2610.19712) "New Model, Old Habits": the recipient adopts the reasoning/action patterns of whoever wrote the history — strongest with raw-history transfer, **strongly reduced by summarization**.
+- [arXiv 2602.24287](https://huggingface.co/papers/2602.24287) "Do LLMs Benefit From Their Own Words?": models over-condition on prior assistant turns, propagating errors and style artifacts.
+- [usepoly.co](https://usepoly.co/switch-ai-models-mid-conversation): same-lab switches re-read the transcript; **cross-lab drops the old model's hidden reasoning**, and a smaller context window forces loss.
+- [OpenAI Codex #19877](https://github.com/openai/codex/issues/19877) and [hermes-agent #88087](https://github.com/NousResearch/hermes-agent/issues/88087): a switch changes the prompt prefix, so local llama.cpp **reprocesses the whole history** (408 s on a ~45k-token chat) and the first reply is slower.
+- [IJCAI 2026 semantic inertia](https://ijcai.org/proceedings/2026/0088.pdf): prompt-level "reset" instructions are "unreliable and often counter-productive" — so a fresh session, not a note, is the fix.
+
+What was built:
+
+- Picking a **different** model in a chat that already has messages opens `components/chat/SwitchModelDialog.tsx`: **Hand off & start new session** (recommended), **Switch anyway**, Cancel. The guard (`selectModel` in `App.tsx`) covers the sidebar picker, the composer picker, the Library and the Code hint; re-selecting the current model is silent.
+- **The handoff** (`handlers/handoff.ts`): the parting model writes a short briefing (GOAL / DONE / DECIDED / OPEN / CAUTION) in a **throwaway agent session** that never touches the chat's history; a **mechanical** briefing (goal, files touched, failed steps, what is open) stands in if the model errors or answers with nothing. A new session then opens on the new model, same kind/folder/project, with the briefing **in the box, ready to send**.
+- **Not auto-sent, on purpose:** it would otherwise cost a generation the user did not ask for. Easy to change if wanted.
+- 9 new tests. **Not yet seen:** a live switch-and-handoff in the app.
+
+### What carries over
+
+- The hosted-model todos stand (native function calling for a hosted provider; Team on a hosted model; more call shapes are a long tail — see "Update — 2026-10-26 → 29").
+- The caution's copy and the prefill-vs-send choice are worth a second look after real use.
+- **Everything here is on `main`; nothing is uncommitted.**
 
 ---
 

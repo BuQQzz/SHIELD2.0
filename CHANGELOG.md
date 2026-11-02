@@ -16,11 +16,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Each hosted reply shows who served it and whether that route reported zero retention
   - A model's context window is read from the provider's catalog (its input limit) when it loads
 - **DeepSeek tool-call markup**: a hosted DeepSeek model's native `<｜｜DSML｜｜ invoke ...>` calls are read as SHIELD's calls (`src/handlers/dsml.ts`)
+- **Per-model zero-data-retention opt-out**: a hosted model the provider reports no zero-retention route for can be allowed on its own — an Allow switch on its row in the model picker, remembered per model, with its replies marked "keeps data". The rest of the provider's models still require zero retention.
+- **Model-switch caution and handoff**: picking a different model in a chat that already has messages offers a fresh session opened with a short briefing the parting model writes (goal, what is done, what is decided, what is open, what to avoid); a mechanical briefing stands in if the model cannot. "Switch anyway" keeps the chat and its history.
 
 ### Changed
 
 - A hosted model's chat title falls back to the start of the message when a thinking model returns none, and its speed is timed over the whole reply
 - Message text is no longer logged for hosted models
+- The model list is one component shared by the sidebar picker and the new picker in the composer, next to the Team toggle
 
 ### Fixed
 
