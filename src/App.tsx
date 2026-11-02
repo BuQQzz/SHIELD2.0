@@ -52,6 +52,12 @@ import { kindOf, ofKind, viewKind } from "./lib/sessions";
 import { CodeModelHint } from "./components/chat/CodeModelHint";
 import { AgentsMdHint } from "./components/chat/AgentsMdHint";
 import { PlanPanel } from "./components/chat/PlanPanel";
+import { SwitchModelDialog } from "./components/chat/SwitchModelDialog";
+import {
+  HANDOFF_SYSTEM_PROMPT,
+  handoffMessage,
+  writeHandoff,
+} from "./handlers/handoff";
 import { editPlan } from "./handlers/sessionPlan";
 import { useInstructionsStore } from "./stores/instructions-store";
 import { DRAFT_REQUEST, draftNote } from "./config/agentsMd";
@@ -59,7 +65,11 @@ import { useChatStore } from "./stores/chat-store";
 import { ModelLibraryPage } from "./components/library/ModelLibraryPage";
 import { PluginsPage } from "./components/plugins/PluginsPage";
 import { LowMemoryDialog } from "./components/models/LowMemoryDialog";
-import { DEFAULT_MODEL_ID, isRuntimeAvailable } from "./config/models";
+import {
+  DEFAULT_MODEL_ID,
+  isRuntimeAvailable,
+  type ModelOption,
+} from "./config/models";
 import { createAppShortcuts } from "./config/shortcuts";
 import { shouldTurnTeamOff, teamAvailability } from "./agents/teamFit";
 import "./App.css";
@@ -336,6 +346,101 @@ function App() {
     installedModels,
   });
 
+  // Switching models inside a chat that already has messages changes who
+  // wrote its history: the new model reads turns it did not write (which
+  // drifts its output), and re-reads the whole chat. Warn, and offer a fresh
+  // session opened with a short handoff instead.
+  const [pendingModel, setPendingModel] = useState<ModelOption | null>(null);
+  const [switchingModel, setSwitchingModel] = useState(false);
+  const [switchError, setSwitchError] = useState<string | null>(null);
+  const usedChat = (currentConversation?.messages.length ?? 0) > 0;
+
+  const selectModel = useCallback(
+    (model: ModelOption) => {
+      if (usedChat && model.id !== currentModelId) {
+        setSwitchError(null);
+        setPendingModel(model);
+        return;
+      }
+      void handleModelSelect(model);
+    },
+    [usedChat, currentModelId, handleModelSelect]
+  );
+
+  // The parting model writes the handoff, in a session of its own that never
+  // touches this chat's history
+  const askHandoff = useCallback(async (transcript: string) => {
+    const opened = await window.llama.agentOpen(HANDOFF_SYSTEM_PROMPT);
+    if (!opened.success || !opened.sessionId) {
+      throw new Error(opened.error ?? "Could not start the handoff.");
+    }
+    try {
+      const result = await window.llama.agentChat(
+        opened.sessionId,
+        transcript,
+        { temperature: 0.3, maxTokens: 700, thinking: false }
+      );
+      if (!result.success || !result.response) {
+        throw new Error(result.error ?? "The handoff came back empty.");
+      }
+      return result.response;
+    } finally {
+      await window.llama.agentClose(opened.sessionId);
+    }
+  }, []);
+
+  const switchAnyway = useCallback(() => {
+    const model = pendingModel;
+    setPendingModel(null);
+    if (model) void handleModelSelect(model);
+  }, [pendingModel, handleModelSelect]);
+
+  const switchWithHandoff = useCallback(async () => {
+    const model = pendingModel;
+    if (!model || !currentConversation) return;
+    setSwitchingModel(true);
+    setSwitchError(null);
+    try {
+      const briefing = await writeHandoff(
+        currentConversation.messages,
+        askHandoff
+      );
+      const from = currentModelConfig?.displayName;
+      // The new session carries the same kind, folder and project
+      createNewConversation("New session", model.id, {
+        kind: currentConversation.kind ?? "chat",
+        folder: currentConversation.folder,
+        projectId: currentConversation.projectId,
+      });
+      setMessages([]);
+      await clearHistory();
+      await handleModelSelect(model);
+      // Ready to send, not sent: the user reads the briefing and continues
+      inputRef.current?.restore(
+        handoffMessage({
+          ...briefing,
+          fromModel: from,
+          toModel: model.displayName,
+        })
+      );
+      setPendingModel(null);
+    } catch (error) {
+      setSwitchError(
+        error instanceof Error ? error.message : "Could not write the handoff."
+      );
+    } finally {
+      setSwitchingModel(false);
+    }
+  }, [
+    pendingModel,
+    currentConversation,
+    currentModelConfig,
+    askHandoff,
+    createNewConversation,
+    clearHistory,
+    handleModelSelect,
+  ]);
+
   // The loaded model's own sampling, unless the user turned that off:
   // SHIELD's one global setting did not suit every model (2026-09-26)
   const recommendedSampling = useRecommendedSampling(
@@ -600,7 +705,7 @@ function App() {
           currentModelId={currentModelId}
           isModelLoading={isLoading}
           isModelLoaded={isModelLoaded}
-          onModelSelect={handleModelSelect}
+          onModelSelect={selectModel}
         />
       }
     >
@@ -609,7 +714,7 @@ function App() {
           currentModelId={currentModelId}
           isModelLoaded={isModelLoaded}
           isModelLoading={isLoading}
-          onLoadModel={handleModelSelect}
+          onLoadModel={selectModel}
           onInstalledChange={refreshInstalledModels}
         />
       )}
@@ -649,7 +754,7 @@ function App() {
               }
               onLoadSelected={
                 currentModelConfig
-                  ? () => handleModelSelect(currentModelConfig)
+                  ? () => selectModel(currentModelConfig)
                   : undefined
               }
               onOpenLibrary={() => setActiveView("library")}
@@ -714,7 +819,7 @@ function App() {
             <CodeModelHint
               currentModelId={currentModelId}
               models={modelOptions}
-              onLoad={handleModelSelect}
+              onLoad={selectModel}
             />
           )}
           <ChatInput
@@ -729,7 +834,7 @@ function App() {
             modelId={currentModelId}
             modelName={currentModelConfig?.displayName}
             models={modelOptions}
-            onSelectModel={handleModelSelect}
+            onSelectModel={selectModel}
             isModelLoading={isLoading}
             onOpenLibrary={() => setActiveView("library")}
             onOpenSettings={() => setSettingsOpen(true)}
@@ -765,6 +870,20 @@ function App() {
         prompt={memoryPrompt}
         onContinue={confirmLowMemory}
         onCancel={cancelLowMemory}
+      />
+
+      <SwitchModelDialog
+        open={pendingModel !== null}
+        fromModel={currentModelConfig?.displayName}
+        toModel={pendingModel?.displayName}
+        busy={switchingModel}
+        error={switchError}
+        onHandoff={() => void switchWithHandoff()}
+        onSwitchAnyway={switchAnyway}
+        onCancel={() => {
+          setPendingModel(null);
+          setSwitchError(null);
+        }}
       />
     </ChatLayout>
   );
