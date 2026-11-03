@@ -2,7 +2,6 @@ import { useCallback, type MutableRefObject } from "react";
 import type { Message } from "./useLlama";
 import type { ConversationKind } from "../types/conversation";
 import type { ModelSettings } from "../types/settings";
-import type { ChatInputRef } from "../components/chat/ChatInput";
 import type { ToolCallRequest } from "../handlers/mcpToolHandler";
 import type { MCPToolResult } from "@/types";
 import { useGenerationStore } from "../store/generationStore";
@@ -12,7 +11,6 @@ import {
   createEditMessageHandler,
   createRegenerateMessageHandler,
 } from "../handlers/editMessageHandler";
-import { createTemplateHandler } from "../handlers/templateHandler";
 
 // Generate unique message IDs to prevent React key collisions
 let messageIdCounter = 0;
@@ -29,7 +27,6 @@ interface UseAppHandlersProps {
   messages: Message[];
   streamingContentRef: MutableRefObject<string>;
   modelSettings: ModelSettings;
-  inputRef: MutableRefObject<ChatInputRef | null>;
   currentModelId: string;
   setMessages: React.Dispatch<React.SetStateAction<Message[]>>;
   setIsGenerating: React.Dispatch<React.SetStateAction<boolean>>;
@@ -57,7 +54,6 @@ interface UseAppHandlersProps {
     modelId: string,
     session?: { kind: ConversationKind; projectId?: string }
   ) => void;
-  setSystemPrompt: (prompt: string) => Promise<void>;
   handleToolCallRequest?: (request: ToolCallRequest) => Promise<MCPToolResult>;
   isMCPReady?: boolean;
 }
@@ -68,7 +64,6 @@ export function useAppHandlers({
   messages,
   streamingContentRef,
   modelSettings,
-  inputRef,
   currentModelId,
   setMessages,
   setIsGenerating,
@@ -82,7 +77,6 @@ export function useAppHandlers({
   clearHistory,
   setChatHistory,
   createNewConversation,
-  setSystemPrompt,
   handleToolCallRequest,
   isMCPReady,
 }: UseAppHandlersProps) {
@@ -209,14 +203,6 @@ export function useAppHandlers({
     modelSettings,
   });
 
-  const handleTemplateSelect = createTemplateHandler(
-    () => createNewConversation("New Chat", currentModelId),
-    setSystemPrompt,
-    setMessages,
-    clearHistory,
-    inputRef
-  );
-
   return {
     handleSendMessage,
     handleStopGenerating,
@@ -225,6 +211,5 @@ export function useAppHandlers({
     handleContinue,
     handleEditMessage,
     handleRegenerateMessage,
-    handleTemplateSelect,
   };
 }

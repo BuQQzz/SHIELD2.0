@@ -9,36 +9,26 @@ import {
   Trash2,
   FileJson,
   FileText,
-  Tag as TagIcon,
-  Plus,
 } from "lucide-react";
 import { motion } from "framer-motion";
 import { toast } from "sonner";
 import { useChatStore } from "@/stores/chat-store";
 import { useConversationStore } from "@/stores/conversation-store";
-import type { ModelOption } from "@/config/models";
-import { useState } from "react";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-  DropdownMenuSub,
-  DropdownMenuSubContent,
-  DropdownMenuSubTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Tag } from "./Tag";
-import { MCPStatus } from "./MCPStatus";
 import { SummariesMenu, type ChatSummary } from "./SummariesMenu";
 
 interface ChatHeaderProps {
+  /** Named in the loading line; the composer's picker shows the model */
   modelName?: string;
   isLoading?: boolean;
   error?: string | null;
   warning?: string | null;
-  availableModels?: ModelOption[];
-  currentModelId?: string;
   onClearHistory?: () => void;
 }
 
@@ -47,19 +37,10 @@ export function ChatHeader({
   isLoading,
   error,
   warning,
-  availableModels = [],
-  currentModelId,
   onClearHistory,
 }: ChatHeaderProps) {
   const { sidebarOpen, toggleSidebar } = useChatStore();
-  const {
-    currentConversation,
-    loadConversation,
-    updateConversation,
-    saveCurrentConversation,
-  } = useConversationStore();
-  const [newTagInput, setNewTagInput] = useState("");
-  const [showTagInput, setShowTagInput] = useState(false);
+  const { currentConversation, loadConversation } = useConversationStore();
   const lastWarningRef = useRef<string | null>(null);
 
   // Replies that had to summarise earlier turns first
@@ -85,30 +66,6 @@ export function ChatHeader({
       lastWarningRef.current = null;
     }
   }, [warning]);
-
-  const handleAddTag = async (tag: string) => {
-    if (!currentConversation || !tag.trim()) return;
-
-    const currentTags = currentConversation.tags || [];
-    if (currentTags.includes(tag.trim())) return; // Don't add duplicates
-
-    updateConversation({
-      tags: [...currentTags, tag.trim()],
-    });
-    await saveCurrentConversation();
-    setNewTagInput("");
-    setShowTagInput(false);
-  };
-
-  const handleRemoveTag = async (tag: string) => {
-    if (!currentConversation) return;
-
-    const currentTags = currentConversation.tags || [];
-    updateConversation({
-      tags: currentTags.filter((t) => t !== tag),
-    });
-    await saveCurrentConversation();
-  };
 
   const handleExportJSON = async () => {
     if (!currentConversation) return;
@@ -161,8 +118,6 @@ export function ChatHeader({
             </span>
           ) : error ? (
             <span className="text-sm text-destructive">{error}</span>
-          ) : modelName ? (
-            <span className="text-sm text-muted-foreground">{modelName}</span>
           ) : null}
         </div>
       </div>
@@ -172,9 +127,6 @@ export function ChatHeader({
         <SummariesMenu
           conversationId={currentConversation?.id}
           summaries={summaries}
-        />
-        <MCPStatus
-          currentModel={availableModels.find((m) => m.id === currentModelId)}
         />
 
         {/* Options Menu */}
@@ -198,73 +150,6 @@ export function ChatHeader({
             {/* Tag Management - only show if conversation exists */}
             {currentConversation && (
               <>
-                <DropdownMenuSeparator />
-                <DropdownMenuSub>
-                  <DropdownMenuSubTrigger>
-                    <TagIcon className="mr-2 h-4 w-4" />
-                    Manage Tags
-                  </DropdownMenuSubTrigger>
-                  <DropdownMenuSubContent className="w-48">
-                    {/* Show existing tags */}
-                    {currentConversation.tags &&
-                    currentConversation.tags.length > 0 ? (
-                      <div className="p-2 space-y-1">
-                        <div className="text-xs font-medium text-muted-foreground px-2 py-1">
-                          Current Tags
-                        </div>
-                        <div className="flex flex-wrap gap-1 px-2">
-                          {currentConversation.tags.map((tag) => (
-                            <Tag
-                              key={tag}
-                              label={tag}
-                              onRemove={() => handleRemoveTag(tag)}
-                              variant="compact"
-                            />
-                          ))}
-                        </div>
-                      </div>
-                    ) : (
-                      <div className="p-2 text-xs text-muted-foreground text-center">
-                        No tags yet
-                      </div>
-                    )}
-
-                    <DropdownMenuSeparator />
-
-                    {/* Add new tag */}
-                    {showTagInput ? (
-                      <div className="p-2">
-                        <input
-                          type="text"
-                          value={newTagInput}
-                          onChange={(e) => setNewTagInput(e.target.value)}
-                          onKeyDown={(e) => {
-                            if (e.key === "Enter") {
-                              handleAddTag(newTagInput);
-                            } else if (e.key === "Escape") {
-                              setShowTagInput(false);
-                              setNewTagInput("");
-                            }
-                          }}
-                          onBlur={() => {
-                            if (!newTagInput.trim()) {
-                              setShowTagInput(false);
-                            }
-                          }}
-                          placeholder="Tag name..."
-                          className="w-full px-2 py-1 text-sm rounded border bg-background"
-                          autoFocus
-                        />
-                      </div>
-                    ) : (
-                      <DropdownMenuItem onClick={() => setShowTagInput(true)}>
-                        <Plus className="mr-2 h-4 w-4" />
-                        Add Tag
-                      </DropdownMenuItem>
-                    )}
-                  </DropdownMenuSubContent>
-                </DropdownMenuSub>
-
                 <DropdownMenuSeparator />
                 <DropdownMenuItem onClick={handleExportJSON}>
                   <FileJson className="mr-2 h-4 w-4" />

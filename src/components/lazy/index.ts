@@ -8,13 +8,6 @@ export const LazySettingsDialog = lazy(() =>
   }))
 );
 
-// Template selector - only loaded when user clicks new from template
-export const LazyTemplateSelector = lazy(() =>
-  import("../chat/TemplateSelector").then((module) => ({
-    default: module.TemplateSelector,
-  }))
-);
-
 // Code block with syntax highlighting - only loaded when needed
 export const LazyCodeBlock = lazy(() =>
   import("../chat/CodeBlock").then((module) => ({

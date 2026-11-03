@@ -1,11 +1,10 @@
 /**
- * A model picker in the composer, next to the Team toggle, so the model can
- * be changed without leaving the chat. It shows the same list as the sidebar
- * picker (ModelPickerMenu), including the per-model zero-retention opt-out on
- * hosted models that have no such route.
+ * The model picker, in the composer next to the Team toggle: the one place
+ * the model is chosen. Its list (ModelPickerMenu) includes the per-model
+ * zero-retention opt-out on hosted models that have no such route.
  */
 
-import { ChevronDown, Cloud, Cpu } from "lucide-react";
+import { ChevronDown, Cloud } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -14,20 +13,44 @@ import {
 import { ModelPickerMenu } from "@/components/shell/ModelPickerMenu";
 import { type ModelOption } from "@/config/models";
 import { useCloudStore } from "@/stores/cloud-store";
+import { cn } from "@/lib/utils";
 
 interface ComposerModelPickerProps {
   models: ModelOption[];
   currentModelId?: string;
   isLoading?: boolean;
+  /** A local model is loaded and ready (lights the status dot) */
+  isModelLoaded?: boolean;
   onSelect: (model: ModelOption) => void;
   onOpenLibrary: () => void;
   onOpenSettings?: () => void;
+}
+
+/** Status light: lit when a model is ready, pulsing while one loads */
+function StatusLight({ state }: { state: "ready" | "loading" | "idle" }) {
+  return (
+    <span className="relative flex h-2 w-2 shrink-0">
+      {state === "loading" && (
+        <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-amber-400/70" />
+      )}
+      <span
+        className={cn(
+          "relative inline-flex h-2 w-2 rounded-full",
+          state === "ready" &&
+            "bg-signal shadow-[0_0_8px_1px_var(--color-signal)]",
+          state === "loading" && "bg-amber-400",
+          state === "idle" && "bg-muted-foreground/40"
+        )}
+      />
+    </span>
+  );
 }
 
 export function ComposerModelPicker({
   models,
   currentModelId,
   isLoading,
+  isModelLoaded,
   onSelect,
   onOpenLibrary,
   onOpenSettings,
@@ -36,6 +59,7 @@ export function ComposerModelPicker({
   const fetchModels = useCloudStore((state) => state.fetchModels);
   const current = models.find((m) => m.id === currentModelId);
   const hosted = current?.runtime === "remote";
+  const state = isLoading ? "loading" : isModelLoaded ? "ready" : "idle";
 
   return (
     <DropdownMenu
@@ -48,14 +72,17 @@ export function ComposerModelPicker({
         <button
           type="button"
           disabled={isLoading}
-          title={current ? `Model: ${current.displayName}` : "Choose a model"}
+          title={
+            isLoading
+              ? "Loading…"
+              : current
+                ? `Model: ${current.displayName}${isModelLoaded ? "" : " (not loaded)"}`
+                : "Choose a model"
+          }
           className="inline-flex min-w-0 shrink items-center gap-1 rounded-md px-2 py-1 text-xs text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:cursor-progress"
         >
-          {hosted ? (
-            <Cloud className="h-3.5 w-3.5 shrink-0" />
-          ) : (
-            <Cpu className="h-3.5 w-3.5 shrink-0" />
-          )}
+          <StatusLight state={state} />
+          {hosted && <Cloud className="h-3.5 w-3.5 shrink-0" />}
           <span className="max-w-[10rem] truncate">
             {current?.displayName ?? "Choose a model"}
           </span>

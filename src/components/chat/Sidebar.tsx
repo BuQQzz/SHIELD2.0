@@ -11,7 +11,6 @@ import {
   Plus,
   Search,
   Settings,
-  Sparkles,
   X,
   type LucideIcon,
 } from "lucide-react";
@@ -19,8 +18,6 @@ import { motion } from "framer-motion";
 import { useEffect, useRef, useState } from "react";
 import { useChatStore, type AppView } from "@/stores/chat-store";
 import { useConversationStore } from "@/stores/conversation-store";
-import { SidebarModelPicker } from "@/components/shell/SidebarModelPicker";
-import type { ModelOption } from "@/config/models";
 import { cn } from "@/lib/utils";
 import { kindOf, ofKind, outsideProjects, viewKind } from "@/lib/sessions";
 import type { ConversationKind } from "@/types/conversation";
@@ -34,13 +31,7 @@ interface SidebarProps {
    * project has one), optionally in a project
    */
   onNewChat?: (kind: ConversationKind, projectId?: string) => void;
-  onNewFromTemplate?: () => void;
   onOpenSettings?: () => void;
-  models: ModelOption[];
-  currentModelId?: string;
-  isModelLoading: boolean;
-  isModelLoaded: boolean;
-  onModelSelect: (model: ModelOption) => void;
 }
 
 interface NavItem {
@@ -65,16 +56,7 @@ function SectionLabel({ children }: { children: React.ReactNode }) {
   );
 }
 
-export function Sidebar({
-  onNewChat,
-  onNewFromTemplate,
-  onOpenSettings,
-  models,
-  currentModelId,
-  isModelLoading,
-  isModelLoaded,
-  onModelSelect,
-}: SidebarProps) {
+export function Sidebar({ onNewChat, onOpenSettings }: SidebarProps) {
   const {
     sidebarOpen,
     sidebarCollapsed: collapsed,
@@ -180,10 +162,9 @@ export function Sidebar({
 
   return (
     <div className="flex h-full flex-col border-r border-border/60 bg-sidebar/40">
-      {/* ── Top half: brand, actions, navigation, model ── */}
-      {/* Natural height, so the model card is never cut off in a short window
-          (it was, at 650 px: this half got exactly half the height); capped so
-          the chat list always keeps room, and scrolling only below that */}
+      {/* ── Top half: brand, actions, navigation ── */}
+      {/* Natural height, capped so the chat list always keeps room, and
+          scrolling only below that */}
       <div
         className={cn(
           "flex min-h-0 flex-col overflow-y-auto",
@@ -229,15 +210,6 @@ export function Sidebar({
             <Plus className="h-4 w-4" />
             {!collapsed && (code ? "New session" : "New chat")}
           </button>
-          {!collapsed && !code && onNewFromTemplate && (
-            <button
-              onClick={onNewFromTemplate}
-              title="New chat from a template"
-              className="flex h-9 w-9 items-center justify-center rounded-lg border border-border/60 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
-            >
-              <Sparkles className="h-4 w-4" />
-            </button>
-          )}
         </div>
 
         {/* Navigation */}
@@ -297,24 +269,6 @@ export function Sidebar({
             })}
           </ul>
         </nav>
-
-        {/* Model */}
-        <div className="px-3 pb-3">
-          {!collapsed && <SectionLabel>Model</SectionLabel>}
-          <SidebarModelPicker
-            models={models}
-            currentModelId={currentModelId}
-            isLoading={isModelLoading}
-            isModelLoaded={isModelLoaded}
-            collapsed={collapsed}
-            onSelect={(model) => {
-              onModelSelect(model);
-              if (!viewKind(activeView)) setActiveView(sessionKind);
-            }}
-            onOpenLibrary={() => setActiveView("library")}
-            onOpenSettings={onOpenSettings}
-          />
-        </div>
       </div>
 
       {/* ── Bottom half: chats ── */}
