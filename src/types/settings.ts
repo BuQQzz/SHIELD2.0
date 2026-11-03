@@ -17,7 +17,6 @@ export interface ModelSettings {
   /** Library id of the last model loaded, offered first at startup */
   lastModelId?: string;
   maxTokens: number;
-  speculativeDecoding: boolean; // Use input lookup token prediction for faster inference
   /**
    * Use the sampling the loaded model recommends (its file, else SHIELD's
    * catalog) instead of temperature/topP/topK/repeatPenalty above. Absent
@@ -121,7 +120,6 @@ export const DEFAULT_SETTINGS: AppSettings = {
     repeatPenalty: 1.1,
     contextLength: 4096,
     maxTokens: 2048,
-    speculativeDecoding: true, // Enabled by default for faster inference
   },
   system: {
     systemPrompt: getDefaultSystemPrompt(),

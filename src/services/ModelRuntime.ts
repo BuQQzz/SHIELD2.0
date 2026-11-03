@@ -1,13 +1,12 @@
 /**
  * Model runtime facade (main process only)
  *
- * The IPC layer talks to this; it routes each library model to the engine
- * that runs it (see ModelRuntime in config/models.ts):
- * - node-llama-cpp in-process (LlamaService)
- * - a SHIELD-managed llama-server (LlamaServerProvider)
+ * The IPC layer talks to this; it routes each model to what runs it:
+ * - a library model: a SHIELD-managed llama-server (LlamaServerProvider)
+ * - a hosted model: the same chat handling, attached to a provider
  *
- * Only one model is loaded at a time. Switching engines unloads the other
- * first, so the new model gets the whole GPU.
+ * Only one model is loaded at a time. Switching stops the other first, so
+ * a new local model gets the whole GPU.
  */
 
 import { execFileSync } from "child_process";
@@ -24,14 +23,18 @@ import {
   type MemoryNeed,
 } from "./memoryCheck.js";
 import type { ContextBreakdown } from "./contextBreakdown.js";
+import type {
+  ChatOptions,
+  ContextUsage,
+  GenerationStats,
+  ModelConfig,
+} from "./chatTypes.js";
 import {
-  getLlamaService,
-  type ChatOptions,
-  type ContextUsage,
-  type GenerationStats,
-  type LlamaService,
-  type ModelConfig,
-} from "./LlamaService.js";
+  getHardwareInfo,
+  getLlamaBindings,
+  resolveModelPath,
+  setModelsDir,
+} from "./localModels.js";
 import { LlamaServerProvider } from "./LlamaServerProvider.js";
 import type { RequestStatus, RescueAction } from "./llamaServer/rescue.js";
 import type { SavedCapsule, SavedMessage } from "./taskCapsule.js";
@@ -49,15 +52,14 @@ import {
   zdrBlock,
 } from "./remote/remoteModels.js";
 
-type Engine = "node" | "server" | "remote";
+type Engine = "server" | "remote";
 
 export class ModelRuntime {
-  private readonly node: LlamaService = getLlamaService();
   private readonly server = new LlamaServerProvider();
   /** Chats with a hosted model: the same chat handling, no process (attach) */
   private readonly remote = new LlamaServerProvider();
   private providers: RemoteProviderSource | null = null;
-  private engine: Engine = "node";
+  private engine: Engine | null = null;
   private systemPrompt = "You are a helpful AI assistant.";
   private serverModel: ModelConfig | null = null;
   private remoteModel: ModelConfig | null = null;
@@ -86,7 +88,7 @@ export class ModelRuntime {
   }
 
   setCustomModelsDir(dir: string | undefined): void {
-    this.node.setCustomModelsDir(dir);
+    setModelsDir(dir);
   }
 
   /** Where saved providers and their keys are found (the ProviderStore) */
@@ -95,8 +97,8 @@ export class ModelRuntime {
   }
 
   /**
-   * The provider that serves the loaded model, whichever engine: the local
-   * server or the hosted model. Null for the in-process engine.
+   * The provider that serves the loaded model: the local server or the
+   * hosted model. Null when no model is loaded.
    */
   private get hosted(): LlamaServerProvider | null {
     if (this.engine === "server") return this.server;
@@ -111,15 +113,16 @@ export class ModelRuntime {
     this.closeAgentSessions();
     await this.remote.stop();
     this.remoteModel = null;
-    this.engine = "node";
+    this.engine = null;
   }
 
-  initialize(): Promise<void> {
-    return this.node.initialize();
+  /** Loads the llama.cpp bindings used for VRAM and GGUF reading */
+  async initialize(): Promise<void> {
+    await getLlamaBindings();
   }
 
   getHardwareInfo() {
-    return this.node.getHardwareInfo();
+    return getHardwareInfo();
   }
 
   /**
@@ -215,7 +218,6 @@ export class ModelRuntime {
 
     // Nothing runs here: free the GPU and RAM a local model held
     if (this.server.isRunning()) await this.server.stop();
-    await this.node.cleanup();
     this.serverModel = null;
 
     // The user's own choice, else what the provider says this model takes
@@ -260,10 +262,9 @@ export class ModelRuntime {
     if (this.remote.isRunning()) await this.remote.stop();
     const model = getModelById(config.id);
     if (!usesLlamaServer(model?.runtime)) {
-      if (this.server.isRunning()) await this.server.stop();
-      this.serverModel = null;
-      this.engine = "node";
-      return this.node.loadModel(config);
+      throw new Error(
+        `Unknown model "${config.id}". Pick one from the library.`
+      );
     }
 
     if (
@@ -275,9 +276,7 @@ export class ModelRuntime {
       return {};
     }
 
-    // Free the GPU before the server starts fitting into it
-    await this.node.cleanup();
-    const modelPath = await this.node.resolveModelPath(config.id);
+    const modelPath = await resolveModelPath(config.id);
     const contextSize =
       config.contextSize ?? (await this.getContextPlan(config.id)).recommended;
     await this.server.load({
@@ -311,13 +310,13 @@ export class ModelRuntime {
     }
     const model = getModelById(modelId);
     if (!model || !usesLlamaServer(model.runtime)) {
-      return this.node.getContextPlan(modelId);
+      throw new Error(`Unknown model "${modelId}". Pick one from the library.`);
     }
 
-    const modelPath = await this.node.resolveModelPath(modelId);
+    const modelPath = await resolveModelPath(modelId);
     let plan = this.serverPlans.get(modelPath);
     if (!plan) {
-      plan = this.node.getLlama().then(async (llama) => {
+      plan = getLlamaBindings().then(async (llama) => {
         const { total } = await llama.getVramState();
         return planServerContext(modelPath, llama, total, model.contextSize);
       });
@@ -335,8 +334,7 @@ export class ModelRuntime {
     if (isRemoteModelId(modelId)) return Promise.resolve(null);
     let found = this.samplings.get(modelId);
     if (!found) {
-      found = this.node
-        .resolveModelPath(modelId)
+      found = resolveModelPath(modelId)
         .then((modelPath) =>
           readGgufFileInfo(modelPath, { readTensorInfo: false })
         )
@@ -358,10 +356,14 @@ export class ModelRuntime {
     return found;
   }
 
+  /** The loaded model's provider; throws when none is loaded */
+  private get loaded(): LlamaServerProvider {
+    if (!this.hosted) throw new Error("No model loaded. Load one first.");
+    return this.hosted;
+  }
+
   chat(message: string, options: ChatOptions = {}): Promise<string> {
-    return this.hosted
-      ? this.hosted.chat(message, options)
-      : this.node.chat(message, options);
+    return this.loaded.chat(message, options);
   }
 
   chatStreaming(
@@ -373,7 +375,7 @@ export class ModelRuntime {
   }
 
   getLastStats(): GenerationStats | null {
-    return this.hosted ? this.hosted.getLastStats() : this.node.getLastStats();
+    return this.hosted?.getLastStats() ?? null;
   }
 
   /** The capsule the last request wrote to make room (llama-server only) */
@@ -401,48 +403,38 @@ export class ModelRuntime {
   }
 
   async getContextUsage(): Promise<ContextUsage | null> {
-    return this.hosted
-      ? this.hosted.getContextUsage()
-      : this.node.getContextUsage();
+    return this.hosted?.getContextUsage() ?? null;
   }
 
   async getContextBreakdown(): Promise<ContextBreakdown | null> {
-    return this.hosted
-      ? this.hosted.getContextBreakdown()
-      : this.node.getContextBreakdown();
+    return this.hosted?.getContextBreakdown() ?? null;
   }
 
   getModelInfo(): ModelConfig | null {
     if (this.engine === "remote") return this.remoteModel;
-    return this.engine === "server"
-      ? this.serverModel
-      : this.node.getModelInfo();
+    return this.engine === "server" ? this.serverModel : null;
   }
 
   isModelLoaded(): boolean {
-    return this.hosted ? this.hosted.isRunning() : this.node.isModelLoaded();
+    return this.hosted?.isRunning() ?? false;
   }
 
-  /** node-llama-cpp restores the chat whole; it has no capsules */
   setChatHistory(messages: SavedMessage[]): void {
-    if (this.hosted) this.hosted.setChatHistory(messages);
-    else this.node.setChatHistory(messages);
+    this.hosted?.setChatHistory(messages);
   }
 
   clearHistory(): void {
-    if (this.hosted) this.hosted.clearHistory();
-    else this.node.clearHistory();
+    this.hosted?.clearHistory();
   }
 
   stopGeneration(): void {
-    if (this.hosted) this.hosted.stopGeneration();
-    else this.node.stopGeneration();
+    this.hosted?.stopGeneration();
     for (const session of this.agentSessions.values()) {
       session.stopGeneration();
     }
   }
 
-  /** The request in progress, for the stuck bar; the in-process engine has none */
+  /** The request in progress, for the stuck bar */
   requestStatus(): RequestStatus | null {
     return this.hosted?.requestStatus() ?? null;
   }
@@ -454,15 +446,12 @@ export class ModelRuntime {
 
   /**
    * A chat for a sub-agent: own system prompt and history, on the model that
-   * is loaded. Only a llama-server model or a hosted one can host one; the
-   * in-process engine has a single chat session.
+   * is loaded.
    */
   createAgentSession(systemPrompt: string): string {
     const host = this.hosted;
     if (!host || !host.isRunning()) {
-      throw new Error(
-        "Agent teams need a model that runs on llama-server (Bonsai, Qwen3-Coder) or a hosted model. The loaded model does not, or none is loaded."
-      );
+      throw new Error("Agent teams need a loaded model. Load one first.");
     }
     const id = `agent-${this.nextAgentSession++}`;
     this.agentSessions.set(
@@ -502,7 +491,7 @@ export class ModelRuntime {
     }
   }
 
-  /** Both engines keep it, so a model switch starts with the right prompt */
+  /** Both providers keep it, so a model switch starts with the right prompt */
   async applySystemPrompt(
     prompt: string,
     tools?: ToolDefinition[]
@@ -510,7 +499,6 @@ export class ModelRuntime {
     this.systemPrompt = prompt;
     this.server.applySystemPrompt(prompt, tools);
     this.remote.applySystemPrompt(prompt);
-    await this.node.applySystemPrompt(prompt, tools);
   }
 
   getSystemPrompt(): string {
@@ -518,16 +506,13 @@ export class ModelRuntime {
   }
 
   generateTitle(userMessage: string): Promise<string> {
-    return this.hosted
-      ? this.hosted.generateTitle(userMessage)
-      : this.node.generateTitle(userMessage);
+    return this.loaded.generateTitle(userMessage);
   }
 
   async dispose(): Promise<void> {
     this.closeAgentSessions();
     await this.server.stop();
     await this.remote.stop();
-    await this.node.dispose();
   }
 }
 

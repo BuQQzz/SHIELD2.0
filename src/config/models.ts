@@ -57,9 +57,8 @@ export type ModelRole =
 
 /**
  * The engine that runs a variant:
- * - node-llama-cpp: in-process
- * - llama-server: a SHIELD-managed llama.cpp server, for models that need
- *   placement node-llama-cpp cannot do (MoE experts in system RAM)
+ * - llama-server: a SHIELD-managed llama.cpp server (Settings › Runtime
+ *   installs one); `--fit` places the model, MoE experts in system RAM
  * - prism-llama-server: PrismML's llama.cpp fork, for the Bonsai low-bit
  *   formats (Q1_0, PQ2_0). SHIELD runs it like llama-server; the fork is a
  *   superset of upstream, so `SHIELD_LLAMA_SERVER` may point at either.
@@ -67,8 +66,7 @@ export type ModelRole =
  *   user's own key (Settings > Providers). Not in the library: its models
  *   come from the provider, and what is said to one leaves this device.
  */
-export type ModelRuntime =
-  "node-llama-cpp" | "llama-server" | "prism-llama-server" | "remote";
+export type ModelRuntime = "llama-server" | "prism-llama-server" | "remote";
 
 /** One downloadable GGUF file (one quantization) of a variant */
 export interface ModelFile {
@@ -322,7 +320,7 @@ export const MODEL_FAMILIES: ModelFamilyEntry[] = [
         releaseDate: "2026-08",
         chatTemplate: "qwen",
         roles: ["chat", "vision"],
-        runtime: "node-llama-cpp",
+        runtime: "llama-server",
         files: [
           {
             name: "Qwen3.8-27B-UD-Q4_K_M.gguf",
@@ -427,7 +425,7 @@ export const MODEL_FAMILIES: ModelFamilyEntry[] = [
         provider: "Google",
         chatTemplate: "gemma",
         roles: ["chat", "vision"],
-        runtime: "node-llama-cpp",
+        runtime: "llama-server",
         files: [
           {
             name: "gemma-4-12b-it-Q4_K_M.gguf",
@@ -463,7 +461,7 @@ export const MODEL_FAMILIES: ModelFamilyEntry[] = [
         provider: "Google",
         chatTemplate: "gemma",
         roles: ["small", "chat", "vision"],
-        runtime: "node-llama-cpp",
+        runtime: "llama-server",
         files: [
           {
             name: "gemma-4-E4B-it-Q4_K_M.gguf",
@@ -653,11 +651,7 @@ export function getModelById(id: string): ModelMetadata | undefined {
 
 /** True for variants SHIELD can run today */
 export function isRuntimeAvailable(model: Pick<ModelMetadata, "runtime">) {
-  return (
-    model.runtime === "node-llama-cpp" ||
-    model.runtime === "remote" ||
-    usesLlamaServer(model.runtime)
-  );
+  return model.runtime === "remote" || usesLlamaServer(model.runtime);
 }
 
 /** Whether a runtime is served by a SHIELD-managed llama-server process */
@@ -667,7 +661,7 @@ export function usesLlamaServer(runtime: ModelRuntime | undefined): boolean {
 
 /**
  * Whether a runtime can give each sub-agent a chat of its own (agent teams):
- * a llama-server, or a hosted model. The in-process engine has one session.
+ * a llama-server, or a hosted model.
  */
 export function canHostAgents(runtime: ModelRuntime | undefined): boolean {
   return usesLlamaServer(runtime) || runtime === "remote";

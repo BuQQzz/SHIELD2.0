@@ -1,7 +1,7 @@
 import { ipcMain, app } from "electron";
 import { getModelDownloadService } from "../services/ModelDownloadService.js";
 import { MODEL_CATALOG, pickModelFile } from "../../src/config/models.js";
-import { getLlamaService } from "../../src/services/LlamaService.js";
+import { getHardwareInfo } from "../../src/services/localModels.js";
 
 /**
  * Register all model download related IPC handlers
@@ -18,7 +18,7 @@ export function registerModelHandlers() {
       }
 
       // The quantization that suits this GPU (Qwen3.8 has two)
-      const { vramGB } = await getLlamaService().getHardwareInfo();
+      const { vramGB } = await getHardwareInfo();
       const file = pickModelFile(model.files, vramGB);
       if (!file) {
         return { success: false, error: "Model has no downloadable file" };
@@ -144,7 +144,7 @@ export function registerModelHandlers() {
   // GPU memory and RAM, for recommending models
   ipcMain.handle("model:get-hardware", async () => {
     try {
-      const hardware = await getLlamaService().getHardwareInfo();
+      const hardware = await getHardwareInfo();
       return { success: true, hardware };
     } catch (error) {
       return {

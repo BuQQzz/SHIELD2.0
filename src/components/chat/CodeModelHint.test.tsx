@@ -12,7 +12,7 @@ const option = (id: string, displayName: string): ModelOption => ({
   size: "",
   description: "",
   contextSize: 32768,
-  runtime: "node-llama-cpp",
+  runtime: "llama-server",
 });
 
 const gemma = option("gemma-4-12b", "Gemma 4 12B");

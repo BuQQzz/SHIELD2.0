@@ -1,7 +1,6 @@
 import { emptyReplyMessage } from "@/utils/emptyReply";
 import { useState, useEffect, useCallback, useRef } from "react";
 import { isRemoteModelId } from "../services/remote/remoteEndpoint";
-import type { NativeToolResult } from "../types/nativeTools";
 import type { ToolDefinition } from "../types/prompts";
 import type {
   ChatProgress,
@@ -284,7 +283,6 @@ export function useLlama() {
         topP?: number;
         topK?: number;
         repeatPenalty?: number;
-        toolResults?: NativeToolResult[];
         thinking?: boolean;
       }
     ) => {

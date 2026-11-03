@@ -1,6 +1,5 @@
 import type { SavedCapsule } from "../services/taskCapsule";
 import type { RecommendedSampling } from "../services/modelSampling";
-import type { NativeToolResult } from "./nativeTools";
 import type { ToolDefinition } from "./prompts";
 import type { Plan } from "../config/plan";
 import type {
@@ -40,7 +39,6 @@ export interface ChatOptions {
   topP?: number;
   topK?: number;
   repeatPenalty?: number;
-  toolResults?: NativeToolResult[];
   thinking?: boolean;
 }
 
@@ -112,7 +110,7 @@ export interface Project {
   updatedAt: string;
 }
 
-/** How one reply was generated (mirrors LlamaService) */
+/** How one reply was generated (mirrors services/chatTypes.ts) */
 export interface GenerationStats {
   outputTokens: number;
   tokensPerSecond: number;
@@ -222,7 +220,7 @@ export interface ProvidersAPI {
 }
 
 /**
- * One request as it runs (see ChatProgress in LlamaService). `contextUsed`
+ * One request as it runs (see ChatProgress in services/chatTypes.ts). `contextUsed`
  * is how many tokens the window holds at that moment.
  */
 export type ChatProgress =
@@ -393,7 +391,6 @@ export interface AppSettings {
     repeatPenalty: number;
     contextLength: number;
     maxTokens: number;
-    speculativeDecoding: boolean;
   };
   system: {
     systemPrompt: string;

@@ -1,7 +1,6 @@
 import type { Message } from "../hooks/useLlama";
 import { withSteer } from "./steer";
 import type { ModelSettings } from "../types/settings";
-import type { NativeToolResult } from "../types/nativeTools";
 import { useSettingsStore } from "../store/settingsStore";
 import { orchestratorRounds } from "../agents/delegate";
 import { useGenerationStore } from "../store/generationStore";
@@ -132,7 +131,6 @@ interface MessageHandlerProps {
       topP?: number;
       topK?: number;
       repeatPenalty?: number;
-      toolResults?: NativeToolResult[];
       thinking?: boolean;
     }
   ) => Promise<string>;
@@ -442,7 +440,7 @@ export function createMessageHandler({
                 3
             )
           ),
-          continueConversation: async (resultPrompt: string, toolResults) => {
+          continueConversation: async (resultPrompt: string) => {
             const toolPrompt = withSteer(
               resultPrompt,
               useGenerationStore.getState().takeSteer()
@@ -469,7 +467,6 @@ export function createMessageHandler({
                 topP: modelSettings.topP,
                 topK: modelSettings.topK,
                 repeatPenalty: modelSettings.repeatPenalty,
-                ...(toolResults?.length ? { toolResults } : {}),
                 ...(teamMode ? { thinking: false } : {}),
               }
             );

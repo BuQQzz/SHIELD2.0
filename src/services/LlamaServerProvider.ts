@@ -75,7 +75,7 @@ import type {
   ChatProgress,
   ContextUsage,
   GenerationStats,
-} from "./LlamaService.js";
+} from "./chatTypes.js";
 
 /** Loading a 17 GB model into RAM plus fitting takes ~20 s; allow for slow disks */
 const STARTUP_TIMEOUT_MS = 5 * 60_000;
@@ -1161,7 +1161,7 @@ export class LlamaServerProvider {
   }
 
   /**
-   * What fills the context window, like LlamaService's. Token counts come
+   * What fills the context window. Token counts come
    * from the server: one pass collects the text pieces the breakdown needs,
    * they are tokenized, then a second pass reads the counts.
    */
