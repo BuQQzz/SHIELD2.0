@@ -356,7 +356,6 @@ Part 3 of 3. While a turn runs, **Ctrl+Enter** (or the list button next to Send)
 
 ## Working agreements with the user
 
-
 - Ask before downloading large files or installing system packages (name, source, size). Push and open PRs only when asked, each time. Run visible windows only when agreed, with a cap.
 - Report plainly what failed or was not tested; verify with your own run, not an agent's summary.
 - **Never empty the Trash** or run any broad cleanup: on 2026-10-20 `gio trash --empty` was run to remove one test file (it empties everything). Nothing was lost (the Trash folder had been created by that same test seconds earlier), but clean up only your own files, by exact path.

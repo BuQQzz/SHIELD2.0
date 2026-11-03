@@ -575,4 +575,3 @@ Known, smaller:
 - Major-version upgrades were deliberately skipped (Electron 44, Vite 8, Vitest 5, ESLint 10, TypeScript 7, Zustand 5 …) — see the dependency commit message.
 
 ---
-
