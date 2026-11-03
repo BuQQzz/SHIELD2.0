@@ -11,6 +11,7 @@ import { ModelSettings } from "./ModelSettings";
 import { SystemSettings } from "./SystemSettings";
 import { PrivacySettings } from "./PrivacySettings";
 import { ProvidersSettings } from "./ProvidersSettings";
+import { RuntimeSettings } from "./RuntimeSettings";
 import { WebSearchSettings } from "./WebSearchSettings";
 import { MCPSettings } from "./MCPSettings";
 import { HelpSettings } from "./HelpSettings";
@@ -56,6 +57,10 @@ export function SettingsDialog({
                 settings={settings.model}
                 currentModel={currentModel}
               />
+            </div>
+            <div className="space-y-3 pt-3 border-t">
+              <h3 className="text-sm font-semibold">Runtime</h3>
+              <RuntimeSettings />
             </div>
             <div className="space-y-3 pt-3 border-t">
               <h3 className="text-sm font-semibold">System Prompt</h3>

@@ -97,25 +97,47 @@ export function defaultThreads(logicalCpus = os.cpus().length): number {
   return Math.max(1, Math.min(8, Math.floor(logicalCpus / 2)));
 }
 
+/** SHIELD's own installed build (Settings › Runtime), set by the main process */
+let managedServer: () => string | undefined = () => undefined;
+
+export function setManagedServerLookup(lookup: () => string | undefined) {
+  managedServer = lookup;
+}
+
 /**
- * Where to find llama-server.exe: `SHIELD_LLAMA_SERVER`, then the Bonsai
- * demo's CUDA build (a llama.cpp fork that is a superset of upstream and
- * also runs Bonsai). Undefined when none exists.
+ * Where llama-server comes from, in order: `SHIELD_LLAMA_SERVER`, the build
+ * SHIELD installed (Settings › Runtime), then the Bonsai demo's CUDA build
+ * (a llama.cpp fork that is a superset of upstream and also runs Bonsai).
  */
+export function locateLlamaServer(
+  env: NodeJS.ProcessEnv = process.env,
+  exists: (file: string) => boolean = fs.existsSync,
+  managed: string | undefined = managedServer()
+): { binary: string; source: "env" | "managed" | "bonsai-demo" } | undefined {
+  const candidates = [
+    { binary: env.SHIELD_LLAMA_SERVER, source: "env" as const },
+    { binary: managed, source: "managed" as const },
+    {
+      binary: path.join(
+        os.homedir(),
+        "Bonsai",
+        "Bonsai-demo",
+        "bin",
+        "cuda",
+        "llama-server.exe"
+      ),
+      source: "bonsai-demo" as const,
+    },
+  ];
+  const found = candidates.find((c) => !!c.binary && exists(c.binary));
+  return found ? { binary: found.binary!, source: found.source } : undefined;
+}
+
+/** The llama-server a model load starts; undefined when none exists */
 export function findLlamaServer(
   env: NodeJS.ProcessEnv = process.env,
-  exists: (file: string) => boolean = fs.existsSync
+  exists: (file: string) => boolean = fs.existsSync,
+  managed: string | undefined = managedServer()
 ): string | undefined {
-  const candidates = [
-    env.SHIELD_LLAMA_SERVER,
-    path.join(
-      os.homedir(),
-      "Bonsai",
-      "Bonsai-demo",
-      "bin",
-      "cuda",
-      "llama-server.exe"
-    ),
-  ];
-  return candidates.find((file): file is string => !!file && exists(file));
+  return locateLlamaServer(env, exists, managed)?.binary;
 }

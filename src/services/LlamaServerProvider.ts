@@ -341,7 +341,7 @@ export class LlamaServerProvider {
     if (!binary) {
       throw new Error(
         `${process.platform === "win32" ? "llama-server.exe" : "llama-server"} was not found. ` +
-          "Set SHIELD_LLAMA_SERVER to its path (a llama.cpp build with --fit and --n-cpu-moe)."
+          "Install it from Settings › Runtime, or set SHIELD_LLAMA_SERVER to a llama.cpp build with --fit."
       );
     }
 
