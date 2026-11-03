@@ -74,7 +74,7 @@ export default defineConfig({
             "react-syntax-highlighter",
           ],
           // Utilities
-          "utils-vendor": ["zustand", "date-fns", "clsx", "tailwind-merge"],
+          "utils-vendor": ["zustand", "clsx", "tailwind-merge"],
         },
       },
       plugins: [
