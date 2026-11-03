@@ -1,6 +1,11 @@
 // @vitest-environment node
 import { describe, it, expect } from "vitest";
-import { buildServerArgs, defaultThreads, findLlamaServer } from "./launch";
+import {
+  buildServerArgs,
+  defaultThreads,
+  findLlamaServer,
+  locateLlamaServer,
+} from "./launch";
 import { chunkProgress, SseParser } from "./sse";
 
 describe("buildServerArgs", () => {
@@ -93,6 +98,32 @@ describe("findLlamaServer", () => {
 
   it("returns undefined when nothing exists", () => {
     expect(findLlamaServer({}, () => false)).toBeUndefined();
+  });
+
+  it("takes SHIELD's installed build before the Bonsai demo", () => {
+    expect(
+      locateLlamaServer({}, () => true, "C:/shield/runtime/llama-server.exe")
+    ).toEqual({
+      binary: "C:/shield/runtime/llama-server.exe",
+      source: "managed",
+    });
+  });
+
+  it("keeps SHIELD_LLAMA_SERVER ahead of the installed build", () => {
+    expect(
+      locateLlamaServer(
+        { SHIELD_LLAMA_SERVER: "C:/x/llama-server.exe" },
+        () => true,
+        "C:/shield/runtime/llama-server.exe"
+      )?.source
+    ).toBe("env");
+  });
+
+  it("skips an installed build whose file is gone", () => {
+    expect(
+      locateLlamaServer({}, (file) => !file.includes("shield"), "C:/shield/x")
+        ?.source
+    ).toBe("bonsai-demo");
   });
 });
 

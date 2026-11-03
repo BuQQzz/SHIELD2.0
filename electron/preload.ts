@@ -32,7 +32,9 @@ import type {
   ContextUsage,
   MemoryCheck,
   ProvidersAPI,
+  RuntimeAPI,
 } from "../src/types/electron";
+import type { RuntimeProgress } from "../src/types/runtime";
 import type { RecommendedSampling } from "../src/services/modelSampling";
 
 export interface ModelConfig {
@@ -596,6 +598,22 @@ const autoUpdateAPI: AutoUpdateAPI = {
   },
 };
 
+const runtimeAPI: RuntimeAPI = {
+  status: () => ipcRenderer.invoke("runtime:status"),
+  latest: (variant) => ipcRenderer.invoke("runtime:latest", variant),
+  install: (variant) => ipcRenderer.invoke("runtime:install", variant),
+  cancel: () => ipcRenderer.invoke("runtime:cancel"),
+  rollback: () => ipcRenderer.invoke("runtime:rollback"),
+  onProgress: (callback) => {
+    const handler = (
+      _event: Electron.IpcRendererEvent,
+      progress: RuntimeProgress
+    ) => callback(progress);
+    ipcRenderer.on("runtime:progress", handler);
+    return () => ipcRenderer.removeListener("runtime:progress", handler);
+  },
+};
+
 contextBridge.exposeInMainWorld("electronAPI", {
   settings: settingsAPI,
   settingsPersistence: settingsPersistenceAPI,
@@ -603,6 +621,7 @@ contextBridge.exposeInMainWorld("electronAPI", {
   webSearch: webSearchAPI,
   mcp: mcpAPI,
   modelDownload: modelDownloadAPI,
+  runtime: runtimeAPI,
   system: systemAPI,
   autoUpdate: autoUpdateAPI,
 });

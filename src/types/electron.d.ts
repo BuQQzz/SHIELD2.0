@@ -3,6 +3,13 @@ import type { RecommendedSampling } from "../services/modelSampling";
 import type { NativeToolResult } from "./nativeTools";
 import type { ToolDefinition } from "./prompts";
 import type { Plan } from "../config/plan";
+import type {
+  InstalledRuntime,
+  RuntimeProgress,
+  RuntimeRelease,
+  RuntimeStatus,
+  RuntimeVariant,
+} from "./runtime";
 import type { AgentRunView } from "../agents/runView";
 import type {
   RequestStatus,
@@ -657,6 +664,33 @@ export interface MCPAPI {
   };
 }
 
+// llama-server runtime (Settings › Runtime)
+export interface RuntimeAPI {
+  status: () => Promise<{
+    success: boolean;
+    status?: RuntimeStatus;
+    error?: string;
+  }>;
+  /** The newest release with this variant (null when none has it) */
+  latest: (variant: RuntimeVariant) => Promise<{
+    success: boolean;
+    release?: RuntimeRelease | null;
+    error?: string;
+  }>;
+  install: (variant: RuntimeVariant) => Promise<{
+    success: boolean;
+    runtime?: InstalledRuntime;
+    error?: string;
+  }>;
+  cancel: () => Promise<{ success: boolean }>;
+  rollback: () => Promise<{
+    success: boolean;
+    runtime?: InstalledRuntime;
+    error?: string;
+  }>;
+  onProgress: (callback: (progress: RuntimeProgress) => void) => () => void;
+}
+
 // Model Download Types
 export interface DownloadProgress {
   modelId: string;
@@ -752,6 +786,7 @@ declare global {
       webSearch: WebSearchAPI;
       mcp: MCPAPI;
       modelDownload: ModelDownloadAPI;
+      runtime: RuntimeAPI;
       system: SystemAPI;
       autoUpdate: AutoUpdateAPI;
     };

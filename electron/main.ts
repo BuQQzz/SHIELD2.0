@@ -10,6 +10,7 @@ import { registerMcpHandlers } from "./ipc/mcpHandlers.js";
 import { registerMemoryHandlers } from "./ipc/memoryHandlers.js";
 import { registerProjectHandlers } from "./ipc/projectHandlers.js";
 import { registerProviderHandlers } from "./ipc/providerHandlers.js";
+import { registerRuntimeHandlers } from "./ipc/runtimeHandlers.js";
 import { registerSearchHandlers } from "./ipc/searchHandlers.js";
 import { registerSettingsHandlers } from "./ipc/settingsHandlers.js";
 import { registerModelHandlers } from "./ipc/modelHandlers.js";
@@ -65,6 +66,7 @@ async function setupIpcHandlers() {
   const { webSearchService, getWebCacheService } = registerSearchHandlers();
   const modelDownloadService = registerModelHandlers();
   registerSystemHandlers();
+  registerRuntimeHandlers(() => mainWindow);
 
   // Apply initial settings to services. The model loader gets the download
   // folder even without a custom one - its own default was a different
