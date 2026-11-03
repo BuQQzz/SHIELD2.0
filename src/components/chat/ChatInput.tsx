@@ -37,6 +37,7 @@ interface ChatInputProps {
   onSelectModel?: (model: ModelOption) => void;
   /** True while a model is loading (the picker is held shut then) */
   isModelLoading?: boolean;
+  isModelLoaded?: boolean;
   onOpenLibrary?: () => void;
   onOpenSettings?: () => void;
 }
@@ -62,6 +63,7 @@ export const ChatInput = forwardRef<ChatInputRef, ChatInputProps>(
       models,
       onSelectModel,
       isModelLoading,
+      isModelLoaded,
       onOpenLibrary,
       onOpenSettings,
     },
@@ -271,6 +273,7 @@ export const ChatInput = forwardRef<ChatInputRef, ChatInputProps>(
                 models={models}
                 currentModelId={modelId}
                 isLoading={isModelLoading}
+                isModelLoaded={isModelLoaded}
                 onSelect={onSelectModel}
                 onOpenLibrary={onOpenLibrary}
                 onOpenSettings={onOpenSettings}

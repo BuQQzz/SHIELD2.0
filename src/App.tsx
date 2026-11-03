@@ -14,7 +14,7 @@ import { ChatHeader } from "./components/chat/ChatHeader";
 import { ChatPlaceholder } from "./components/chat/ChatPlaceholder";
 import { MessageList } from "./components/chat/MessageList";
 import { ChatInput, type ChatInputRef } from "./components/chat/ChatInput";
-import { LazySettingsDialog, LazyTemplateSelector } from "./components/lazy";
+import { LazySettingsDialog } from "./components/lazy";
 import { ToolPermissionBar } from "./components/chat/ToolPermissionBar";
 import { StuckBar } from "./components/chat/StuckBar";
 import { ThemeProvider } from "./components/theme/ThemeProvider";
@@ -81,7 +81,6 @@ function App() {
   const [currentModelId, setCurrentModelId] =
     useState<string>(DEFAULT_MODEL_ID);
   const [settingsOpen, setSettingsOpen] = useState(false);
-  const [templateSelectorOpen, setTemplateSelectorOpen] = useState(false);
   const streamingContentRef = useRef("");
   const inputRef = useRef<ChatInputRef>(null);
 
@@ -483,14 +482,12 @@ function App() {
     handleContinue,
     handleEditMessage,
     handleRegenerateMessage,
-    handleTemplateSelect,
   } = useAppHandlers({
     isModelLoaded,
     currentConversation,
     messages,
     streamingContentRef,
     modelSettings,
-    inputRef,
     currentModelId,
     setMessages,
     setIsGenerating,
@@ -504,7 +501,6 @@ function App() {
     clearHistory,
     setChatHistory,
     createNewConversation,
-    setSystemPrompt,
     handleToolCallRequest: handleToolCall, // Pass MCP handler
     isMCPReady,
   });
@@ -699,13 +695,7 @@ function App() {
       sidebar={
         <Sidebar
           onNewChat={handleNew}
-          onNewFromTemplate={() => setTemplateSelectorOpen(true)}
           onOpenSettings={() => setSettingsOpen(true)}
-          models={modelOptions}
-          currentModelId={currentModelId}
-          isModelLoading={isLoading}
-          isModelLoaded={isModelLoaded}
-          onModelSelect={selectModel}
         />
       }
     >
@@ -739,8 +729,6 @@ function App() {
             isLoading={isLoading || isLoadingModels}
             error={error}
             warning={warning}
-            availableModels={modelOptions}
-            currentModelId={currentModelId}
             onClearHistory={handleClearHistory}
           />
           {messages.length === 0 && !streamingContent ? (
@@ -836,6 +824,7 @@ function App() {
             models={modelOptions}
             onSelectModel={selectModel}
             isModelLoading={isLoading}
+            isModelLoaded={isModelLoaded}
             onOpenLibrary={() => setActiveView("library")}
             onOpenSettings={() => setSettingsOpen(true)}
           />
@@ -856,15 +845,6 @@ function App() {
           currentModel={modelOptions.find((m) => m.id === currentModelId)}
         />
       </Suspense>
-
-      {templateSelectorOpen && (
-        <Suspense fallback={null}>
-          <LazyTemplateSelector
-            onSelect={handleTemplateSelect}
-            onClose={() => setTemplateSelectorOpen(false)}
-          />
-        </Suspense>
-      )}
 
       <LowMemoryDialog
         prompt={memoryPrompt}
