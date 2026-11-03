@@ -28,7 +28,7 @@ const chat = (user: string) =>
   `<|im_start|>user\n${user}<|im_end|>\n<|im_start|>assistant\n`;
 
 const editSource = file("src/components/chat/conversationDates.ts");
-const readSource = file("src/services/LlamaService.ts");
+const readSource = file("src/services/LlamaServerProvider.ts");
 
 const tasks = [
   {
