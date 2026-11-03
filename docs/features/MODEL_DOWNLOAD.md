@@ -120,20 +120,18 @@ banner automatically.
 
 ```
 Model Download Flow:
-1. User clicks download → ModelDownloadDialog
+1. User clicks download in the Model Library → ModelLibraryPage
 2. useModelDownload hook → IPC call to main process
 3. ModelDownloadService → node-llama-cpp resolveModelFile
 4. Progress tracking → IPC events back to renderer
-5. DownloadProgressBar updates in real-time
+5. LibraryModelRow shows the progress in real-time
 ```
 
 ### Components
 
-- **ModelDownloadDialog**: Main browsing and download UI
-- **ModelCard**: Individual model display with actions
-- **DownloadProgressBar**: Real-time progress visualization
+- **ModelLibraryPage**: Main browsing and download UI
+- **LibraryModelRow**: One model with its actions and download progress
 - **DeleteModelDialog**: Confirmation dialog for model deletion
-- **CapabilityBadge**: Visual indicators for model features
 
 ### Hooks
 

@@ -1,7 +1,7 @@
 /**
  * How SHIELD starts llama-server (main process only)
  *
- * The launch profile comes from docs/RUNTIME_SPEED_RESEARCH.md: on a 12 GB
+ * The launch profile comes from docs/archive/RUNTIME_SPEED_RESEARCH.md: on a 12 GB
  * GPU it runs Qwen3-Coder-30B at 32k context 3.7-8x faster than
  * node-llama-cpp's whole-layer split.
  */

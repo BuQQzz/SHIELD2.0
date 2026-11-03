@@ -451,5 +451,5 @@ If none of these solutions work:
 For additional help, see:
 
 - [LLM Integration Guide](./LLM-INTEGRATION.md)
-- [Component API Reference](./COMPONENT-API.md)
+- [Component API Reference](./archive/COMPONENT-API.md)
 - [Quick Start Guide](./QUICK-START.md)

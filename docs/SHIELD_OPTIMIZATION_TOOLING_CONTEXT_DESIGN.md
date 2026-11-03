@@ -15,10 +15,10 @@ The model should spend its limited compute deciding what to do, not carrying unn
 Related docs:
 
 - `SHIELD_AGENT_ARCHITECTURE.md`
-- `MODEL_SYSTEM_BRAINSTORM.md`
-- `PROMPT_RESEARCH.md`
-- `PERMISSION_MODES_PLAN.md`
-- `HYBRID_TOOL_CALLING_IMPLEMENTATION_PLAN.md`
+- `archive/MODEL_SYSTEM_BRAINSTORM.md`
+- `archive/PROMPT_RESEARCH.md`
+- `archive/PERMISSION_MODES_PLAN.md`
+- `archive/HYBRID_TOOL_CALLING_IMPLEMENTATION_PLAN.md`
 
 ---
 
@@ -1134,7 +1134,7 @@ A resumed task should not require replaying 90 old chat messages. It should load
 
 Fresh research on unreallabsai/unreal-agent (2026-09-22) independently validates several directions above.
 
-Detailed notes: UNREAL_AGENT_RESEARCH.md
+Detailed notes: archive/UNREAL_AGENT_RESEARCH.md
 
 Particularly relevant:
 

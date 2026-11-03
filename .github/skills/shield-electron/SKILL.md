@@ -97,7 +97,7 @@ electron/
 ├── services/
 │   ├── LlamaService.ts       # node-llama-cpp wrapper
 │   ├── MCPService.ts         # MCP client
-│   ├── SettingsService.ts
+│   ├── SettingsStorageService.ts
 │   └── ConversationStorageService.ts
 └── setup/
     └── windowSetup.ts

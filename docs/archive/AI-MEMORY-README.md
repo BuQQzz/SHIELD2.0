@@ -52,7 +52,7 @@ Invoke-RestMethod -Uri http://localhost:8080/memory/add `
 
 ## Documentation
 
-Full setup guide: [`docs/AI_MEMORY_SETUP.md`](./docs/AI_MEMORY_SETUP.md)
+Full setup guide: [`docs/AI_MEMORY_SETUP.md`](./AI_MEMORY_SETUP.md)
 
 ## What I Remember
 

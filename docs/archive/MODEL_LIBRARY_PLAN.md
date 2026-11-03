@@ -3,7 +3,7 @@
 **Status:** Phase 1 done (2026-09-24); Phases 2–6 not started  
 **Date:** 2026-09-24  
 **Supersedes:** the flat catalog in `src/config/models.ts`; idea #5 ("prune") in [MODEL_SYSTEM_BRAINSTORM.md](./MODEL_SYSTEM_BRAINSTORM.md)  
-**Builds on:** [SHIELD_OPTIMIZATION_TOOLING_CONTEXT_DESIGN.md](./SHIELD_OPTIMIZATION_TOOLING_CONTEXT_DESIGN.md) §2–4 (Hardware Profile, Model Library, Runtime Manager) and [SHIELD_AGENT_ARCHITECTURE.md](./SHIELD_AGENT_ARCHITECTURE.md) §10 (provider layer)
+**Builds on:** [SHIELD_OPTIMIZATION_TOOLING_CONTEXT_DESIGN.md](../SHIELD_OPTIMIZATION_TOOLING_CONTEXT_DESIGN.md) §2–4 (Hardware Profile, Model Library, Runtime Manager) and [SHIELD_AGENT_ARCHITECTURE.md](../SHIELD_AGENT_ARCHITECTURE.md) §10 (provider layer)
 
 ---
 

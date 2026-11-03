@@ -142,7 +142,7 @@ npm run dev:electron
 
 ### Learn More
 
-- [Component API Documentation](../docs/COMPONENT-API.md)
+- [Component API Documentation](./archive/COMPONENT-API.md)
 - [LLM Integration Guide](../docs/LLM-INTEGRATION.md)
 - [Contributing Guidelines](../.github/copilot-instructions.md)
 

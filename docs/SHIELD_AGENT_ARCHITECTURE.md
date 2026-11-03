@@ -12,11 +12,11 @@
 
 - [HANDOFF.md](./HANDOFF.md) — **latest session state and the next line of work; start here**
 - [testing/AGENT_BENCHMARK.md](./testing/AGENT_BENCHMARK.md) — **the benchmark, its results, and findings; evidence for decisions below**
-- [PROMPT_RESEARCH.md](./PROMPT_RESEARCH.md) — prompt/harness findings from Codex, Goose, OpenCode, and future harness research
-- [MODEL_SYSTEM_BRAINSTORM.md](./MODEL_SYSTEM_BRAINSTORM.md) — model/runtime/provider brainstorming
-- [PERMISSION_MODES_PLAN.md](./PERMISSION_MODES_PLAN.md) — Ask / Auto / Plan / Read-only design
-- [HYBRID_TOOL_CALLING_IMPLEMENTATION_PLAN.md](./HYBRID_TOOL_CALLING_IMPLEMENTATION_PLAN.md) — XML + OpenAI-style tool-call bridge
-- [UNSLOTH_QWEN3_QWEN_AGENT_RESEARCH.md](./UNSLOTH_QWEN3_QWEN_AGENT_RESEARCH.md) — Qwen/Qwen-Agent research
+- [PROMPT_RESEARCH.md](./archive/PROMPT_RESEARCH.md) — prompt/harness findings from Codex, Goose, OpenCode, and future harness research
+- [MODEL_SYSTEM_BRAINSTORM.md](./archive/MODEL_SYSTEM_BRAINSTORM.md) — model/runtime/provider brainstorming
+- [PERMISSION_MODES_PLAN.md](./archive/PERMISSION_MODES_PLAN.md) — Ask / Auto / Plan / Read-only design
+- [HYBRID_TOOL_CALLING_IMPLEMENTATION_PLAN.md](./archive/HYBRID_TOOL_CALLING_IMPLEMENTATION_PLAN.md) — XML + OpenAI-style tool-call bridge
+- [UNSLOTH_QWEN3_QWEN_AGENT_RESEARCH.md](./archive/UNSLOTH_QWEN3_QWEN_AGENT_RESEARCH.md) — Qwen/Qwen-Agent research
 
 ---
 
@@ -625,7 +625,7 @@ Use this section to record decisions once we stop brainstorming and commit to th
 | 2026-09-24 | Shipped   | Auto runs every known file change unprompted; deletes always ask; Ask's "Allow for session" never covers deletes                                     | User decision: local models deleting the wrong thing could take out a codebase or system files                                                                                                                                 |
 | 2026-09-24 | Shipped   | delete_file moves to the Recycle Bin (SHIELD's own tool)                                                                                             | The filesystem server has no delete; the model invented one, then faked a delete by renaming                                                                                                                                   |
 | 2026-09-22 | Direction | Native tools only where the wrapper matches the model's trained format; generic fallback → XML                                                       | Qwen3-Coder: XML 100%, generic native 83% with silent file corruption, forced Qwen wrapper 42%                                                                                                                                 |
-| 2026-09-24 | Decision  | Model library cut to three families: Qwen (Coder-30B + 3.8-27B), Gemma 4 (12B + E4B), Bonsai 2 27B                                                   | User decision: 17 mostly-2024 entries → a few current models. Plan: `MODEL_LIBRARY_PLAN.md`                                                                                                                                    |
+| 2026-09-24 | Decision  | Model library cut to three families: Qwen (Coder-30B + 3.8-27B), Gemma 4 (12B + E4B), Bonsai 2 27B                                                   | User decision: 17 mostly-2024 entries → a few current models. Plan: `archive/MODEL_LIBRARY_PLAN.md`                                                                                                                            |
 | 2026-09-24 | Decision  | Bonsai 2 runs through a SHIELD-managed Prism `llama-server`; it is the provider layer's first test                                                   | Its PTQ1_0/PQ2_0 formats need the PrismML fork; stock llama.cpp refuses them or outputs garbage                                                                                                                                |
 | 2026-10-20 | Decision  | Build agent teams (orchestrator + coder, tester, reviewer) now, overriding §13 item 10 / §14 "no subagents until single-agent execution is reliable" | User decision. Bonsai 27B handled tool loops well enough on the 8-task smoke (7/8) and the single-agent harness (ledger, Plan, memory, permission policy) is in place. v1 is small and measured: `scripts/bench/agent-team.ts` |
 | 2026-10-20 | Shipped   | The orchestrator has only `delegate`; workers get their own model sessions on the same llama-server                                                  | A prototype orchestrator that could read files looped re-reading its notes and never delegated                                                                                                                                 |
@@ -740,7 +740,7 @@ This progressive-disclosure pattern should become a general SHIELD optimization 
 Detailed research:
 
 - SHIELD_OPTIMIZATION_TOOLING_CONTEXT_DESIGN.md
-- UNREAL_AGENT_RESEARCH.md
+- archive/UNREAL_AGENT_RESEARCH.md
 
 ## Direction: Context Engine should produce a Context Packet and Context Report
 

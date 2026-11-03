@@ -238,7 +238,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Persists thinking in conversation history
   - Works with models that output chain-of-thought analysis
   - Improves transparency into AI decision-making
-  - See [Thinking Animation Guide](docs/features/THINKING_ANIMATION.md)
+  - See [Thinking Animation Guide](./docs/archive/features/THINKING_ANIMATION.md)
 
 - **GPU Layer Offloading** for running large models on limited hardware
   - Enables 32B+ models on GPUs with 12GB VRAM or less
@@ -256,7 +256,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     - ~25 layers in VRAM, ~8 layers in RAM
     - Achieves ~8-12 tokens/s (vs impossible without offloading)
   - Based on research from llama.cpp and node-llama-cpp documentation
-  - See [GPU Layer Offloading Guide](docs/features/GPU_LAYER_OFFLOADING.md)
+  - See [GPU Layer Offloading Guide](./docs/archive/features/GPU_LAYER_OFFLOADING.md)
 
 ### Changed
 

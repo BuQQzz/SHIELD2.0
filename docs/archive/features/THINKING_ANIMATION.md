@@ -402,7 +402,7 @@ Potential improvements for future releases:
 
 - [Chain-of-Thought Prompting](../PROMPTING.md) - How to encourage reasoning
 - [Web Search Reasoning](./WEB_SEARCH.md) - Reasoning for search responses
-- [Model Capabilities](./MODEL_CAPABILITIES.md) - Which models support thinking
+- [Model Capabilities](../../features/MODEL_CAPABILITIES.md) - Which models support thinking
 
 ## References
 

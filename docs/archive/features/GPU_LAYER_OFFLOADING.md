@@ -231,8 +231,8 @@ Potential improvements for future releases:
 
 - [Model Catalog](./docs/MODEL_CATALOG.md) - Available models and sizes
 - [Performance Optimization](../PERFORMANCE.md) - General performance tips
-- [Troubleshooting](../TROUBLESHOOTING.md) - Common issues
-- [LLM Integration](../LLM-INTEGRATION.md) - Technical llama.cpp details
+- [Troubleshooting](../../TROUBLESHOOTING.md) - Common issues
+- [LLM Integration](../../LLM-INTEGRATION.md) - Technical llama.cpp details
 
 ## References
 
