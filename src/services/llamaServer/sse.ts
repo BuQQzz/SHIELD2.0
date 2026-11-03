@@ -5,7 +5,7 @@
  * returns each complete `data:` payload, parsed.
  */
 
-import type { ChatProgress } from "../LlamaService.js";
+import type { ChatProgress } from "../chatTypes.js";
 
 export interface ChatStreamChunk {
   choices?: {

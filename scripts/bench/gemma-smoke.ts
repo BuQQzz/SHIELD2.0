@@ -1,8 +1,8 @@
-/** Exercise the shipped Gemma runtime and SHIELD tool loop on disposable files.
+/** Exercise a library model on llama-server and SHIELD's tool loop on disposable files.
  * npx tsx scripts/bench/gemma-smoke.ts --models-dir D:/AIMODELS
  *
- * Other library models: `--model <catalog id>` (e.g. bonsai-27b, which needs
- * SHIELD_LLAMA_SERVER), `--family qwen|gemma` for the prompt style (default
+ * Other library models: `--model <catalog id>` (e.g. bonsai-2-27b); all need
+ * llama-server (Settings › Runtime, or SHIELD_LLAMA_SERVER), `--family qwen|gemma` for the prompt style (default
  * gemma for gemma models, qwen otherwise), `--context 8192`, `--max-tokens 1536`.
  */
 import fs from "node:fs";
@@ -45,13 +45,7 @@ const selected = args.includes("--cases")
 
 try {
   await runtime.initialize();
-  const loaded = await runtime.loadModel({
-    ...model,
-    contextSize,
-    ...(args.includes("--no-speculation")
-      ? { speculativeDecoding: false }
-      : {}),
-  });
+  const loaded = await runtime.loadModel({ ...model, contextSize });
   if (loaded.memory) throw new Error(loaded.memory.problems.join(" "));
   for (const task of TASKS.filter(
     (item) => !selected || selected.includes(item.id)
@@ -123,8 +117,8 @@ try {
           maxToolCallsPerTurn: 1,
           maxResultChars: 5000,
           workspaceFolder: dir,
-          continueConversation: async (text, toolResults) => {
-            answer = await runtime.chat(text, { ...options, toolResults });
+          continueConversation: async (text) => {
+            answer = await runtime.chat(text, options);
             transcript.push(answer);
             return answer;
           },

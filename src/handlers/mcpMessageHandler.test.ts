@@ -78,7 +78,7 @@ describe("processMCPToolCalls", () => {
   });
 
   it.each([true, false])(
-    "returns native call IDs with bounded permission results (allowed=%s)",
+    "returns an OpenAI-style call's permission result as text (allowed=%s)",
     async (allowed) => {
       const onToolCallDetected = vi.fn().mockResolvedValue(
         allowed
@@ -121,14 +121,11 @@ describe("processMCPToolCalls", () => {
           arguments: { path: "C:/fixture.txt" },
         })
       );
-      expect(continueConversation.mock.calls[0]?.[1]).toEqual([
-        {
-          callId: "native-1",
-          result: expect.stringContaining(
-            allowed ? "fixture value" : "Permission denied by user"
-          ),
-        },
-      ]);
+      expect(continueConversation).toHaveBeenCalledWith(
+        expect.stringContaining(
+          allowed ? "fixture value" : "Permission denied by user"
+        )
+      );
     }
   );
 

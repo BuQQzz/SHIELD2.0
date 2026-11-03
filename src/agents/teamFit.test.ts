@@ -13,7 +13,9 @@ describe("teamAvailability", () => {
   });
 
   it("rules out a model whose runtime cannot run a team", () => {
-    const result = teamAvailability({ runtime: "node-llama-cpp" });
+    const result = teamAvailability({
+      runtime: "future-engine" as unknown as "remote",
+    });
     expect(result.state).toBe("unavailable");
   });
 
@@ -43,10 +45,11 @@ describe("teamAvailability", () => {
       untested: true,
     });
     expect(teamAvailability(getModelById("bonsai-8b")).state).toBe("caution");
-    // Gemma runs on node-llama-cpp, which has no sub-agent sessions
-    expect(teamAvailability(getModelById("gemma-4-12b")).state).toBe(
-      "unavailable"
-    );
+    // Every local model runs on llama-server now; Gemma has not been tried
+    expect(teamAvailability(getModelById("gemma-4-12b"))).toMatchObject({
+      state: "available",
+      untested: true,
+    });
   });
 });
 
@@ -98,8 +101,6 @@ describe("teamLabel", () => {
       label: "Team: not suited",
       tone: "bad",
     });
-    expect(teamLabel(getModelById("gemma-4-12b")).label).toBe(
-      "Team: not available"
-    );
+    expect(teamLabel(getModelById("gemma-4-12b")).label).toBe("Team: untested");
   });
 });

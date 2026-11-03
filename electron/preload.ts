@@ -1,5 +1,4 @@
 import { contextBridge, ipcRenderer } from "electron";
-import type { NativeToolResult } from "../src/types/nativeTools";
 import type { ToolDefinition } from "../src/types/prompts";
 import type {
   Conversation,
@@ -49,7 +48,6 @@ export interface ModelConfig {
 export interface ChatOptions {
   temperature?: number;
   maxTokens?: number;
-  toolResults?: NativeToolResult[];
   thinking?: boolean;
 }
 

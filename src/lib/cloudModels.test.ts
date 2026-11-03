@@ -166,7 +166,7 @@ describe("a hosted model among the app's rules", () => {
   it("can be loaded and can host a team, untested", () => {
     expect(isRuntimeAvailable(option!)).toBe(true);
     expect(canHostAgents("remote")).toBe(true);
-    expect(canHostAgents("node-llama-cpp")).toBe(false);
+    expect(canHostAgents(undefined)).toBe(false);
     expect(teamAvailability(option)).toMatchObject({
       state: "available",
       untested: true,

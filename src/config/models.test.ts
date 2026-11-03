@@ -62,8 +62,8 @@ describe("the library", () => {
     }
   });
 
-  it("keeps node-llama-cpp models off the server path", () => {
-    expect(usesLlamaServer("node-llama-cpp")).toBe(false);
+  it("keeps hosted models off the server path", () => {
+    expect(usesLlamaServer("remote")).toBe(false);
     expect(usesLlamaServer(undefined)).toBe(false);
   });
 

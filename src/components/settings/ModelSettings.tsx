@@ -14,13 +14,7 @@ import {
   type RecommendedSampling,
   type SamplingValues,
 } from "@/services/modelSampling";
-import {
-  ChevronDown,
-  ChevronUp,
-  Play,
-  SlidersHorizontal,
-  Zap,
-} from "lucide-react";
+import { ChevronDown, ChevronUp, Play, SlidersHorizontal } from "lucide-react";
 
 interface ModelSettingsProps {
   settings: ModelSettingsType;
@@ -93,10 +87,6 @@ export function ModelSettings({ settings, currentModel }: ModelSettingsProps) {
     if (value[0] !== undefined) {
       updateSettings({ model: { ...settings, maxTokens: value[0] } });
     }
-  };
-
-  const handleSpeculativeDecodingChange = (checked: boolean) => {
-    updateSettings({ model: { ...settings, speculativeDecoding: checked } });
   };
 
   const handleLoadOnStartupChange = (checked: boolean) => {
@@ -283,25 +273,6 @@ export function ModelSettings({ settings, currentModel }: ModelSettingsProps) {
               Set per model in the Model Library. By default each model gets the
               largest window that keeps it fast on your GPU.
             </p>
-          </div>
-
-          <div className="flex items-center justify-between">
-            <div className="space-y-0.5">
-              <div className="flex items-center gap-2">
-                <Zap className="h-4 w-4 text-amber-500" />
-                <Label htmlFor="speculative-decoding">
-                  Speculative Decoding
-                </Label>
-              </div>
-              <p className="text-xs text-muted-foreground">
-                Speeds up generation for code & text tasks
-              </p>
-            </div>
-            <Switch
-              id="speculative-decoding"
-              checked={settings.speculativeDecoding ?? true}
-              onCheckedChange={handleSpeculativeDecodingChange}
-            />
           </div>
         </div>
       )}

@@ -1,6 +1,6 @@
 // @vitest-environment node
 import { describe, expect, it } from "vitest";
-import { assessMemory, nodeMemoryNeed, serverMemoryNeed } from "./memoryCheck";
+import { assessMemory, serverMemoryNeed } from "./memoryCheck";
 
 const GB = 1024 ** 3;
 
@@ -34,17 +34,6 @@ describe("serverMemoryNeed", () => {
       contextVramBytes: 1 * GB,
     });
     expect(small.ramBytes).toBe(0);
-  });
-});
-
-describe("nodeMemoryNeed", () => {
-  it("counts CPU layers as RAM but not as commit (memory-mapped)", () => {
-    const need = nodeMemoryNeed({
-      modelCpuRamBytes: 8 * GB,
-      contextCpuRamBytes: 1 * GB,
-    });
-    expect(need.ramBytes).toBe(9 * GB);
-    expect(need.commitBytes).toBeLessThan(3 * GB);
   });
 });
 

@@ -57,11 +57,6 @@ const SERVER_GPU_RESERVE_BYTES = 3 * GB;
  * Revisit if the launch profile moves to mmap.
  */
 const SERVER_COMMIT_OVERHEAD_BYTES = 2 * GB;
-/**
- * Commit for node-llama-cpp beyond its context buffers. Its weights are
- * memory-mapped - backed by the file, not the commit limit.
- */
-const NODE_COMMIT_OVERHEAD_BYTES = 1 * GB;
 
 /** llama-server keeps attention and the cache on the GPU, experts in RAM */
 export function serverMemoryNeed(options: {
@@ -79,17 +74,6 @@ export function serverMemoryNeed(options: {
       options.modelBytes +
       options.contextVramBytes +
       SERVER_COMMIT_OVERHEAD_BYTES,
-  };
-}
-
-/** node-llama-cpp: whole layers on the CPU, weights memory-mapped */
-export function nodeMemoryNeed(options: {
-  modelCpuRamBytes: number;
-  contextCpuRamBytes: number;
-}): MemoryNeed {
-  return {
-    ramBytes: options.modelCpuRamBytes + options.contextCpuRamBytes,
-    commitBytes: options.contextCpuRamBytes + NODE_COMMIT_OVERHEAD_BYTES,
   };
 }
 
