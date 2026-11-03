@@ -222,10 +222,10 @@ Expected behavior:
 - [x] Model selector UI (full browse/download catalog, not just Qwen/Llama/Mistral)
 - [x] Persistent chat sessions
 - [x] Conversation history search
-- [x] System prompt customization (see [SYSTEM_PROMPT_IMPROVEMENTS.md](features/SYSTEM_PROMPT_IMPROVEMENTS.md))
+- [x] System prompt customization (see [SYSTEM_PROMPT_IMPROVEMENTS.md](./archive/features/SYSTEM_PROMPT_IMPROVEMENTS.md))
 - [x] Temperature/max tokens UI controls
 - [x] Model download progress indicator (see [MODEL_DOWNLOAD.md](features/MODEL_DOWNLOAD.md))
-- [x] Export chat history (see [EXPORT_IMPORT.md](features/EXPORT_IMPORT.md))
+- [x] Export chat history (see [EXPORT_IMPORT.md](./archive/features/EXPORT_IMPORT.md))
 - [x] Dark/light theme toggle
 - [x] Markdown rendering in messages
 - [x] Code syntax highlighting

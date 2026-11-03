@@ -317,4 +317,4 @@ If you encounter test failures:
 - **Security Testing**: Penetration testing for MCP and file operations
 - **Cross-Platform**: Linux and macOS test coverage
 
-See `ROADMAP.md` for detailed testing roadmap.
+See `archive/ROADMAP.md` for detailed testing roadmap.

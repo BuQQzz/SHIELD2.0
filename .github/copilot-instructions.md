@@ -30,7 +30,7 @@ Invoke-RestMethod -Uri http://localhost:8080/memory/query -Method Post -ContentT
 Invoke-RestMethod -Uri http://localhost:8080/memory/add -Method Post -ContentType "application/json" -Body '{"content":"knowledge to remember","user_id":"copilot-shield","metadata":{"category":"architecture"}}'
 ```
 
-**See**: `docs/AI_MEMORY_SETUP.md` and `AI-MEMORY-README.md` for full details.
+**See**: `docs/archive/AI_MEMORY_SETUP.md` and `docs/archive/AI-MEMORY-README.md` for full details.
 
 ---
 

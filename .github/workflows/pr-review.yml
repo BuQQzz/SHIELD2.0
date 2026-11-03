@@ -211,7 +211,7 @@ jobs:
         id: size-check
         run: |
           $violations = @()
-          $excludePatterns = @('*.d.ts', 'models.ts', 'modelChatTemplates.ts')
+          $excludePatterns = @('*.d.ts', 'models.ts')
 
           Get-ChildItem -Path src,electron -Filter *.ts* -Recurse | ForEach-Object {
             $exclude = $false

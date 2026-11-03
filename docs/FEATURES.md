@@ -200,7 +200,7 @@ Accelerate LLM inference using intelligent token prediction.
 
 - `src/services/LlamaService.ts` - Token predictor integration
 - `src/components/settings/ModelSettings.tsx` - UI toggle
-- `docs/features/SPECULATIVE_DECODING.md` - Full documentation
+- `docs/archive/features/SPECULATIVE_DECODING.md` - Full documentation
 
 ---
 
@@ -246,7 +246,7 @@ Intelligent system prompt composition that adapts to each model's strengths.
 - `src/config/systemPrompts.ts` - Prompt modules and builder
 - `src/types/prompts.ts` - Type definitions
 - `src/hooks/useMCPSystemPrompt.ts` - Prompt composition hook
-- `docs/features/SYSTEM_PROMPT_IMPROVEMENTS.md` - Implementation plan
+- `docs/archive/features/SYSTEM_PROMPT_IMPROVEMENTS.md` - Implementation plan
 
 ---
 
@@ -287,7 +287,7 @@ Comprehensive settings for customizing SHIELD behavior.
 
 **Key Files**:
 
-- `electron/services/SettingsService.ts` - Settings persistence
+- `electron/services/SettingsStorageService.ts` - Settings persistence
 - `src/store/settingsStore.ts` - Settings state
 - `src/components/settings/*` - Settings UI components
 
@@ -325,7 +325,7 @@ Comprehensive settings for customizing SHIELD behavior.
 - **Plugin System**: Extensible architecture for custom tools
 - **Collaboration**: Share conversations and templates
 
-See `ROADMAP.md` for detailed timeline and priorities.
+See `archive/ROADMAP.md` for detailed timeline and priorities.
 
 ---
 
@@ -333,13 +333,13 @@ See `ROADMAP.md` for detailed timeline and priorities.
 
 For in-depth technical documentation on specific features:
 
-- **[GPU_LAYER_OFFLOADING.md](./features/GPU_LAYER_OFFLOADING.md)** - Running large models on limited VRAM
+- **[GPU_LAYER_OFFLOADING.md](./archive/features/GPU_LAYER_OFFLOADING.md)** - Running large models on limited VRAM
 - **[MODEL_DOWNLOAD.md](./features/MODEL_DOWNLOAD.md)** - Model catalog and HuggingFace authentication
 - **[MODEL_CAPABILITIES.md](./features/MODEL_CAPABILITIES.md)** - Dynamic feature enabling based on model specs
-- **[EXPORT_IMPORT.md](./features/EXPORT_IMPORT.md)** - Technical details on conversation export/import
-- **[WEB_SEARCH.md](./features/WEB_SEARCH.md)** - Web search implementation and privacy measures
-- **[TAGGING.md](./features/TAGGING.md)** - Conversation tagging system architecture
-- **[HELP_PAGE.md](./features/HELP_PAGE.md)** - Built-in help page implementation
+- **[EXPORT_IMPORT.md](./archive/features/EXPORT_IMPORT.md)** - Technical details on conversation export/import
+- **[WEB_SEARCH.md](./archive/features/WEB_SEARCH.md)** - Web search implementation and privacy measures
+- **[TAGGING.md](./archive/features/TAGGING.md)** - Conversation tagging system architecture
+- **[HELP_PAGE.md](./archive/features/HELP_PAGE.md)** - Built-in help page implementation
 
 ---
 

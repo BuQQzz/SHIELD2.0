@@ -70,6 +70,6 @@ try {
 
 Write-Host ""
 Write-Host " Documentation:" -ForegroundColor Cyan
-Write-Host "   Quick Start: AI-MEMORY-README.md" -ForegroundColor Gray
-Write-Host "   Full Guide: docs/AI_MEMORY_SETUP.md" -ForegroundColor Gray
+Write-Host "   Quick Start: docs/archive/AI-MEMORY-README.md" -ForegroundColor Gray
+Write-Host "   Full Guide: docs/archive/AI_MEMORY_SETUP.md" -ForegroundColor Gray
 Write-Host ""

@@ -400,8 +400,8 @@ const OFFICIAL_MCP_SERVERS = {
 
 - ✅ [docs/features/MCP_INTEGRATION.md](./features/MCP_INTEGRATION.md) - Complete integration guide
 - ✅ [docs/features/MCP_TESTING_GUIDE.md](./features/MCP_TESTING_GUIDE.md) - Manual testing procedures
-- ✅ [docs/features/MODEL_CAPABILITIES.md](./features/MODEL_CAPABILITIES.md) - Model requirements
-- ✅ [docs/mcp-integration.md](./mcp-integration.md) - System overview
+- ✅ [docs/features/MODEL_CAPABILITIES.md](../features/MODEL_CAPABILITIES.md) - Model requirements
+- ✅ [docs/mcp-integration.md](../mcp-integration.md) - System overview
 
 #### Phase 7.4: Permission System UI
 
@@ -628,7 +628,7 @@ Following the MCP integration, this phase implemented a dynamic model capabiliti
 - ✅ **Warning system** - Clear messages for feature limitations
 - ✅ **MCP status indicator** - Shows "Limited" (yellow) for incompatible models
 - ✅ **UI warnings** - Chat header + settings warnings for limited capability
-- ✅ **Comprehensive documentation** - [MODEL_CAPABILITIES.md](./features/MODEL_CAPABILITIES.md)
+- ✅ **Comprehensive documentation** - [MODEL_CAPABILITIES.md](../features/MODEL_CAPABILITIES.md)
 
 **Current Model Capabilities:**
 
@@ -648,7 +648,7 @@ Following the MCP integration, this phase implemented a dynamic model capabiliti
 
 **Dependencies:** MCP Integration ✅ Complete  
 **Completion Date:** November 2025  
-**Documentation:** [MODEL_CAPABILITIES.md](./features/MODEL_CAPABILITIES.md)
+**Documentation:** [MODEL_CAPABILITIES.md](../features/MODEL_CAPABILITIES.md)
 
 #### 8.2: Architecture Simplification - Intent Detection Removal
 
@@ -694,9 +694,9 @@ Following the MCP integration, this phase implemented a dynamic model capabiliti
 
 **Documentation Updates:**
 
-- ✅ Updated [mcp-integration.md](./mcp-integration.md) - Warning banner
-- ✅ Updated [MODEL_CAPABILITIES.md](./features/MODEL_CAPABILITIES.md) - Removal notice
-- ✅ Updated [CHANGELOG.md](../CHANGELOG.md) - Breaking changes
+- ✅ Updated [mcp-integration.md](../mcp-integration.md) - Warning banner
+- ✅ Updated [MODEL_CAPABILITIES.md](../features/MODEL_CAPABILITIES.md) - Removal notice
+- ✅ Updated [CHANGELOG.md](../../CHANGELOG.md) - Breaking changes
 - ✅ Updated test guides - New enable procedures
 
 **Dependencies:** MCP Integration ✅ Complete  

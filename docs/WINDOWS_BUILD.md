@@ -207,4 +207,4 @@ For automated builds in GitHub Actions:
 
 - [Quick Start](./QUICK-START.md) - Running in development mode
 - [Troubleshooting](./TROUBLESHOOTING.md) - Common issues
-- [Roadmap](./ROADMAP.md) - Feature development plans
+- [Roadmap](./archive/ROADMAP.md) - Feature development plans

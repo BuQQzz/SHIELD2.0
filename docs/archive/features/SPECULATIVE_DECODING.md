@@ -68,9 +68,9 @@ Minimal - only stores pattern lookup tables from input text.
 
 ### Key Files
 
-- [LlamaService.ts](../../src/services/LlamaService.ts) - Token predictor integration
-- [ModelSettings.tsx](../../src/components/settings/ModelSettings.tsx) - UI toggle
-- [settings.ts](../../src/types/settings.ts) - Type definitions
+- [LlamaService.ts](../../../src/services/LlamaService.ts) - Token predictor integration
+- [ModelSettings.tsx](../../../src/components/settings/ModelSettings.tsx) - UI toggle
+- [settings.ts](../../../src/types/settings.ts) - Type definitions
 
 ### Code Example
 
@@ -103,5 +103,5 @@ Consider disabling speculative decoding if:
 ## Related Documentation
 
 - [node-llama-cpp Extracting Data Guide](https://node-llama-cpp.withcat.ai/guide/extracting-data)
-- [LLM Integration](../LLM-INTEGRATION.md)
+- [LLM Integration](../../LLM-INTEGRATION.md)
 - [Performance Guide](../PERFORMANCE.md)

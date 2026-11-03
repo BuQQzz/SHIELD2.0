@@ -6,7 +6,7 @@
 
 Privacy-first local AI chatbot for Windows. All processing happens locally - no external APIs, no data leaving your machine.
 
-> **🧠 AI Memory System**: This project uses [OpenMemory](https://github.com/CaviraOSS/OpenMemory) to give GitHub Copilot persistent memory during development. See [AI-MEMORY-README.md](./AI-MEMORY-README.md) for details.
+> **🧠 AI Memory System**: This project uses [OpenMemory](https://github.com/CaviraOSS/OpenMemory) to give GitHub Copilot persistent memory during development. See [AI-MEMORY-README.md](./docs/archive/AI-MEMORY-README.md) for details.
 
 ## What It Is
 
@@ -23,7 +23,7 @@ Local AI assistant powered by llama.cpp with:
 
 **Status**: Experimental - Active Development
 
-See [docs/ROADMAP.md](docs/ROADMAP.md) for detailed development progress and plans.
+See [docs/ROADMAP.md](./docs/archive/ROADMAP.md) for detailed development progress and plans.
 
 ## Quick Start
 
@@ -104,13 +104,13 @@ npm run build         # Production build
 ## Documentation
 
 - **Windows Build**: [docs/WINDOWS_BUILD.md](docs/WINDOWS_BUILD.md) - Building installers
-- **Development Progress**: [docs/ROADMAP.md](docs/ROADMAP.md) - Detailed feature tracking and plans
+- **Development Progress**: [docs/ROADMAP.md](./docs/archive/ROADMAP.md) - Detailed feature tracking and plans
 - **Changelog**: [CHANGELOG.md](CHANGELOG.md) - Version history and changes
 - **LLM Integration**: [docs/LLM-INTEGRATION.md](docs/LLM-INTEGRATION.md) - Technical integration guide
-- **Thinking Animation**: [docs/features/THINKING_ANIMATION.md](docs/features/THINKING_ANIMATION.md) - Chain-of-thought UI transparency
-- **GPU Layer Offloading**: [docs/features/GPU_LAYER_OFFLOADING.md](docs/features/GPU_LAYER_OFFLOADING.md) - Running large models on limited hardware
+- **Thinking Animation**: [docs/features/THINKING_ANIMATION.md](./docs/archive/features/THINKING_ANIMATION.md) - Chain-of-thought UI transparency
+- **GPU Layer Offloading**: [docs/features/GPU_LAYER_OFFLOADING.md](./docs/archive/features/GPU_LAYER_OFFLOADING.md) - Running large models on limited hardware
 - **MCP Integration**: [docs/features/MCP_INTEGRATION.md](docs/features/MCP_INTEGRATION.md) - File operations guide
-- **Component API**: [docs/COMPONENT-API.md](docs/COMPONENT-API.md) - UI component reference
+- **Component API**: [docs/COMPONENT-API.md](./docs/archive/COMPONENT-API.md) - UI component reference
 
 ---
 

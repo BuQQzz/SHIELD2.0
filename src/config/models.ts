@@ -2,7 +2,7 @@
  * Model Library
  *
  * SHIELD ships a short, curated list: three families, a few variants each
- * (docs/MODEL_LIBRARY_PLAN.md). A variant names exact GGUF files rather than
+ * (docs/archive/MODEL_LIBRARY_PLAN.md). A variant names exact GGUF files rather than
  * a machine-specific path, so it is found wherever it sits in the models
  * folder - SHIELD's own downloads, LM Studio's publisher/repo folders, or a
  * hand-arranged collection.
@@ -268,7 +268,7 @@ export const MODEL_FAMILIES: ModelFamilyEntry[] = [
         displayName: "Qwen3 Coder 30B",
         description:
           "Mixture-of-experts coder, 3B parameters active per token. The best-tested model with SHIELD's tools. Its experts run from system RAM while everything else stays on the GPU.",
-        // Measured on 12 GB: 32k keeps ~36 tok/s (docs/RUNTIME_SPEED_RESEARCH.md)
+        // Measured on 12 GB: 32k keeps ~36 tok/s (docs/archive/RUNTIME_SPEED_RESEARCH.md)
         contextSize: 32768,
         provider: "Alibaba",
         releaseDate: "2025-07",
