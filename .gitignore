@@ -116,3 +116,7 @@ dev.log
 
 # agent benchmark traces
 bench-results/
+
+# Local tool attachments and screenshots
+.codex-attachments/
+.playwright-mcp/

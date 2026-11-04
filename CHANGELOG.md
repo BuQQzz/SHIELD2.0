@@ -7,7 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-11-04
+
 ### Added
+
+- **Runtime installer**: Settings › Runtime installs PrismML's llama.cpp build (CUDA 13, CUDA 12.4, Vulkan or CPU, picked from the driver), checks its SHA-256, test-runs it before activating and keeps the previous build for a rollback
+- **Agent harness** (since 0.1.5): a Code view for project folders, a terminal tool (`run_command`), Team mode with sub-agents, memory and projects with `AGENTS.md`, Plan mode, context summaries, a progress check instead of a fixed round cap, a thinking-loop guard and a stuck bar (Nudge, Skip step, Restart and retry)
+- **Native tool calls** on llama-server for models that support them: calls are held to each tool's JSON schema
+- **Edit safety**: an ambiguous `edit_file` is sent back unrun, and a missed edit shows the file's closest lines
 
 - **Remote providers**: run the harness on a hosted model with your own API key (Settings > Providers), Experiential Labs first, any OpenAI-compatible API supported
   - Keys are encrypted with the system credential store and never leave the main process
@@ -21,6 +28,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **One engine**: every local model runs on `llama-server`; the in-process node-llama-cpp engine is removed (speculative drafting with ngram is always on)
+- **Simpler UI**: the composer's picker is the only model picker; tags and templates are removed
 - A hosted model's chat title falls back to the start of the message when a thinking model returns none, and its speed is timed over the whole reply
 - Message text is no longer logged for hosted models
 - The model list is one component shared by the sidebar picker and the new picker in the composer, next to the Team toggle

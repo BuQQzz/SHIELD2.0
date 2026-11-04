@@ -1,117 +1,145 @@
-# SHIELD 🛡️
+<div align="center">
 
-![GitHub Downloads](https://img.shields.io/github/downloads/BuQQzz/SHIELD2.0-releases/total?style=flat-square&logo=github&label=Downloads&color=blue)
-![GitHub Release](https://img.shields.io/github/v/release/BuQQzz/SHIELD2.0-releases?style=flat-square&logo=github&label=Latest%20Release&color=green)
-![License](https://img.shields.io/badge/License-MIT-yellow.svg?style=flat-square)
+<img src="public/shield-logo.png" alt="SHIELD logo" width="120" />
 
-Privacy-first local AI chatbot for Windows. All processing happens locally - no external APIs, no data leaving your machine.
+# SHIELD 2.0
 
-> **🧠 AI Memory System**: This project uses [OpenMemory](https://github.com/CaviraOSS/OpenMemory) to give GitHub Copilot persistent memory during development. See [AI-MEMORY-README.md](./docs/archive/AI-MEMORY-README.md) for details.
+**A private AI agent for your desktop. It runs local models on your own GPU, works in your files and terminal with your permission, and keeps your data on your machine.**
 
-## What It Is
+[![Latest release](https://img.shields.io/github/v/release/BuQQzz/SHIELD2.0?style=flat-square&logo=github&label=Latest%20release&color=green)](https://github.com/BuQQzz/SHIELD2.0/releases/latest)
+[![Downloads](https://img.shields.io/github/downloads/BuQQzz/SHIELD2.0/total?style=flat-square&logo=github&label=Downloads&color=blue)](https://github.com/BuQQzz/SHIELD2.0/releases)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=flat-square)](LICENSE)
+![Platform](https://img.shields.io/badge/Platform-Windows%2010%2F11-0078D6?style=flat-square&logo=windows)
 
-Local AI assistant powered by llama.cpp with:
+### [⬇️ Download SHIELD for Windows](https://github.com/BuQQzz/SHIELD2.0/releases/latest)
 
-- **Local inference** - Everything runs on your Windows machine
-- **Thinking animation** - See AI's reasoning process with collapsible chain-of-thought display
-- **GPU layer offloading** - Run large models (32B+) on limited VRAM by automatically splitting layers between VRAM and RAM
-- **File operations** - Read/write files via MCP with explicit permission dialogs
-- **Web search** - DuckDuckGo integration with local encrypted caching
-- **Chain-of-Thought reasoning** - Transparent AI analysis before answering
-- **Context-aware queries** - Smart follow-up handling with conversation context
-- **Modern UI** - React + shadcn/ui with smooth animations
+Installer or portable `.exe`, no account and no sign-up.
 
-**Status**: Experimental - Active Development
+</div>
 
-See [docs/ROADMAP.md](./docs/archive/ROADMAP.md) for detailed development progress and plans.
+---
 
-## Quick Start
+## What SHIELD is
 
-### Prerequisites
+SHIELD started as a local chatbot. It is now an **agent harness**, built to be as capable as hosted coding agents but **offline-first**: the model, your chats, its memory and your files all stay on your PC unless you choose a hosted model.
 
-- Windows 10/11
-- Node.js 18+
-- 16GB+ RAM (32GB optimal)
-- NVIDIA GPU with 12GB+ VRAM recommended (RTX 4070 or better)
+- 💬 **Chat** with local GGUF models, with live token counts and collapsible reasoning.
+- 🛠️ **Code** in a project folder. SHIELD reads, edits and writes files, runs terminal commands and searches the web, and asks you first when a step can change something.
+- 👥 **Team mode** lets an orchestrator delegate parts of a task to sub-agents, for example a coder and a reviewer.
+- 🧠 **Memory and projects**: notes survive restarts, past chats can be searched, and a project remembers its folder and its `AGENTS.md` instructions.
 
-### ⚠️ Windows SmartScreen Warning
+## Features
 
-When running SHIELD for the first time, Windows SmartScreen will show a security warning:
+### ⚡ Local inference on the Prism / llama.cpp engine
 
-**"Microsoft Defender SmartScreen couldn't verify if this file is safe..."**
+- **One engine:** every local model runs on `llama-server` (PrismML's llama.cpp build), managed by SHIELD.
+- **One-click runtime install:** in **Settings › Runtime**, SHIELD picks the right build for your hardware (CUDA 13, CUDA 12.4, Vulkan or CPU), checks its SHA-256, test-runs it before switching over, and keeps the previous build so you can roll back.
+- **GPU-aware loading:** context size and layer placement are planned from your VRAM. Models that need it get a fixed all-on-GPU placement, and speculative drafting (ngram) is always on.
+- **Model Library:** browse, download and manage GGUF models, including gated Hugging Face models with your own token.
+- **Native tool calls:** on models that support them, llama-server limits each tool call to the tool's JSON schema, so the model can't write a malformed call.
 
-This happens because SHIELD is **not yet code-signed** with a digital certificate. The application is completely safe and open-source - you can verify the code yourself in this repository.
+### 🤖 Agent harness and tools
 
-**To run SHIELD:**
+- **MCP tools:** built-in filesystem tools (read, write, edit, list, search) through the Model Context Protocol, plus your own MCP servers.
+- **SHIELD's own tools:** `run_command` (PowerShell / shell), web search and page fetch, deletion through the Recycle Bin, and memory search.
+- **Plan mode:** the model describes the steps without running anything that changes your files.
+- **Reliable long tasks:** context summaries when the window fills, a progress check instead of a fixed round limit, a repetition and thinking-loop guard, and a **stuck bar** (Nudge, Skip step, Restart and retry) when a step stalls.
+- **Edit safety:** an `edit_file` that would match more than one place is sent back to the model unrun, and a failed edit shows the model the file's closest lines.
+- **Tolerant parsing:** XML, OpenAI, Qwen and DeepSeek DSML call formats are all read as SHIELD tool calls.
+- **Model-switch handoff:** switching models mid-chat offers a new session that starts from a short briefing the old model writes.
 
-1. Click **"More info"** in the SmartScreen dialog
-2. Click **"Run anyway"** at the bottom
-3. SHIELD will launch normally
+### 🔐 Permissions, security and privacy
 
-This warning appears for all unsigned applications. Code signing certificates cost $100-400/year, which we'll implement in a future release as the project grows.
+| Mode          | What the agent may do                                                              |
+| ------------- | ---------------------------------------------------------------------------------- |
+| **Ask**       | Approve each tool call, or allow one tool for the session                          |
+| **Auto**      | Reads run on their own. Deleting, and any command that isn't read-only, still asks |
+| **Plan**      | Describe the steps, run nothing                                                    |
+| **Read only** | Tools that can change files are hidden from the model                              |
 
-### Installation
+- Unknown tools fail closed.
+- **Tool results are untrusted data:** file contents, web pages and command output are wrapped in a `trusted="false"` envelope so that instructions planted inside them are not obeyed (see [Research](#-research-and-experimental-work)).
+- **API keys** for hosted providers are encrypted with the operating system's credential store (Electron `safeStorage`) and never reach the app window.
+- **No telemetry.** Model lists are fetched only when you open the picker, never at startup. Message text isn't logged for hosted models.
+
+### ☁️ Optional hosted models, privacy first
+
+Bring your own API key in **Settings › Providers** to run the same harness on a hosted model:
+
+- **Experiential Labs** preset, with **zero data retention required by default.** Every request asks for it, and any reply the gateway doesn't confirm as zero-retention is thrown away. This preset gives access to models such as **DeepSeek V4.1**, whose native call markup SHIELD reads.
+- **Any OpenAI-compatible API** through the custom preset.
+- A badge under each hosted reply shows who served it and whether that route kept your data. A model with no zero-retention route can be allowed on its own, and its replies are marked **"keeps data"**.
+
+## Working vs experimental
+
+| ✅ Working (used in real sessions)                     | 🧪 Experimental / in progress                                     |
+| ------------------------------------------------------ | ----------------------------------------------------------------- |
+| Local chat and Code sessions on llama-server           | Team mode on hosted models (untested)                             |
+| File tools, terminal, web search, permission modes     | Native function calling for hosted models                         |
+| Runtime installer (Vulkan build tested end to end)     | Recall tool: re-reading what a summary replaced                   |
+| Hosted models through Experiential with zero retention | Policy: always ask before a change that follows an untrusted read |
+| Memory, projects, `AGENTS.md`, Plan mode               | Linux build (runs from source; no packaged release yet)           |
+| Native tool calls on Bonsai 2 27B                      | Grammar-constrained calls for more model families                 |
+
+## Tested models
+
+Measured on consumer GPUs (RTX 2070 SUPER 8 GB, RTX 4070 12 GB):
+
+| Model                   | Notes                                                                  |
+| ----------------------- | ---------------------------------------------------------------------- |
+| **Bonsai 2 27B** PTQ1_0 | Default. Fully on GPU, ~36-42 tok/s, best tool-call reliability so far |
+| Gemma 4 12B Q4_K_M      | ~42 tok/s on 12 GB, 8/8 on the GPU smoke test                          |
+| Qwen3.5 9B Q4_K_M       | ~39-62 tok/s, good on 8 GB cards                                       |
+| Qwen3-Coder 30B         | Works, spills into system RAM on 12 GB                                 |
+
+## 🧪 Research and experimental work
+
+SHIELD is also a test bed for **agent security on small local models**:
+
+- **Prompt injection through tool results:** a planted "create pwned.txt" instruction inside a file the model was asked to summarise was obeyed **3/3** times on the text-call path (Qwen2.5-7B) and **1/3** with native calling. That finding led to the untrusted-data envelope. The next step being designed is a policy that asks before any change that follows a read of untrusted content.
+- **SHIELD Agent Benchmark:** repeatable multi-model runs that measure tool-call failures, rounds, speed and whether the file really changed. See [docs/testing/AGENT_BENCHMARK.md](docs/testing/AGENT_BENCHMARK.md).
+- **Architecture notes:** permission and trust model, context engine, tool calling and the decision log are in [docs/SHIELD_AGENT_ARCHITECTURE.md](docs/SHIELD_AGENT_ARCHITECTURE.md).
+
+## Getting started
+
+### Install
+
+1. Download `SHIELD-<version>-x64.exe` (installer) or `SHIELD-<version>-portable.exe` from the [latest release](https://github.com/BuQQzz/SHIELD2.0/releases/latest).
+2. Open **Settings › Runtime** and install the llama.cpp runtime (one click).
+3. Open the **Library**, download a model, and start a chat.
+
+**Recommended:** Windows 10/11, 16 GB+ RAM, and an NVIDIA GPU with 8 GB+ VRAM (12 GB is comfortable). Vulkan and CPU builds also work, but more slowly.
+
+> **Windows SmartScreen:** SHIELD isn't code-signed yet, so Windows may say it "couldn't verify" the file. Click **More info → Run anyway**. The source is all here if you want to check it or build it yourself.
+
+### Build from source
 
 ```powershell
 git clone https://github.com/BuQQzz/SHIELD2.0.git
 cd SHIELD2.0
-npm install
-npm run download-model qwen-7b  # Downloads ~4.4GB
-npm run dev:electron
+npx npm@11 install
+npm run dev:electron          # run the app
+npx vitest run                # tests
+npm run build:win             # installer + portable in release/<version>/
 ```
 
-First launch downloads the model (~4.4GB) and loads it automatically.
+## Tech stack
 
-## Tech Stack
-
-- **Frontend**: React 19, TypeScript, shadcn/ui, Tailwind CSS 4, Vite 7
-- **Backend**: Electron 39, Node.js 20, llama.cpp (node-llama-cpp)
-- **AI Models**: GGUF format (Q4_K_M quantization)
-- **Web Search**: Playwright + DuckDuckGo
-- **Storage**: sqlite3, AES-256-GCM encryption
-
-## Windows Build
-
-Build distributable Windows installers:
-
-```powershell
-npm run build:win:installer  # NSIS installer (~310 MB)
-npm run build:win:portable   # Portable executable
-```
-
-Output: `release/{version}/SHIELD-{version}-x64.exe`
-
-**Note**: Models are not bundled - users download via in-app model manager.
-
-See [docs/WINDOWS_BUILD.md](docs/WINDOWS_BUILD.md) for detailed build documentation.
-
-## Development
-
-```powershell
-npm run dev:electron  # Run app
-npm test              # Run tests
-npm run lint          # Lint code
-npm run build         # Production build
-```
-
-**Code Guidelines**:
-
-- Files <300 lines (refactor when approaching limit)
-- Feature branch workflow (no direct commits to main)
-- All tests must pass before merge
-- See [.github/copilot-instructions.md](.github/copilot-instructions.md)
+Electron 40 · React 19 · TypeScript · Vite 7 · Tailwind CSS 4 · shadcn/ui · llama.cpp (`llama-server`, PrismML build) · Model Context Protocol SDK · Zustand · Vitest
 
 ## Documentation
 
-- **Windows Build**: [docs/WINDOWS_BUILD.md](docs/WINDOWS_BUILD.md) - Building installers
-- **Development Progress**: [docs/ROADMAP.md](./docs/archive/ROADMAP.md) - Detailed feature tracking and plans
-- **Changelog**: [CHANGELOG.md](CHANGELOG.md) - Version history and changes
-- **LLM Integration**: [docs/LLM-INTEGRATION.md](docs/LLM-INTEGRATION.md) - Technical integration guide
-- **Thinking Animation**: [docs/features/THINKING_ANIMATION.md](./docs/archive/features/THINKING_ANIMATION.md) - Chain-of-thought UI transparency
-- **GPU Layer Offloading**: [docs/features/GPU_LAYER_OFFLOADING.md](./docs/archive/features/GPU_LAYER_OFFLOADING.md) - Running large models on limited hardware
-- **MCP Integration**: [docs/features/MCP_INTEGRATION.md](docs/features/MCP_INTEGRATION.md) - File operations guide
-- **Component API**: [docs/COMPONENT-API.md](./docs/archive/COMPONENT-API.md) - UI component reference
+- [Changelog](CHANGELOG.md)
+- [Agent architecture](docs/SHIELD_AGENT_ARCHITECTURE.md)
+- [Agent benchmark](docs/testing/AGENT_BENCHMARK.md)
+- [Windows build](docs/WINDOWS_BUILD.md)
+- [MCP integration](docs/mcp-integration.md)
+- [Docs index](docs/README.md)
 
 ---
 
-**Note**: Experimental project. Local-only processing. No external APIs except DuckDuckGo when web search enabled.
+<div align="center">
+
+MIT licensed · Built by [BuQQzz](https://github.com/BuQQzz) · Privacy first
+
+</div>
