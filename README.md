@@ -15,6 +15,12 @@
 
 Installer or portable `.exe`, no account and no sign-up.
 
+<a href="https://github.com/BuQQzz/SHIELD2.0/releases/download/v0.2.0/shield-demo.mp4">
+  <img src="docs/media/shield-demo.gif" alt="SHIELD fixing a bug in a Code session: it reads the files, asks before editing, runs the test and reports the fix" width="100%" />
+</a>
+
+**[▶️ Watch the full 45-second demo](https://github.com/BuQQzz/SHIELD2.0/releases/download/v0.2.0/shield-demo.mp4)**: runtime install, the Model Library, chat, a Code session and the privacy controls. Recorded on the v0.2.0 build with Bonsai 2 27B on an RTX 4070.
+
 </div>
 
 ---
