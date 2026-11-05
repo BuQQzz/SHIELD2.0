@@ -229,8 +229,13 @@ ${allowedPaths.map((path) => `- ${path}`).join("\n")}
 
 Always use a full path beginning with one of these. Never guess a path such as "/" or "${osName() === "Windows" ? "C:\\" : "/etc"}".`
         : "";
+  const appendRule = callableTools.some((tool) => tool.name === "append_file")
+    ? " To add something at the end of an existing file, use append_file with only the new text."
+    : "";
   const editRule = callableTools.some((tool) => tool.name === "edit_file")
-    ? "\n- To change an existing file, use edit_file with only the lines that change. Copy oldText exactly from the file and supply the replacement in newText. Use write_file only to create a new file." +
+    ? "\n- To change an existing file, use edit_file with only the lines that change. Copy oldText exactly from the file and supply the replacement in newText." +
+      appendRule +
+      " Use write_file only to create a new file." +
       "\n- When asked to fix, change or add something, make the change with these functions. Do not show the code for the user to apply unless they ask to see it first. When code is broken, fix the broken lines with edit_file - never write a new version of the whole file. Afterwards, say in a sentence or two what you changed."
     : "";
   const commandRule = callableTools.some((tool) => tool.name === "run_command")
@@ -338,7 +343,13 @@ export function generateMCPToolPrompt(
   const editRule = tools.some((t) => t.name === "edit_file")
     ? `
 6. **EDIT, DON'T REWRITE** - To change an existing file, use edit_file with only the lines that change, copied exactly from the file:
-   {"path": "...", "edits": [{"oldText": "<current lines>", "newText": "<replacement>"}]}
+   {"path": "...", "edits": [{"oldText": "<current lines>", "newText": "<replacement>"}]}${
+     tools.some((t) => t.name === "append_file")
+       ? `
+   To add something at the end of an existing file, use append_file with only the new text:
+   {"path": "...", "content": "<new text>"}`
+       : ""
+   }
    Use write_file only to create a new file.
 7. **MAKE THE CHANGE** - When asked to fix, change or add something, do it with edit_file or write_file. Do not show the code for the user to paste unless they ask to see it first. When code is broken, fix the broken lines with edit_file - never write a new version of the whole file. Afterwards, say in a sentence or two what you changed.`
     : "";

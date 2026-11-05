@@ -79,6 +79,15 @@ export interface ModelFile {
   minVRAM: number;
   /** Other names the same weights are published under (e.g. LM Studio's) */
   aliases?: string[];
+  /** Overrides the variant's serverPlacement for this quantization */
+  serverPlacement?: ServerPlacement;
+  /** Overrides the variant's reasoningEffort for this quantization */
+  reasoningEffort?: string;
+  /**
+   * llama-server only: most thinking tokens per reply (`--reasoning-budget`).
+   * Past it the thought is closed and the model answers
+   */
+  reasoningBudget?: number;
 }
 
 export type LibraryFamilyId = "qwen" | "gemma" | "bonsai";
@@ -148,9 +157,15 @@ export interface ModelMetadata {
   serverPlacement?: ServerPlacement;
   /**
    * llama-server only: `reasoning_effort` sent with each request that
-   * thinks, for a chat template that takes one (Bonsai 2's)
+   * thinks, for a chat template that takes one (Bonsai 2's). "none" turns
+   * thinking off for every reply instead
    */
   reasoningEffort?: string;
+  /**
+   * llama-server only: `presence_penalty` sent with every request. Not part
+   * of a GGUF's general.sampling, so it applies alongside the file's values
+   */
+  presencePenalty?: number;
   /**
    * llama-server only: tools go to the server as native function
    * definitions, and it holds each call to its schema with a grammar
@@ -321,6 +336,20 @@ export const MODEL_FAMILIES: ModelFamilyEntry[] = [
         chatTemplate: "qwen",
         roles: ["chat", "vision"],
         runtime: "llama-server",
+        // Its template trains calls as <function=…><parameter=…> XML; in
+        // SHIELD's JSON text form IQ1_M broke JSON and mixed the two forms
+        // (2 of 6 Code tasks, 2026-11-05)
+        nativeToolCalls: true,
+        // Template values: xhigh (default), medium, low
+        reasoningEffort: "medium",
+        // No catalog sampling: the GGUF's general.sampling (temp 1, top_p
+        // 0.95, top_k 20) comes first, with no repeat penalty
+        // IQ1_M write task straight to llama-server (b12128), native calls:
+        // without it 0 of 2 (content looped until the call was cut off);
+        // 1.5 with thinking at medium, 2 of 2 clean; 1.5 with thinking
+        // off, 4 of 4 (2026-11-05). Qwen's non-thinking preset and
+        // Ollama's qwen3.5 build use 1.5
+        presencePenalty: 1.5,
         files: [
           {
             name: "Qwen3.8-27B-UD-Q4_K_M.gguf",
@@ -333,7 +362,30 @@ export const MODEL_FAMILIES: ModelFamilyEntry[] = [
             name: "Qwen3.8-27B-UD-IQ3_XXS.gguf",
             hfRepo: "unsloth/Qwen3.8-27B-GGUF",
             sizeBytes: 10_930_000_000,
+            minVRAM: 12,
+          },
+          // RTX 2070 SUPER, 8 GB, 2026-11-04: IQ2_XXS ran out of memory on
+          // SHIELD's first prompt at 8k even with 256-token batches (7.74 GB
+          // in a bare server), so 8 GB gets IQ1_M. `--fit on` left IQ1_M
+          // layers in RAM at 0.6-0.9 tok/s; all on the GPU, 16.4 tok/s and
+          // 7.30 GB with a 6.8k-token prompt at 8k
+          {
+            name: "Qwen3.8-27B-UD-IQ2_XXS.gguf",
+            hfRepo: "unsloth/Qwen3.8-27B-GGUF",
+            sizeBytes: 7_270_000_000,
+            minVRAM: 10,
+          },
+          {
+            name: "Qwen3.8-27B-UD-IQ1_M.gguf",
+            hfRepo: "unsloth/Qwen3.8-27B-GGUF",
+            sizeBytes: 6_730_000_000,
             minVRAM: 0,
+            serverPlacement: { allLayersOnGpu: true, ubatchSize: 512 },
+            // 8k context: thinking at medium used the whole 8,192-token
+            // reply limit on an edit and wrote nothing. Edit task, 2026-11-05:
+            // thinking off passed 4 of 5 in 50-130 s; medium capped at 1,536
+            // thinking tokens passed 2 of 3, slower and with more bad calls
+            reasoningEffort: "none",
           },
         ],
         capabilities: {
@@ -347,7 +399,7 @@ export const MODEL_FAMILIES: ModelFamilyEntry[] = [
           temperatureRange: { min: 0.1, max: 1.0, default: 0.7 },
         },
         hardware: {
-          minVRAM: 12,
+          minVRAM: 8,
           recommendedVRAM: 16,
           minRAM: 16,
           recommendedRAM: 32,

@@ -273,20 +273,42 @@ describe("useMCPDialogs - writes", () => {
     });
     expect(first?.success).toBe(false);
     expect(first?.error).toMatch(
-      /^Not run: script\.js already exists \(10,388 characters\)\. Change it with edit_file/
+      /^Not run: script\.js already exists \(10,388 characters\)\. To add to its end, use append_file/
     );
     expect(callTool.mock.calls.map((c) => c[0].tool)).toEqual([
       "get_file_info",
     ]);
 
+    // the same size: a file that really changes throughout
     let second: MCPToolResult | undefined;
     await act(async () => {
       second = await result.current.handleToolCallRequest(
-        write("script.js", "// new")
+        write("script.js", "x".repeat(10_000))
       );
     });
     expect(second?.success).toBe(true);
     expect(callTool.mock.calls.at(-1)?.[0].tool).toBe("write_file");
+  });
+
+  it("asks the user about a resent rewrite that would shorten the file, even in Auto", async () => {
+    const callTool = vi.fn(async (call: { tool: string }) =>
+      call.tool === "get_file_info"
+        ? text("size: 6109\nisFile: true")
+        : text("Successfully wrote")
+    );
+    const { result } = renderHook(() => useMCPDialogs({ callTool, policy }));
+    const shorter = write("Checklists.md", "# Checklists\n".repeat(350));
+    await act(async () => {
+      await result.current.handleToolCallRequest(shorter);
+    });
+    act(() => {
+      void result.current.handleToolCallRequest(shorter);
+    });
+    await waitFor(() => expect(result.current.pendingRequest).not.toBeNull());
+    expect(callTool.mock.calls.map((c) => c[0].tool)).not.toContain(
+      "write_file"
+    );
+    act(() => result.current.handleDeny());
   });
 
   it("writes a new or small file at once", async () => {

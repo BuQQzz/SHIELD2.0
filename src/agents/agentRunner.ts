@@ -205,6 +205,7 @@ function recordCall(
   const fileActions: Record<string, VerifiedWork["files"][number]["action"]> = {
     write_file: "written",
     edit_file: "edited",
+    append_file: "edited",
     move_file: "moved",
     delete_file: "deleted",
     create_directory: "directory",

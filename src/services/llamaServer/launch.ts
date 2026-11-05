@@ -83,10 +83,22 @@ export function buildServerArgs(options: LaunchOptions): string[] {
     "--jinja",
     ...(options.reasoningBudget === undefined
       ? []
-      : ["--reasoning-budget", String(options.reasoningBudget)]),
+      : [
+          "--reasoning-budget",
+          String(options.reasoningBudget),
+          "--reasoning-budget-message",
+          REASONING_BUDGET_MESSAGE,
+        ]),
     "--no-webui",
   ];
 }
+
+/**
+ * Written into the thought when its budget runs out, so the model goes on
+ * to act rather than stopping mid-sentence
+ */
+const REASONING_BUDGET_MESSAGE =
+  "\n\nThinking budget reached. Act now on what I have worked out.\n";
 
 /**
  * Threads for CPU-side work. Decode is bound by memory bandwidth, so past

@@ -10,6 +10,7 @@
  * open is rejected explicitly rather than silently dropped.
  */
 
+import { argumentsForSchema } from "@/utils/schemaArguments";
 import {
   isDeletionTool,
   unavailableToolMessage,
@@ -103,9 +104,16 @@ function proposedText(
 const REWRITE_MIN_BYTES = 2500;
 /** How long a sent-back rewrite of a file stays allowed */
 const REWRITE_WARNING_MS = 10 * 60_000;
+/**
+ * A sent-back rewrite this much shorter than the file goes to the user,
+ * even in Auto: Qwen3.8 IQ1_M, asked to add a section, saw only the first
+ * 4,915 of 6,101 characters (the read was cut to fit) and rewrote the file
+ * from that, dropping its end (2026-11-05)
+ */
+const REWRITE_SHRINK_ASKS = 0.9;
 
-const rewriteMessage = (path: string, size: number) =>
-  `Not run: ${path} already exists (${size.toLocaleString("en-US")} characters). Change it with edit_file, replacing only the lines that need to change: rewriting resends the whole file into your context and can drop code that works. If most of the file really has to change, tell the user why, then send the same write_file again.`;
+const rewriteMessage = (path: string, size: number, canAppend: boolean) =>
+  `Not run: ${path} already exists (${size.toLocaleString("en-US")} characters). ${canAppend ? "To add to its end, use append_file with only the new text. To change it, use" : "Change it with"} edit_file, replacing only the lines that need to change: rewriting resends the whole file into your context and can drop code that works. If most of the file really has to change, tell the user why, then send the same write_file again.`;
 
 const ambiguousMessage = (path: string, found: AmbiguousEdit) =>
   `Not run: the oldText of edit ${found.edit} is in ${path} ${found.lines.length} times (lines ${found.lines.join(", ")}), and edit_file changes only the first. Nothing was changed. Send the edit again with an oldText that matches one place only: include a line that is unique to the place you mean, such as the heading above it.`;
@@ -123,7 +131,7 @@ function writtenPath(
     return undefined;
   }
   const key =
-    tool === "write_file" || tool === "edit_file"
+    tool === "write_file" || tool === "edit_file" || tool === "append_file"
       ? "path"
       : tool === "move_file"
         ? "destination"
@@ -242,11 +250,15 @@ export function useMCPDialogs({
    * minutes goes through, for a file that really changes throughout.
    */
   const rewriteWarning = useCallback(
-    async (tool: string, args: Record<string, unknown>) => {
+    async (
+      tool: string,
+      args: Record<string, unknown>,
+      canAppend: boolean
+    ): Promise<string | "ask" | null> => {
       if (tool !== "write_file" || typeof args.path !== "string") return null;
       const key = canonicalPath(args.path, workspaceFolder);
       const warnedAt = rewriteWarned.current.get(key);
-      if (warnedAt && Date.now() - warnedAt < REWRITE_WARNING_MS) return null;
+      const resent = warnedAt && Date.now() - warnedAt < REWRITE_WARNING_MS;
       try {
         const info = await callTool({
           serverName: "filesystem",
@@ -260,8 +272,15 @@ export function useMCPDialogs({
           resultPayload(info.data).match(/\bsize:\s*(\d+)/i)?.[1]
         );
         if (!(size > REWRITE_MIN_BYTES)) return null;
+        if (resent) {
+          const bytes =
+            typeof args.content === "string"
+              ? new TextEncoder().encode(args.content).length
+              : 0;
+          return bytes < size * REWRITE_SHRINK_ASKS ? "ask" : null;
+        }
         rewriteWarned.current.set(key, Date.now());
-        return rewriteMessage(args.path, size);
+        return rewriteMessage(args.path, size, canAppend);
       } catch {
         return null;
       }
@@ -371,11 +390,16 @@ export function useMCPDialogs({
 
       // Models write bare tool names, which the parser files under
       // "filesystem"; send the call to the server that has the tool
+      const advertised = policy.advertisedTools.find(
+        (tool) => tool.name === request.tool
+      );
       const toolCall = {
         ...request,
-        serverName:
-          policy.advertisedTools.find((tool) => tool.name === request.tool)
-            ?.serverName ?? request.serverName,
+        serverName: advertised?.serverName ?? request.serverName,
+        arguments: argumentsForSchema(
+          request.arguments,
+          advertised?.inputSchema
+        ),
       };
 
       // A removal note is never file content
@@ -391,7 +415,7 @@ export function useMCPDialogs({
         toolCall.tool,
         toolCall.arguments
       );
-      const decision =
+      let decision =
         policyDecision === "ask" &&
         sessionApproved.current.has(toolCall.tool) &&
         !asksEveryTime(toolCall.tool) &&
@@ -414,9 +438,15 @@ export function useMCPDialogs({
         };
       }
 
-      // A whole existing file rewritten is sent back once
-      const rewrite = await rewriteWarning(toolCall.tool, toolCall.arguments);
-      if (rewrite) return { success: false, error: rewrite };
+      // A whole existing file rewritten is sent back once; sent again
+      // shorter, the user decides
+      const rewrite = await rewriteWarning(
+        toolCall.tool,
+        toolCall.arguments,
+        policy.allows("append_file")
+      );
+      if (rewrite === "ask") decision = "ask";
+      else if (rewrite) return { success: false, error: rewrite };
 
       // An edit that would change the first of several matches, never
       const ambiguous = await ambiguityWarning(

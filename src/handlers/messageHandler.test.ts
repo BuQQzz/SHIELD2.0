@@ -419,6 +419,76 @@ describe("the [Current folder] note", () => {
     expect(sent[1]).toBe("explain MCP");
   });
 
+  it("saves the chat when the reply fails", async () => {
+    const saveCurrentConversation = vi.fn().mockResolvedValue(undefined);
+    const addMessage = vi.fn();
+    const handler = createMessageHandler({
+      isModelLoaded: true,
+      currentConversation: { id: "session", kind: "code", messages: [] },
+      setMessages: vi.fn(),
+      setIsGenerating: vi.fn(),
+      setStreamingContent: vi.fn(),
+      streamingContentRef: { current: "" },
+      sendStreamingMessage: vi
+        .fn()
+        .mockRejectedValue(
+          new Error("The model used its whole reply limit thinking")
+        ),
+      addMessage,
+      generateTitle: vi.fn().mockResolvedValue(null),
+      updateTitle: vi.fn(),
+      saveCurrentConversation,
+      modelSettings: DEFAULT_SETTINGS.model,
+      isMCPReady: true,
+    });
+
+    await handler("Add a section to the checklist");
+
+    expect(addMessage).toHaveBeenCalledWith(
+      expect.objectContaining({ role: "user" })
+    );
+    expect(saveCurrentConversation).toHaveBeenCalledOnce();
+  });
+
+  it("asks once more for the call when a reply only says what it will do", async () => {
+    useSettingsStore.setState({
+      settings: {
+        ...DEFAULT_SETTINGS,
+        mcp: {
+          ...DEFAULT_SETTINGS.mcp,
+          enabled: true,
+          workspaceFolder: "C:/work",
+        },
+      },
+    });
+    const sendStreamingMessage = vi
+      .fn()
+      .mockResolvedValueOnce("I'll add the section to the end of notes.md.")
+      .mockResolvedValueOnce("Done.");
+    const handler = createMessageHandler({
+      isModelLoaded: true,
+      currentConversation: { id: "session", kind: "code", messages: [] },
+      setMessages: vi.fn(),
+      setIsGenerating: vi.fn(),
+      setStreamingContent: vi.fn(),
+      streamingContentRef: { current: "" },
+      sendStreamingMessage,
+      addMessage: vi.fn(),
+      generateTitle: vi.fn().mockResolvedValue(null),
+      updateTitle: vi.fn(),
+      saveCurrentConversation: vi.fn().mockResolvedValue(undefined),
+      modelSettings: DEFAULT_SETTINGS.model,
+      isMCPReady: true,
+    });
+
+    await handler("Add a section to the end of notes.md");
+
+    expect(sendStreamingMessage).toHaveBeenCalledTimes(2);
+    expect(sendStreamingMessage.mock.calls[1]?.[0]).toMatch(
+      /^You said what you would do but made no tool call/
+    );
+  });
+
   it("is never sent in a chat, which has no file tools", async () => {
     useSettingsStore.setState({
       settings: {

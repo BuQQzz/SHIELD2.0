@@ -28,8 +28,10 @@ import {
   type ChatStreamChunk,
 } from "./llamaServer/sse.js";
 import { RepetitionWatch } from "./llamaServer/repetition.js";
+import { unswallowQwenCalls } from "../handlers/toolCallParsing.js";
 import {
   NativeCallWriter,
+  RESULT_FRAMING,
   openAiTools,
   type OpenAiTool,
   type ToolCallDelta,
@@ -46,6 +48,7 @@ import {
 } from "./remote/remoteEndpoint.js";
 import {
   NUDGE_NOTE,
+  EMPTY_REPLY_NOTE,
   type RequestStatus,
   type RescueAction,
 } from "./llamaServer/rescue.js";
@@ -108,6 +111,10 @@ export interface ServerLoadOptions {
   placement?: ServerPlacement;
   /** Sent as reasoning_effort when the reply thinks (catalog reasoningEffort) */
   reasoningEffort?: string;
+  /** Most thinking tokens per reply (catalog reasoningBudget) */
+  reasoningBudget?: number;
+  /** Sent as presence_penalty with every request (catalog presencePenalty) */
+  presencePenalty?: number;
 }
 
 /**
@@ -241,6 +248,8 @@ export class LlamaServerProvider {
   private contextSize = 0;
   /** reasoning_effort for replies that think (ServerLoadOptions) */
   private reasoningEffort: string | undefined;
+  /** presence_penalty for every request (ServerLoadOptions) */
+  private presencePenalty: number | undefined;
   /**
    * Tools sent as native function definitions, for a model whose catalog
    * sets nativeToolCalls (llamaServer/nativeCalls.ts); empty otherwise.
@@ -311,6 +320,7 @@ export class LlamaServerProvider {
     session.contextSize = this.contextSize;
     session.trainContextSize = this.trainContextSize;
     session.reasoningEffort = this.reasoningEffort;
+    session.presencePenalty = this.presencePenalty;
     session.systemPrompt = systemPrompt;
     session.keepWholeHistory = options.keepWholeHistory ?? false;
     return session;
@@ -347,6 +357,7 @@ export class LlamaServerProvider {
 
     this.systemPrompt = options.systemPrompt;
     this.reasoningEffort = options.reasoningEffort;
+    this.presencePenalty = options.presencePenalty;
     this.history = [];
     this.capsule = null;
     this.capsuleReplacedEntries = 0;
@@ -394,6 +405,7 @@ export class LlamaServerProvider {
       threads: defaultThreads(),
       specType: process.env.SHIELD_SPEC_TYPE === "none" ? "none" : "ngram-mod",
       placement: options.placement,
+      reasoningBudget: options.reasoningBudget,
     });
     console.log(`[LlamaServer] Starting ${binary} ${args.join(" ")}`);
 
@@ -747,8 +759,11 @@ export class LlamaServerProvider {
       flight.phase = "reading";
 
       watchForStall();
+      // "none" in the catalog: never thinks
+      const thinks =
+        options.thinking !== false && this.reasoningEffort !== "none";
       appendServerLog(
-        `[SHIELD] chat request, thinking ${options.thinking === false ? "off" : "on"}`
+        `[SHIELD] chat request, thinking ${thinks ? "on" : "off"}`
       );
       requestBody = this.shape({
         messages: this.messages(userMessage),
@@ -767,8 +782,11 @@ export class LlamaServerProvider {
         top_p: options.topP ?? 0.9,
         top_k: options.topK ?? 40,
         repeat_penalty: options.repeatPenalty ?? 1.1,
+        ...(this.presencePenalty !== undefined
+          ? { presence_penalty: this.presencePenalty }
+          : {}),
         ...(this.nativeTools.length > 0 ? { tools: this.nativeTools } : {}),
-        ...(options.thinking === false
+        ...(!thinks
           ? { chat_template_kwargs: { enable_thinking: false } }
           : this.reasoningEffort
             ? { reasoning_effort: this.reasoningEffort }
@@ -804,10 +822,12 @@ export class LlamaServerProvider {
       const parser = new SseParser();
       const decoder = new TextDecoder();
       const reader = response.body.getReader();
+      /** The reply's own text (not its calls), for the result-framing check */
+      let written = "";
       const calls = new NativeCallWriter(
         (tool) => this.toolServers.get(tool) ?? "filesystem"
       );
-      for (;;) {
+      reading: for (;;) {
         const { done, value } = await reader.read();
         if (done) break;
         for (const chunk of parser.push(
@@ -825,6 +845,26 @@ export class LlamaServerProvider {
             firstTokenAt ??= performance.now();
             reply += text;
             options.onToken?.(text);
+          }
+          const content = chunk.choices?.[0]?.delta?.content;
+          if (content) written += content;
+          // The same written as plain text: IQ1_M went on for 5 minutes
+          // with made-up results and was summarised 8 times (2026-11-05)
+          const imagined =
+            content &&
+            this.nativeTools.length > 0 &&
+            RESULT_FRAMING.test(written.slice(-content.length - 40));
+          if ((deltas && calls.ranPastCall()) || imagined) {
+            appendServerLog(
+              "[SHIELD] the reply ran on into a result the model wrote itself: reply ended there"
+            );
+            // Only text the model wrote as its own: the framing is cut off
+            if (imagined) {
+              const at = reply.search(RESULT_FRAMING);
+              if (at >= 0) reply = reply.slice(0, at).trimEnd();
+            }
+            await reader.cancel().catch(() => undefined);
+            break reading;
           }
           const progress = chunkProgress(chunk, promptTokens);
           const advanced =
@@ -921,8 +961,27 @@ export class LlamaServerProvider {
     if (retryWithoutThinking) {
       return this.chat(message, { ...options, thinking: false }, restarts);
     }
+    // Once, on SHIELD's own server: nothing at all came back
+    if (
+      !this.endpoint &&
+      reply.trim() === "" &&
+      !signal.aborted &&
+      !message.endsWith(EMPTY_REPLY_NOTE)
+    ) {
+      appendServerLog("[SHIELD] empty reply: sent once more with a note");
+      return this.chat(
+        message + EMPTY_REPLY_NOTE,
+        { ...options, thinking: false },
+        restarts
+      );
+    }
 
-    this.history.push(userMessage, { role: "assistant", content: reply });
+    // A call the server ran on past its value goes into the history as the
+    // calls recovered from it: the model copied the broken one next round
+    this.history.push(userMessage, {
+      role: "assistant",
+      content: this.nativeTools.length > 0 ? unswallowQwenCalls(reply) : reply,
+    });
     if (final?.usage) {
       this.lastContextTokens = nextPromptTokens(final.usage, reply);
     }

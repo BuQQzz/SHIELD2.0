@@ -87,4 +87,46 @@ describe("NativeCallWriter", () => {
     ]);
     expect(text.startsWith("Let me look.\n<tool_call>")).toBe(true);
   });
+
+  it("sees a value run on into a result the model wrote itself", () => {
+    const writer = new NativeCallWriter(() => "filesystem");
+    writer.push([
+      {
+        index: 0,
+        function: { name: "read_text_file", arguments: '{"path":"/p/a.md' },
+      },
+    ]);
+    writer.push([
+      {
+        index: 0,
+        function: { arguments: "</parameter>\\n</function>\\n</tool_call>\\n" },
+      },
+    ]);
+    // the next call, swallowed: recovered later, so the reply goes on
+    expect(writer.ranPastCall()).toBe(false);
+    writer.push([
+      {
+        index: 0,
+        function: {
+          arguments: "You executed 1 tool call(s). Here are the results:",
+        },
+      },
+    ]);
+    expect(writer.ranPastCall()).toBe(true);
+  });
+
+  it("does not take a file that quotes the framing for a run-on value", () => {
+    const writer = new NativeCallWriter(() => "filesystem");
+    writer.push([
+      {
+        index: 0,
+        function: {
+          name: "write_file",
+          arguments:
+            '{"path":"/p/notes.md","content":"<tool_result> and You executed 2 tool calls"}',
+        },
+      },
+    ]);
+    expect(writer.ranPastCall()).toBe(false);
+  });
 });

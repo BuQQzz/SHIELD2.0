@@ -58,6 +58,7 @@ describe("buildServerArgs", () => {
       reasoningBudget: 256,
     });
     expect(custom[custom.indexOf("--reasoning-budget") + 1]).toBe("256");
+    expect(custom).toContain("--reasoning-budget-message");
   });
 
   it("leaves speculative decoding off only when asked", () => {

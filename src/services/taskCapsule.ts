@@ -129,6 +129,7 @@ const VERBS: Record<string, string> = {
   read_multiple_files: "read",
   write_file: "wrote",
   edit_file: "edited",
+  append_file: "added to",
   create_directory: "created folder",
   list_directory: "listed",
   list_directory_with_sizes: "listed",

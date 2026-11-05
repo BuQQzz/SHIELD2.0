@@ -61,6 +61,14 @@ export function minutesAndSeconds(ms: number): string {
 export const NUDGE_NOTE =
   "\n\n[SHIELD: the user stopped your last try at answering this because it was taking too long. Do not think it over at length. Make your next tool call now, or, if the work is done, give your answer.]";
 
+/**
+ * Added to a message whose reply came back empty, for its one more try.
+ * Qwen3.8 IQ1_M with thinking off ended its reply after 2 tokens, and the
+ * turn ended with nothing done (2026-11-05)
+ */
+export const EMPTY_REPLY_NOTE =
+  "\n\n[SHIELD: your last reply to this was empty. Make your next tool call now, or, if the work is done, give your answer.]";
+
 /** Where a skipped agent's reply was cut off */
 export const SKIPPED_BY_USER =
   "the user skipped it because it was taking too long";

@@ -89,6 +89,8 @@ export const FILESYSTEM_TOOLS = [
   "move_file",
   // SHIELD's own: moves to the Recycle Bin (the server has no delete)
   "delete_file",
+  // SHIELD's own: adds to the end (the server can only replace)
+  "append_file",
 ];
 
 /**
@@ -103,7 +105,12 @@ export const PREVIOUS_DEFAULT_MAX_TOOL_ROUNDS = 5;
 
 /** FILESYSTEM_TOOLS before delete_file was added (2026-09-24) */
 export const PREVIOUS_DEFAULT_ALLOWED_TOOLS = FILESYSTEM_TOOLS.filter(
-  (tool) => tool !== "delete_file"
+  (tool) => tool !== "delete_file" && tool !== "append_file"
+);
+
+/** FILESYSTEM_TOOLS before append_file was added (2026-11-05) */
+export const PRE_APPEND_DEFAULT_ALLOWED_TOOLS = FILESYSTEM_TOOLS.filter(
+  (tool) => tool !== "append_file"
 );
 
 /** The allowlist every install had before FILESYSTEM_TOOLS existed */

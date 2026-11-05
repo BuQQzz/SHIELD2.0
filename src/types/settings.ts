@@ -110,6 +110,8 @@ export const FILESYSTEM_TOOLS = [
   "move_file",
   // SHIELD's own: moves to the Recycle Bin (the server has no delete)
   "delete_file",
+  // SHIELD's own: adds to the end (the server can only replace)
+  "append_file",
 ];
 
 export const DEFAULT_SETTINGS: AppSettings = {

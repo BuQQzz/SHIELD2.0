@@ -71,14 +71,34 @@ export class NativeCallWriter {
   private open: number | null = null;
   private named = new Map<number, string>();
   private pending = new Map<number, string>();
+  /** The open call's arguments so far, for ranPastCall */
+  private openArgs = "";
 
   constructor(private serverOf: (tool: string) => string) {}
+
+  /**
+   * A value the server ran on past its `</parameter>` (no line break before
+   * it) has gone on to write the tool's result: everything from there on is
+   * made up, so the reply can end. The calls before it are recovered from
+   * what was written (toolCallParsing.ts, splitLeakedQwenCalls). IQ1_M
+   * wrote an invented file of over 2,000 tokens this way (2026-11-05).
+   */
+  ranPastCall(): boolean {
+    const end = this.openArgs.indexOf("</parameter>");
+    return end >= 0 && RESULT_FRAMING.test(this.openArgs.slice(end));
+  }
 
   push(deltas: ToolCallDelta[]): string {
     let out = "";
     for (const delta of deltas) {
       const name = delta.function?.name;
       const args = delta.function?.arguments ?? "";
+      if (name && !this.named.has(delta.index)) {
+        this.openArgs = this.pending.get(delta.index) ?? "";
+      }
+      if (args && (name || this.named.has(delta.index))) {
+        this.openArgs += args;
+      }
       if (name && !this.named.has(delta.index)) {
         if (this.open !== null) out += CLOSE;
         this.named.set(delta.index, name);
@@ -108,3 +128,7 @@ export class NativeCallWriter {
 }
 
 const CLOSE = "</arguments>\n</tool_call>\n";
+
+/** SHIELD's result framing or the template's, as the model imitates it */
+export const RESULT_FRAMING =
+  /<tool_result|<tool_response>|You executed \d+ tool call|<\|im_(?:start|end)\|>/;

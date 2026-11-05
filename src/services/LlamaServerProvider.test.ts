@@ -988,6 +988,28 @@ describe("reasoning effort", () => {
   });
 });
 
+describe("presence penalty", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.restoreAllMocks();
+  });
+
+  it("is sent with every request when the model sets one, forks included", async () => {
+    const { provider, sent } = connected(8000);
+    Object.assign(provider, { presencePenalty: 1.5 });
+    await provider.chat("write the kit", { thinking: false });
+    expect(sent[0]).toHaveProperty("presence_penalty", 1.5);
+    await provider.fork("You are the coder.").chat("go");
+    expect(sent[1]).toHaveProperty("presence_penalty", 1.5);
+  });
+
+  it("is left out for a model that sets none", async () => {
+    const { provider, sent } = connected(8000);
+    await provider.chat("hi");
+    expect(sent[0]).not.toHaveProperty("presence_penalty");
+  });
+});
+
 describe("native tool calls", () => {
   afterEach(() => {
     vi.unstubAllGlobals();
@@ -1071,6 +1093,129 @@ describe("native tool calls", () => {
     expect(streamed.join("")).toBe(text);
     expect(text).toBe(
       '<tool_call>\n<server>web</server>\n<tool>web_search</tool>\n<arguments>{"query":"radio"}</arguments>\n</tool_call>\n'
+    );
+  });
+
+  it("sends a message whose reply came back empty once more, without thinking", async () => {
+    const { provider, sent } = connected(8000);
+    const replies = ["", "Done."];
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (_url: string, init: RequestInit) => {
+        sent.push(JSON.parse(init.body as string));
+        const content = replies.shift() ?? "";
+        const events = content ? [{ choices: [{ delta: { content } }] }] : [];
+        return new Response(
+          [...events.map((e) => `data: ${JSON.stringify(e)}`), "data: [DONE]"]
+            .map((l) => `${l}\n\n`)
+            .join("")
+        );
+      })
+    );
+    const reply = await provider.chat("add the section");
+    const text =
+      typeof reply === "string"
+        ? reply
+        : (reply as { response: string }).response;
+    expect(text).toBe("Done.");
+    expect(sent).toHaveLength(2);
+    expect(sent[1]).toHaveProperty(
+      "chat_template_kwargs.enable_thinking",
+      false
+    );
+  });
+
+  it("ends a reply that writes a made-up result as text, and keeps what came before", async () => {
+    const provider = new LlamaServerProvider();
+    Object.assign(provider, {
+      process: { exitCode: null },
+      baseUrl: "http://server",
+      contextSize: 8000,
+    });
+    provider.applySystemPrompt("You are SHIELD.", [
+      {
+        name: "read_text_file",
+        description: "Read",
+        inputSchema: { type: "object" },
+      },
+    ]);
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => {
+        const events = [
+          "I read the file. ",
+          "You executed 1 tool call(s). Here",
+          " are the results: # made up",
+        ].map((content) => ({ choices: [{ delta: { content } }] }));
+        return new Response(
+          [...events.map((e) => `data: ${JSON.stringify(e)}`), "data: [DONE]"]
+            .map((l) => `${l}\n\n`)
+            .join("")
+        );
+      })
+    );
+    const reply = await provider.chat("read a.md");
+    const text =
+      typeof reply === "string"
+        ? reply
+        : (reply as { response: string }).response;
+    expect(text).toBe("I read the file.");
+  });
+
+  it("ends a reply whose call ran on into a result it wrote, and keeps the repaired call", async () => {
+    const provider = new LlamaServerProvider();
+    Object.assign(provider, {
+      process: { exitCode: null },
+      baseUrl: "http://server",
+      contextSize: 8000,
+    });
+    provider.applySystemPrompt("You are SHIELD.", [
+      {
+        name: "read_text_file",
+        description: "Read",
+        inputSchema: { type: "object" },
+      },
+    ]);
+    const bodies: Record<string, unknown>[] = [];
+    const piece = (args: string, name?: string) => ({
+      choices: [
+        {
+          delta: {
+            tool_calls: [{ index: 0, function: { name, arguments: args } }],
+          },
+        },
+      ],
+    });
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (_url: string, init: RequestInit) => {
+        bodies.push(JSON.parse(init.body as string));
+        const events = [
+          piece(
+            '{"path":"/p/a.md</parameter>\\n</function>\\n</tool_call>\\n',
+            "read_text_file"
+          ),
+          piece("You executed 1 tool call(s). Here are the results:\\n"),
+          piece("# A file it made up"),
+        ];
+        return new Response(
+          [...events.map((e) => `data: ${JSON.stringify(e)}`), "data: [DONE]"]
+            .map((l) => `${l}\n\n`)
+            .join("")
+        );
+      })
+    );
+    const reply = await provider.chat("read a.md");
+    const text =
+      typeof reply === "string"
+        ? reply
+        : (reply as { response: string }).response;
+    expect(text).not.toContain("made up");
+
+    await provider.chat("go on");
+    const messages = bodies[1]!.messages as { role: string; content: string }[];
+    expect(messages[2]!.content).toBe(
+      '<tool_call>\n<server>filesystem</server>\n<tool>read_text_file</tool>\n<arguments>{"path":"/p/a.md"}</arguments>\n</tool_call>\n'
     );
   });
 

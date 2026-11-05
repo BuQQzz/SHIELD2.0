@@ -51,6 +51,7 @@ export function MCPSettings({ settings, currentModel }: MCPSettingsProps) {
       list_directory_with_sizes: "List directory contents with file sizes",
       list_allowed_directories: "See allowed filesystem root paths",
       delete_file: `Delete files or folders (moved to the ${trashName()})`,
+      append_file: "Add text to the end of a file",
     }),
     []
   );
