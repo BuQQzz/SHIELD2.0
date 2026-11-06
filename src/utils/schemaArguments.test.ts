@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { argumentsForSchema, cleanPaths } from "./schemaArguments";
+import {
+  argumentsForSchema,
+  cleanPaths,
+  joinSplitEdits,
+} from "./schemaArguments";
 
 const schema = {
   type: "object",
@@ -59,5 +63,61 @@ describe("cleanPaths", () => {
   it("leaves other values and clean paths as they are", () => {
     const args = { path: P, content: "<div>hi</div>" };
     expect(cleanPaths(args)).toBe(args);
+  });
+});
+
+describe("joinSplitEdits", () => {
+  it("joins an edit sent as a newText half and an oldText half", () => {
+    expect(
+      joinSplitEdits("edit_file", {
+        path: "a.md",
+        edits: [{ newText: "- b\n- c" }, { oldText: "- b" }],
+      })
+    ).toEqual({
+      path: "a.md",
+      edits: [{ oldText: "- b", newText: "- b\n- c" }],
+    });
+  });
+
+  it("joins each pair of halves in order", () => {
+    expect(
+      joinSplitEdits("edit_file", {
+        path: "a.md",
+        edits: [
+          { oldText: "a" },
+          { newText: "A" },
+          { newText: "B" },
+          { oldText: "b" },
+        ],
+      }).edits
+    ).toEqual([
+      { oldText: "a", newText: "A" },
+      { oldText: "b", newText: "B" },
+    ]);
+  });
+
+  it("leaves whole edits, odd halves, two of a kind and other tools alone", () => {
+    const whole = {
+      path: "a.md",
+      edits: [
+        { oldText: "a", newText: "A" },
+        { oldText: "b", newText: "B" },
+      ],
+    };
+    const odd = {
+      path: "a.md",
+      edits: [{ oldText: "a" }, { newText: "A" }, { oldText: "b" }],
+    };
+    const same = { path: "a.md", edits: [{ oldText: "a" }, { oldText: "b" }] };
+    const mixed = {
+      path: "a.md",
+      edits: [{ oldText: "a" }, { newText: "A", dryRun: true }],
+    };
+    expect(joinSplitEdits("edit_file", whole)).toBe(whole);
+    expect(joinSplitEdits("edit_file", odd)).toBe(odd);
+    expect(joinSplitEdits("edit_file", same)).toBe(same);
+    expect(joinSplitEdits("edit_file", mixed)).toBe(mixed);
+    const other = { edits: [{ newText: "A" }, { oldText: "a" }] };
+    expect(joinSplitEdits("write_file", other)).toBe(other);
   });
 });

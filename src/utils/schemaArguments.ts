@@ -95,3 +95,43 @@ export function cleanPaths(
   }
   return out ?? args;
 }
+
+/**
+ * An edit_file edit sent in two halves put back together. Bonsai 2 27B,
+ * appending a long section, wrote `edits` as [{newText}, {oldText}] twice
+ * in a row; the server refused both ("expected string ... edits[0].oldText")
+ * and the model gave up on edit_file for a Python script (2026-11-04). Only
+ * a list made wholly of such halves, each pair one oldText and one newText,
+ * is joined; anything else is left for the server to refuse.
+ */
+export function joinSplitEdits(
+  tool: string,
+  args: Record<string, unknown>
+): Record<string, unknown> {
+  const edits = args.edits;
+  if (tool !== "edit_file" || !Array.isArray(edits) || edits.length < 2) {
+    return args;
+  }
+  if (edits.length % 2 !== 0) return args;
+  const half = (edit: unknown): "oldText" | "newText" | null => {
+    if (!edit || typeof edit !== "object" || Array.isArray(edit)) return null;
+    const keys = Object.keys(edit);
+    if (keys.length !== 1) return null;
+    const key = keys[0];
+    return (key === "oldText" || key === "newText") &&
+      typeof (edit as Record<string, unknown>)[key] === "string"
+      ? key
+      : null;
+  };
+  const joined: { oldText: string; newText: string }[] = [];
+  for (let i = 0; i < edits.length; i += 2) {
+    const a = half(edits[i]);
+    const b = half(edits[i + 1]);
+    if (!a || !b || a === b) return args;
+    joined.push({
+      ...(edits[i] as Record<string, string>),
+      ...(edits[i + 1] as Record<string, string>),
+    } as { oldText: string; newText: string });
+  }
+  return { ...args, edits: joined };
+}
