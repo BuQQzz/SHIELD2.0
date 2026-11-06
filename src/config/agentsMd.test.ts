@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { draftNote, instructionsSection, isAgentsMd } from "./agentsMd";
+import {
+  draftNote,
+  instructionsSection,
+  isAgentsMd,
+  listingSection,
+} from "./agentsMd";
 
 describe("AGENTS.md", () => {
   it("recognises the file by name, in any folder", () => {
@@ -29,5 +34,18 @@ describe("AGENTS.md", () => {
       "the user's own requests and SHIELD's rules come first"
     );
     expect(section).toContain("Run tests with node test.js");
+  });
+});
+
+describe("listingSection", () => {
+  it("lists the session folder's files and says to read them directly", () => {
+    const section = listingSection("/p", ["src/", "  app.py", "kit_tool.py"]);
+    expect(section).toContain("## Files in this folder");
+    expect(section).toContain("read it directly");
+    expect(section).toContain("kit_tool.py");
+  });
+
+  it("adds nothing without files", () => {
+    expect(listingSection("/p", [])).toBe("");
   });
 });

@@ -242,6 +242,7 @@ function App() {
   const currentModelConfig = modelOptions.find((m) => m.id === currentModelId);
   // The open code session's AGENTS.md, read into its prompt
   const projectInstructions = useInstructionsStore((state) => state.text);
+  const projectListing = useInstructionsStore((state) => state.listing);
   // Real tool list from the connected MCP servers
   useMCPSystemPrompt({
     isModelLoaded,
@@ -259,6 +260,7 @@ function App() {
     planOnly: toolPolicy.isPlanning,
     toolsLoading: !mcpToolsSettled,
     projectInstructions: isCodeSession ? projectInstructions : "",
+    projectListing: isCodeSession ? projectListing : undefined,
   });
 
   // Initialize a new conversation if none exists
@@ -316,8 +318,8 @@ function App() {
   useEffect(() => {
     void useInstructionsStore
       .getState()
-      .load(folderReady ? sessionFolder : undefined);
-  }, [sessionFolder, folderReady, messageCount]);
+      .load(folderReady ? sessionFolder : undefined, currentConversation?.id);
+  }, [sessionFolder, folderReady, messageCount, currentConversation?.id]);
 
   // Sync messages and restore chat history
   useConversationSync({

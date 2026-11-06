@@ -2,7 +2,7 @@
 
 **Last session:** 2026-11-04 → 05 on Linux (`fix/qwen38-8gb`): Qwen3.8 27B on the 8 GB card, see the first update. Before that, 2026-11-03 on Windows (`main`): a declutter pass. PR #49 removed unused files and packages; the docs pass moved finished plans, research and old feature write-ups to [archive/](./archive/). Before that, 2026-10-30 → 11-02 (PRs #47, #48), 2026-10-30 (PR #46), 2026-10-27 → 30 on Linux and 2026-10-26 → 29 on Windows.
 **Branches (2026-11-03):** `main` is the only long-lived branch.
-**Tests:** 1367 passing (2026-11-06); run `npx vitest run`, `npx tsc --noEmit`. `prettier --check` flags `src/components/ui/button.tsx` and `scripts/bench/mcp.ts`, already unformatted: do not run `prettier --write` over whole folders.
+**Tests:** 1370 passing (2026-11-06); run `npx vitest run`, `npx tsc --noEmit`. `prettier --check` flags `src/components/ui/button.tsx` and `scripts/bench/mcp.ts`, already unformatted: do not run `prettier --write` over whole folders.
 
 **Tested in the app with (2026-10-20):** Bonsai 27B Q1_0 on an RTX 2070 SUPER 8 GB (Ubuntu 26.04), SHIELD-managed Prism llama-server at 32K, ~19 tok/s. Earlier sessions: Qwen3-Coder-30B and Gemma 4 12B on Windows.
 
@@ -33,9 +33,16 @@ PR #56 (`fix/qwen38-8gb`) is open; all 4 CI checks pass. This branch builds on i
 - **Bonsai 2 27B, harder tasks** (new in `compare.mjs`: `ONLY=fix`, two seeded bugs in `kit_tool.py`; `ONLY=split`, move `parse_items` to `md_sections.py` and add `--total`; both checked by running the code with `python3 -E -s`, since `-I` blocks the local import):
   - Uncapped (medium thinking): fix 2 of 2 at 188-279 s. In one run its thinking looped twice, reworded each time, so the exact-repeat guard took 60-110 s to stop each: 174 of 279 s.
   - **`reasoningBudget: 1536` added:** fix 3 of 3 at 66-148 s, split 1 of 1 (70 s), code 1 of 1 (68 s). Longest generation ~1,600 tokens. One looped thought was still caught by the guard, at ~1,200 tokens.
-  - It still looks for a file that is in the project folder (`search_files`, then `list_directory`) and reads both markdown files before a one-line fix: 4-6 rounds where 2 would do.
+  - It looked for a file that is in the project folder (`search_files`, then `list_directory`) before reading it.
+- **The session folder's files are in a Code session's prompt** (`listingSection`, config/agentsMd.ts): the top level and one level in, at most 40 lines (`PROMPT_TREE_LINES`, ~94 tokens for the test project). Read with AGENTS.md (`project:instructions` now returns `listing`) but kept for the session: the store re-reads AGENTS.md after each message, and a listing that changed the prompt every turn would make the server process the whole conversation again.
+- **Bonsai 2 27B reliability sweep (current settings, listing in):** edit 2/2, write 2/2, code 2/2, fix 2/2, split 2/2. One failed call in the 10, recovered (a typo'd home folder, `buqqcz`).
+  - New tasks in `compare.mjs`: `ONLY=mid` adds one item as the last line of the 3-Day kit's **Additional Tools** list, checked against the exact expected file (look-alike lists sit next to it); `ONLY=multi` sends three messages in one session (the script, then `--json`, then a README; `prompts` in the task, `TASK_MIN` each). `sweep.sh "<model>" <prefix> task:count...` runs a set and prints one line per run.
+  - mid: 3 of 3 exact, 2 rounds each (read, then one `edit_file`).
+  - multi with "Do not run it": 0 of 2. Both scripts were right in shape and wrong on argv by one (`main(sys.argv[1:])` then `argv[1]`; `parse_args(sys.argv)`); the README was right both times.
+  - multi with running allowed (`allowRun`: its run_command prompts are approved even with `DENY=1`): **3 of 3** at 167-223 s, 6-8 rounds; each ran the script and fixed it before answering. One `edit_file` miss on a docstring, recovered with `write_file`. So for code, letting the model run it is what makes it reliable; nothing in SHIELD needed changing.
+  - Bonsai 2, 5 runs with the listing: no `search_files` or `list_directory` call in any. Fix 3 of 3 at 96-167 s, 4-6 rounds (it reads the checklist to see the expected output and re-reads the script after editing, which is fair). Split 1 of 1 at 42 s, 3 rounds; edit 1 of 1 at 44 s, 3 rounds.
 - **Announced step, no call, mid-turn (`endsByAnnouncing`, handlers/mcpRetryPolicy.ts):** the act-now retry only checked the first reply. After a tool result, IQ1_M ended turns on "I'll append the new section at the end of the file…" and on long plans ending "Let me now create the content", with nothing done. The tool loop now sends the act-now note once per turn when a reply's last sentence names a tool step (read, append, edit…); "I'll let the user know" and "Let me know if…" are left alone. Bursts after it: edits 4 of 4 at 52-54 s, 2 rounds, no failed calls; the retry was not needed in those runs, so it is unit-tested only.
-- **Tests:** 1,367 passing.
+- **Tests:** 1,370 passing.
 
 ## Update — 2026-11-04 → 05: Qwen3.8 27B on 8 GB (branch `fix/qwen38-8gb`)
 
