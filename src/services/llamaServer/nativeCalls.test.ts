@@ -47,6 +47,43 @@ describe("openAiTools", () => {
       required: ["path"],
     });
   });
+
+  it("leaves out the filesystem server's duplicates and says its tools shortly", () => {
+    const official = (name: string) => ({
+      name,
+      description: `${name}: a long description. Only works within allowed directories.`,
+      serverName: "filesystem",
+      inputSchema: {
+        type: "object",
+        properties: { path: { type: "string" } },
+        $schema: "http://json-schema.org/draft-07/schema#",
+      },
+    });
+    const sent = openAiTools([
+      official("read_text_file"),
+      official("read_file"),
+      official("read_media_file"),
+      official("list_directory_with_sizes"),
+      official("append_file"),
+      { ...official("edit_file"), serverName: "elsewhere" },
+    ]);
+
+    expect(sent.map((t) => t.function.name)).toEqual([
+      "read_text_file",
+      "append_file",
+      "edit_file",
+    ]);
+    expect(sent[0]!.function.description).toBe(
+      "Read a file as text. head or tail: only its first or last N lines."
+    );
+    expect(sent[0]!.function.parameters).toEqual({
+      type: "object",
+      properties: { path: { type: "string" } },
+    });
+    // SHIELD's own tools and other servers' keep their words
+    expect(sent[1]!.function.description).toMatch(/^append_file: a long/);
+    expect(sent[2]!.function.description).toMatch(/^edit_file: a long/);
+  });
 });
 
 describe("NativeCallWriter", () => {

@@ -316,12 +316,18 @@ export class ModelRuntime {
       throw new Error(`Unknown model "${modelId}". Pick one from the library.`);
     }
 
-    const modelPath = await resolveModelPath(modelId);
+    const installed = await resolveModelFile(modelId);
+    const modelPath = installed.path;
     let plan = this.serverPlans.get(modelPath);
     if (!plan) {
       plan = getLlamaBindings().then(async (llama) => {
         const { total } = await llama.getVramState();
-        return planServerContext(modelPath, llama, total, model.contextSize);
+        return planServerContext(
+          modelPath,
+          llama,
+          total,
+          installed.file.contextSize ?? model.contextSize
+        );
       });
       plan.catch(() => this.serverPlans.delete(modelPath));
       this.serverPlans.set(modelPath, plan);

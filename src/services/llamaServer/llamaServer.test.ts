@@ -2,6 +2,7 @@
 import { describe, it, expect } from "vitest";
 import {
   buildServerArgs,
+  serverEnv,
   defaultThreads,
   findLlamaServer,
   locateLlamaServer,
@@ -44,6 +45,33 @@ describe("buildServerArgs", () => {
     expect(at("--n-gpu-layers")).toBe("all");
     expect(at("--ubatch-size")).toBe("512");
     expect(args).not.toContain("--n-gpu-layers");
+  });
+
+  it("keeps the cache in 8 bits and turns CUDA graphs off when the placement says so", () => {
+    const placement = {
+      allLayersOnGpu: true as const,
+      ubatchSize: 512,
+      kvCacheType: "q8_0" as const,
+      cudaGraphs: false as const,
+    };
+    const fixed = buildServerArgs({
+      modelPath: "m.gguf",
+      contextSize: 16384,
+      port: 1,
+      threads: 4,
+      placement,
+    });
+    const at = (flag: string) => fixed[fixed.indexOf(flag) + 1];
+    expect(at("--cache-type-k")).toBe("q8_0");
+    expect(at("--cache-type-v")).toBe("q8_0");
+    expect(args).not.toContain("--cache-type-k");
+
+    expect(serverEnv(placement, { PATH: "/bin" })).toEqual({
+      PATH: "/bin",
+      GGML_CUDA_DISABLE_GRAPHS: "1",
+    });
+    const env = { PATH: "/bin" };
+    expect(serverEnv({ allLayersOnGpu: true, ubatchSize: 512 }, env)).toBe(env);
   });
 
   // llama-server cuts a thought off at the budget and the model carries on

@@ -19,6 +19,7 @@ import {
 import { cleanTitle, titleFromMessage } from "./titleGenerator.js";
 import {
   buildServerArgs,
+  serverEnv,
   defaultThreads,
   findLlamaServer,
 } from "./llamaServer/launch.js";
@@ -161,6 +162,27 @@ export function nextPromptTokens(
   );
 }
 
+/** Thrown to end a request refused as over the window, so room is made */
+const REFIT = new Error("prompt over the window");
+
+/**
+ * The prompt's size in tokens when llama-server refused it for being over
+ * the window, from its error body; null for any other error
+ */
+export function overflowedPrompt(errorBody: string): number | null {
+  try {
+    const { error } = JSON.parse(errorBody) as {
+      error?: { type?: string; n_prompt_tokens?: number };
+    };
+    return error?.type === "exceed_context_size_error" &&
+      typeof error.n_prompt_tokens === "number"
+      ? error.n_prompt_tokens
+      : null;
+  } catch {
+    return null;
+  }
+}
+
 /**
  * SHIELD_SERVER_LOG=<file>: llama-server's output and SHIELD's notes on its
  * requests, timestamped and appended there. Off by default; for finding the
@@ -256,6 +278,18 @@ export class LlamaServerProvider {
    * Not passed to forked sessions: agents keep the text form for now.
    */
   private nativeTools: OpenAiTool[] = [];
+  /**
+   * Their definitions' length: sent with every request, outside the
+   * messages, so counted in the window apart from them. Left out, a
+   * history just summarised was taken to have ~1,200 more tokens of room
+   * than it had, and the next request was refused for being over the
+   * window (9,351 of 8,192 tokens, Qwen3.8 27B, 2026-11-05)
+   */
+  private nativeToolChars = 0;
+  /** True while a request refused for its length is being sent again */
+  private refitting = false;
+  /** True while a reply that repeated the last one is being asked again */
+  private varying = false;
   private toolServers = new Map<string, string>();
   private trainContextSize = 0;
   private systemPrompt = "You are a helpful AI assistant.";
@@ -414,7 +448,10 @@ export class LlamaServerProvider {
     // object that kills them when SHIELD's main process dies, even from a
     // crash or Task Manager (verified 2026-09-24). That is what keeps a
     // hard-killed SHIELD from leaving ~22 GB committed to an orphaned server.
-    const child = spawn(binary, args, { windowsHide: true });
+    const child = spawn(binary, args, {
+      windowsHide: true,
+      env: serverEnv(options.placement),
+    });
     this.process = child;
     this.baseUrl = `http://127.0.0.1:${port}`;
     this.pidFile = options.pidFile;
@@ -683,6 +720,7 @@ export class LlamaServerProvider {
   private estimateTokens(): number {
     return (
       (this.systemContent().length +
+        this.nativeToolChars +
         this.history.reduce((n, m) => n + m.content.length, 0)) /
       3
     );
@@ -741,6 +779,8 @@ export class LlamaServerProvider {
     let promptTokens = 0;
     let retryWithoutThinking = false;
     let restartAfterStall = false;
+    /** The prompt's size as the server counted it, when it refused it as too long */
+    let refitFrom: number | null = null;
     let rescue: RescueAction | null = null;
     /** What was sent, kept for the server log when it stalls */
     let requestBody: Record<string, unknown> = {};
@@ -804,7 +844,13 @@ export class LlamaServerProvider {
         body: JSON.stringify(requestBody),
       });
       if (!response.ok || !response.body) {
-        throw new Error(this.httpError(response.status, await response.text()));
+        const text = await response.text();
+        const measured = this.endpoint ? null : overflowedPrompt(text);
+        if (measured === null || this.refitting) {
+          throw new Error(this.httpError(response.status, text));
+        }
+        refitFrom = measured;
+        throw REFIT;
       }
       // A hosted provider says how it served the request, before the reply:
       // when zero data retention is required and it did not, stop here and
@@ -893,7 +939,9 @@ export class LlamaServerProvider {
         options.onToken?.(closing);
       }
     } catch (error) {
-      if (rescued.signal.aborted && !signal.aborted) {
+      if (error === REFIT) {
+        // Nothing was written; room is made below
+      } else if (rescued.signal.aborted && !signal.aborted) {
         console.log(
           `[LlamaServer] Request cut off by the user: ${this.rescueAction}`
         );
@@ -943,6 +991,25 @@ export class LlamaServerProvider {
       if (root.inFlight === flight) root.inFlight = null;
     }
     // Nothing of a dropped reply is kept: the history is as it was
+    if (refitFrom !== null) {
+      // Room made from the server's own count, once: a prompt refused
+      // again is more than clearing and a summary can bring down. The
+      // latest exchange's payloads go too, which making room never clears:
+      // a 5,360-character read and a 5,763-character write_file held the
+      // window over after the summary, and the same prompt was sent again
+      // (Qwen3.8 27B at 8K, 2026-11-05). A file can be read again.
+      appendServerLog(
+        `[SHIELD] prompt of ${refitFrom} tokens refused as over the window: made room and sent once more`
+      );
+      this.lastContextTokens = refitFrom - message.length / 3;
+      this.clearPayloads(0);
+      this.refitting = true;
+      try {
+        return await this.chat(message, options, restarts);
+      } finally {
+        this.refitting = false;
+      }
+    }
     if (rescue === "nudge") {
       const nudged = message.endsWith(NUDGE_NOTE)
         ? message
@@ -978,10 +1045,40 @@ export class LlamaServerProvider {
 
     // A call the server ran on past its value goes into the history as the
     // calls recovered from it: the model copied the broken one next round
-    this.history.push(userMessage, {
-      role: "assistant",
-      content: this.nativeTools.length > 0 ? unswallowQwenCalls(reply) : reply,
-    });
+    const content =
+      this.nativeTools.length > 0 ? unswallowQwenCalls(reply) : reply;
+    // Once, on SHIELD's own server: a reply with a call is the last one
+    // again, word for word (a plain answer may well be: "Done."). Qwen3.8 IQ1_M at temperature 0.5 sent the same 435
+    // characters and call four times, each after being told the call had
+    // been made, until the loop guard stopped it (2026-11-05)
+    const previous = [...this.history]
+      .reverse()
+      .find((m) => m.role === "assistant");
+    if (
+      !this.endpoint &&
+      !this.varying &&
+      !signal.aborted &&
+      content.includes("<tool_call>") &&
+      content === previous?.content
+    ) {
+      appendServerLog(
+        "[SHIELD] the same reply as last time: sent once more, sampled more loosely"
+      );
+      this.varying = true;
+      try {
+        return await this.chat(
+          message,
+          {
+            ...options,
+            temperature: Math.min(1, (options.temperature ?? 0.7) + 0.4),
+          },
+          restarts
+        );
+      } finally {
+        this.varying = false;
+      }
+    }
+    this.history.push(userMessage, { role: "assistant", content });
     if (final?.usage) {
       this.lastContextTokens = nextPromptTokens(final.usage, reply);
     }
@@ -1086,7 +1183,11 @@ export class LlamaServerProvider {
     const summarised = await summariseOldest(
       this.history,
       this.capsule,
-      keepCharsFor(this.contextSize, this.systemPrompt.length, CLEAR_TO),
+      keepCharsFor(
+        this.contextSize,
+        this.systemPrompt.length + this.nativeToolChars,
+        CLEAR_TO
+      ),
       (older) => this.writeNote(older, nextMessage, signal)
     );
     if (!summarised) return;
@@ -1201,6 +1302,8 @@ export class LlamaServerProvider {
   applySystemPrompt(prompt: string, tools: ToolDefinition[] = []): void {
     this.systemPrompt = prompt;
     this.nativeTools = openAiTools(tools);
+    this.nativeToolChars =
+      this.nativeTools.length > 0 ? JSON.stringify(this.nativeTools).length : 0;
     this.toolServers = new Map(
       tools.map((tool) => [tool.name, tool.serverName ?? "filesystem"])
     );

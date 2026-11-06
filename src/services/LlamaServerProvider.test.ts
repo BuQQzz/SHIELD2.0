@@ -9,6 +9,7 @@ import {
   STALL_MS,
   MIN_REPLY_TOKENS,
   nextPromptTokens,
+  overflowedPrompt,
 } from "./LlamaServerProvider";
 import { NUDGE_NOTE } from "./llamaServer/rescue";
 import type { SavedMessage } from "./taskCapsule";
@@ -1228,5 +1229,161 @@ describe("native tool calls", () => {
     ]);
     await provider.fork("You are the coder.").chat("go");
     expect(sent[1]).not.toHaveProperty("tools");
+  });
+});
+
+describe("a prompt over the window", () => {
+  beforeEach(() => {
+    vi.spyOn(console, "log").mockImplementation(() => {});
+  });
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.restoreAllMocks();
+  });
+
+  const refusal = (tokens: number) =>
+    JSON.stringify({
+      error: {
+        code: 400,
+        message: `request (${tokens} tokens) exceeds the available context size (1000 tokens), try increasing it`,
+        type: "exceed_context_size_error",
+        n_prompt_tokens: tokens,
+        n_ctx: 1000,
+      },
+    });
+
+  it("reads the prompt's size from llama-server's refusal", () => {
+    expect(overflowedPrompt(refusal(9351))).toBe(9351);
+    expect(
+      overflowedPrompt('{"error":{"code":400,"type":"invalid_request_error"}}')
+    ).toBeNull();
+    expect(overflowedPrompt("Bad Request")).toBeNull();
+  });
+
+  /** A server that refuses the first `refusals` chat requests as too long */
+  function refusing(refusals: number) {
+    const { provider, sent } = connected(WINDOW);
+    const ok = vi.mocked(fetch).getMockImplementation()!;
+    let left = refusals;
+    vi.mocked(fetch).mockImplementation(async (url, init) => {
+      const body = JSON.parse((init as RequestInit).body as string);
+      if (body.stream && left-- > 0) {
+        sent.push(body);
+        return new Response(refusal(1400), { status: 400 });
+      }
+      return ok(url, init);
+    });
+    return { provider, sent };
+  }
+
+  it("makes room from the server's count and sends the message once more", async () => {
+    // Small by SHIELD's estimate, so no room is made before the first try
+    const { provider, sent } = refusing(1);
+    provider.setChatHistory([
+      user("read the file"),
+      assistant(`Here it is. ${"x".repeat(1200)}`),
+      user("thanks"),
+      assistant("Done."),
+    ]);
+
+    expect(await provider.chat("one more thing")).toBe("ok");
+
+    const chats = sent.filter((b) => b.stream);
+    expect(chats).toHaveLength(2);
+    const length = (b: SentRequest) =>
+      b.messages.reduce((n, m) => n + m.content.length, 0);
+    expect(length(chats[1]!)).toBeLessThan(length(chats[0]!));
+  });
+
+  it("clears the latest exchange's tool payloads too before sending once more", async () => {
+    const { provider, sent } = refusing(1);
+    provider.setChatHistory([
+      user("add a section"),
+      assistant(
+        `<tool_call>\n<server>filesystem</server>\n<tool>read_text_file</tool>\n<arguments>{"path":"/p/a.md"}</arguments>\n</tool_call>`
+      ),
+      user(
+        `<tool_result trusted="false">\n<tool>read_text_file</tool>\n<result>\n${"a".repeat(1500)}\n</result>\n</tool_result>`
+      ),
+    ]);
+
+    await provider.chat("one more thing");
+
+    const chats = sent.filter((b) => b.stream);
+    expect(chats).toHaveLength(2);
+    expect(JSON.stringify(chats[0]!.messages)).toContain("a".repeat(1500));
+    expect(JSON.stringify(chats[1]!.messages)).not.toContain("a".repeat(1500));
+  });
+
+  it("gives up when the prompt is refused again", async () => {
+    const { provider } = refusing(2);
+    provider.setChatHistory([user("hi"), assistant("hello")]);
+
+    await expect(provider.chat("one more thing")).rejects.toThrow(
+      /exceeds the available context size/
+    );
+  });
+
+  it("counts the native tool definitions in the window", async () => {
+    // 2,400 characters of tools in a 1,000-token window: with the history
+    // below, over the trigger only when they are counted
+    const { provider, sent } = connected(WINDOW);
+    provider.applySystemPrompt("You are SHIELD.", [
+      {
+        name: "web_search",
+        serverName: "web",
+        description: "d".repeat(2400),
+        inputSchema: { type: "object" },
+      },
+    ]);
+    provider.setChatHistory([
+      user("read the file"),
+      assistant(`Here it is. ${"x".repeat(600)}`),
+      user("thanks"),
+      assistant("Done."),
+    ]);
+
+    await provider.chat("one more thing");
+
+    // Room was made: a note was asked for before the reply
+    expect(sent[0]!.stream).toBeFalsy();
+  });
+});
+
+describe("a reply that repeats the last one", () => {
+  beforeEach(() => {
+    vi.spyOn(console, "log").mockImplementation(() => {});
+  });
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.restoreAllMocks();
+  });
+
+  const read =
+    'Let me read the file.\n\n<tool_call>\n<server>filesystem</server>\n<tool>read_text_file</tool>\n<arguments>{"path":"/p/a.md"}</arguments>\n</tool_call>';
+
+  it("is asked for once more when it repeats a call, sampled more loosely", async () => {
+    const { provider, sent } = connected(8000, "", read);
+    provider.setChatHistory([user("add a section"), assistant(read)]);
+
+    await provider.chat("You already made this exact call");
+
+    const chats = sent.filter((b) => b.stream) as (SentRequest & {
+      temperature?: number;
+    })[];
+    expect(chats).toHaveLength(2);
+    expect(chats[1]!.temperature).toBeCloseTo(1);
+    // Kept, the second time: once is all it is asked again
+    expect(provider["history"].at(-1)?.content).toBe(read);
+  });
+
+  it("is kept at once when it differs, or is a plain answer", async () => {
+    const { provider, sent } = connected(8000, "", "Done.");
+    provider.setChatHistory([user("add a section"), assistant(read)]);
+    await provider.chat("the file");
+    provider.setChatHistory([user("thanks"), assistant("Done.")]);
+    await provider.chat("thanks again");
+
+    expect(sent.filter((b) => b.stream)).toHaveLength(2);
   });
 });

@@ -84,6 +84,11 @@ export interface ModelFile {
   /** Overrides the variant's reasoningEffort for this quantization */
   reasoningEffort?: string;
   /**
+   * Overrides the variant's contextSize for this quantization: the window
+   * loaded unless the user picked one
+   */
+  contextSize?: number;
+  /**
    * llama-server only: most thinking tokens per reply (`--reasoning-budget`).
    * Past it the thought is closed and the model answers
    */
@@ -121,6 +126,21 @@ export interface ModelTeamFit {
 export interface ServerPlacement {
   allLayersOnGpu: true;
   ubatchSize: number;
+  /**
+   * The KV cache in 8 bits instead of 16, about half the memory per token.
+   * Qwen3.8 27B IQ1_M on 8 GB: 16k where 16 bits fit only 8k, and a fact in
+   * the middle of 13,000 tokens of code was recalled exactly (2026-11-05).
+   * Needs a recent llama-server: the Bonsai demo build (b1-73bfe6c) failed
+   * with "unspecified launch failure" on a full window on sm_75; b12128,
+   * the runtime installer's, did not.
+   */
+  kvCacheType?: "q8_0";
+  /**
+   * false: CUDA graphs off (GGML_CUDA_DISABLE_GRAPHS). With them, b12128
+   * ran out of memory at cudaGraphInstantiate in 3 of 7 IQ1_M runs at
+   * 8k; without, 0 of 8, at the same speed (2026-11-05)
+   */
+  cudaGraphs?: false;
 }
 
 export interface ModelMetadata {
@@ -380,7 +400,19 @@ export const MODEL_FAMILIES: ModelFamilyEntry[] = [
             hfRepo: "unsloth/Qwen3.8-27B-GGUF",
             sizeBytes: 6_730_000_000,
             minVRAM: 0,
-            serverPlacement: { allLayersOnGpu: true, ubatchSize: 512 },
+            // 12k with an 8-bit cache and 256-token batches: 7.39 GB peak
+            // in a bare server with a 13k-character-deep recall, ~7.54 in
+            // the app, whose own window takes ~145 MB of the GPU. 16k with
+            // 512-token batches peaked at 7.76 in the app and ran out of
+            // memory on the first prompt in 4 of 12 edit runs; 8k at 16 bits
+            // was 7.55 bare (2026-11-05, ServerPlacement)
+            serverPlacement: {
+              allLayersOnGpu: true,
+              ubatchSize: 256,
+              kvCacheType: "q8_0",
+              cudaGraphs: false,
+            },
+            contextSize: 12288,
             // 8k context: thinking at medium used the whole 8,192-token
             // reply limit on an edit and wrote nothing. Edit task, 2026-11-05:
             // thinking off passed 4 of 5 in 50-130 s; medium capped at 1,536

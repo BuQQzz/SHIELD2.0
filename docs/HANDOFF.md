@@ -2,7 +2,7 @@
 
 **Last session:** 2026-11-04 → 05 on Linux (`fix/qwen38-8gb`): Qwen3.8 27B on the 8 GB card, see the first update. Before that, 2026-11-03 on Windows (`main`): a declutter pass. PR #49 removed unused files and packages; the docs pass moved finished plans, research and old feature write-ups to [archive/](./archive/). Before that, 2026-10-30 → 11-02 (PRs #47, #48), 2026-10-30 (PR #46), 2026-10-27 → 30 on Linux and 2026-10-26 → 29 on Windows.
 **Branches (2026-11-03):** `main` is the only long-lived branch.
-**Tests:** 1340 passing (2026-11-05); run `npx vitest run`, `npx tsc --noEmit`. `prettier --check` flags `src/components/ui/button.tsx` and `scripts/bench/mcp.ts`, already unformatted: do not run `prettier --write` over whole folders.
+**Tests:** 1356 passing (2026-11-06); run `npx vitest run`, `npx tsc --noEmit`. `prettier --check` flags `src/components/ui/button.tsx` and `scripts/bench/mcp.ts`, already unformatted: do not run `prettier --write` over whole folders.
 
 **Tested in the app with (2026-10-20):** Bonsai 27B Q1_0 on an RTX 2070 SUPER 8 GB (Ubuntu 26.04), SHIELD-managed Prism llama-server at 32K, ~19 tok/s. Earlier sessions: Qwen3-Coder-30B and Gemma 4 12B on Windows.
 
@@ -38,9 +38,26 @@ The 27B in IQ1_M, on the RTX 2070 SUPER 8 GB with the old Prism build (b1-73bfe6
   - Non-thinking sampler: 0.7 / 0.8 / 20 / presence 1.5.
   - `preserve_thinking` is on by default. Harnesses that send `reasoning_content` back scored better.
   - **Not done yet:** SHIELD sends history as text in its own `<tool_call><tool>` form, with no reasoning. A native `tool_calls`/`tool` history is the next candidate.
+- **Later on 2026-11-05 (after `d588f73`):**
+  - **Prism b12128 with `GGML_CUDA_DISABLE_GRAPHS=1`:** no GPU memory crash in 8 of 8 runs; it was 3 of 7 without it. At 8K, edits passed only 3 of 8. Twice the model wrote a call in a made-up text form (`<file>…</file></function>`, `<file_read>…`) that the grammar never caught. The old build passed 3 of 4 the same evening, 16 of 20 in all. Later that night, with the changes below, b12128 at 12K passed 7 of 8.
+  - **Prompts over the window (old build too):** the estimate left out the native tool definitions, which are sent outside the messages. After a summary the next request was refused (9,351 of 8,192 tokens) and the task ended. Now they are counted, in the estimate and in the summary's target. A refusal (`exceed_context_size_error`) is retried once from the server's own count, with the latest exchange's tool payloads cleared too: a 5,360-character read and a 5,763-character write had kept the same prompt over.
+  - **Escaped calls inside a run-on value:** the value can hold calls in SHIELD's own form, escaped. `unswallowQwenCalls` ended the arguments at the first `</arguments>`, which was inside the value. The rest was read as calls of its own, with paths starting with a literal `\n`. It now ends them where their JSON ends.
+- **2026-11-05 night → 06: a bigger window and a smaller fixed prompt.** **Edit task 7 of 8 at 12K on b12128, no file damaged, no out-of-memory.**
+  - **8-bit KV cache:** the new `ServerPlacement.kvCacheType` (`--cache-type-k/-v q8_0`) halves the cache. A fact in the middle of 13,000 tokens of code was recalled exactly at 8K, 16K and 18K on b12128. On the old Bonsai build (b1-73bfe6c) it fails with "unspecified launch failure" once the window is full, so it needs b12128, the runtime installer's build.
+  - **CUDA graphs:** the new `ServerPlacement.cudaGraphs: false` sets `GGML_CUDA_DISABLE_GRAPHS=1` for the server only.
+  - **The window:** IQ1_M now loads at 12K (the new per-file `contextSize`; the sized context plan now offers the catalog's own size too) with 256-token batches. Bare-server peaks: 12K/256 7,394 MiB, 12K/512 7,480, 16K/256 7,532, 16K/512 7,616. SHIELD's own window adds ~145 MiB on the GPU. 16K/512 peaked at 7,761 MiB in the app and ran out of memory on the first prompt in 4 of 12 runs; 12K/256 peaked at 7,483-7,536 MiB in 8 of 8.
+  - **Vision:** nothing to remove. The vision encoder is a separate `mmproj` file, and SHIELD never passes `--mmproj`.
+  - **Fixed prompt, measured from the request:** **4,742 tokens before**, 58% of 8K, against the 60% at which making room starts. The earlier "~3,100" was a later request. 22 tools came to 14,377 characters and the system prompt to 4,220. **Now 3,581 tokens**, 29% of 12K: 19 tools and 9,430 characters, and the system prompt is 3,619 characters.
+    - For native-call models (`openAiTools`), `read_file`, `read_media_file` and `list_directory_with_sizes` are no longer sent. The filesystem server's tools have one-line descriptions, and `$schema` is dropped. The policy still decides any call as before.
+    - `buildSystemPrompt` drops the generic Complex Reasoning, Code Generation and Structured Output sections for them, plus the Tool Usage line the grammar enforces.
+    - Edits got faster: often 2 rounds, ~60 s, against 100-150 s.
+  - **Rewrite guard by lines, not size (`utils/keptLines.ts`):** a resent `write_file` that keeps under 90% of the file's lines asks the user. IQ1_M had retyped a 6,101-character file at 6,500 characters, which passed the size check and lost lines.
+  - **Same reply twice:** a reply with a call that is word for word the last one is sent once more at temperature +0.4. IQ1_M had sent the same 435 characters four times until the loop guard stopped it.
 - **Open:**
-  - Prism b12128 (the Runtime installer's build) ran out of GPU memory at cudaGraphInstantiate in 3 of 7 IQ1_M runs. Try `GGML_CUDA_DISABLE_GRAPHS=1`; check Bonsai 2 27B on it.
-  - Gemma 4 12B on 8 GB: "tight" now, spill unmeasured.
+  - A long reply that plans the edit in text and stops without a call is not retried. The act-now retry takes only short ones.
+  - Now and then the model writes a call in a made-up text form (`<file>…</function>`, a bare `</parameter></function></tool_call>`), with 0 rounds. That was 1 of 15 tonight.
+  - Bonsai 2 27B on b12128 with these settings is unchecked. Its entry is unchanged.
+  - Gemma 4 12B on 8 GB is unmeasured; the file is not downloaded. The catalog's Q4_K_M is 7.12 GB, which leaves little for context. IQ4_XS (6.38 GB) or UD-Q3_K_XL (6.02 GB) are the likely 8 GB files.
   - The model's text is still 1-bit quality: made-up phone numbers, "NASSA".
 
 ## Update — 2026-11-03: declutter, tiers 1 to 4, and a runtime installer

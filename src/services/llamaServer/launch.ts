@@ -69,6 +69,14 @@ export function buildServerArgs(options: LaunchOptions): string[] {
     ...(options.placement?.allLayersOnGpu
       ? ["--fit", "off", "--n-gpu-layers", "all"]
       : ["--fit", "on"]),
+    ...(options.placement?.kvCacheType
+      ? [
+          "--cache-type-k",
+          options.placement.kvCacheType,
+          "--cache-type-v",
+          options.placement.kvCacheType,
+        ]
+      : []),
     "--flash-attn",
     "on",
     "--ubatch-size",
@@ -91,6 +99,16 @@ export function buildServerArgs(options: LaunchOptions): string[] {
         ]),
     "--no-webui",
   ];
+}
+
+/** The server's environment: SHIELD's, with CUDA graphs off if the placement says so */
+export function serverEnv(
+  placement: ServerPlacement | undefined,
+  env: NodeJS.ProcessEnv = process.env
+): NodeJS.ProcessEnv {
+  return placement?.cudaGraphs === false
+    ? { ...env, GGML_CUDA_DISABLE_GRAPHS: "1" }
+    : env;
 }
 
 /**

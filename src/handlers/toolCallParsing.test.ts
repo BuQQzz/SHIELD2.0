@@ -866,6 +866,43 @@ describe("Qwen 3.8 calls swallowed into one value (2026-11-05)", () => {
     ]);
   });
 
+  it("reads past calls in SHIELD's form inside the value, cut off before its end", () => {
+    // The reply the app got (IQ1_M, b12128, 2026-11-05): the run-on value
+    // holds an escaped append_file call, and the stream stopped inside it.
+    // Ended at that call's </arguments>, the rest was read as calls of
+    // its own, one a read with "tail": "\\n30"
+    const inner =
+      '<tool_call>\n<server>filesystem</server>\n<tool>append_file</tool>\n<arguments>{"path":"' +
+      P +
+      '/Preparedness_Checklists.md","content":"## Long Island"}</arguments>\n</tool_call>\n';
+    const value =
+      `${P}/Preparedness_Checklists.md</parameter>\n<parameter=head>\n0</parameter>\n</function>\n</tool_call>\n` +
+      `<tool_call>\n<function=read_text_file>\n<parameter=path>\n${P}/Preparedness_Checklists.md</parameter>\n<parameter=tail>\n40</parameter>\n</function>\n</tool_call>\n` +
+      inner +
+      `<tool_call>\n<function=read_text_file>\n<parameter=path>\n${P}/Preparedness_Checklists.md</parameter>\n<parameter=tail>\n30`;
+    const reply =
+      "<tool_call>\n<server>filesystem</server>\n<tool>read_text_file</tool>\n<arguments>" +
+      JSON.stringify({ path: value }).slice(0, -2) +
+      "</arguments>\n</tool_call>\n";
+
+    const calls = extractToolCalls(reply);
+
+    expect(calls.map((c) => [c.tool, c.arguments])).toEqual([
+      [
+        "read_text_file",
+        { path: `${P}/Preparedness_Checklists.md`, head: "0" },
+      ],
+      [
+        "read_text_file",
+        { path: `${P}/Preparedness_Checklists.md`, tail: "40" },
+      ],
+      [
+        "read_text_file",
+        { path: `${P}/Preparedness_Checklists.md`, tail: "30" },
+      ],
+    ]);
+  });
+
   it("reads a call written as JSON in a <function_calls> element", () => {
     const calls = extractToolCalls(
       '<function_calls>\n{"function": {"name": "write_file", "arguments": {"path": "/p/kit.md", "content": "# Kit"}}}\n</function_calls>'

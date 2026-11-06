@@ -250,7 +250,6 @@ Always use a full path beginning with one of these. Never guess a path such as "
 ## Tool Usage
 - Use the available functions when the request needs information or action from the computer or web, and call only the ones it needs.
 - Make a native function call, then wait for its real result. Never invent a tool result or claim success before a successful result arrives.
-- Use only functions provided to you, with arguments matching their schemas.
 - After a result arrives, either call the next function needed for the request or answer the user.
 - Do not repeat a call that already succeeded; use its result.
 - Once you can answer, answer without making another call.${editRule}${commandRule}${planRule}`
@@ -548,18 +547,22 @@ export function buildSystemPrompt(config: SystemPromptConfig): BuiltPrompt {
     }
   }
 
-  // Add capability-based prompts
-  if (config.capabilities.includes("complexReasoning")) {
+  // Add capability-based prompts. Not for a model with native calls: the
+  // models that have them (Qwen3.8, Bonsai 2 27B, Gemma 4) do all three
+  // unasked, and every request carries the prompt, ~500 characters of an
+  // 8k window that the tools already fill to a third (2026-11-05)
+  const generalAdvice = !config.nativeTools;
+  if (generalAdvice && config.capabilities.includes("complexReasoning")) {
     parts.push(REASONING_PROMPT);
     includedModules.push("reasoning");
   }
 
-  if (config.capabilities.includes("codeGeneration")) {
+  if (generalAdvice && config.capabilities.includes("codeGeneration")) {
     parts.push(CODE_GENERATION_PROMPT);
     includedModules.push("code-generation");
   }
 
-  if (config.capabilities.includes("structuredOutput")) {
+  if (generalAdvice && config.capabilities.includes("structuredOutput")) {
     parts.push(STRUCTURED_OUTPUT_PROMPT);
     includedModules.push("structured-output");
   }

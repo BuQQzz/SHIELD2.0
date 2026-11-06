@@ -884,29 +884,69 @@ const textCall = (server: string, tool: string, args: unknown) =>
  * Rewrites a call with swallowed calls (splitLeakedQwenCalls) as separate
  * calls in SHIELD's form, before the reply is split into calls: the run-on
  * value holds </tool_call> itself, which would end the call inside it.
+ *
+ * The arguments end where their JSON does, not at the first </arguments>:
+ * the run-on value can hold calls in SHIELD's form too, escaped, and ended
+ * there the rest of it was left in the reply and read as calls of its own,
+ * with paths starting "\\n" and "tail": "\\n30" (Qwen3.8 IQ1_M,
+ * 2026-11-05). A value cut off before its closing quote runs to the end.
  */
 export function unswallowQwenCalls(content: string): string {
   if (!content.includes("</parameter>")) return content;
-  return content.replace(
-    /(<tool_call>\s*(?:<server>([^<]*)<\/server>\s*)?<tool>([^<]+)<\/tool>\s*)<arguments>([\s\S]*?)<\/arguments>\s*(?:<\/tool_call>\s*)?/g,
-    (
-      whole,
-      _head: string,
-      server: string | undefined,
-      tool: string,
-      body: string
-    ) => {
-      if (!body.includes("</parameter>")) return whole;
-      const parsed = parseJson(body.trim(), true);
-      if (!isRecord(parsed)) return whole;
-      const { args, calls } = splitLeakedQwenCalls(parsed);
-      if (args === parsed) return whole;
-      return (
-        textCall(server?.trim() || "filesystem", tool.trim(), args) +
-        calls.map((c) => textCall(c.serverName, c.tool, c.arguments)).join("")
-      );
-    }
-  );
+  const head =
+    /<tool_call>\s*(?:<server>([^<]*)<\/server>\s*)?<tool>([^<]+)<\/tool>\s*<arguments>/g;
+  let out = "";
+  let from = 0;
+  for (let m = head.exec(content); m; m = head.exec(content)) {
+    const open = m.index + m[0].length;
+    // Not JSON: up to the first </arguments>, as any call is read
+    const close =
+      jsonEnd(content, open) ?? content.indexOf("</arguments>", open);
+    if (close < 0) continue;
+    const body = content
+      .slice(open, close)
+      .replace(/<\/arguments>\s*(?:<\/tool_call>\s*)?$/, "");
+    if (!body.includes("</parameter>")) continue;
+    const parsed = parseJson(body.trim(), true);
+    if (!isRecord(parsed)) continue;
+    const { args, calls } = splitLeakedQwenCalls(parsed);
+    if (args === parsed) continue;
+    const after =
+      close +
+      (content
+        .slice(close)
+        .match(/^\s*<\/arguments>\s*(?:<\/tool_call>\s*)?/)?.[0].length ?? 0);
+    out +=
+      content.slice(from, m.index) +
+      textCall(m[1]?.trim() || "filesystem", m[2]!.trim(), args) +
+      calls.map((c) => textCall(c.serverName, c.tool, c.arguments)).join("");
+    from = after;
+    head.lastIndex = after;
+  }
+  return out + content.slice(from);
+}
+
+/**
+ * Just past the JSON object that starts at `start` (after any whitespace),
+ * read with its strings and escapes: the end of `text` when it is not
+ * closed, null when what starts there is not an object
+ */
+function jsonEnd(text: string, start: number): number | null {
+  let depth = 0;
+  let inString = false;
+  for (let i = start; i < text.length; i++) {
+    const c = text[i];
+    if (inString) {
+      if (c === "\\") i++;
+      else if (c === '"') inString = false;
+    } else if (c === '"') inString = true;
+    else if (c === "{" || c === "[") depth++;
+    else if (c === "}" || c === "]") {
+      depth--;
+      if (depth === 0) return i + 1;
+    } else if (depth === 0 && !/\s/.test(c!)) return null;
+  }
+  return depth > 0 ? text.length : null;
 }
 
 function extractXmlToolCalls(rawContent: string): ToolCallRequest[] {

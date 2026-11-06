@@ -257,11 +257,19 @@ describe("useMCPDialogs - writes", () => {
     expect(callTool).not.toHaveBeenCalled();
   });
 
+  /** A 10,388-character script of distinct lines */
+  const script = Array.from(
+    { length: 400 },
+    (_, i) => `const value${i} = compute(${i});`
+  ).join("\n");
+
   it("sends a rewrite of a sizeable existing file back once", async () => {
     const callTool = vi.fn(async (call: { tool: string }) =>
       call.tool === "get_file_info"
         ? text("size: 10388\nisFile: true")
-        : text("Successfully wrote")
+        : call.tool === "read_text_file"
+          ? text(script)
+          : text("Successfully wrote")
     );
     const { result } = renderHook(() => useMCPDialogs({ callTool, policy }));
 
@@ -279,37 +287,46 @@ describe("useMCPDialogs - writes", () => {
       "get_file_info",
     ]);
 
-    // the same size: a file that really changes throughout
+    // sent again keeping the file's lines: it goes through
     let second: MCPToolResult | undefined;
     await act(async () => {
       second = await result.current.handleToolCallRequest(
-        write("script.js", "x".repeat(10_000))
+        write("script.js", `${script}\nexport { value0 };`)
       );
     });
     expect(second?.success).toBe(true);
     expect(callTool.mock.calls.at(-1)?.[0].tool).toBe("write_file");
   });
 
-  it("asks the user about a resent rewrite that would shorten the file, even in Auto", async () => {
-    const callTool = vi.fn(async (call: { tool: string }) =>
-      call.tool === "get_file_info"
-        ? text("size: 6109\nisFile: true")
-        : text("Successfully wrote")
-    );
-    const { result } = renderHook(() => useMCPDialogs({ callTool, policy }));
-    const shorter = write("Checklists.md", "# Checklists\n".repeat(350));
-    await act(async () => {
-      await result.current.handleToolCallRequest(shorter);
-    });
-    act(() => {
-      void result.current.handleToolCallRequest(shorter);
-    });
-    await waitFor(() => expect(result.current.pendingRequest).not.toBeNull());
-    expect(callTool.mock.calls.map((c) => c[0].tool)).not.toContain(
-      "write_file"
-    );
-    act(() => result.current.handleDeny());
-  });
+  it.each([
+    ["cut short", script.slice(0, 7000)],
+    // Qwen3.8 IQ1_M retyped a 6,101-character file at 6,500, changing lines
+    ["retyped at its size", script.replace(/compute/g, "computed")],
+  ])(
+    "asks the user about a resent rewrite of a file %s, even in Auto",
+    async (_, content) => {
+      const callTool = vi.fn(async (call: { tool: string }) =>
+        call.tool === "get_file_info"
+          ? text("size: 10388\nisFile: true")
+          : call.tool === "read_text_file"
+            ? text(script)
+            : text("Successfully wrote")
+      );
+      const { result } = renderHook(() => useMCPDialogs({ callTool, policy }));
+      const rewrite = write("script.js", content);
+      await act(async () => {
+        await result.current.handleToolCallRequest(rewrite);
+      });
+      act(() => {
+        void result.current.handleToolCallRequest(rewrite);
+      });
+      await waitFor(() => expect(result.current.pendingRequest).not.toBeNull());
+      expect(callTool.mock.calls.map((c) => c[0].tool)).not.toContain(
+        "write_file"
+      );
+      act(() => result.current.handleDeny());
+    }
+  );
 
   it("writes a new or small file at once", async () => {
     const callTool = vi.fn(

@@ -26,23 +26,79 @@ export interface OpenAiTool {
   };
 }
 
-/** The tools as llama-server takes them: plain names, the first of a name wins */
+/**
+ * The tools as llama-server takes them: plain names, the first of a name
+ * wins, in fewer words.
+ *
+ * They are sent with every request, and were three quarters of its fixed
+ * part: 14,377 characters for 22 tools beside a 4,220-character system
+ * prompt, ~3,100 tokens of an 8k window before any work (Qwen3.8 27B,
+ * 2026-11-05). The filesystem server's descriptions repeat what the name
+ * and schema say, and three of its tools do another's job, so they are
+ * left out here; a call to one is still decided by the policy as before.
+ */
 export function openAiTools(tools: ToolDefinition[]): OpenAiTool[] {
   const seen = new Set<string>();
   const out: OpenAiTool[] = [];
   for (const tool of tools) {
-    if (seen.has(tool.name)) continue;
+    if (seen.has(tool.name) || LEFT_OUT.has(tool.name)) continue;
     seen.add(tool.name);
+    const filesystem = (tool.serverName ?? "filesystem") === "filesystem";
     out.push({
       type: "function",
       function: {
         name: tool.name,
-        description: tool.description,
-        parameters: tool.inputSchema ?? schemaFromParameters(tool),
+        description:
+          (filesystem && SHORT_DESCRIPTIONS[tool.name]) || tool.description,
+        parameters: withoutSchemaUri(
+          tool.inputSchema ?? schemaFromParameters(tool)
+        ),
       },
     });
   }
   return out;
+}
+
+/**
+ * read_file is read_text_file under its old name; read_media_file returns
+ * images, and no vision projector is loaded; list_directory_with_sizes is
+ * list_directory with sizes, which get_file_info gives
+ */
+const LEFT_OUT = new Set([
+  "read_file",
+  "read_media_file",
+  "list_directory_with_sizes",
+]);
+
+/** The official filesystem server's tools, said shortly */
+const SHORT_DESCRIPTIONS: Record<string, string> = {
+  read_text_file:
+    "Read a file as text. head or tail: only its first or last N lines.",
+  read_multiple_files:
+    "Read several files at once; one that fails does not stop the rest.",
+  write_file: "Create a file, or replace all of a file's content.",
+  edit_file:
+    "Replace exact text in a file: each edit's oldText must match the file exactly. Returns a diff. dryRun: show the diff without changing the file.",
+  create_directory: "Create a folder, with any missing parent folders.",
+  list_directory: "List a folder's entries, marked [FILE] or [DIR].",
+  directory_tree:
+    "A folder's files and folders as a JSON tree. excludePatterns: glob patterns to skip.",
+  move_file:
+    "Move or rename a file or folder. Fails if the destination exists.",
+  search_files:
+    "Find files and folders under path whose path matches a glob pattern ('*.md' here, '**/*.md' in all subfolders).",
+  get_file_info:
+    "A file's or folder's size, times, permissions and type, without reading it.",
+  list_allowed_directories: "The folders the file tools may use.",
+};
+
+/** The JSON Schema draft URI, on every one of the server's schemas */
+function withoutSchemaUri(
+  schema: Record<string, unknown>
+): Record<string, unknown> {
+  if (!("$schema" in schema)) return schema;
+  const { $schema: _uri, ...rest } = schema;
+  return rest;
 }
 
 function schemaFromParameters(tool: ToolDefinition): Record<string, unknown> {

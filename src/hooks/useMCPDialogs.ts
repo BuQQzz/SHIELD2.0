@@ -11,6 +11,7 @@
  */
 
 import { argumentsForSchema } from "@/utils/schemaArguments";
+import { keptLines } from "@/utils/keptLines";
 import {
   isDeletionTool,
   unavailableToolMessage,
@@ -105,12 +106,13 @@ const REWRITE_MIN_BYTES = 2500;
 /** How long a sent-back rewrite of a file stays allowed */
 const REWRITE_WARNING_MS = 10 * 60_000;
 /**
- * A sent-back rewrite this much shorter than the file goes to the user,
- * even in Auto: Qwen3.8 IQ1_M, asked to add a section, saw only the first
- * 4,915 of 6,101 characters (the read was cut to fit) and rewrote the file
- * from that, dropping its end (2026-11-05)
+ * A sent-back rewrite that keeps less of the file's lines than this goes to
+ * the user, even in Auto (utils/keptLines.ts). Qwen3.8 IQ1_M, asked to add
+ * a section, saw only the first 4,915 of 6,101 characters (the read was
+ * cut to fit) and rewrote the file from that, dropping its end; another
+ * time it retyped the whole file at its size, changing lines (2026-11-05)
  */
-const REWRITE_SHRINK_ASKS = 0.9;
+const REWRITE_KEEPS = 0.9;
 
 const rewriteMessage = (path: string, size: number, canAppend: boolean) =>
   `Not run: ${path} already exists (${size.toLocaleString("en-US")} characters). ${canAppend ? "To add to its end, use append_file with only the new text. To change it, use" : "Change it with"} edit_file, replacing only the lines that need to change: rewriting resends the whole file into your context and can drop code that works. If most of the file really has to change, tell the user why, then send the same write_file again.`;
@@ -273,11 +275,17 @@ export function useMCPDialogs({
         );
         if (!(size > REWRITE_MIN_BYTES)) return null;
         if (resent) {
-          const bytes =
-            typeof args.content === "string"
-              ? new TextEncoder().encode(args.content).length
-              : 0;
-          return bytes < size * REWRITE_SHRINK_ASKS ? "ask" : null;
+          const read = await callTool({
+            serverName: "filesystem",
+            tool: "read_text_file",
+            arguments: { path: args.path },
+          });
+          if (!read.success) return "ask";
+          const kept = keptLines(
+            resultPayload(read.data),
+            typeof args.content === "string" ? args.content : ""
+          );
+          return kept < REWRITE_KEEPS ? "ask" : null;
         }
         rewriteWarned.current.set(key, Date.now());
         return rewriteMessage(args.path, size, canAppend);
