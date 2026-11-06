@@ -52,3 +52,46 @@ function convert(text: string, type: unknown): unknown {
   }
   return undefined;
 }
+
+/** Arguments that hold a path, as the file tools name them */
+const PATH_KEYS = new Set(["path", "source", "destination"]);
+
+/**
+ * Paths with what the model left around them cut off. With its history in
+ * the template's own form, Qwen3.8 IQ1_M ended a path with a broken
+ * closing tag, which the server kept in the value: ".md</", ".md</}",
+ * ".md</content>" (3 of 4 edit runs); thinking, with a space (".md "),
+ * and the read failed as "no such file" (2 of 4, 2026-11-06). A path never
+ * holds "</" or starts or ends with whitespace, so those go; other values
+ * (a file's text may end in </div>) are left alone.
+ */
+export function cleanPaths(
+  args: Record<string, unknown>
+): Record<string, unknown> {
+  const cut = (value: unknown) =>
+    typeof value === "string"
+      ? (value.includes("</")
+          ? value.slice(0, value.indexOf("</"))
+          : value
+        ).trim()
+      : value;
+  let out: Record<string, unknown> | null = null;
+  for (const [key, value] of Object.entries(args)) {
+    const fixed =
+      key === "paths" && Array.isArray(value)
+        ? value.map(cut)
+        : PATH_KEYS.has(key)
+          ? cut(value)
+          : value;
+    if (
+      fixed === value ||
+      (Array.isArray(fixed) &&
+        fixed.every((v, i) => v === (value as unknown[])[i]))
+    ) {
+      continue;
+    }
+    out ??= { ...args };
+    out[key] = fixed;
+  }
+  return out ?? args;
+}

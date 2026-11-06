@@ -586,15 +586,29 @@ export const MODEL_FAMILIES: ModelFamilyEntry[] = [
         displayName: "Bonsai 2 27B",
         description:
           "27B model at 1.58 bits per weight. Runs fully on an 8 GB GPU with a 24k context window, about 43 tok/s on an RTX 2070 SUPER.",
-        // 32k ran out of memory on 8 GB; 24k used 7.5 GB (2026-10-28)
-        contextSize: 24576,
-        serverPlacement: { allLayersOnGpu: true, ubatchSize: 512 },
+        // 32k with an 8-bit cache: 7.34 GB peak with a 16,391-token prompt
+        // whose middle it recalled exactly, ~7.49 in the app. At 16 bits
+        // 24k used 7.5 GB on 2026-10-28, and by 2026-11-06 no longer loaded
+        // on either build: its 1,536 MB cache did not fit beside the desktop
+        // (ServerPlacement)
+        contextSize: 32768,
+        serverPlacement: {
+          allLayersOnGpu: true,
+          ubatchSize: 512,
+          kvCacheType: "q8_0",
+          cudaGraphs: false,
+        },
         // Prism's KNOWN_ISSUES: it loops on some prompts at the default
         // xhigh, and medium thinks less at about the same accuracy. Same
         // prompt, two runs each: default thought 2,518-7,333 tokens (62-179
         // s), medium 1,899-2,439 (46-59 s) with fuller answers (2026-10-29)
         reasoningEffort: "medium",
         nativeToolCalls: true,
+        // Its own value is unset; write task at 32k, native history: one of
+        // two runs listed batteries by type until the 8,192-token reply
+        // limit, a 20 KB file with 3 of 6 sections (2026-11-06). 1.5 is
+        // Qwen's non-thinking value, as for Qwen3.8 27B
+        presencePenalty: 1.5,
         provider: "PrismML",
         chatTemplate: "generic",
         roles: ["agent", "coding", "long-context", "chat"],

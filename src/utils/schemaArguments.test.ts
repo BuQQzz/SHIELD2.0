@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { argumentsForSchema } from "./schemaArguments";
+import { argumentsForSchema, cleanPaths } from "./schemaArguments";
 
 const schema = {
   type: "object",
@@ -37,5 +37,27 @@ describe("argumentsForSchema", () => {
     const typed = { tail: 3 };
     expect(argumentsForSchema(typed, schema)).toBe(typed);
     expect(argumentsForSchema({ tail: "3" }, undefined)).toEqual({ tail: "3" });
+  });
+});
+
+describe("cleanPaths", () => {
+  const P = "/home/u/prep/Preparedness_Checklists.md";
+
+  it("cuts the end of a tag off a path", () => {
+    for (const tail of ["</", "</}", "</content>", "\n</parameter>", " "]) {
+      expect(cleanPaths({ path: P + tail, content: "x" })).toEqual({
+        path: P,
+        content: "x",
+      });
+    }
+    expect(cleanPaths({ paths: [P + "</", "/a.md"], source: "/b</" })).toEqual({
+      paths: [P, "/a.md"],
+      source: "/b",
+    });
+  });
+
+  it("leaves other values and clean paths as they are", () => {
+    const args = { path: P, content: "<div>hi</div>" };
+    expect(cleanPaths(args)).toBe(args);
   });
 });

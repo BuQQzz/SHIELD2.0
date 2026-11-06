@@ -2,13 +2,31 @@
 
 **Last session:** 2026-11-04 → 05 on Linux (`fix/qwen38-8gb`): Qwen3.8 27B on the 8 GB card, see the first update. Before that, 2026-11-03 on Windows (`main`): a declutter pass. PR #49 removed unused files and packages; the docs pass moved finished plans, research and old feature write-ups to [archive/](./archive/). Before that, 2026-10-30 → 11-02 (PRs #47, #48), 2026-10-30 (PR #46), 2026-10-27 → 30 on Linux and 2026-10-26 → 29 on Windows.
 **Branches (2026-11-03):** `main` is the only long-lived branch.
-**Tests:** 1356 passing (2026-11-06); run `npx vitest run`, `npx tsc --noEmit`. `prettier --check` flags `src/components/ui/button.tsx` and `scripts/bench/mcp.ts`, already unformatted: do not run `prettier --write` over whole folders.
+**Tests:** 1366 passing (2026-11-06); run `npx vitest run`, `npx tsc --noEmit`. `prettier --check` flags `src/components/ui/button.tsx` and `scripts/bench/mcp.ts`, already unformatted: do not run `prettier --write` over whole folders.
 
 **Tested in the app with (2026-10-20):** Bonsai 27B Q1_0 on an RTX 2070 SUPER 8 GB (Ubuntu 26.04), SHIELD-managed Prism llama-server at 32K, ~19 tok/s. Earlier sessions: Qwen3-Coder-30B and Gemma 4 12B on Windows.
 
 Read this first: the updates below, newest first, then [SHIELD_AGENT_ARCHITECTURE.md](./SHIELD_AGENT_ARCHITECTURE.md) (§21 agent teams, §17 decision log, §13 priorities, §20 evidence) and [testing/AGENT_BENCHMARK.md](./testing/AGENT_BENCHMARK.md). Updates from 2026-10-24 and earlier (the hang hunt, team fixes, the Linux port, agent teams v1, and the September work: Code view, terminal, memory, Gemma, model library) are in [archive/HANDOFF_HISTORY.md](./archive/HANDOFF_HISTORY.md); sections below that name them ("Update — 2026-10-23 → 24" and earlier) mean that file.
 
-## Update — 2026-11-04 → 05: Qwen3.8 27B on 8 GB (branch `fix/qwen38-8gb`, start here)
+## Update — 2026-11-06: native tool history (branch `feat/qwen38-native-history`, on top of PR #56, start here)
+
+PR #56 (`fix/qwen38-8gb`) is open; all 4 CI checks pass. This branch builds on it.
+
+- **Native history (`llamaServer/nativeHistory.ts`):** for native-call models the request sends past calls as `tool_calls` and results as `tool` messages, and the template renders them in its trained form (checked with `/apply-template`). The stored history stays in SHIELD's text form.
+  - Interleaved A/B, Qwen3.8 IQ1_M at 12K, edit task: both 6 of 6. Native ~53 s and 2 rounds in 5 of 6 runs, 1 failed call in all. Text ~115 s and 3-7 rounds, 9 failed calls (it kept trying `write_file` first).
+  - Write task with native history: Qwen 4 of 4.
+- **Paths cleaned (`cleanPaths`, utils/schemaArguments.ts):** applies to `path`, `source`, `destination` and `paths`.
+  - With native history, IQ1_M ended paths with `</`, `</}` or `</content>`. Everything from `</` is cut off.
+  - With thinking on, it ended them with a space (`.md `), and the read failed as "no such file". Outer whitespace is trimmed.
+- **Bonsai 2 27B:**
+  - At 24K with a 16-bit cache it no longer loads on this machine, on either build (its 1,536 MB cache didn't fit).
+  - Now 32K with an 8-bit cache and CUDA graphs off on b12128: recall exact from a 16,391-token prompt, 7.34 GB bare peak, ~41 tok/s. Edit 3 of 3 (~40 s).
+  - Write: 1 of 2 looped (batteries by type up to the 8,192-token limit), so `presencePenalty: 1.5` was added. Since then, 4 of 4 writes (62-82 s) and 2 of 2 edits (~47 s), with no reply at the limit.
+- **Low thinking for Qwen IQ1_M at 12K:** worse. Edits 3 of 4 at 96-249 s and writes 2 of 2 at 116-229 s, against 6 of 6 at ~53 s and 4 of 4 with thinking off. It stays off.
+- **Announced step, no call, mid-turn (`endsByAnnouncing`, handlers/mcpRetryPolicy.ts):** the act-now retry only checked the first reply. After a tool result, IQ1_M ended turns on "I'll append the new section at the end of the file…" and on long plans ending "Let me now create the content", with nothing done. The tool loop now sends the act-now note once per turn when a reply's last sentence names a tool step (read, append, edit…); "I'll let the user know" and "Let me know if…" are left alone. Bursts after it: edits 4 of 4 at 52-54 s, 2 rounds, no failed calls; the retry was not needed in those runs, so it is unit-tested only.
+- **Tests:** 1,366 passing.
+
+## Update — 2026-11-04 → 05: Qwen3.8 27B on 8 GB (branch `fix/qwen38-8gb`)
 
 The 27B in IQ1_M, on the RTX 2070 SUPER 8 GB with the old Prism build (b1-73bfe6c), thinking off, Code mode, Auto. **Edit task 13 of 16 passed, write task 8 of 9, no file damaged.** On 2026-11-04 it was 0 of 3 edits at 0.6-0.9 tok/s. Tested in short bursts: one task, 5 minutes, `DENY=1 ONLY=edit TASK_MIN=5 node tmp/ui-check/compare.mjs "Qwen3.8 27B" <tag>`. With `DENY=1` the script clicks Deny: in Auto, the only prompts are the shrink guard and `run_command`.
 

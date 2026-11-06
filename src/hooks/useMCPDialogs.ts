@@ -10,7 +10,7 @@
  * open is rejected explicitly rather than silently dropped.
  */
 
-import { argumentsForSchema } from "@/utils/schemaArguments";
+import { argumentsForSchema, cleanPaths } from "@/utils/schemaArguments";
 import { keptLines } from "@/utils/keptLines";
 import {
   isDeletionTool,
@@ -404,9 +404,8 @@ export function useMCPDialogs({
       const toolCall = {
         ...request,
         serverName: advertised?.serverName ?? request.serverName,
-        arguments: argumentsForSchema(
-          request.arguments,
-          advertised?.inputSchema
+        arguments: cleanPaths(
+          argumentsForSchema(request.arguments, advertised?.inputSchema)
         ),
       };
 

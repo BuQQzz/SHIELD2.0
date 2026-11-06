@@ -24,6 +24,7 @@ import { RUN_COMMAND_TOOL_NAME } from "../config/commandSafety";
 import { hostOs, type HostOs } from "../utils/platform";
 import { isRemovalNote } from "../services/historyCompaction";
 import { closestLines } from "../utils/closestLines";
+import { buildActNowPrompt, endsByAnnouncing } from "./mcpRetryPolicy";
 
 export interface MCPMessageHandlerProps {
   onToolCallDetected: (toolCall: ToolCallRequest) => Promise<MCPToolResult>;
@@ -368,6 +369,9 @@ export async function processMCPToolCalls(
     return calls;
   };
 
+  // Asked once per turn to make the call it announced (endsByAnnouncing)
+  let toldToAct = false;
+
   for (let round = 1; round <= maxToolRounds; round++) {
     if (isStopped?.()) {
       console.log("[MCP] Stopped by the user; ending the turn");
@@ -376,6 +380,17 @@ export async function processMCPToolCalls(
     const toolCalls = callsIn(content);
 
     if (toolCalls.length === 0) {
+      // Round 1 is the first reply, which handleSend already checks
+      if (round > 1 && !toldToAct && endsByAnnouncing(content)) {
+        toldToAct = true;
+        console.warn("[MCP] Reply announced a step with no call; asked once");
+        const again = await continueConversation(buildActNowPrompt());
+        if (typeof again === "string" && again.trim() !== "") {
+          content = again;
+          round--; // No call ran: the asking takes no round
+          continue;
+        }
+      }
       break; // Model replied in plain text - the turn is done
     }
 

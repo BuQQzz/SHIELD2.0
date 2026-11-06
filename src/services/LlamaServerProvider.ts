@@ -37,6 +37,7 @@ import {
   type OpenAiTool,
   type ToolCallDelta,
 } from "./llamaServer/nativeCalls.js";
+import { nativeHistory } from "./llamaServer/nativeHistory.js";
 import type { ToolDefinition } from "../types/prompts.js";
 import {
   adaptRequestBody,
@@ -708,11 +709,12 @@ export class LlamaServerProvider {
       : this.systemPrompt;
   }
 
+  /** With native calls, the turns in the template's own form (nativeHistory) */
   private messages(extra?: ChatMessage) {
+    const turns = [...this.history, ...(extra ? [extra] : [])];
     return [
       { role: "system", content: this.systemContent() },
-      ...this.history,
-      ...(extra ? [extra] : []),
+      ...(this.nativeTools.length > 0 ? nativeHistory(turns) : turns),
     ];
   }
 
