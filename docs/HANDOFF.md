@@ -1,12 +1,64 @@
 # SHIELD — Session Handoff
 
-**Last session:** 2026-11-03 on Windows (`main`): a declutter pass. PR #49 removed unused files and packages; the docs pass moved finished plans, research and old feature write-ups to [archive/](./archive/). Before that, 2026-10-30 → 11-02 (PRs #47, #48), 2026-10-30 (PR #46), 2026-10-27 → 30 on Linux and 2026-10-26 → 29 on Windows.
+**Last session:** 2026-11-04 → 05 on Linux (`fix/qwen38-8gb`): Qwen3.8 27B on the 8 GB card, see the first update. Before that, 2026-11-03 on Windows (`main`): a declutter pass. PR #49 removed unused files and packages; the docs pass moved finished plans, research and old feature write-ups to [archive/](./archive/). Before that, 2026-10-30 → 11-02 (PRs #47, #48), 2026-10-30 (PR #46), 2026-10-27 → 30 on Linux and 2026-10-26 → 29 on Windows.
 **Branches (2026-11-03):** `main` is the only long-lived branch.
-**Tests:** 1349 passing; run `npx vitest run`, `npx tsc --noEmit`. `prettier --check` flags `src/components/ui/button.tsx` and `scripts/bench/mcp.ts`, already unformatted: do not run `prettier --write` over whole folders.
+**Tests:** 1356 passing (2026-11-06); run `npx vitest run`, `npx tsc --noEmit`. `prettier --check` flags `src/components/ui/button.tsx` and `scripts/bench/mcp.ts`, already unformatted: do not run `prettier --write` over whole folders.
 
 **Tested in the app with (2026-10-20):** Bonsai 27B Q1_0 on an RTX 2070 SUPER 8 GB (Ubuntu 26.04), SHIELD-managed Prism llama-server at 32K, ~19 tok/s. Earlier sessions: Qwen3-Coder-30B and Gemma 4 12B on Windows.
 
 Read this first: the updates below, newest first, then [SHIELD_AGENT_ARCHITECTURE.md](./SHIELD_AGENT_ARCHITECTURE.md) (§21 agent teams, §17 decision log, §13 priorities, §20 evidence) and [testing/AGENT_BENCHMARK.md](./testing/AGENT_BENCHMARK.md). Updates from 2026-10-24 and earlier (the hang hunt, team fixes, the Linux port, agent teams v1, and the September work: Code view, terminal, memory, Gemma, model library) are in [archive/HANDOFF_HISTORY.md](./archive/HANDOFF_HISTORY.md); sections below that name them ("Update — 2026-10-23 → 24" and earlier) mean that file.
+
+## Update — 2026-11-04 → 05: Qwen3.8 27B on 8 GB (branch `fix/qwen38-8gb`, start here)
+
+The 27B in IQ1_M, on the RTX 2070 SUPER 8 GB with the old Prism build (b1-73bfe6c), thinking off, Code mode, Auto. **Edit task 13 of 16 passed, write task 8 of 9, no file damaged.** On 2026-11-04 it was 0 of 3 edits at 0.6-0.9 tok/s. Tested in short bursts: one task, 5 minutes, `DENY=1 ONLY=edit TASK_MIN=5 node tmp/ui-check/compare.mjs "Qwen3.8 27B" <tag>`. With `DENY=1` the script clicks Deny: in Auto, the only prompts are the shrink guard and `run_command`.
+
+- **Fit and speed:**
+  - `nominalGB` rounds VRAM and RAM: the card read as 7.6 GB and 16 GB RAM as 15.5, which failed the minimums.
+  - Each catalog file can set `serverPlacement`. IQ1_M puts all layers on the GPU, about 17-40 tok/s against 0.6-0.9 with `--fit on`.
+  - IQ2_XXS ran out of memory at 8k, so it is 10 GB+.
+- **Thinking:**
+  - Each catalog file can set `reasoningEffort` ("none" = thinking off) and `reasoningBudget` (`--reasoning-budget`, plus a message when it runs out).
+  - IQ1_M: medium thinking used the whole 8,192-token reply limit on an edit. Thinking off passed 4 of 5; capped at 1,536 tokens, 2 of 3, slower.
+- **Sampling:** `presencePenalty` (1.5 for Qwen3.8, Qwen's non-thinking value) stopped long values from looping. The GGUF's own `general.sampling` takes precedence over the catalog.
+- **Calls that ran on (root cause):** llama-server ends a Qwen value only at "\n</parameter>", and IQ1_M often leaves out the line break. The value then runs through the rest of the reply. Fixes, in `toolCallParsing.ts` and `nativeCalls.ts`:
+  - The value is cut at `</parameter>`. The same call's later parameters are kept, and calls after it are recovered.
+  - Calls after a result the model invented ("You executed 1 tool call(s)…") are dropped. The stream stops there, both in call arguments and in plain text.
+  - History gets the repaired calls.
+  - Recovered values are converted to the types the tool's schema asks for (`utils/schemaArguments.ts`).
+  - `<function_calls>` JSON is parsed.
+- **Files:**
+  - New SHIELD tool `append_file` (`electron/services/appendFile.ts`, next to the Recycle Bin delete). It refuses text that repeats the file's start. The allowlist migration adds it to untouched default lists.
+  - A resent `write_file` under 90% of the file's size asks the user, even in Auto. IQ1_M had cut a 6,101-character file to 1,350.
+  - A truncated read names the exact `tail` read. The rewrite refusal names `append_file`.
+- **Replies with nothing done:**
+  - A reply that only announces an action ("I'll add…"), or is only a path, is asked once more for the call.
+  - An empty reply from SHIELD's own server is sent once more with thinking off. It rescued 2 of 2 writes.
+  - A chat is now saved when a reply fails. Before, it vanished from the list.
+- **Research (model card, harness write-ups):**
+  - Non-thinking sampler: 0.7 / 0.8 / 20 / presence 1.5.
+  - `preserve_thinking` is on by default. Harnesses that send `reasoning_content` back scored better.
+  - **Not done yet:** SHIELD sends history as text in its own `<tool_call><tool>` form, with no reasoning. A native `tool_calls`/`tool` history is the next candidate.
+- **Later on 2026-11-05 (after `d588f73`):**
+  - **Prism b12128 with `GGML_CUDA_DISABLE_GRAPHS=1`:** no GPU memory crash in 8 of 8 runs; it was 3 of 7 without it. At 8K, edits passed only 3 of 8. Twice the model wrote a call in a made-up text form (`<file>…</file></function>`, `<file_read>…`) that the grammar never caught. The old build passed 3 of 4 the same evening, 16 of 20 in all. Later that night, with the changes below, b12128 at 12K passed 7 of 8.
+  - **Prompts over the window (old build too):** the estimate left out the native tool definitions, which are sent outside the messages. After a summary the next request was refused (9,351 of 8,192 tokens) and the task ended. Now they are counted, in the estimate and in the summary's target. A refusal (`exceed_context_size_error`) is retried once from the server's own count, with the latest exchange's tool payloads cleared too: a 5,360-character read and a 5,763-character write had kept the same prompt over.
+  - **Escaped calls inside a run-on value:** the value can hold calls in SHIELD's own form, escaped. `unswallowQwenCalls` ended the arguments at the first `</arguments>`, which was inside the value. The rest was read as calls of its own, with paths starting with a literal `\n`. It now ends them where their JSON ends.
+- **2026-11-05 night → 06: a bigger window and a smaller fixed prompt.** **Edit task 7 of 8 at 12K on b12128, no file damaged, no out-of-memory.**
+  - **8-bit KV cache:** the new `ServerPlacement.kvCacheType` (`--cache-type-k/-v q8_0`) halves the cache. A fact in the middle of 13,000 tokens of code was recalled exactly at 8K, 16K and 18K on b12128. On the old Bonsai build (b1-73bfe6c) it fails with "unspecified launch failure" once the window is full, so it needs b12128, the runtime installer's build.
+  - **CUDA graphs:** the new `ServerPlacement.cudaGraphs: false` sets `GGML_CUDA_DISABLE_GRAPHS=1` for the server only.
+  - **The window:** IQ1_M now loads at 12K (the new per-file `contextSize`; the sized context plan now offers the catalog's own size too) with 256-token batches. Bare-server peaks: 12K/256 7,394 MiB, 12K/512 7,480, 16K/256 7,532, 16K/512 7,616. SHIELD's own window adds ~145 MiB on the GPU. 16K/512 peaked at 7,761 MiB in the app and ran out of memory on the first prompt in 4 of 12 runs; 12K/256 peaked at 7,483-7,536 MiB in 8 of 8.
+  - **Vision:** nothing to remove. The vision encoder is a separate `mmproj` file, and SHIELD never passes `--mmproj`.
+  - **Fixed prompt, measured from the request:** **4,742 tokens before**, 58% of 8K, against the 60% at which making room starts. The earlier "~3,100" was a later request. 22 tools came to 14,377 characters and the system prompt to 4,220. **Now 3,581 tokens**, 29% of 12K: 19 tools and 9,430 characters, and the system prompt is 3,619 characters.
+    - For native-call models (`openAiTools`), `read_file`, `read_media_file` and `list_directory_with_sizes` are no longer sent. The filesystem server's tools have one-line descriptions, and `$schema` is dropped. The policy still decides any call as before.
+    - `buildSystemPrompt` drops the generic Complex Reasoning, Code Generation and Structured Output sections for them, plus the Tool Usage line the grammar enforces.
+    - Edits got faster: often 2 rounds, ~60 s, against 100-150 s.
+  - **Rewrite guard by lines, not size (`utils/keptLines.ts`):** a resent `write_file` that keeps under 90% of the file's lines asks the user. IQ1_M had retyped a 6,101-character file at 6,500 characters, which passed the size check and lost lines.
+  - **Same reply twice:** a reply with a call that is word for word the last one is sent once more at temperature +0.4. IQ1_M had sent the same 435 characters four times until the loop guard stopped it.
+- **Open:**
+  - A long reply that plans the edit in text and stops without a call is not retried. The act-now retry takes only short ones.
+  - Now and then the model writes a call in a made-up text form (`<file>…</function>`, a bare `</parameter></function></tool_call>`), with 0 rounds. That was 1 of 15 tonight.
+  - Bonsai 2 27B on b12128 with these settings is unchecked. Its entry is unchanged.
+  - Gemma 4 12B on 8 GB is unmeasured; the file is not downloaded. The catalog's Q4_K_M is 7.12 GB, which leaves little for context. IQ4_XS (6.38 GB) or UD-Q3_K_XL (6.02 GB) are the likely 8 GB files.
+  - The model's text is still 1-bit quality: made-up phone numbers, "NASSA".
 
 ## Update — 2026-11-03: declutter, tiers 1 to 4, and a runtime installer
 

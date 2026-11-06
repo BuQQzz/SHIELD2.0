@@ -75,9 +75,15 @@ export async function planServerContext(
   const trainContextSize = insights.trainContextSize ?? FALLBACK_MAX_CONTEXT;
   const totalLayers = insights.totalLayers;
 
+  // The catalog's own size too when it is not a step, as for an unsized
+  // model: Qwen3.8 27B IQ1_M is set to 12k on 8 GB (2026-11-05)
+  const steps = [...new Set([...CONTEXT_STEPS, preferred])].sort(
+    (a, b) => a - b
+  );
   const sizes = await Promise.all(
-    CONTEXT_STEPS.filter((size) => size <= trainContextSize).map(
-      async (contextSize) => {
+    steps
+      .filter((size) => size <= trainContextSize)
+      .map(async (contextSize) => {
         const { gpuVram } =
           await insights.estimateContextResourceRequirementsV2({
             contextSize,
@@ -85,8 +91,7 @@ export async function planServerContext(
             flashAttention: true,
           });
         return { contextSize, gpuVram };
-      }
-    )
+      })
   );
   const options = sizes
     .filter(

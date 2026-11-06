@@ -42,6 +42,7 @@ const ICONS: Record<string, LucideIcon> = {
   read_multiple_files: FileText,
   write_file: FilePlus,
   edit_file: FilePen,
+  append_file: FilePen,
   create_directory: FolderPlus,
   list_directory: FolderOpen,
   list_directory_with_sizes: FolderOpen,

@@ -778,3 +778,146 @@ describe("deepseek-v4.1-flash call shapes (2026-10-29)", () => {
     expect(stripToolCallMarkup(text)).toBe("Retrying.");
   });
 });
+
+describe("Qwen 3.8 calls swallowed into one value (2026-11-05)", () => {
+  const P = "/home/u/prep";
+  // As SHIELD writes a native call: llama-server ran the value on past
+  // `.md</parameter>`, which had no line break before it
+  const leaked = (value: string, more = "") =>
+    "<tool_call>\n<server>filesystem</server>\n<tool>read_text_file</tool>\n" +
+    `<arguments>${JSON.stringify({ path: value, ...JSON.parse(more || "{}") })}</arguments>\n</tool_call>\n`;
+
+  it("cuts the value and recovers the calls after it", () => {
+    const calls = extractToolCalls(
+      leaked(
+        `${P}/Preparedness_Checklists.md</parameter>\n</function>\n</tool_call>\n` +
+          `<tool_call>\n<function=list_allowed_directories>\n</function>\n</tool_call>\n` +
+          `<tool_call>\n<function=list_directory>\n<parameter=path>\n${P}`
+      )
+    );
+    expect(calls.map((c) => [c.tool, c.arguments])).toEqual([
+      ["read_text_file", { path: `${P}/Preparedness_Checklists.md` }],
+      ["list_allowed_directories", {}],
+      ["list_directory", { path: P }],
+    ]);
+  });
+
+  it("drops keys read out of the run-on text", () => {
+    const calls = extractToolCalls(
+      leaked(
+        `${P}/Preparedness_Checklists.md</parameter>\n</function>\n</tool_call>\n<tool_call>\n<function=update_plan>`,
+        '{"tail":7}'
+      )
+    );
+    expect(calls[0]!.arguments).toEqual({
+      path: `${P}/Preparedness_Checklists.md`,
+    });
+    expect(calls.map((c) => c.tool)).toEqual(["read_text_file", "update_plan"]);
+  });
+
+  it("splits the reply the app got (IQ1_M, edit task, round 2)", () => {
+    const reply =
+      '<tool_call>\n<server>filesystem</server>\n<tool>read_text_file</tool>\n<arguments>{"path":"/home/u/prep/Preparedness_Checklists.md</parameter>\\n</function>\\n</tool_call>\\n<tool_call>\\n<function=list_allowed_directories>\\n</function>\\n</tool_call>\\n<tool_call>\\n<function=list_directory_with_sizes>\\n<parameter=path>\\n/home/u/prep</parameter>\\n</function>\\n</tool_call>\\n<tool_call>\\n<function=web_search>\\n<parameter=query>\\nPreparedness_Checklists.md Long Island NY local resources hazards hurricanes storm surge coastal flooding long power outages</parameter>\\n</function>\\n</tool_call>\\n<tool_call>\\n<function=list_directory_with_sizes>\\n<parameter=path>\\n/home/u/prep"}</arguments>\n</tool_call>\n';
+    const calls = extractToolCalls(reply);
+    expect(calls.map((c) => [c.tool, c.arguments])).toEqual([
+      ["read_text_file", { path: "/home/u/prep/Preparedness_Checklists.md" }],
+      ["list_allowed_directories", {}],
+      ["list_directory_with_sizes", { path: "/home/u/prep" }],
+      [
+        "web_search",
+        {
+          query:
+            "Preparedness_Checklists.md Long Island NY local resources hazards hurricanes storm surge coastal flooding long power outages",
+        },
+      ],
+    ]);
+  });
+
+  it("keeps no calls made after a result it wrote itself", () => {
+    const calls = extractToolCalls(
+      leaked(
+        `${P}/Preparedness_Checklists.md</parameter>\n</function>\n</tool_call>\n` +
+          `You executed 1 tool call(s). Here are the results:\n\n<tool_result trusted="false">\n<tool>read_text_file</tool>\n<result>\n# Made up\n</result>\n</tool_result>\n` +
+          `<tool_call>\n<function=write_file>\n<parameter=path>\n${P}/Preparedness_Checklists.md</parameter>\n<parameter=content>\n# Made up\n</parameter>\n</function>\n</tool_call>`
+      )
+    );
+    expect(calls.map((c) => [c.tool, c.arguments])).toEqual([
+      ["read_text_file", { path: `${P}/Preparedness_Checklists.md` }],
+    ]);
+  });
+
+  it("keeps the same call's parameters written into the run-on value", () => {
+    // The reply the app got (append_file, edit task, 2026-11-05)
+    const reply =
+      "<tool_call>\n<server>filesystem</server>\n<tool>append_file</tool>\n<arguments>" +
+      JSON.stringify({
+        path: `${P}/Preparedness_Checklists.md</parameter>\n<parameter="content">\n\n## Long Island, NY\n- 211 Long Island`,
+        content: "</parameter>\n</function>\n</tool_call>\n<t",
+      }) +
+      "</arguments>\n</tool_call>\n";
+    expect(extractToolCalls(reply).map((c) => [c.tool, c.arguments])).toEqual([
+      [
+        "append_file",
+        {
+          path: `${P}/Preparedness_Checklists.md`,
+          content: "\n## Long Island, NY\n- 211 Long Island",
+        },
+      ],
+    ]);
+  });
+
+  it("reads past calls in SHIELD's form inside the value, cut off before its end", () => {
+    // The reply the app got (IQ1_M, b12128, 2026-11-05): the run-on value
+    // holds an escaped append_file call, and the stream stopped inside it.
+    // Ended at that call's </arguments>, the rest was read as calls of
+    // its own, one a read with "tail": "\\n30"
+    const inner =
+      '<tool_call>\n<server>filesystem</server>\n<tool>append_file</tool>\n<arguments>{"path":"' +
+      P +
+      '/Preparedness_Checklists.md","content":"## Long Island"}</arguments>\n</tool_call>\n';
+    const value =
+      `${P}/Preparedness_Checklists.md</parameter>\n<parameter=head>\n0</parameter>\n</function>\n</tool_call>\n` +
+      `<tool_call>\n<function=read_text_file>\n<parameter=path>\n${P}/Preparedness_Checklists.md</parameter>\n<parameter=tail>\n40</parameter>\n</function>\n</tool_call>\n` +
+      inner +
+      `<tool_call>\n<function=read_text_file>\n<parameter=path>\n${P}/Preparedness_Checklists.md</parameter>\n<parameter=tail>\n30`;
+    const reply =
+      "<tool_call>\n<server>filesystem</server>\n<tool>read_text_file</tool>\n<arguments>" +
+      JSON.stringify({ path: value }).slice(0, -2) +
+      "</arguments>\n</tool_call>\n";
+
+    const calls = extractToolCalls(reply);
+
+    expect(calls.map((c) => [c.tool, c.arguments])).toEqual([
+      [
+        "read_text_file",
+        { path: `${P}/Preparedness_Checklists.md`, head: "0" },
+      ],
+      [
+        "read_text_file",
+        { path: `${P}/Preparedness_Checklists.md`, tail: "40" },
+      ],
+      [
+        "read_text_file",
+        { path: `${P}/Preparedness_Checklists.md`, tail: "30" },
+      ],
+    ]);
+  });
+
+  it("reads a call written as JSON in a <function_calls> element", () => {
+    const calls = extractToolCalls(
+      '<function_calls>\n{"function": {"name": "write_file", "arguments": {"path": "/p/kit.md", "content": "# Kit"}}}\n</function_calls>'
+    );
+    expect(calls.map((c) => [c.tool, c.arguments])).toEqual([
+      ["write_file", { path: "/p/kit.md", content: "# Kit" }],
+    ]);
+  });
+
+  it("leaves a value that only mentions the tag in its text alone", () => {
+    const write =
+      '<tool_call>\n<server>filesystem</server>\n<tool>write_file</tool>\n<arguments>{"path":"/a.md","content":"plain text"}</arguments>\n</tool_call>';
+    expect(extractToolCalls(write)[0]!.arguments).toEqual({
+      path: "/a.md",
+      content: "plain text",
+    });
+  });
+});

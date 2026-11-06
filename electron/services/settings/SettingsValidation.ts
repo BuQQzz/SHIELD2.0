@@ -13,6 +13,7 @@ import {
   LEGACY_DEFAULT_ALLOWED_TOOLS,
   PERMISSION_MODES,
   PREVIOUS_DEFAULT_ALLOWED_TOOLS,
+  PRE_APPEND_DEFAULT_ALLOWED_TOOLS,
   PREVIOUS_DEFAULT_MAX_TOOL_ROUNDS,
   type PermissionMode,
 } from "./SettingsCategories";
@@ -60,11 +61,12 @@ export function migrateMcpSettings(
 
   // Still on an earlier default means the list was never chosen: the old
   // three tools (no edit, search or read_text_file), or the full set from
-  // before delete_file existed. Move them to the current full set. A list
+  // before delete_file or append_file existed. Move them to the current full set. A list
   // anyone actually edited is left exactly as it is.
   if (
     isExactly(migrated.allowedTools, LEGACY_DEFAULT_ALLOWED_TOOLS) ||
-    isExactly(migrated.allowedTools, PREVIOUS_DEFAULT_ALLOWED_TOOLS)
+    isExactly(migrated.allowedTools, PREVIOUS_DEFAULT_ALLOWED_TOOLS) ||
+    isExactly(migrated.allowedTools, PRE_APPEND_DEFAULT_ALLOWED_TOOLS)
   ) {
     migrated.allowedTools = [...FILESYSTEM_TOOLS];
   }

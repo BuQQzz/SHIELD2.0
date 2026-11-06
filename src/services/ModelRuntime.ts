@@ -32,6 +32,7 @@ import type {
 import {
   getHardwareInfo,
   getLlamaBindings,
+  resolveModelFile,
   resolveModelPath,
   setModelsDir,
 } from "./localModels.js";
@@ -276,16 +277,18 @@ export class ModelRuntime {
       return {};
     }
 
-    const modelPath = await resolveModelPath(config.id);
+    const installed = await resolveModelFile(config.id);
     const contextSize =
       config.contextSize ?? (await this.getContextPlan(config.id)).recommended;
     await this.server.load({
-      modelPath,
+      modelPath: installed.path,
       contextSize,
       systemPrompt: this.systemPrompt,
       pidFile: this.pidFile,
-      placement: model?.serverPlacement,
-      reasoningEffort: model?.reasoningEffort,
+      placement: installed.file.serverPlacement ?? model?.serverPlacement,
+      reasoningEffort: installed.file.reasoningEffort ?? model?.reasoningEffort,
+      reasoningBudget: installed.file.reasoningBudget,
+      presencePenalty: model?.presencePenalty,
     });
 
     this.engine = "server";
@@ -313,12 +316,18 @@ export class ModelRuntime {
       throw new Error(`Unknown model "${modelId}". Pick one from the library.`);
     }
 
-    const modelPath = await resolveModelPath(modelId);
+    const installed = await resolveModelFile(modelId);
+    const modelPath = installed.path;
     let plan = this.serverPlans.get(modelPath);
     if (!plan) {
       plan = getLlamaBindings().then(async (llama) => {
         const { total } = await llama.getVramState();
-        return planServerContext(modelPath, llama, total, model.contextSize);
+        return planServerContext(
+          modelPath,
+          llama,
+          total,
+          installed.file.contextSize ?? model.contextSize
+        );
       });
       plan.catch(() => this.serverPlans.delete(modelPath));
       this.serverPlans.set(modelPath, plan);

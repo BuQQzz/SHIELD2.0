@@ -14,7 +14,11 @@ import {
   isRuntimeAvailable,
   type HardwareInfo,
 } from "../config/models.js";
-import { chooseInstalledFile, findGgufFiles } from "./modelFiles.js";
+import {
+  chooseInstalledFile,
+  findGgufFiles,
+  type InstalledModelFile,
+} from "./modelFiles.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const defaultModelsDir = path.join(__dirname, "..", "..", "models");
@@ -39,11 +43,20 @@ export function getLlamaBindings(): Promise<Llama> {
  * recommending models. VRAM is null when no GPU backend is available.
  */
 export async function getHardwareInfo(): Promise<HardwareInfo> {
-  const ramGB = os.totalmem() / 2 ** 30;
+  const ramGB = nominalGB(os.totalmem());
   const llama = await getLlamaBindings();
   if (llama.gpu === false) return { vramGB: null, ramGB };
   const { total } = await llama.getVramState();
-  return { vramGB: total / 2 ** 30, ramGB };
+  return { vramGB: nominalGB(total), ramGB };
+}
+
+/**
+ * Memory as sold. The driver and firmware keep some back, so an 8 GB RTX
+ * 2070 SUPER reports 7.6 GiB and 16 GB of RAM 15.5, which failed every
+ * `minVRAM: 8` and `minRAM: 16` check.
+ */
+export function nominalGB(totalBytes: number): number {
+  return Math.round(totalBytes / 2 ** 30);
 }
 
 /**
@@ -51,6 +64,13 @@ export async function getHardwareInfo(): Promise<HardwareInfo> {
  * that is an explicit choice in the model library.
  */
 export async function resolveModelPath(modelId: string): Promise<string> {
+  return (await resolveModelFile(modelId)).path;
+}
+
+/** The installed file to load for a library model, with its catalog entry */
+export async function resolveModelFile(
+  modelId: string
+): Promise<InstalledModelFile> {
   const model = getModelById(modelId);
   if (!model) {
     throw new Error(`Unknown model "${modelId}". Pick one from the library.`);
@@ -70,5 +90,5 @@ export async function resolveModelPath(modelId: string): Promise<string> {
     );
   }
   console.log(`[LocalModels] Loading ${model.id} from ${chosen.path}`);
-  return chosen.path;
+  return chosen;
 }

@@ -70,9 +70,21 @@ export function resultPayload(data: unknown): string {
  */
 export function fitToBudget(payload: string, maxChars?: number): string {
   if (!maxChars || payload.length <= maxChars) return payload;
+  const shown = `first ${maxChars.toLocaleString("en-US")} of ${payload.length.toLocaleString("en-US")} characters`;
+  // The exact read for the rest: told only to read "a smaller section",
+  // Qwen3.8 read the whole file again five times, then rewrote it from the
+  // part it had seen (2026-11-05)
+  const lineEnd = payload.lastIndexOf("\n", maxChars);
+  const hidden =
+    lineEnd > 0 ? payload.slice(lineEnd + 1).split("\n").length : 0;
+  if (hidden > 1) {
+    return `${payload.slice(0, lineEnd)}
+
+[Truncated: showing the ${shown} so the result fits in the model's context; the last ${hidden.toLocaleString("en-US")} lines are not shown. Reading the whole file again shows the same part. To see them, read the file with read_text_file and "tail": ${hidden}.]`;
+  }
   return `${payload.slice(0, maxChars)}
 
-[Truncated: showing the first ${maxChars.toLocaleString("en-US")} of ${payload.length.toLocaleString("en-US")} characters so the result fits in the model's context. To see other parts, read a smaller section (read_text_file with "head" or "tail" lines), or search for what you need.]`;
+[Truncated: showing the ${shown} so the result fits in the model's context. To see other parts, read a smaller section (read_text_file with "head" or "tail" lines), or search for what you need.]`;
 }
 
 export function formatToolResult(

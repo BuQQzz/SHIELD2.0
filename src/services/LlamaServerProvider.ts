@@ -19,6 +19,7 @@ import {
 import { cleanTitle, titleFromMessage } from "./titleGenerator.js";
 import {
   buildServerArgs,
+  serverEnv,
   defaultThreads,
   findLlamaServer,
 } from "./llamaServer/launch.js";
@@ -28,8 +29,10 @@ import {
   type ChatStreamChunk,
 } from "./llamaServer/sse.js";
 import { RepetitionWatch } from "./llamaServer/repetition.js";
+import { unswallowQwenCalls } from "../handlers/toolCallParsing.js";
 import {
   NativeCallWriter,
+  RESULT_FRAMING,
   openAiTools,
   type OpenAiTool,
   type ToolCallDelta,
@@ -46,6 +49,7 @@ import {
 } from "./remote/remoteEndpoint.js";
 import {
   NUDGE_NOTE,
+  EMPTY_REPLY_NOTE,
   type RequestStatus,
   type RescueAction,
 } from "./llamaServer/rescue.js";
@@ -108,6 +112,10 @@ export interface ServerLoadOptions {
   placement?: ServerPlacement;
   /** Sent as reasoning_effort when the reply thinks (catalog reasoningEffort) */
   reasoningEffort?: string;
+  /** Most thinking tokens per reply (catalog reasoningBudget) */
+  reasoningBudget?: number;
+  /** Sent as presence_penalty with every request (catalog presencePenalty) */
+  presencePenalty?: number;
 }
 
 /**
@@ -152,6 +160,27 @@ export function nextPromptTokens(
     usage.prompt_tokens +
     Math.min(usage.completion_tokens, Math.ceil(reply.length / 3))
   );
+}
+
+/** Thrown to end a request refused as over the window, so room is made */
+const REFIT = new Error("prompt over the window");
+
+/**
+ * The prompt's size in tokens when llama-server refused it for being over
+ * the window, from its error body; null for any other error
+ */
+export function overflowedPrompt(errorBody: string): number | null {
+  try {
+    const { error } = JSON.parse(errorBody) as {
+      error?: { type?: string; n_prompt_tokens?: number };
+    };
+    return error?.type === "exceed_context_size_error" &&
+      typeof error.n_prompt_tokens === "number"
+      ? error.n_prompt_tokens
+      : null;
+  } catch {
+    return null;
+  }
 }
 
 /**
@@ -241,12 +270,26 @@ export class LlamaServerProvider {
   private contextSize = 0;
   /** reasoning_effort for replies that think (ServerLoadOptions) */
   private reasoningEffort: string | undefined;
+  /** presence_penalty for every request (ServerLoadOptions) */
+  private presencePenalty: number | undefined;
   /**
    * Tools sent as native function definitions, for a model whose catalog
    * sets nativeToolCalls (llamaServer/nativeCalls.ts); empty otherwise.
    * Not passed to forked sessions: agents keep the text form for now.
    */
   private nativeTools: OpenAiTool[] = [];
+  /**
+   * Their definitions' length: sent with every request, outside the
+   * messages, so counted in the window apart from them. Left out, a
+   * history just summarised was taken to have ~1,200 more tokens of room
+   * than it had, and the next request was refused for being over the
+   * window (9,351 of 8,192 tokens, Qwen3.8 27B, 2026-11-05)
+   */
+  private nativeToolChars = 0;
+  /** True while a request refused for its length is being sent again */
+  private refitting = false;
+  /** True while a reply that repeated the last one is being asked again */
+  private varying = false;
   private toolServers = new Map<string, string>();
   private trainContextSize = 0;
   private systemPrompt = "You are a helpful AI assistant.";
@@ -311,6 +354,7 @@ export class LlamaServerProvider {
     session.contextSize = this.contextSize;
     session.trainContextSize = this.trainContextSize;
     session.reasoningEffort = this.reasoningEffort;
+    session.presencePenalty = this.presencePenalty;
     session.systemPrompt = systemPrompt;
     session.keepWholeHistory = options.keepWholeHistory ?? false;
     return session;
@@ -347,6 +391,7 @@ export class LlamaServerProvider {
 
     this.systemPrompt = options.systemPrompt;
     this.reasoningEffort = options.reasoningEffort;
+    this.presencePenalty = options.presencePenalty;
     this.history = [];
     this.capsule = null;
     this.capsuleReplacedEntries = 0;
@@ -394,6 +439,7 @@ export class LlamaServerProvider {
       threads: defaultThreads(),
       specType: process.env.SHIELD_SPEC_TYPE === "none" ? "none" : "ngram-mod",
       placement: options.placement,
+      reasoningBudget: options.reasoningBudget,
     });
     console.log(`[LlamaServer] Starting ${binary} ${args.join(" ")}`);
 
@@ -402,7 +448,10 @@ export class LlamaServerProvider {
     // object that kills them when SHIELD's main process dies, even from a
     // crash or Task Manager (verified 2026-09-24). That is what keeps a
     // hard-killed SHIELD from leaving ~22 GB committed to an orphaned server.
-    const child = spawn(binary, args, { windowsHide: true });
+    const child = spawn(binary, args, {
+      windowsHide: true,
+      env: serverEnv(options.placement),
+    });
     this.process = child;
     this.baseUrl = `http://127.0.0.1:${port}`;
     this.pidFile = options.pidFile;
@@ -671,6 +720,7 @@ export class LlamaServerProvider {
   private estimateTokens(): number {
     return (
       (this.systemContent().length +
+        this.nativeToolChars +
         this.history.reduce((n, m) => n + m.content.length, 0)) /
       3
     );
@@ -729,6 +779,8 @@ export class LlamaServerProvider {
     let promptTokens = 0;
     let retryWithoutThinking = false;
     let restartAfterStall = false;
+    /** The prompt's size as the server counted it, when it refused it as too long */
+    let refitFrom: number | null = null;
     let rescue: RescueAction | null = null;
     /** What was sent, kept for the server log when it stalls */
     let requestBody: Record<string, unknown> = {};
@@ -747,8 +799,11 @@ export class LlamaServerProvider {
       flight.phase = "reading";
 
       watchForStall();
+      // "none" in the catalog: never thinks
+      const thinks =
+        options.thinking !== false && this.reasoningEffort !== "none";
       appendServerLog(
-        `[SHIELD] chat request, thinking ${options.thinking === false ? "off" : "on"}`
+        `[SHIELD] chat request, thinking ${thinks ? "on" : "off"}`
       );
       requestBody = this.shape({
         messages: this.messages(userMessage),
@@ -767,8 +822,11 @@ export class LlamaServerProvider {
         top_p: options.topP ?? 0.9,
         top_k: options.topK ?? 40,
         repeat_penalty: options.repeatPenalty ?? 1.1,
+        ...(this.presencePenalty !== undefined
+          ? { presence_penalty: this.presencePenalty }
+          : {}),
         ...(this.nativeTools.length > 0 ? { tools: this.nativeTools } : {}),
-        ...(options.thinking === false
+        ...(!thinks
           ? { chat_template_kwargs: { enable_thinking: false } }
           : this.reasoningEffort
             ? { reasoning_effort: this.reasoningEffort }
@@ -786,7 +844,13 @@ export class LlamaServerProvider {
         body: JSON.stringify(requestBody),
       });
       if (!response.ok || !response.body) {
-        throw new Error(this.httpError(response.status, await response.text()));
+        const text = await response.text();
+        const measured = this.endpoint ? null : overflowedPrompt(text);
+        if (measured === null || this.refitting) {
+          throw new Error(this.httpError(response.status, text));
+        }
+        refitFrom = measured;
+        throw REFIT;
       }
       // A hosted provider says how it served the request, before the reply:
       // when zero data retention is required and it did not, stop here and
@@ -804,10 +868,12 @@ export class LlamaServerProvider {
       const parser = new SseParser();
       const decoder = new TextDecoder();
       const reader = response.body.getReader();
+      /** The reply's own text (not its calls), for the result-framing check */
+      let written = "";
       const calls = new NativeCallWriter(
         (tool) => this.toolServers.get(tool) ?? "filesystem"
       );
-      for (;;) {
+      reading: for (;;) {
         const { done, value } = await reader.read();
         if (done) break;
         for (const chunk of parser.push(
@@ -825,6 +891,26 @@ export class LlamaServerProvider {
             firstTokenAt ??= performance.now();
             reply += text;
             options.onToken?.(text);
+          }
+          const content = chunk.choices?.[0]?.delta?.content;
+          if (content) written += content;
+          // The same written as plain text: IQ1_M went on for 5 minutes
+          // with made-up results and was summarised 8 times (2026-11-05)
+          const imagined =
+            content &&
+            this.nativeTools.length > 0 &&
+            RESULT_FRAMING.test(written.slice(-content.length - 40));
+          if ((deltas && calls.ranPastCall()) || imagined) {
+            appendServerLog(
+              "[SHIELD] the reply ran on into a result the model wrote itself: reply ended there"
+            );
+            // Only text the model wrote as its own: the framing is cut off
+            if (imagined) {
+              const at = reply.search(RESULT_FRAMING);
+              if (at >= 0) reply = reply.slice(0, at).trimEnd();
+            }
+            await reader.cancel().catch(() => undefined);
+            break reading;
           }
           const progress = chunkProgress(chunk, promptTokens);
           const advanced =
@@ -853,7 +939,9 @@ export class LlamaServerProvider {
         options.onToken?.(closing);
       }
     } catch (error) {
-      if (rescued.signal.aborted && !signal.aborted) {
+      if (error === REFIT) {
+        // Nothing was written; room is made below
+      } else if (rescued.signal.aborted && !signal.aborted) {
         console.log(
           `[LlamaServer] Request cut off by the user: ${this.rescueAction}`
         );
@@ -903,6 +991,25 @@ export class LlamaServerProvider {
       if (root.inFlight === flight) root.inFlight = null;
     }
     // Nothing of a dropped reply is kept: the history is as it was
+    if (refitFrom !== null) {
+      // Room made from the server's own count, once: a prompt refused
+      // again is more than clearing and a summary can bring down. The
+      // latest exchange's payloads go too, which making room never clears:
+      // a 5,360-character read and a 5,763-character write_file held the
+      // window over after the summary, and the same prompt was sent again
+      // (Qwen3.8 27B at 8K, 2026-11-05). A file can be read again.
+      appendServerLog(
+        `[SHIELD] prompt of ${refitFrom} tokens refused as over the window: made room and sent once more`
+      );
+      this.lastContextTokens = refitFrom - message.length / 3;
+      this.clearPayloads(0);
+      this.refitting = true;
+      try {
+        return await this.chat(message, options, restarts);
+      } finally {
+        this.refitting = false;
+      }
+    }
     if (rescue === "nudge") {
       const nudged = message.endsWith(NUDGE_NOTE)
         ? message
@@ -921,8 +1028,57 @@ export class LlamaServerProvider {
     if (retryWithoutThinking) {
       return this.chat(message, { ...options, thinking: false }, restarts);
     }
+    // Once, on SHIELD's own server: nothing at all came back
+    if (
+      !this.endpoint &&
+      reply.trim() === "" &&
+      !signal.aborted &&
+      !message.endsWith(EMPTY_REPLY_NOTE)
+    ) {
+      appendServerLog("[SHIELD] empty reply: sent once more with a note");
+      return this.chat(
+        message + EMPTY_REPLY_NOTE,
+        { ...options, thinking: false },
+        restarts
+      );
+    }
 
-    this.history.push(userMessage, { role: "assistant", content: reply });
+    // A call the server ran on past its value goes into the history as the
+    // calls recovered from it: the model copied the broken one next round
+    const content =
+      this.nativeTools.length > 0 ? unswallowQwenCalls(reply) : reply;
+    // Once, on SHIELD's own server: a reply with a call is the last one
+    // again, word for word (a plain answer may well be: "Done."). Qwen3.8 IQ1_M at temperature 0.5 sent the same 435
+    // characters and call four times, each after being told the call had
+    // been made, until the loop guard stopped it (2026-11-05)
+    const previous = [...this.history]
+      .reverse()
+      .find((m) => m.role === "assistant");
+    if (
+      !this.endpoint &&
+      !this.varying &&
+      !signal.aborted &&
+      content.includes("<tool_call>") &&
+      content === previous?.content
+    ) {
+      appendServerLog(
+        "[SHIELD] the same reply as last time: sent once more, sampled more loosely"
+      );
+      this.varying = true;
+      try {
+        return await this.chat(
+          message,
+          {
+            ...options,
+            temperature: Math.min(1, (options.temperature ?? 0.7) + 0.4),
+          },
+          restarts
+        );
+      } finally {
+        this.varying = false;
+      }
+    }
+    this.history.push(userMessage, { role: "assistant", content });
     if (final?.usage) {
       this.lastContextTokens = nextPromptTokens(final.usage, reply);
     }
@@ -1027,7 +1183,11 @@ export class LlamaServerProvider {
     const summarised = await summariseOldest(
       this.history,
       this.capsule,
-      keepCharsFor(this.contextSize, this.systemPrompt.length, CLEAR_TO),
+      keepCharsFor(
+        this.contextSize,
+        this.systemPrompt.length + this.nativeToolChars,
+        CLEAR_TO
+      ),
       (older) => this.writeNote(older, nextMessage, signal)
     );
     if (!summarised) return;
@@ -1142,6 +1302,8 @@ export class LlamaServerProvider {
   applySystemPrompt(prompt: string, tools: ToolDefinition[] = []): void {
     this.systemPrompt = prompt;
     this.nativeTools = openAiTools(tools);
+    this.nativeToolChars =
+      this.nativeTools.length > 0 ? JSON.stringify(this.nativeTools).length : 0;
     this.toolServers = new Map(
       tools.map((tool) => [tool.name, tool.serverName ?? "filesystem"])
     );

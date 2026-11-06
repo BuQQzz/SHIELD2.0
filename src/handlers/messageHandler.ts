@@ -66,6 +66,8 @@ import {
   buildMCPRetryPrompt,
   isLikelyMCPToolIntent,
   shouldRetryWithMCP,
+  announcesWithoutActing,
+  buildActNowPrompt,
 } from "./mcpRetryPolicy";
 import type { ToolCallRequest } from "./mcpToolHandler";
 import type { MCPToolResult } from "@/types";
@@ -339,21 +341,30 @@ export function createMessageHandler({
           enableXmlToolCalls: true,
         }).length > 0;
 
-      const shouldRunMCPRetry =
+      const canRetry =
         !unsupportedNativeCall &&
         !hasToolCalls &&
         fileTools &&
         !teamMode &&
         isMCPReady &&
-        (settings.mcp.allowedTools?.length ?? 0) > 0 &&
-        shouldRetryWithMCP(content, processedContent);
+        (settings.mcp.allowedTools?.length ?? 0) > 0;
+      const refused = canRetry && shouldRetryWithMCP(content, processedContent);
+      // Said what it would do to the files and stopped: asked to do it
+      const onlyAnnounced =
+        canRetry &&
+        !refused &&
+        refersToFiles(content) &&
+        announcesWithoutActing(processedContent);
+      const shouldRunMCPRetry = refused || onlyAnnounced;
 
       if (shouldRunMCPRetry) {
         setStreamingContent("");
         streamingContentRef.current = "";
 
         const retryResponse = await sendStreamingMessage(
-          buildMCPRetryPrompt(content, settings.mcp.allowedTools),
+          refused
+            ? buildMCPRetryPrompt(content, settings.mcp.allowedTools)
+            : buildActNowPrompt(),
           (token) => {
             streamingContentRef.current += token;
             setStreamingContent(streamingContentRef.current);
@@ -536,6 +547,10 @@ export function createMessageHandler({
         streamingContentRef.current = "";
       } else {
         console.error("Error generating response:", err);
+        // The message and the rounds done before the error were never
+        // saved: the chat was gone from the list (2026-11-05, a Code
+        // session ending on the empty-reply notice)
+        await saveCurrentConversation();
       }
     } finally {
       setIsGenerating(false);

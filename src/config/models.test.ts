@@ -150,6 +150,16 @@ describe("pickModelFile", () => {
       "Qwen3.8-27B-UD-Q4_K_M.gguf"
     );
   });
+
+  it("gives an 8 GB GPU a Qwen3.8 quantization that stays off system RAM", () => {
+    const qwen = getModelById("qwen3.8-27b")!;
+    expect(pickModelFile(qwen.files, 10)?.name).toBe(
+      "Qwen3.8-27B-UD-IQ2_XXS.gguf"
+    );
+    const iq1 = pickModelFile(qwen.files, 8);
+    expect(iq1?.name).toBe("Qwen3.8-27B-UD-IQ1_M.gguf");
+    expect(iq1?.serverPlacement?.allLayersOnGpu).toBe(true);
+  });
 });
 
 describe("fit and recommendations", () => {

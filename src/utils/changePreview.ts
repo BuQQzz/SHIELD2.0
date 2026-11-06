@@ -51,6 +51,15 @@ export function changePreview(
       moreEdits: Math.max(0, edits.length - MAX_EDITS),
     };
   }
+  // Shown as an edit that takes nothing out
+  if (tool === "append_file" && typeof args.content === "string") {
+    const [added, hiddenAdded] = clip(toLines(args.content));
+    return {
+      kind: "edit",
+      edits: [{ removed: [], added, hiddenRemoved: 0, hiddenAdded }],
+      moreEdits: 0,
+    };
+  }
   if (tool === "write_file" && typeof args.content === "string") {
     const [lines, hiddenLines] = clip(toLines(args.content));
     return { kind: "write", lines, hiddenLines, chars: args.content.length };
