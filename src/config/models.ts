@@ -93,6 +93,11 @@ export interface ModelFile {
    * Past it the thought is closed and the model answers
    */
   reasoningBudget?: number;
+  /**
+   * Shown in the library when this file is the one picked for the user's
+   * GPU: what to expect from a quantization squeezed past where it holds up
+   */
+  caution?: string;
 }
 
 export type LibraryFamilyId = "qwen" | "gemma" | "bonsai";
@@ -400,6 +405,10 @@ export const MODEL_FAMILIES: ModelFamilyEntry[] = [
             hfRepo: "unsloth/Qwen3.8-27B-GGUF",
             sizeBytes: 6_730_000_000,
             minVRAM: 0,
+            // Code task, 2026-11-06: 1 of 3 with thinking off, 3 of 3 with
+            // capped thinking at up to 281 s; Bonsai 2 27B 2 of 2 at ~1 min
+            caution:
+              "Below 10 GB of GPU memory this is a 1-bit version: slower (often 1-4 minutes a step) and less steady on longer coding tasks. Bonsai 2 27B is the steadier choice on this card.",
             // 12k with an 8-bit cache and 256-token batches: 7.39 GB peak
             // in a bare server with a 13k-character-deep recall, ~7.54 in
             // the app, whose own window takes ~145 MB of the GPU. 16k with
@@ -416,8 +425,14 @@ export const MODEL_FAMILIES: ModelFamilyEntry[] = [
             // 8k context: thinking at medium used the whole 8,192-token
             // reply limit on an edit and wrote nothing. Edit task, 2026-11-05:
             // thinking off passed 4 of 5 in 50-130 s; medium capped at 1,536
-            // thinking tokens passed 2 of 3, slower and with more bad calls
-            reasoningEffort: "none",
+            // thinking tokens passed 2 of 3, slower and with more bad calls.
+            // At 12K, 2026-11-06, a code task (write a Python script):
+            // thinking off passed 1 of 3, rewriting the script in the visible
+            // reply up to six times; low uncapped 2 of 3 at 200-293 s; low
+            // capped at 1,024 passed 3 of 3 code, 3 of 3 edits (76-168 s)
+            // and 2 of 2 writes (192-214 s). Off was faster on edits (~53 s)
+            reasoningEffort: "low",
+            reasoningBudget: 1024,
           },
         ],
         capabilities: {

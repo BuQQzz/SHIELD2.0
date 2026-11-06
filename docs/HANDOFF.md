@@ -22,7 +22,12 @@ PR #56 (`fix/qwen38-8gb`) is open; all 4 CI checks pass. This branch builds on i
   - At 24K with a 16-bit cache it no longer loads on this machine, on either build (its 1,536 MB cache didn't fit).
   - Now 32K with an 8-bit cache and CUDA graphs off on b12128: recall exact from a 16,391-token prompt, 7.34 GB bare peak, ~41 tok/s. Edit 3 of 3 (~40 s).
   - Write: 1 of 2 looped (batteries by type up to the 8,192-token limit), so `presencePenalty: 1.5` was added. Since then, 4 of 4 writes (62-82 s) and 2 of 2 edits (~47 s), with no reply at the limit.
-- **Low thinking for Qwen IQ1_M at 12K:** worse. Edits 3 of 4 at 96-249 s and writes 2 of 2 at 116-229 s, against 6 of 6 at ~53 s and 4 of 4 with thinking off. It stays off.
+- **Thinking for Qwen IQ1_M at 12K: now low, capped at 1,024 tokens.**
+  - Uncapped low first looked worse: edits 3 of 4 at 96-249 s, writes 2 of 2 at 116-229 s. Its one failure was the trailing-space path, which `cleanPaths` now fixes.
+  - New code task in `compare.mjs` (`ONLY=code`): write `count_items.py`, which prints each `### ` heading with its `- ` item count. The harness runs it with `python3 -I` against the right counts (35, 27, 33).
+  - Code task: thinking off 1 of 3 (it rewrote the script in the visible reply up to six times, once inside `write_file`'s content, 19K characters that don't parse); low uncapped 2 of 3 at 200-293 s (one still thinking at 5 minutes); **low capped at 1,024: 3 of 3 at 96-281 s**.
+  - With the cap: edits 3 of 3 at 76-168 s, writes 2 of 2 at 192-214 s. Slower than off (edits ~53 s), but the only setting that passes all three tasks.
+  - Bonsai 2 27B passed the code task 2 of 2 at 56-60 s, 1 round each.
 - **Announced step, no call, mid-turn (`endsByAnnouncing`, handlers/mcpRetryPolicy.ts):** the act-now retry only checked the first reply. After a tool result, IQ1_M ended turns on "I'll append the new section at the end of the file…" and on long plans ending "Let me now create the content", with nothing done. The tool loop now sends the act-now note once per turn when a reply's last sentence names a tool step (read, append, edit…); "I'll let the user know" and "Let me know if…" are left alone. Bursts after it: edits 4 of 4 at 52-54 s, 2 rounds, no failed calls; the retry was not needed in those runs, so it is unit-tested only.
 - **Tests:** 1,366 passing.
 
