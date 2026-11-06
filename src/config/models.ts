@@ -600,7 +600,7 @@ export const MODEL_FAMILIES: ModelFamilyEntry[] = [
         name: "Ternary-Bonsai-2-27B",
         displayName: "Bonsai 2 27B",
         description:
-          "27B model at 1.58 bits per weight. Runs fully on an 8 GB GPU with a 24k context window, about 43 tok/s on an RTX 2070 SUPER.",
+          "27B model at 1.58 bits per weight. Runs fully on an 8 GB GPU with a 32k context window, about 40 tok/s on an RTX 2070 SUPER.",
         // 32k with an 8-bit cache: 7.34 GB peak with a 16,391-token prompt
         // whose middle it recalled exactly, ~7.49 in the app. At 16 bits
         // 24k used 7.5 GB on 2026-10-28, and by 2026-11-06 no longer loaded
@@ -638,6 +638,11 @@ export const MODEL_FAMILIES: ModelFamilyEntry[] = [
             hfRepo: "prism-ml/Ternary-Bonsai-2-27B-gguf",
             sizeBytes: 5_950_000_000,
             minVRAM: 0,
+            // Bug-fix task, 2026-11-06: uncapped, medium thinking looped
+            // twice in one run, reworded each time, so the repetition guard
+            // took 60-110 s to stop it (188-279 s a run). Capped: fix 3 of 3
+            // at 66-148 s, split, code 1 of 1 each, ~70 s
+            reasoningBudget: 1536,
           },
         ],
         capabilities: {

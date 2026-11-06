@@ -63,11 +63,21 @@ export function serverMemoryNeed(options: {
   modelBytes: number;
   vramTotalBytes: number;
   contextVramBytes: number;
+  /**
+   * A fixed placement with every layer on the GPU (ServerPlacement): no
+   * weights in RAM. The library said Qwen3.8 27B IQ1_M kept ~3 GB there
+   * while it ran fully on an 8 GB GPU (2026-11-06)
+   */
+  allLayersOnGpu?: boolean;
 }): MemoryNeed {
-  const gpuWeights = Math.max(
-    0,
-    options.vramTotalBytes - options.contextVramBytes - SERVER_GPU_RESERVE_BYTES
-  );
+  const gpuWeights = options.allLayersOnGpu
+    ? options.modelBytes
+    : Math.max(
+        0,
+        options.vramTotalBytes -
+          options.contextVramBytes -
+          SERVER_GPU_RESERVE_BYTES
+      );
   return {
     ramBytes: Math.max(0, options.modelBytes - gpuWeights),
     commitBytes:

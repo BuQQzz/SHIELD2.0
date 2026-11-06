@@ -35,6 +35,19 @@ describe("serverMemoryNeed", () => {
     });
     expect(small.ramBytes).toBe(0);
   });
+
+  it("needs no RAM for weights placed all on the GPU", () => {
+    // Qwen3.8 27B IQ1_M on 8 GB: --fit's reserve would leave ~3 GB in RAM
+    const placed = (allLayersOnGpu: boolean) =>
+      serverMemoryNeed({
+        modelBytes: 6.27 * GB,
+        vramTotalBytes: 8 * GB,
+        contextVramBytes: 1.6 * GB,
+        allLayersOnGpu,
+      });
+    expect(placed(false).ramBytes / GB).toBeGreaterThan(2.5);
+    expect(placed(true).ramBytes).toBe(0);
+  });
 });
 
 describe("assessMemory", () => {

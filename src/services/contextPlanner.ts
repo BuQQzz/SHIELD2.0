@@ -57,7 +57,9 @@ export async function planServerContext(
   modelPath: string,
   llama: Llama,
   vramTotalBytes: number,
-  preferred: number
+  preferred: number,
+  /** The file's ServerPlacement puts every layer on the GPU */
+  allLayersOnGpu = false
 ): Promise<ContextPlan> {
   const fileInfo = await readGgufFileInfo(modelPath);
   let insights: GgufInsights;
@@ -105,6 +107,7 @@ export async function planServerContext(
         modelBytes: insights.modelSize,
         vramTotalBytes,
         contextVramBytes: gpuVram,
+        allLayersOnGpu,
       }),
     }));
 

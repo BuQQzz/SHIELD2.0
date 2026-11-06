@@ -2,7 +2,7 @@
 
 **Last session:** 2026-11-04 → 05 on Linux (`fix/qwen38-8gb`): Qwen3.8 27B on the 8 GB card, see the first update. Before that, 2026-11-03 on Windows (`main`): a declutter pass. PR #49 removed unused files and packages; the docs pass moved finished plans, research and old feature write-ups to [archive/](./archive/). Before that, 2026-10-30 → 11-02 (PRs #47, #48), 2026-10-30 (PR #46), 2026-10-27 → 30 on Linux and 2026-10-26 → 29 on Windows.
 **Branches (2026-11-03):** `main` is the only long-lived branch.
-**Tests:** 1366 passing (2026-11-06); run `npx vitest run`, `npx tsc --noEmit`. `prettier --check` flags `src/components/ui/button.tsx` and `scripts/bench/mcp.ts`, already unformatted: do not run `prettier --write` over whole folders.
+**Tests:** 1367 passing (2026-11-06); run `npx vitest run`, `npx tsc --noEmit`. `prettier --check` flags `src/components/ui/button.tsx` and `scripts/bench/mcp.ts`, already unformatted: do not run `prettier --write` over whole folders.
 
 **Tested in the app with (2026-10-20):** Bonsai 27B Q1_0 on an RTX 2070 SUPER 8 GB (Ubuntu 26.04), SHIELD-managed Prism llama-server at 32K, ~19 tok/s. Earlier sessions: Qwen3-Coder-30B and Gemma 4 12B on Windows.
 
@@ -28,8 +28,14 @@ PR #56 (`fix/qwen38-8gb`) is open; all 4 CI checks pass. This branch builds on i
   - Code task: thinking off 1 of 3 (it rewrote the script in the visible reply up to six times, once inside `write_file`'s content, 19K characters that don't parse); low uncapped 2 of 3 at 200-293 s (one still thinking at 5 minutes); **low capped at 1,024: 3 of 3 at 96-281 s**.
   - With the cap: edits 3 of 3 at 76-168 s, writes 2 of 2 at 192-214 s. Slower than off (edits ~53 s), but the only setting that passes all three tasks.
   - Bonsai 2 27B passed the code task 2 of 2 at 56-60 s, 1 round each.
+- **Qwen3.8 IQ1_M has a Caution badge in the library** (new `ModelFile.caution`, shown when that file is the one picked for the GPU). Its note points to Bonsai 2 27B on 8 GB. It still shows Recommended too; whether Bonsai 2 should be the 8 GB recommendation is open.
+- **RAM notice fixed for fixed placements:** `serverMemoryNeed` assumed `--fit`'s 3 GB GPU reserve, so the library said Qwen3.8 IQ1_M kept ~3 GB in RAM while it ran fully on the GPU. A file whose `serverPlacement` puts every layer on the GPU now needs no RAM for weights.
+- **Bonsai 2 27B, harder tasks** (new in `compare.mjs`: `ONLY=fix`, two seeded bugs in `kit_tool.py`; `ONLY=split`, move `parse_items` to `md_sections.py` and add `--total`; both checked by running the code with `python3 -E -s`, since `-I` blocks the local import):
+  - Uncapped (medium thinking): fix 2 of 2 at 188-279 s. In one run its thinking looped twice, reworded each time, so the exact-repeat guard took 60-110 s to stop each: 174 of 279 s.
+  - **`reasoningBudget: 1536` added:** fix 3 of 3 at 66-148 s, split 1 of 1 (70 s), code 1 of 1 (68 s). Longest generation ~1,600 tokens. One looped thought was still caught by the guard, at ~1,200 tokens.
+  - It still looks for a file that is in the project folder (`search_files`, then `list_directory`) and reads both markdown files before a one-line fix: 4-6 rounds where 2 would do.
 - **Announced step, no call, mid-turn (`endsByAnnouncing`, handlers/mcpRetryPolicy.ts):** the act-now retry only checked the first reply. After a tool result, IQ1_M ended turns on "I'll append the new section at the end of the file…" and on long plans ending "Let me now create the content", with nothing done. The tool loop now sends the act-now note once per turn when a reply's last sentence names a tool step (read, append, edit…); "I'll let the user know" and "Let me know if…" are left alone. Bursts after it: edits 4 of 4 at 52-54 s, 2 rounds, no failed calls; the retry was not needed in those runs, so it is unit-tested only.
-- **Tests:** 1,366 passing.
+- **Tests:** 1,367 passing.
 
 ## Update — 2026-11-04 → 05: Qwen3.8 27B on 8 GB (branch `fix/qwen38-8gb`)
 
