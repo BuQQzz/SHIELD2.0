@@ -166,15 +166,25 @@ function stages(command: string): string[][] | null {
 
 /**
  * A path that could leave the project folder: rooted ("\x", "/x"), in the
- * home folder ("~"), or climbing out ("..\x").
+ * home folder ("~"), or climbing out ("..\x"). A rooted path inside
+ * `folder` stays: the file tools give the model full paths, and Bonsai 2
+ * checked its edits with `grep -n "Tools" /full/path/file.md`, which asked
+ * (and was refused in an unattended run) though it only read the project
+ * (2026-11-06).
  */
-function leavesFolder(word: string): boolean {
-  return (
-    /^[\\/~]/.test(word) ||
-    // an option with its path attached: --file=/etc/passwd
-    /=[\\/~]/.test(word) ||
-    /(^|[\\/])\.\.([\\/]|$)/.test(word)
-  );
+function leavesFolder(word: string, folder?: string): boolean {
+  if (/(^|[\\/=])\.\.([\\/]|$)/.test(word)) return true;
+  // an option with its path attached: --file=/etc/passwd
+  const path = word.match(/^(?:-[^=]*=)?([\\/~].*)$/)?.[1];
+  if (path === undefined) return /=[\\/~]/.test(word);
+  return /=[\\/~]/.test(path) || !insideFolder(path, folder);
+}
+
+/** A rooted path at or under `folder` (itself rooted, "/" separated) */
+function insideFolder(path: string, folder?: string): boolean {
+  if (!folder || !folder.startsWith("/")) return false;
+  const root = folder.replace(/\/+$/, "");
+  return root !== "" && (path === root || path.startsWith(`${root}/`));
 }
 
 function isReadOnlyGit(words: string[]): boolean {
@@ -206,7 +216,7 @@ function isReadOnlyStage(words: string[]): boolean {
   const [name, ...args] = words;
   if (!name) return false;
   const command = name.toLowerCase();
-  if (words.some(leavesFolder)) return false;
+  if (words.some((word) => leavesFolder(word))) return false;
   if (command === "git") return isReadOnlyGit(words);
   if (command === "npm")
     return args.length === 1 && /^(ls|list)$/.test(args[0]!);
@@ -242,10 +252,10 @@ const POSIX_READ_ONLY = new Set([
   "realpath",
 ]);
 
-function isReadOnlyPosixStage(words: string[]): boolean {
+function isReadOnlyPosixStage(words: string[], folder?: string): boolean {
   const [name, ...args] = words;
   if (!name) return false;
-  if (words.some(leavesFolder)) return false;
+  if (words.some((word) => leavesFolder(word, folder))) return false;
   if (name === "git") return isReadOnlyGit(words);
   if (name === "npm") return args.length === 1 && /^(ls|list)$/.test(args[0]!);
   if (POSIX_READ_ONLY.has(name)) {
@@ -294,11 +304,14 @@ export function scriptsInCommand(command: string): string[] {
 
 /**
  * True when the command can only read inside the project folder. `os`
- * selects the shell's rules: PowerShell on Windows, sh elsewhere.
+ * selects the shell's rules: PowerShell on Windows, sh elsewhere. Given
+ * the project `folder`, full paths inside it are allowed in sh (on Windows
+ * a drive's ":" already makes a command ask).
  */
 export function isReadOnlyCommand(
   command: string,
-  os: HostOs = hostOs()
+  os: HostOs = hostOs(),
+  folder?: string
 ): boolean {
   const posix = os !== "windows";
   const text = command.trim();
@@ -308,7 +321,7 @@ export function isReadOnlyCommand(
   return (
     parsed !== null &&
     parsed.every((words) =>
-      posix ? isReadOnlyPosixStage(words) : isReadOnlyStage(words)
+      posix ? isReadOnlyPosixStage(words, folder) : isReadOnlyStage(words)
     )
   );
 }

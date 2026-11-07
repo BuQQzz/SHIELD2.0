@@ -163,6 +163,26 @@ describe("isReadOnlyCommand in sh (Linux and macOS)", () => {
     expect(isReadOnlyCommand(command, "linux")).toBe(false);
   });
 
+  it("allows full paths inside the project folder, and nothing outside it", () => {
+    const folder = "/home/me/proj";
+    const read = (command: string) =>
+      isReadOnlyCommand(command, "linux", folder);
+    expect(read('grep -n "Tools" /home/me/proj/Checklists.md')).toBe(true);
+    expect(read("wc -l /home/me/proj/a.md /home/me/proj/src/b.md")).toBe(true);
+    expect(read("ls /home/me/proj")).toBe(true);
+    expect(read("grep --file=/home/me/proj/pats.txt x")).toBe(true);
+    expect(read("cat /home/me/proj/../secret.txt")).toBe(false);
+    expect(read("cat /home/me/proj2/a.md")).toBe(false);
+    expect(read("cat /etc/passwd")).toBe(false);
+    expect(read("cat ~/proj/a.md")).toBe(false);
+    expect(read("grep --file=/etc/passwd x")).toBe(false);
+    expect(read("cat /home/me/proj/a=/etc/passwd")).toBe(false);
+    expect(read("git diff --output=/home/me/proj/x.txt")).toBe(false);
+    expect(read("rm /home/me/proj/a.md")).toBe(false);
+    // Without the folder, every full path still asks
+    expect(isReadOnlyCommand("cat /home/me/proj/a.md", "linux")).toBe(false);
+  });
+
   it("keeps PowerShell cmdlets for Windows only", () => {
     expect(isReadOnlyCommand("Get-ChildItem", "windows")).toBe(true);
     expect(isReadOnlyCommand("Get-ChildItem", "linux")).toBe(false);

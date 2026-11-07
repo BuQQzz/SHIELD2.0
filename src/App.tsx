@@ -190,6 +190,7 @@ function App() {
     serverTools: mcpServerTools,
     webSearchEnabled: settings.webSearch?.enabled ?? false,
     fileTools: isCodeSession,
+    folder: isCodeSession ? currentConversation?.folder : undefined,
   };
   const workerPolicy = useToolPolicy(policyInput);
   const toolPolicy = useToolPolicy({ ...policyInput, teamMode });
