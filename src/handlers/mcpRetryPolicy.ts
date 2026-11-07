@@ -90,6 +90,29 @@ export function announcesWithoutActing(assistantContent: string): boolean {
   );
 }
 
+/** "I'll / let me / I need to" and then a step a tool takes */
+const ANNOUNCED_STEP =
+  /\b(?:i'll|i will|let me|i'm going to|i am going to|i need to)\s+(?:(?:now|first|then|also|just)\s+)*(?:read|write|append|add|edit|create|update|check|open|list|look|search|fix|replace|insert|make|use|call|save|apply|run|fetch|get|try)\b/i;
+
+/**
+ * A reply after tool results whose last sentence says what it will do
+ * next, with no call: the turn ended there and nothing was done. Qwen3.8
+ * IQ1_M ended a turn on "I'll append the new section at the end of the
+ * file, matching its existing heading style." (native history), and on
+ * 1,400 characters of plan ending "Let me now create the content"
+ * (2026-11-05/06). A closing answer ("I'll let the user know…", "Let me
+ * know if…") names no step and is left alone.
+ */
+export function endsByAnnouncing(assistantContent: string): boolean {
+  const sentences = assistantContent
+    .trim()
+    .split(/(?<=[.!?:])\s+|\n+/)
+    .filter((s) => s.trim() !== "");
+  const last = sentences[sentences.length - 1]?.trim() ?? "";
+  if (last === "" || last.endsWith("?")) return false;
+  return ANNOUNCED_STEP.test(last);
+}
+
 export function buildActNowPrompt(): string {
   return "You said what you would do but made no tool call, so nothing has happened yet. Make the tool call now, with no other text.";
 }

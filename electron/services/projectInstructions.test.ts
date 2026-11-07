@@ -7,6 +7,7 @@ import {
   MAX_INSTRUCTION_CHARS,
   projectFacts,
   readProjectInstructions,
+  tree,
 } from "./projectInstructions";
 
 let dir = "";
@@ -90,5 +91,22 @@ describe("projectFacts", () => {
     expect(facts).toContain("# Cart\nShopping cart helpers.");
     expect(facts).toMatch(/File types: \.js \(2\)/);
     expect(facts).not.toContain("node_modules");
+  });
+});
+
+describe("tree", () => {
+  it("lists folders first, one level in, and says when it stops", async () => {
+    await write("src/app.py", "");
+    await write("node_modules/x/index.js", "");
+    for (const n of [1, 2, 3, 4]) await write(`notes${n}.md`, "");
+
+    const all = await tree(dir);
+    expect(all[0]).toBe("src/");
+    expect(all).toContain("  app.py");
+    expect(all.join("\n")).not.toContain("node_modules");
+
+    const capped = await tree(dir, 3);
+    expect(capped).toHaveLength(4);
+    expect(capped.at(-1)).toBe("... more not shown");
   });
 });

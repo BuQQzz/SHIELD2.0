@@ -477,7 +477,7 @@ describe("multi-round tool chaining", () => {
       .mockResolvedValueOnce(
         'Now let\'s enhance app.js:\n<tool_call>\n<server>filesystem</server>\n<tool>edit_file</tool>\n<arguments>{"path":"app.js","edits":[{"oldText":"class'
       )
-      .mockResolvedValueOnce("I'll write it in smaller parts.");
+      .mockResolvedValueOnce("It was too long for one reply.");
 
     await processMCPToolCalls(assistantMessage, {
       onToolCallDetected,
@@ -602,6 +602,68 @@ describe("multi-round tool chaining", () => {
 
     // Only the tool result
     expect(addMessage).toHaveBeenCalledTimes(1);
+  });
+
+  it("asks once for the call a reply announced after a result", async () => {
+    const onToolCallDetected = vi
+      .fn()
+      .mockResolvedValue({ success: true, data: { content: "# Kit" } });
+    const continueConversation = vi
+      .fn()
+      .mockResolvedValueOnce(
+        "The file ends with the pet supplies. I'll append the new section at the end of the file."
+      )
+      .mockResolvedValueOnce(
+        call("append_file", '{"path":"C:/a.md","content":"## LI"}')
+      )
+      .mockResolvedValueOnce("Added. Let me read it again to check.")
+      .mockResolvedValueOnce("Unused");
+
+    await processMCPToolCalls(
+      {
+        id: "assistant-announce",
+        role: "assistant",
+        content: call("read_text_file", '{"path":"C:/a.md"}'),
+        timestamp: new Date(),
+      },
+      { onToolCallDetected, addMessage: vi.fn(), continueConversation }
+    );
+
+    expect(onToolCallDetected.mock.calls.map((c) => c[0]?.tool)).toEqual([
+      "read_text_file",
+      "append_file",
+    ]);
+    expect(continueConversation.mock.calls[1]?.[0]).toMatch(
+      /made no tool call/
+    );
+    // Once per turn: the second announcement ends it
+    expect(continueConversation).toHaveBeenCalledTimes(3);
+  });
+
+  it("leaves a closing answer after a result alone", async () => {
+    const continueConversation = vi
+      .fn()
+      .mockResolvedValue(
+        "The write was declined, so the file is unchanged. I'll let you know if anything else comes up. Let me know if you want another try."
+      );
+
+    await processMCPToolCalls(
+      {
+        id: "assistant-closing",
+        role: "assistant",
+        content: call("write_file", '{"path":"C:/a.md","content":"x"}'),
+        timestamp: new Date(),
+      },
+      {
+        onToolCallDetected: vi
+          .fn()
+          .mockResolvedValue({ success: false, error: "denied" }),
+        addMessage: vi.fn(),
+        continueConversation,
+      }
+    );
+
+    expect(continueConversation).toHaveBeenCalledTimes(1);
   });
 
   it("does not continue when the reply is empty", async () => {

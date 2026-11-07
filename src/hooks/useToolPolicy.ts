@@ -78,6 +78,8 @@ export interface ToolPolicyInput {
    * work under the same policy resolved with this off.
    */
   teamMode?: boolean;
+  /** The Code session's project folder: read-only commands may name it in full */
+  folder?: string;
 }
 
 /** SHIELD's own web tools come from this server (electron/services/webTools) */
@@ -98,6 +100,7 @@ export function resolveToolPolicy({
   webSearchEnabled = false,
   fileTools = true,
   teamMode = false,
+  folder,
 }: ToolPolicyInput): ToolPolicy {
   // The allowlist applies in every mode - a mode can narrow what the user
   // permitted, never widen it.
@@ -141,7 +144,7 @@ export function resolveToolPolicy({
         "arguments" in call && typeof call.arguments?.command === "string"
           ? call.arguments.command
           : "";
-      return decideCommand(mode, command);
+      return decideCommand(mode, command, folder);
     }
     // A call carries only a name; the server's definition has its
     // read-only hint (web_search and fetch_page declare one)
@@ -189,9 +192,13 @@ export function resolveToolPolicy({
  * else asks in Auto (every time - see useMCPDialogs), is recorded in Plan
  * and refused in Read-only.
  */
-function decideCommand(mode: PermissionMode, command: string): ToolDecision {
+function decideCommand(
+  mode: PermissionMode,
+  command: string,
+  folder?: string
+): ToolDecision {
   if (mode === "ask") return "ask";
-  if (isReadOnlyCommand(command)) return "run";
+  if (isReadOnlyCommand(command, undefined, folder)) return "run";
   return mode === "auto" ? "ask" : "block";
 }
 
@@ -206,6 +213,7 @@ export function useToolPolicy(input: ToolPolicyInput): ToolPolicy {
     webSearchEnabled,
     fileTools,
     teamMode,
+    folder,
   } = input;
 
   return useMemo(
@@ -217,7 +225,16 @@ export function useToolPolicy(input: ToolPolicyInput): ToolPolicy {
         webSearchEnabled,
         fileTools,
         teamMode,
+        folder,
       }),
-    [mode, allowedTools, serverTools, webSearchEnabled, fileTools, teamMode]
+    [
+      mode,
+      allowedTools,
+      serverTools,
+      webSearchEnabled,
+      fileTools,
+      teamMode,
+      folder,
+    ]
   );
 }

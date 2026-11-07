@@ -8,7 +8,9 @@ import {
 import type { MemoryConversation } from "../services/memory/memoryEntries.js";
 import {
   projectFacts,
+  PROMPT_TREE_LINES,
   readProjectInstructions,
+  tree,
 } from "../services/projectInstructions.js";
 import { indexConversation } from "./memoryHandlers.js";
 
@@ -60,13 +62,17 @@ export function registerProjectHandlers(): void {
   // A project folder's AGENTS.md (root of the repository down to it)
   ipcMain.handle("project:instructions", async (_event, folder: unknown) => {
     if (typeof folder !== "string" || !path.isAbsolute(folder)) {
-      return { files: [], text: "", truncated: false };
+      return { files: [], text: "", truncated: false, listing: [] };
     }
-    return readProjectInstructions(folder).catch(() => ({
-      files: [],
-      text: "",
-      truncated: false,
-    }));
+    const [instructions, listing] = await Promise.all([
+      readProjectInstructions(folder).catch(() => ({
+        files: [],
+        text: "",
+        truncated: false,
+      })),
+      tree(folder, PROMPT_TREE_LINES).catch(() => []),
+    ]);
+    return { ...instructions, listing };
   });
 
   // What SHIELD sees of a project, for the model to draft AGENTS.md from

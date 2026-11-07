@@ -54,3 +54,20 @@ export function instructionsSection(text: string): string {
     text.trim(),
   ].join("\n");
 }
+
+/**
+ * The session folder's files as it opened, so a named file is read
+ * directly: Bonsai 2 27B searched for kit_tool.py and listed the folder
+ * before reading it, 2 of 6 rounds (2026-11-06)
+ */
+export function listingSection(folder: string, listing: string[]): string {
+  if (listing.length === 0) return "";
+  return [
+    "",
+    "## Files in this folder (when the session opened)",
+    `Top level, and one level into each folder. A file listed here is at ${folder} plus its name: read it directly, without searching or listing first. Files made since are not shown.`,
+    "```",
+    ...listing,
+    "```",
+  ].join("\n");
+}
