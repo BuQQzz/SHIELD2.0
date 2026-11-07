@@ -135,7 +135,6 @@ describe("isReadOnlyCommand in sh (Linux and macOS)", () => {
     ["a line break", "ls\nrm x"],
     // the splitter reads the quote as open, so a pipe to rm hid inside it
     ["a backslash-escaped quote hiding a pipe", 'echo \\" | rm x \\"'],
-    ["any backslash", "ls src\\app"],
     ["history negation", "! rm x"],
     ["sort writing its output", "sort -o out.txt in.txt"],
     ["sort writing, long form", "sort --output=out.txt in.txt"],
@@ -181,6 +180,36 @@ describe("isReadOnlyCommand in sh (Linux and macOS)", () => {
     expect(read("rm /home/me/proj/a.md")).toBe(false);
     // Without the folder, every full path still asks
     expect(isReadOnlyCommand("cat /home/me/proj/a.md", "linux")).toBe(false);
+  });
+
+  it("reads backslashes as sh does", () => {
+    const read = (command: string) =>
+      isReadOnlyCommand(command, "linux", "/home/me/proj");
+    // Escaped grep patterns only read
+    expect(read('grep -n "^\\*\\*Tools\\*\\*" /home/me/proj/a.md')).toBe(true);
+    expect(read("grep -n '\\*\\*Tools\\*\\*\\|Additional Tools' a.md")).toBe(
+      true
+    );
+    expect(read('grep -c "^- " a.md')).toBe(true);
+    expect(read("ls src\\app")).toBe(true);
+    // An escaped pipe is a plain argument; an escaped quote stays in its string
+    expect(read("grep x a.md \\| rm y")).toBe(true);
+    expect(read('grep "a\\"|rm x" a.md')).toBe(true);
+    // A quote escaped outside a string opens none: the pipe is real
+    expect(read('echo \\" | rm x \\"')).toBe(false);
+    // Escaped options and paths are the options and paths sh passes on
+    expect(read("sort \\-o out.txt in.txt")).toBe(false);
+    expect(read("tail \\-f server.log")).toBe(false);
+    expect(read("git diff \\--output=x.txt")).toBe(false);
+    expect(read("cat \\/etc/passwd")).toBe(false);
+    expect(read("cat \\~/.ssh/id_rsa")).toBe(false);
+    expect(read("cat .\\./secret.txt")).toBe(false);
+    expect(read("cat /home/me/proj/\\.\\./x")).toBe(false);
+    expect(read("r\\m a.md")).toBe(false);
+    // Still asking: a trailing backslash, a variable, history
+    expect(read("ls \\")).toBe(false);
+    expect(read('ls "\\$HOME"')).toBe(false);
+    expect(read("grep \\!x a.md")).toBe(false);
   });
 
   it("keeps PowerShell cmdlets for Windows only", () => {

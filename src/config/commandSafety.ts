@@ -27,13 +27,15 @@ export const RUN_COMMAND_TOOL_NAME = "run_command";
 const UNSAFE = /[;&<>`$(){}[\]@:]|\|\|/;
 
 /**
- * On Linux and macOS commands run in sh, where a backslash can escape a quote
- * and hide a pipe from the word splitter below (`echo \" | rm x \"` is two
- * commands to sh and one quoted string to the splitter), and "!" is history
- * and negation. A backslash in a path is a Windows habit, so refusing it
- * costs nothing.
+ * On Linux and macOS commands run in sh, where "!" is history and
+ * negation. A backslash once made every command ask: read as a plain
+ * character it could escape a quote and hide a pipe from the word splitter
+ * (`echo \" | rm x \"` is two commands to sh and one quoted string to
+ * a splitter that ignores it). `stages` now reads it as sh does, so it
+ * may stand: Bonsai 2 checked its edits with `grep -n "^\*\*Tools"`,
+ * which asked 3 times in one session (2026-11-07).
  */
-const POSIX_UNSAFE = /[;&<>`$(){}[\]@:\\!]|\|\|/;
+const POSIX_UNSAFE = /[;&<>`$(){}[\]@:!]|\|\|/;
 
 /** Line breaks (including Unicode ones), tabs and other control characters */
 function hasControlCharacter(text: string): boolean {
@@ -130,9 +132,13 @@ const GIT_BRANCH_LIST_FLAGS = new Set([
 
 /**
  * The command split into pipeline stages of words, quotes removed; null
- * when a quote is left open.
+ * when a quote is left open. In sh (`posix`) a backslash is read as sh
+ * reads it, so the words are the ones the command gets: outside quotes
+ * "\x" is a plain "x" (an escaped "|" joins no pipe, "\-o" is the
+ * option "-o"); in double quotes it escapes only $ ` " and \; in single
+ * quotes it is itself.
  */
-function stages(command: string): string[][] | null {
+function stages(command: string, posix = false): string[][] | null {
   const result: string[][] = [[]];
   let word = "";
   let inWord = false;
@@ -142,8 +148,20 @@ function stages(command: string): string[][] | null {
     word = "";
     inWord = false;
   };
-  for (const char of command) {
-    if (quote) {
+  const chars = [...command];
+  for (let i = 0; i < chars.length; i++) {
+    const char = chars[i]!;
+    if (posix && char === "\\" && quote !== "'") {
+      const next = chars[i + 1];
+      if (next === undefined) return null;
+      if (quote === '"' && !'$`"\\'.includes(next)) {
+        word += char;
+        continue;
+      }
+      word += next;
+      inWord = true;
+      i++;
+    } else if (quote) {
       if (char === quote) quote = null;
       else word += char;
     } else if (char === '"' || char === "'") {
@@ -172,12 +190,16 @@ function stages(command: string): string[][] | null {
  * (and was refused in an unattended run) though it only read the project
  * (2026-11-06).
  */
-function leavesFolder(word: string, folder?: string): boolean {
-  if (/(^|[\\/=])\.\.([\\/]|$)/.test(word)) return true;
+function leavesFolder(word: string, folder?: string, posix = false): boolean {
+  // In sh only "/" separates folders: "\*" in a grep pattern is no path
+  const climb = posix ? /(^|[/=])\.\.(\/|$)/ : /(^|[\\/=])\.\.([\\/]|$)/;
+  const rooted = posix ? /^(?:-[^=]*=)?([/~].*)$/ : /^(?:-[^=]*=)?([\\/~].*)$/;
+  const attached = posix ? /=[/~]/ : /=[\\/~]/;
+  if (climb.test(word)) return true;
   // an option with its path attached: --file=/etc/passwd
-  const path = word.match(/^(?:-[^=]*=)?([\\/~].*)$/)?.[1];
-  if (path === undefined) return /=[\\/~]/.test(word);
-  return /=[\\/~]/.test(path) || !insideFolder(path, folder);
+  const path = word.match(rooted)?.[1];
+  if (path === undefined) return attached.test(word);
+  return attached.test(path) || !insideFolder(path, folder);
 }
 
 /** A rooted path at or under `folder` (itself rooted, "/" separated) */
@@ -255,7 +277,7 @@ const POSIX_READ_ONLY = new Set([
 function isReadOnlyPosixStage(words: string[], folder?: string): boolean {
   const [name, ...args] = words;
   if (!name) return false;
-  if (words.some((word) => leavesFolder(word, folder))) return false;
+  if (words.some((word) => leavesFolder(word, folder, true))) return false;
   if (name === "git") return isReadOnlyGit(words);
   if (name === "npm") return args.length === 1 && /^(ls|list)$/.test(args[0]!);
   if (POSIX_READ_ONLY.has(name)) {
@@ -317,7 +339,7 @@ export function isReadOnlyCommand(
   const text = command.trim();
   if (!text || (posix ? POSIX_UNSAFE : UNSAFE).test(text)) return false;
   if (hasControlCharacter(text)) return false;
-  const parsed = stages(text);
+  const parsed = stages(text, posix);
   return (
     parsed !== null &&
     parsed.every((words) =>
