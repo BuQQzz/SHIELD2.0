@@ -14,6 +14,7 @@ import {
   argumentsForSchema,
   cleanPaths,
   joinSplitEdits,
+  oneReadRange,
 } from "@/utils/schemaArguments";
 import { keptLines } from "@/utils/keptLines";
 import {
@@ -408,10 +409,13 @@ export function useMCPDialogs({
       const toolCall = {
         ...request,
         serverName: advertised?.serverName ?? request.serverName,
-        arguments: joinSplitEdits(
+        arguments: oneReadRange(
           request.tool,
-          cleanPaths(
-            argumentsForSchema(request.arguments, advertised?.inputSchema)
+          joinSplitEdits(
+            request.tool,
+            cleanPaths(
+              argumentsForSchema(request.arguments, advertised?.inputSchema)
+            )
           )
         ),
       };

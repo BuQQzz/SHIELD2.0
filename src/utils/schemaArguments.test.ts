@@ -3,6 +3,7 @@ import {
   argumentsForSchema,
   cleanPaths,
   joinSplitEdits,
+  oneReadRange,
 } from "./schemaArguments";
 
 const schema = {
@@ -119,5 +120,22 @@ describe("joinSplitEdits", () => {
     expect(joinSplitEdits("edit_file", mixed)).toBe(mixed);
     const other = { edits: [{ newText: "A" }, { oldText: "a" }] };
     expect(joinSplitEdits("write_file", other)).toBe(other);
+  });
+});
+
+describe("oneReadRange", () => {
+  it("reads the whole file for a read asking for both head and tail", () => {
+    expect(
+      oneReadRange("read_text_file", { path: "a.md", head: 20, tail: 10 })
+    ).toEqual({ path: "a.md" });
+  });
+
+  it("leaves one range, no range and other tools alone", () => {
+    const head = { path: "a.md", head: 20 };
+    const tail = { path: "a.md", tail: 10 };
+    const other = { path: "a.md", head: 1, tail: 1 };
+    expect(oneReadRange("read_text_file", head)).toBe(head);
+    expect(oneReadRange("read_text_file", tail)).toBe(tail);
+    expect(oneReadRange("read_media_file", other)).toBe(other);
   });
 });

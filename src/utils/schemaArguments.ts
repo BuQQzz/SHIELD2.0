@@ -135,3 +135,24 @@ export function joinSplitEdits(
   }
   return { ...args, edits: joined };
 }
+
+/** The file tools that take head or tail, but refuse both */
+const RANGED_READS = new Set(["read_text_file", "read_file"]);
+
+/**
+ * A read asking for a file's first and last lines at once, made a read of
+ * the whole file. The server refuses both together ("Cannot specify both
+ * head and tail parameters simultaneously"): Bonsai 2 asked for both 3
+ * times in two six-request sessions, checking an edit (2026-11-07). A
+ * result too long for the context is cut to fit (mcpToolHandler.ts).
+ */
+export function oneReadRange(
+  tool: string,
+  args: Record<string, unknown>
+): Record<string, unknown> {
+  if (!RANGED_READS.has(tool) || args.head == null || args.tail == null) {
+    return args;
+  }
+  const { head: _head, tail: _tail, ...rest } = args;
+  return rest;
+}

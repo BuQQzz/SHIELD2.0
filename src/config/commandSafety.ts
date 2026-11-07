@@ -26,17 +26,6 @@ export const RUN_COMMAND_TOOL_NAME = "run_command";
  */
 const UNSAFE = /[;&<>`$(){}[\]@:]|\|\|/;
 
-/**
- * On Linux and macOS commands run in sh, where "!" is history and
- * negation. A backslash once made every command ask: read as a plain
- * character it could escape a quote and hide a pipe from the word splitter
- * (`echo \" | rm x \"` is two commands to sh and one quoted string to
- * a splitter that ignores it). `stages` now reads it as sh does, so it
- * may stand: Bonsai 2 checked its edits with `grep -n "^\*\*Tools"`,
- * which asked 3 times in one session (2026-11-07).
- */
-const POSIX_UNSAFE = /[;&<>`$(){}[\]@:!]|\|\|/;
-
 /** Line breaks (including Unicode ones), tabs and other control characters */
 function hasControlCharacter(text: string): boolean {
   return [...text].some((char) => {
@@ -132,13 +121,10 @@ const GIT_BRANCH_LIST_FLAGS = new Set([
 
 /**
  * The command split into pipeline stages of words, quotes removed; null
- * when a quote is left open. In sh (`posix`) a backslash is read as sh
- * reads it, so the words are the ones the command gets: outside quotes
- * "\x" is a plain "x" (an escaped "|" joins no pipe, "\-o" is the
- * option "-o"); in double quotes it escapes only $ ` " and \; in single
- * quotes it is itself.
+ * when a quote is left open. PowerShell's: sh commands are split by
+ * `shCommands`.
  */
-function stages(command: string, posix = false): string[][] | null {
+function stages(command: string): string[][] | null {
   const result: string[][] = [[]];
   let word = "";
   let inWord = false;
@@ -148,20 +134,8 @@ function stages(command: string, posix = false): string[][] | null {
     word = "";
     inWord = false;
   };
-  const chars = [...command];
-  for (let i = 0; i < chars.length; i++) {
-    const char = chars[i]!;
-    if (posix && char === "\\" && quote !== "'") {
-      const next = chars[i + 1];
-      if (next === undefined) return null;
-      if (quote === '"' && !'$`"\\'.includes(next)) {
-        word += char;
-        continue;
-      }
-      word += next;
-      inWord = true;
-      i++;
-    } else if (quote) {
+  for (const char of command) {
+    if (quote) {
       if (char === quote) quote = null;
       else word += char;
     } else if (char === '"' || char === "'") {
@@ -170,6 +144,86 @@ function stages(command: string, posix = false): string[][] | null {
     } else if (char === "|") {
       endWord();
       result.push([]);
+    } else if (/\s/.test(char)) {
+      endWord();
+    } else {
+      word += char;
+      inWord = true;
+    }
+  }
+  if (quote) return null;
+  endWord();
+  return result;
+}
+
+/**
+ * Outside quotes in sh: anything that could redirect output, expand a
+ * variable or an expression, run a command in the background or glob a
+ * set ("!" is history and negation). ";", "&&", "||" and "|" are read by
+ * `shCommands` instead.
+ */
+const SH_UNQUOTED_UNSAFE = /[<>`$(){}[\]@:!]/;
+/** In double quotes sh still expands these */
+const SH_DOUBLE_QUOTED_UNSAFE = /[`$!]/;
+
+/**
+ * An sh command line split into its commands - the stages of a pipe and
+ * the commands joined by ";", "&&" or "||" - as words, read as sh reads
+ * them; null when anything in it could do more than run those commands.
+ *
+ * Quotes and backslashes follow sh, so the words are the ones each command
+ * gets: in single quotes every character is itself; in double quotes a
+ * backslash escapes only $ ` " and \, and $ ` ! still ask; outside quotes
+ * "\x" is a plain "x" (an escaped "|" joins no pipe, "\-o" is the option
+ * "-o"). Characters are judged where sh would act on them: before this,
+ * every backslash, every "$" (even in grep -n '^---$') and every ";"
+ * asked, and Bonsai 2's read-only checks in a six-request session needed
+ * approval 12 times (2026-11-07). A lone "&" (in the background) asks.
+ */
+function shCommands(command: string): string[][] | null {
+  const result: string[][] = [[]];
+  let word = "";
+  let inWord = false;
+  let quote: "'" | '"' | null = null;
+  const endWord = () => {
+    if (inWord) result[result.length - 1]!.push(word);
+    word = "";
+    inWord = false;
+  };
+  const nextCommand = () => {
+    endWord();
+    result.push([]);
+  };
+  const chars = [...command];
+  for (let i = 0; i < chars.length; i++) {
+    const char = chars[i]!;
+    const next = chars[i + 1];
+    if (quote === "'") {
+      if (char === "'") quote = null;
+      else word += char;
+    } else if (char === "\\") {
+      if (next === undefined) return null;
+      word += quote === '"' && !'$`"\\'.includes(next) ? char + next : next;
+      inWord = true;
+      i++;
+    } else if (quote === '"') {
+      if (char === '"') quote = null;
+      else if (SH_DOUBLE_QUOTED_UNSAFE.test(char)) return null;
+      else word += char;
+    } else if (char === "'" || char === '"') {
+      quote = char;
+      inWord = true;
+    } else if (char === "|") {
+      if (next === "|") i++;
+      nextCommand();
+    } else if (char === "&") {
+      if (next !== "&") return null;
+      i++;
+      nextCommand();
+    } else if (char === ";") {
+      nextCommand();
+    } else if (SH_UNQUOTED_UNSAFE.test(char)) {
+      return null;
     } else if (/\s/.test(char)) {
       endWord();
     } else {
@@ -280,6 +334,16 @@ function isReadOnlyPosixStage(words: string[], folder?: string): boolean {
   if (words.some((word) => leavesFolder(word, folder, true))) return false;
   if (name === "git") return isReadOnlyGit(words);
   if (name === "npm") return args.length === 1 && /^(ls|list)$/.test(args[0]!);
+  // sed can write (-i, w) and run commands (e): only "sed -n 'N,Mp' FILE...",
+  // which Bonsai 2 used to look at a few lines (4 times in one session)
+  if (name === "sed") {
+    const [quiet, script, ...files] = args;
+    return (
+      quiet === "-n" &&
+      /^(\d+|\$)(,(\d+|\$))?p$/.test(script ?? "") &&
+      files.every((file) => !file.startsWith("-"))
+    );
+  }
   if (POSIX_READ_ONLY.has(name)) {
     // sort -o FILE and --output write a file; --compress-program runs one
     if (name === "sort") {
@@ -337,9 +401,9 @@ export function isReadOnlyCommand(
 ): boolean {
   const posix = os !== "windows";
   const text = command.trim();
-  if (!text || (posix ? POSIX_UNSAFE : UNSAFE).test(text)) return false;
-  if (hasControlCharacter(text)) return false;
-  const parsed = stages(text, posix);
+  if (!text || hasControlCharacter(text)) return false;
+  if (!posix && UNSAFE.test(text)) return false;
+  const parsed = posix ? shCommands(text) : stages(text);
   return (
     parsed !== null &&
     parsed.every((words) =>
