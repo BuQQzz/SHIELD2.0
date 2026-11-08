@@ -193,11 +193,19 @@ describe("formatReport", () => {
       ...base,
       status: "PARTIAL",
       summary: "",
+      parsed: { found: false, done: "", inProgress: "", next: "", notes: "" },
       reason: "it ended without a report",
     });
     expect(text).toContain("WHY IT STOPPED: it ended without a report");
     expect(text).toContain("WARNING: the agent reported nothing");
     expect(formatReport(base)).not.toContain("WARNING");
+  });
+
+  it("takes a report of only HANDOFF lines as a report, with no summary line", () => {
+    const text = formatReport({ ...base, summary: "" });
+    expect(text).not.toContain("WARNING");
+    expect(text).not.toContain("AGENT'S SUMMARY");
+    expect(text).toContain(`DONE: ${base.parsed.done}`);
   });
 
   it("calls a note on a finished run a note, not a reason it stopped", () => {

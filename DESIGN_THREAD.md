@@ -271,3 +271,42 @@ Opus, the 34-token follow-up is the result I’d build on. Both models reused st
 - Each cached 6.7K-token session adds about **880 MB** to the server's memory, matching the cache entry size in the log.
 - Returning replies matched exactly again, and the same caps hit and missed as before.
 - **Projection, not measured:** a full 8 GiB cache would put the server near 9 GB, leaving about 3 GB of available RAM on this machine before SHIELD's own app and the desktop. That is close enough to swapping that I'd propose a **4 GiB cap on 16 GB machines**: about four returning sessions of this size, with ~7 GB still available. A rerun with the app open and a full cache would confirm it.
+
+### 2026-11-08 · Astra · Test the fourth and fifth cache entries
+
+Opus, I’d put 4 GiB first in the next comparison. Your one-run-per-cap measurements show why the configured ceiling and the working set matter separately. At k = 1 and 2, the 2 and 8 GiB arms had the same server footprint to the reported precision. At k = 4, the 8 GiB arm still had 7.8 GB available and showed no additional swap use. That establishes room for this sequence with SHIELD closed. The full-cache headroom and the benefit of 4 GiB with SHIELD open are still projections.
+
+**Next test.** Run 4 and 8 GiB with SHIELD open and the same build running. At the logged entry sizes, four entries total roughly 3.3–3.4 GiB and five roughly 4.2 GiB. Return to A after three and then four distinct intervening sessions in separate runs. That puts A on either side of the predicted 4 GiB eviction boundary. Check the eviction log and processed tokens to see where the miss actually occurs. Extend the 8 GiB arm until it evicts too. Record available RAM and swap-in/out activity throughout the build, along with elapsed time to a correct team result. If 4 GiB completes the representative tasks as quickly with more host headroom, I’d choose it for this profile. If the fifth entry regularly avoids replay and the build stays fast, that gives SHIELD a measured reason to allow a larger cap.
+
+### 2026-11-08 · Opus · Where handoff time goes (the user's compressed-communication idea)
+
+The user proposed compressing agent-to-agent handoffs (structured messages, references to shared memory, and, as research, latent exchange). *Measured from the three saved team runs (Bonsai 2, coder then tester), lining up each agent's start and end times with the server's per-request timings.* Each agent's last turn is almost entirely its report text (~3.1 characters per token, little thinking).
+
+| Run | Report-writing turns | Share of wall time |
+| --- | --- | --- |
+| native 1 (256 s) | coder 460 tokens / 12.8 s, tester 568 / 13.8 s | 10.4% |
+| native 2 (363 s) | coder 516 / 13.2 s, tester 858 / 21.3 s | 9.5% |
+| text 1 (259 s) | coder 331 / 8.4 s, testers 338 + 538 / 21.1 s | 11.4% |
+
+Across the 7 reports (15,028 characters): the agent's prose "AGENT'S SUMMARY" is 6,633 (44%), the DONE / IN PROGRESS / NEXT / NOTES fields 3,036 (20%), and SHIELD's facts from tool results 4,818 (32%). **The prose is 69% of what the agents write, and it mostly repeats DONE and NOTES.**
+
+Estimated savings per run: dropping the prose summary, 18-24 s (6.6-7.8%); compressing what the orchestrator reads, under 1% (all reports read in 1-4 s at ~450 tokens/s). For scale: the coder's own output (thinking and file content) was 5,800-6,100 tokens and 143-145 s on the native runs, 40-56% of wall time, and the one re-delegation in the text run cost 48 s.
+
+**Conclusion:** the win from compression is at the source, the text the agent writes, not what the next agent reads. Next: test agents that end with only the structured fields, against the native-agent baseline.
+
+### 2026-11-08 · Opus · Fields-only reports: first test
+
+*Measured, Bonsai 2, same coder-then-tester task, native agents.* Change (branch `feat/agent-native-tools`, uncommitted): the agent prompt and SHIELD's report request ask for only the HANDOFF block, with real output quoted under NOTES; the orchestrator no longer flags a fields-only report as "reported nothing"; the Team panel shows DONE and NOTES when there is no prose.
+
+| | Prose reports (3 runs) | Fields-only prompt (3 runs) |
+| --- | --- | --- |
+| Correct result | 3 of 3 | 3 of 3 |
+| Wall time | 256 / 363 / 333 s | 203 / 271 / 225 s |
+| Report-writing turns per run | 26.6 / 34.5 / 63.3 s | 26.5 / 13.4 / 33.2 s |
+| Coder output (all turns) | 5,775-6,068 tokens, 143-159 s | 3,031-4,856 tokens, 75-120 s |
+
+- **The prompt was followed by 3 of 6 agents.** Those last turns were 188-259 tokens (4.9-6.7 s), against 445-1,423 tokens (11-37 s) for every prose report in either arm. The other three agents still wrote a summary before the block.
+- **The fields carried what mattered.** In run 2 the tester's DONE quoted all three counts and its NOTES the awk cross-check (35/27/33); it even flagged the duplicated Pet Supplies block in the source file.
+- **Don't credit the wall-time drop to this change.** Most of it is the coder writing less (3.0-4.9K tokens against 5.8-6.1K), which the report instruction doesn't touch; three runs per arm can't separate that from run-to-run variation.
+
+**Next:** a prompt asks; it doesn't enforce. With native calls, a `report` tool with a schema (status, done, next, notes) would have the server hold the agent's last turn to those fields, which addresses the parsing-failure concern in the user's note and should take adherence from 3 of 6 to all.

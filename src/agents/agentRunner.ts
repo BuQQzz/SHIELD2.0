@@ -138,9 +138,9 @@ export function namedFilesNote(task: string, folder?: string): string {
     : "";
 }
 
-const SHORT_REPORT_REQUEST = `[SHIELD: your last reply was empty. Do not think at length. Reply in a few short lines: what you did and saw, then your HANDOFF block:\n${HANDOFF_FORMAT}]`;
+const SHORT_REPORT_REQUEST = `[SHIELD: your last reply was empty. Do not think at length. Reply with only your HANDOFF block, a few short lines, what you saw under NOTES:\n${HANDOFF_FORMAT}]`;
 
-const REPORT_REQUEST = `[SHIELD: stop here. Do not call any tool. Reply now with your report: first what you did and found, in plain words, quoting real output (a reviewer lists each problem with file and line, or says "no problems found"); then your HANDOFF block, in this format:\n${HANDOFF_FORMAT}]`;
+const REPORT_REQUEST = `[SHIELD: stop here. Do not call any tool. Reply now with only your HANDOFF block, no summary before it. Quote the real output that matters under NOTES (a reviewer lists each problem with file and line, or says "no problems found"). In this format:\n${HANDOFF_FORMAT}]`;
 
 /** After this many refused calls following the checkpoint, the run is ended */
 const MAX_REFUSALS_AFTER_CHECKPOINT = 2;
@@ -248,7 +248,10 @@ function endEvent(report: AgentReport): AgentEvent {
     type: "end",
     runId: report.handoffId,
     status: report.status,
-    summary: report.summary,
+    // The panel shows the hand-off's lines when the agent wrote no prose
+    summary:
+      report.summary ||
+      [report.parsed.done, report.parsed.notes].filter(Boolean).join("\n"),
     reason: report.reason,
     workLines: describeWork(report.work),
     steps: report.steps,

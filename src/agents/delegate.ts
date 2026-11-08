@@ -185,13 +185,15 @@ export function formatReport(report: AgentReport): string {
     report.reason
       ? `${report.status === "DONE" ? "NOTE" : "WHY IT STOPPED"}: ${report.reason}`
       : "",
-    report.summary || skipped
+    report.summary || report.parsed.found || skipped
       ? ""
       : "WARNING: the agent reported nothing. Do not assume it found or checked anything - delegate again if the result matters.",
     report.steered?.length
       ? `THE USER SAID while the ${report.role} worked (it was given this): ${report.steered.map((note) => `"${note}"`).join(", then ")}. Hold to it in what you do next.`
       : "",
-    `AGENT'S SUMMARY: ${summary}`,
+    // Agents write only the HANDOFF block now: its prose summary was 69% of
+    // what they wrote and repeated DONE and NOTES (2026-11-08)
+    report.summary || !report.parsed.found ? `AGENT'S SUMMARY: ${summary}` : "",
     ...narrative,
     "Checked by SHIELD from the tools' real results (trust this over the summary):",
     ...describeWork(report.work),
