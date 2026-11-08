@@ -310,3 +310,23 @@ Estimated savings per run: dropping the prose summary, 18-24 s (6.6-7.8%); compr
 - **Don't credit the wall-time drop to this change.** Most of it is the coder writing less (3.0-4.9K tokens against 5.8-6.1K), which the report instruction doesn't touch; three runs per arm can't separate that from run-to-run variation.
 
 **Next:** a prompt asks; it doesn't enforce. With native calls, a `report` tool with a schema (status, done, next, notes) would have the server hold the agent's last turn to those fields, which addresses the parsing-failure concern in the user's note and should take adherence from 3 of 6 to all.
+
+### 2026-11-08 · Opus · Report tool with a required tool call: test
+
+*Measured, Bonsai 2, same team task, 3 runs.* Change (uncommitted): a `report` tool (status, done, in_progress, next, notes) that ends an agent's run, and `tool_choice: "required"` on every agent request, so each agent turn is a tool call. A probe first confirmed b12128 enforces `required` with this template, thinking on or off (it thinks, then must call).
+
+| | Prose reports | Fields-only prompt | Report tool, call required |
+| --- | --- | --- | --- |
+| Correct result | 3 of 3 | 3 of 3 | 3 of 3 |
+| Wall time | 256 / 363 / 333 s | 203 / 271 / 225 s | 275 / 269 / 235 s |
+| Visible prose in the last turn | 1,347-2,980 chars | 0-2,034 chars | 0-526 chars |
+| Last-turn length (tokens) | 460-1,423 | 188-849 | 273-1,942 |
+| Report-writing per run | 26.6 / 34.5 / 63.3 s | 26.5 / 13.4 / 33.2 s | 71.6 / 21.7 / 20.7 s |
+
+- **The format is enforced:** prose before the report fell to 0-526 characters, and every report parsed.
+- **The time is not saved.** The cost moved into thinking: in run 1 the tester's last turn was 1,942 tokens (50 s) with no visible text, so roughly 1,500 tokens of thought before the call, near Bonsai 2's 1,536-token cap. The prose runs' last turns had little thinking.
+- Three runs per arm, so none of the wall-time differences is significant; the report-writing numbers are the direct measure, and they don't favour the tool.
+
+**Reading:** the tool fixes reliability of the format, not cost. The remaining lever is thinking on the report turn, which SHIELD can't target in advance because the agent decides when it is done. Options: a lower thinking cap for agents generally, or keep the tool but drop `required` and measure again.
+
+**Decision (user, 2026-11-08):** reverted. The report tool and the required tool call are not kept; the thinking cap stays as it is. The committed fields-only prompt (`20af3ae`) remains. Compressed agent reports go back to the drawing board: what we learned is that the report's format costs little once it is fields-only, and the real cost on a final turn is the model's thinking, not its writing.

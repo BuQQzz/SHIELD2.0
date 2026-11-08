@@ -362,6 +362,9 @@ describe("LlamaServerProvider context count", () => {
     expect(usage).not.toBeNull();
     expect(usage?.size).toBe(4096);
     expect(usage?.used).toBeGreaterThan(0);
+    // not even asked: each refusal is an HTTP 500 in the server's log
+    const urls = vi.mocked(fetch).mock.calls.map(([url]) => String(url));
+    expect(urls.some((url) => url.endsWith("/apply-template"))).toBe(false);
   });
 
   it("asks for a title with thinking off, so a thinking model has tokens left to answer", async () => {

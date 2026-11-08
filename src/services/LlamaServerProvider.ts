@@ -1367,12 +1367,17 @@ export class LlamaServerProvider {
 
     // Some templates refuse a chat without a user message (Bonsai's, built on
     // Qwen3.5's, raises "No user query found"), which is what a new chat is.
-    // The pieces counted below stand in for the rendered total then.
+    // The pieces counted below stand in for the rendered total then. Such a
+    // chat is not sent at all: each refusal was an HTTP 500 in the server
+    // log, three at the start of every team run (2026-11-08)
     let prompt = "";
+    const messages = this.messages();
     try {
-      ({ prompt } = (await this.post("/apply-template", {
-        messages: this.messages(),
-      })) as { prompt: string });
+      if (messages.some((m) => m.role === "user")) {
+        ({ prompt } = (await this.post("/apply-template", { messages })) as {
+          prompt: string;
+        });
+      }
     } catch (error) {
       console.warn(
         "[LlamaServer] Chat template could not render the chat; counting its parts:",
