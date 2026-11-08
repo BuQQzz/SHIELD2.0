@@ -258,16 +258,19 @@ export function registerLlamaHandlers(
     error: error instanceof Error ? error.message : "Unknown error",
   });
 
-  ipcMain.handle("llama:agentOpen", async (_event, systemPrompt: string) => {
-    try {
-      return {
-        success: true,
-        sessionId: llamaService.createAgentSession(systemPrompt),
-      };
-    } catch (error) {
-      return failure(error);
+  ipcMain.handle(
+    "llama:agentOpen",
+    async (_event, systemPrompt: string, tools?: ToolDefinition[]) => {
+      try {
+        return {
+          success: true,
+          sessionId: llamaService.createAgentSession(systemPrompt, tools ?? []),
+        };
+      } catch (error) {
+        return failure(error);
+      }
     }
-  });
+  );
 
   ipcMain.handle(
     "llama:agentChat",

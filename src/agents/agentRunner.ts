@@ -27,6 +27,7 @@ import {
 } from "../handlers/mcpToolHandler";
 import { processMCPToolCalls } from "../handlers/mcpMessageHandler";
 import type { MCPToolResult } from "../types/electron";
+import type { ToolDefinition } from "../types/prompts";
 import {
   DENIED_BY_USER,
   describeWork,
@@ -56,7 +57,8 @@ import type {
 } from "./types";
 
 export interface AgentRunDeps {
-  openSession(systemPrompt: string): Promise<string>;
+  /** `tools`: sent natively, for a model with native calls (else empty) */
+  openSession(systemPrompt: string, tools?: ToolDefinition[]): Promise<string>;
   /** `thinking: false` asks a thinking model to answer without thought */
   chat(
     sessionId: string,
@@ -73,6 +75,8 @@ export interface AgentRunDeps {
   ): Promise<MCPToolResult>;
   /** The system prompt for a role: its text plus the tools it may use */
   buildPrompt(spec: RoleSpec): string;
+  /** The role's tools as native definitions; empty for the text form */
+  nativeToolsFor?(spec: RoleSpec): ToolDefinition[];
   workspaceFolder?: string;
   /** Reads a file as it is now, for an edit that missed (closestLines.ts) */
   readFile?: (path: string) => Promise<string | null>;
@@ -342,7 +346,10 @@ export async function runAgent(
 
   let sessionId: string;
   try {
-    sessionId = await deps.openSession(deps.buildPrompt(spec));
+    sessionId = await deps.openSession(
+      deps.buildPrompt(spec),
+      deps.nativeToolsFor?.(spec) ?? []
+    );
   } catch (error) {
     const report = failed(
       input,

@@ -276,7 +276,7 @@ export class LlamaServerProvider {
   /**
    * Tools sent as native function definitions, for a model whose catalog
    * sets nativeToolCalls (llamaServer/nativeCalls.ts); empty otherwise.
-   * Not passed to forked sessions: agents keep the text form for now.
+   * A forked session gets its agent role's own (`fork`'s `tools`).
    */
   private nativeTools: OpenAiTool[] = [];
   /**
@@ -345,7 +345,15 @@ export class LlamaServerProvider {
    */
   fork(
     systemPrompt: string,
-    options: { keepWholeHistory?: boolean } = {}
+    options: {
+      keepWholeHistory?: boolean;
+      /**
+       * The agent's tools, sent natively as for the main session; empty
+       * when the model takes the text form. Agents used the text form only
+       * until the user decided on native calls for them too (2026-11-07)
+       */
+      tools?: ToolDefinition[];
+    } = {}
   ): LlamaServerProvider {
     if (!this.isRunning()) {
       throw new Error("No model loaded. Call loadModel() first");
@@ -356,7 +364,7 @@ export class LlamaServerProvider {
     session.trainContextSize = this.trainContextSize;
     session.reasoningEffort = this.reasoningEffort;
     session.presencePenalty = this.presencePenalty;
-    session.systemPrompt = systemPrompt;
+    session.applySystemPrompt(systemPrompt, options.tools ?? []);
     session.keepWholeHistory = options.keepWholeHistory ?? false;
     return session;
   }

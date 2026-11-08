@@ -105,7 +105,8 @@ export interface LlamaAPI {
     callback: (event: { sessionId: string; token: string }) => void
   ) => () => void;
   agentOpen: (
-    systemPrompt: string
+    systemPrompt: string,
+    tools?: ToolDefinition[]
   ) => Promise<{ success: boolean; sessionId?: string; error?: string }>;
   agentChat: (
     sessionId: string,
@@ -248,8 +249,8 @@ const llamaAPI: LlamaAPI = {
     ipcRenderer.on("llama:agentToken", subscription);
     return () => ipcRenderer.removeListener("llama:agentToken", subscription);
   },
-  agentOpen: (systemPrompt) =>
-    ipcRenderer.invoke("llama:agentOpen", systemPrompt),
+  agentOpen: (systemPrompt, tools) =>
+    ipcRenderer.invoke("llama:agentOpen", systemPrompt, tools),
   agentChat: (sessionId, message, options) =>
     ipcRenderer.invoke("llama:agentChat", sessionId, message, options),
   agentContext: (sessionId) =>

@@ -459,7 +459,10 @@ export class ModelRuntime {
    * A chat for a sub-agent: own system prompt and history, on the model that
    * is loaded.
    */
-  createAgentSession(systemPrompt: string): string {
+  createAgentSession(
+    systemPrompt: string,
+    tools: ToolDefinition[] = []
+  ): string {
     const host = this.hosted;
     if (!host || !host.isRunning()) {
       throw new Error("Agent teams need a loaded model. Load one first.");
@@ -467,7 +470,7 @@ export class ModelRuntime {
     const id = `agent-${this.nextAgentSession++}`;
     this.agentSessions.set(
       id,
-      host.fork(systemPrompt, { keepWholeHistory: true })
+      host.fork(systemPrompt, { keepWholeHistory: true, tools })
     );
     return id;
   }
