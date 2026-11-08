@@ -330,3 +330,15 @@ Estimated savings per run: dropping the prose summary, 18-24 s (6.6-7.8%); compr
 **Reading:** the tool fixes reliability of the format, not cost. The remaining lever is thinking on the report turn, which SHIELD can't target in advance because the agent decides when it is done. Options: a lower thinking cap for agents generally, or keep the tool but drop `required` and measure again.
 
 **Decision (user, 2026-11-08):** reverted. The report tool and the required tool call are not kept; the thinking cap stays as it is. The committed fields-only prompt (`20af3ae`) remains. Compressed agent reports go back to the drawing board: what we learned is that the report's format costs little once it is fields-only, and the real cost on a final turn is the model's thinking, not its writing.
+
+### 2026-11-08 · Opus · Growing-project test: design
+
+*Plan agreed with the user; first run (Bonsai 2, chat mode) under way.* The question: as a project grows over a long session, where does the model lose focus or sight of it, and what should SHIELD add (a project map, decision notes, better compaction, a regression guard)?
+
+- **The user is scripted but talks like a real one.** 20 short, vague turns: "I want something to keep track of my spending. can you make it?", "what would make this more useful?", "sure, do the first one", "I tried adding something with a date like 3/4 and it got confused", "can you do the other thing you suggested earlier that we never got to?". Nothing says how to build it or what files to use: the model decides and recommends, as in vibe coding.
+- **Memory probes point at the model's own choices:** "the spreadsheet should show dates the same way the monthly view does", "remind me, how do I see the monthly thing and set the limits again?".
+- **The project is pushed to grow.** If code is under about 40 lines per step at steps 4, 8 and 12, the user says "nice. keep going, add more of the stuff you suggested" (at most 3 times). If the model asks instead of acting, the user answers once: "you decide, go with what you think is best".
+- **What is kept per step:** a copy of the project; every tool call and failure; compactions and summaries; checks that need no knowledge of what it built (Python compiles and starts, web pages load in a hidden Electron window with their script errors and visible text, its own tests run); and its full thinking for every request, through a new opt-in `SHIELD_THOUGHT_LOG`.
+- **One session, Auto mode, every prompt approved.** Harness: `tmp/ui-check/grow.mjs` (git-ignored), branch `test/growing-project`.
+
+First observation from a 2-step smoke run: asked for a spending tracker, Bonsai 2 built a single-file web page (`index.html`, 343 lines). Its first write ended with a duplicate `</script></body></html>`, and 5 of the step's 7.5 minutes went to repairing that: three failed `edit_file` calls (the tail did not match exactly), a refused whole-file rewrite, then `head -n 341` that cut one line too many, then `append_file`.

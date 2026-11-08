@@ -200,6 +200,24 @@ function appendServerLog(line: string): void {
 }
 
 /**
+ * SHIELD_THOUGHT_LOG=<file>: each request's thinking and reply, one JSON line
+ * per request. Off by default; for test runs that study how the model
+ * decided, since its thinking is otherwise shown live and never kept.
+ */
+function appendThoughtLog(entry: Record<string, unknown>): void {
+  const file = process.env.SHIELD_THOUGHT_LOG;
+  if (!file) return;
+  try {
+    fs.appendFileSync(
+      file,
+      `${JSON.stringify({ at: new Date().toISOString(), ...entry })}\n`
+    );
+  } catch {
+    // A diagnostic only: never fail a reply over it
+  }
+}
+
+/**
  * For the server log when a request stalls: the exact request, so it can be
  * sent again to a fresh server (with speculation on and off), and what each
  * llama-server thread is doing. The 2026-10-21 hangs spun one thread at
@@ -784,6 +802,8 @@ export class LlamaServerProvider {
     let furthestWritten = 0;
     let firstTokenAt: number | null = null;
     let reply = "";
+    /** The reply's thinking, kept only for SHIELD_THOUGHT_LOG */
+    let thinking = "";
     let final: ChatStreamChunk | null = null;
     /** The whole prompt, once the server says how long it is */
     let promptTokens = 0;
@@ -890,6 +910,7 @@ export class LlamaServerProvider {
           decoder.decode(value, { stream: true })
         )) {
           const thought = chunk.choices?.[0]?.delta?.reasoning_content;
+          if (thought) thinking += thought;
           if (thought && thoughtWatch.push(thought)) looping.abort();
           const deltas = (
             chunk.choices?.[0]?.delta as { tool_calls?: ToolCallDelta[] }
@@ -999,6 +1020,16 @@ export class LlamaServerProvider {
       this.abortController = null;
       this.rescueController = null;
       if (root.inFlight === flight) root.inFlight = null;
+      if (process.env.SHIELD_THOUGHT_LOG && !this.endpoint) {
+        appendThoughtLog({
+          session: this.systemPrompt.slice(0, 60),
+          message: message.slice(0, 2000),
+          promptTokens,
+          thinking,
+          reply,
+          seconds: +((performance.now() - startedAt) / 1000).toFixed(1),
+        });
+      }
     }
     // Nothing of a dropped reply is kept: the history is as it was
     if (refitFrom !== null) {
