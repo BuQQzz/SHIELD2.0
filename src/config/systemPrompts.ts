@@ -108,10 +108,14 @@ Response Style:
  * (2026-09-26) - and reported fixes as working without testing them. Given
  * the terminal, Qwen3-Coder ran a test whose output said "✗ Failed to load
  * set-radio.ps1" and answered "All Tests Passed Successfully" (2026-09-28).
- * The last sentence follows Codex's prompt: mention failures you did not fix.
+ * The fourth sentence follows Codex's prompt: mention failures you did not
+ * fix. The last: checking a spending tracker, Bonsai 2 added test entries
+ * to the user's own data file, then deleted an entry that was there before
+ * while removing them (g5 step 17); in the next run it seeded a temporary
+ * file every time, so it knows how (2026-11-09).
  */
 const CHECK_YOUR_WORK =
-  "After changing code, run its tests or the script with run_command when the project has a way to, and fix what fails before you answer. Read the whole output, not just the exit code: a line that says something failed means it failed. Report what the command actually showed, and name every failure you did not fix; never say something passes or works without having run it.";
+  "After changing code, run its tests or the script with run_command when the project has a way to, and fix what fails before you answer. Read the whole output, not just the exit code: a line that says something failed means it failed. Report what the command actually showed, and name every failure you did not fix; never say something passes or works without having run it. Test with throwaway data, such as a temporary file or folder, never the user's own data files.";
 
 /**
  * With update_plan (Code sessions). The user found themselves asking cloud
