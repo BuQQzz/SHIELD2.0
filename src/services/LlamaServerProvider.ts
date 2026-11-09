@@ -58,6 +58,7 @@ import {
   CLEAR_TO,
   COMPACT_AT,
   compactHistory,
+  compactStaleReads,
   stripRemovalNotes,
   shouldCompact,
 } from "./historyCompaction.js";
@@ -1273,6 +1274,10 @@ export class LlamaServerProvider {
       );
     if (under(COMPACT_AT)) return true;
 
+    // Old copies of files read again since go first: they are out of date
+    this.clearStaleReads();
+    if (under(CLEAR_TO)) return true;
+
     // Oldest exchanges first, one at a time, down to CLEAR_TO so that the
     // next file read does not clear again. The last few exchanges are what
     // the model is working from right now: they go only if the older ones
@@ -1303,6 +1308,20 @@ export class LlamaServerProvider {
       `[LlamaServer] Went back to the chat's saved summary of ${saved.replacedEntries} older model messages`
     );
     return true;
+  }
+
+  /** Clear the results of reads the model has since read again */
+  private clearStaleReads(): void {
+    const { history, savedChars } = compactStaleReads(this.history);
+    if (savedChars <= 0) return;
+    this.history = history;
+    this.lastContextTokens = Math.max(
+      0,
+      this.lastContextTokens - savedChars / 3
+    );
+    console.log(
+      `[LlamaServer] Compacted history: cleared ${savedChars} characters of files read again since`
+    );
   }
 
   /** Clear old tool payloads, leaving the last `keepRecent` entries whole */

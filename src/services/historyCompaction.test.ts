@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   compactHistory,
+  compactStaleReads,
   isRemovalNote,
   shouldCompact,
   stripRemovalNotes,
@@ -177,6 +178,57 @@ describe("cleared reads of code", () => {
     expect(compactHistory(history, 1).history[2]!.content).not.toContain(
       "definitions"
     );
+  });
+});
+
+describe("compactStaleReads", () => {
+  const readCall = (args: Record<string, unknown>) =>
+    `<tool_call>\n<server>filesystem</server>\n<tool>read_text_file</tool>\n<arguments>${JSON.stringify(args)}</arguments>\n</tool_call>`;
+  const v1 = "def old_version():\n" + "    pass\n".repeat(100);
+  const v2 = "def new_version():\n" + "    pass\n".repeat(100);
+
+  it("clears a read the model has since read again, and only that", () => {
+    const history = [
+      { role: "user" as const, content: "build it" },
+      { role: "assistant" as const, content: readCall({ path: "/p/spend.py" }) },
+      { role: "user" as const, content: readResult(v1) },
+      { role: "assistant" as const, content: readCall({ path: "/p/other.py" }) },
+      { role: "user" as const, content: readResult(v1) },
+      { role: "assistant" as const, content: readCall({ path: "/p/spend.py" }) },
+      { role: "user" as const, content: readResult(v2) },
+      { role: "assistant" as const, content: "Done." },
+    ];
+    const { history: out, savedChars } = compactStaleReads(history);
+    expect(savedChars).toBeGreaterThan(500);
+    expect(out[2]!.content).toContain("an older read of spend.py. You read it again later");
+    expect(out[2]!.content).not.toContain("old_version");
+    // other.py was read once; the latest spend.py read stays
+    expect(out[4]).toBe(history[4]);
+    expect(out[6]).toBe(history[6]);
+  });
+
+  it("keeps a part of a file that the later read did not show", () => {
+    const history = [
+      { role: "user" as const, content: "build it" },
+      { role: "assistant" as const, content: readCall({ path: "/p/spend.py", tail: 100 }) },
+      { role: "user" as const, content: readResult(v1) },
+      { role: "assistant" as const, content: readCall({ path: "/p/spend.py", head: 40 }) },
+      { role: "user" as const, content: readResult(v2) },
+      { role: "assistant" as const, content: "Done." },
+    ];
+    expect(compactStaleReads(history).savedChars).toBe(0);
+    // ... but a whole-file read covers it
+    history[3] = { role: "assistant", content: readCall({ path: "/p/spend.py" }) };
+    expect(compactStaleReads(history).savedChars).toBeGreaterThan(500);
+  });
+
+  it("never touches the results the model is about to see", () => {
+    const history = [
+      { role: "user" as const, content: "build it" },
+      { role: "assistant" as const, content: readCall({ path: "/p/spend.py" }) },
+      { role: "user" as const, content: readResult(v1) },
+    ];
+    expect(compactStaleReads(history).savedChars).toBe(0);
   });
 });
 

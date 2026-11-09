@@ -24,6 +24,7 @@ import { RUN_COMMAND_TOOL_NAME } from "../config/commandSafety";
 import { hostOs, type HostOs } from "../utils/platform";
 import { isRemovalNote } from "../services/historyCompaction";
 import { closestLines } from "../utils/closestLines";
+import { CODE_FILE, outline } from "../utils/codeOutline";
 import { buildActNowPrompt, endsByAnnouncing } from "./mcpRetryPolicy";
 
 export interface MCPMessageHandlerProps {
@@ -306,6 +307,75 @@ async function withAppendHint(
   };
 }
 
+/** A read of more lines than this, of a code file, is shown in part */
+export const READ_LINES_MAX = 300;
+/** How many of the lines asked for a big read shows */
+const READ_LINES_SHOWN = 200;
+const MAX_OUTLINE = 80;
+
+/**
+ * A big read of a code file: part of what was asked, an outline of the
+ * whole file with line numbers, and how to read a range. In g5 step 17
+ * Bonsai 2 read a 1,069-line spend.py 11 times in one turn, in chunks of up
+ * to 760 lines; clearing removed each and it read again "to see the full
+ * picture", and the step ran out of time. In g7, finding its way by grep -n
+ * and short ranges, each look took 4-8 s (2026-11-09).
+ */
+async function withReadOutline(
+  toolCall: ToolCallRequest,
+  result: MCPToolResult,
+  readFile?: (path: string) => Promise<string | null>
+): Promise<MCPToolResult> {
+  const { path, head, tail } = toolCall.arguments;
+  if (
+    !["read_text_file", "read_file"].includes(toolCall.tool) ||
+    !result.success ||
+    !readFile ||
+    typeof path !== "string" ||
+    !CODE_FILE.test(path)
+  ) {
+    return result;
+  }
+  const shown = resultPayload(result.data);
+  const shownLines = shown.replace(/\n$/, "").split("\n");
+  if (shownLines.length <= READ_LINES_MAX) return result;
+  const file = await readFile(path).catch(() => null);
+  if (!file) return result;
+  const total = file.replace(/\n$/, "").split("\n").length;
+  const fromEnd = typeof tail === "number" && typeof head !== "number";
+  // The lines asked for, numbered as in the file
+  const askedFirst = fromEnd ? total - shownLines.length + 1 : 1;
+  const keep = fromEnd
+    ? shownLines.slice(-READ_LINES_SHOWN)
+    : shownLines.slice(0, READ_LINES_SHOWN);
+  const keptFirst = fromEnd
+    ? askedFirst + shownLines.length - keep.length
+    : askedFirst;
+  const keptLast = keptFirst + keep.length - 1;
+  const definitions = outline(file);
+  const listed = definitions
+    .slice(0, MAX_OUTLINE)
+    .map((d) => `${d.line}: ${d.text}`)
+    .join("\n");
+  const more =
+    definitions.length > MAX_OUTLINE
+      ? `\n... and ${definitions.length - MAX_OUTLINE} more`
+      : "";
+  const name = path.split(/[\\/]/).pop();
+  return {
+    ...result,
+    data: `${name} has ${total} lines. You asked for ${shownLines.length} of them (lines ${askedFirst}-${askedFirst + shownLines.length - 1}); a read that size fills your context and is cleared soon after, so it is shown in part.
+
+Lines ${keptFirst}-${keptLast}:
+${keep.join("\n")}
+
+Outline of the whole file (line: definition):
+${listed}${more}
+
+To see another part, read that range: run_command with sed -n 'START,ENDp' ${path} (it runs without asking), or grep -n for a name first.`,
+  };
+}
+
 async function runToolCall(
   toolCall: ToolCallRequest,
   onToolCallDetected: MCPMessageHandlerProps["onToolCallDetected"],
@@ -330,9 +400,13 @@ async function runToolCall(
         readFile
       );
     }
-    return await withAppendHint(
+    return await withReadOutline(
       toolCall,
-      await withEditHint(toolCall, result, readFile),
+      await withAppendHint(
+        toolCall,
+        await withEditHint(toolCall, result, readFile),
+        readFile
+      ),
       readFile
     );
   } catch (error) {

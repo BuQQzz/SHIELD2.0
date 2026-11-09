@@ -17,6 +17,7 @@
  */
 
 import { extractToolCalls } from "../handlers/toolCallParsing.js";
+import { outline } from "../utils/codeOutline.js";
 
 export interface HistoryEntry {
   role: "user" | "assistant" | "system";
@@ -171,9 +172,6 @@ function compactAssistant(content: string): {
   return { content: out, removed, unfinished };
 }
 
-/** A line that defines something in Python, JS/TS, Go, Rust or a shell */
-const DEFINITION =
-  /^\s*(?:(?:export\s+)?(?:default\s+)?(?:async\s+)?(?:def|class|function\*?|interface|type|enum|func|fn|struct|impl)\s+[\w$]+|(?:export\s+)?(?:const|let|var)\s+[\w$]+\s*=\s*(?:async\s*)?(?:\([^)]*\)|[\w$]+)\s*=>|[\w-]+\s*\(\)\s*\{)/;
 const MAX_DEFINITIONS = 60;
 
 /**
@@ -185,12 +183,7 @@ const MAX_DEFINITIONS = 60;
  * short ranges, each look took 4-8 s (2026-11-09).
  */
 function definitionsIn(body: string): string[] {
-  const found: string[] = [];
-  for (const line of body.split("\n")) {
-    if (DEFINITION.test(line)) {
-      found.push(line.trim().replace(/\s*[{:]\s*$/, "").slice(0, 90));
-    }
-  }
+  const found = outline(body).map((d) => d.text);
   return found.length >= 3 ? found : [];
 }
 
@@ -210,6 +203,96 @@ function compactResults(content: string): string {
       return `<result>\n${note}\nIt showed these definitions (grep -n for one to find its lines, then read just that range):\n${shown.join("\n")}${more}\n</result>`;
     }
   );
+}
+
+const READ_TOOLS = new Set(["read_text_file", "read_file"]);
+
+interface ReadAt {
+  entry: number;
+  block: number;
+  path: string;
+  head?: unknown;
+  tail?: unknown;
+}
+
+/** Each read of a file in `history`: the result block that holds it */
+function readsIn(history: HistoryEntry[]): ReadAt[] {
+  const reads: ReadAt[] = [];
+  history.forEach((entry, i) => {
+    const results = history[i + 1];
+    if (entry.role !== "assistant" || results?.role !== "user") return;
+    const calls = extractToolCalls(entry.content);
+    const blocks = results.content.split("<tool_result").length - 1;
+    // One result block per call, in order; otherwise they can't be paired
+    if (calls.length === 0 || blocks !== calls.length) return;
+    calls.forEach((call, block) => {
+      const path = call.arguments.path;
+      if (!READ_TOOLS.has(call.tool) || typeof path !== "string") return;
+      reads.push({
+        entry: i + 1,
+        block,
+        path,
+        head: call.arguments.head,
+        tail: call.arguments.tail,
+      });
+    });
+  });
+  return reads;
+}
+
+/** A later read that shows at least what `earlier` showed */
+function covers(later: ReadAt, earlier: ReadAt): boolean {
+  if (later.path !== earlier.path) return false;
+  const whole = later.head === undefined && later.tail === undefined;
+  return whole || (later.head === earlier.head && later.tail === earlier.tail);
+}
+
+/**
+ * Clear the results of reads the model has since read again (the same
+ * file, the same part or all of it): those copies are out of date, and
+ * clearing them first keeps what it is working from. In g5 step 17 the
+ * oldest results went first, often the read the model had just planned
+ * from, and it read the file again (2026-11-09). The last entry, the
+ * results the model is about to see, is left alone.
+ */
+export function compactStaleReads(history: HistoryEntry[]): {
+  history: HistoryEntry[];
+  savedChars: number;
+} {
+  const reads = readsIn(history);
+  const stale = new Map<number, Set<number>>();
+  reads.forEach((read, i) => {
+    if (read.entry >= history.length - 1) return;
+    if (reads.slice(i + 1).some((later) => later.entry > read.entry && covers(later, read))) {
+      const blocks = stale.get(read.entry) ?? new Set<number>();
+      blocks.add(read.block);
+      stale.set(read.entry, blocks);
+    }
+  });
+  let savedChars = 0;
+  const out = history.map((entry, i) => {
+    const blocks = stale.get(i);
+    if (!blocks) return entry;
+    let block = -1;
+    const content = entry.content.replace(
+      /<tool_result[\s\S]*?<\/tool_result>/g,
+      (whole: string) => {
+        block += 1;
+        if (!blocks.has(block)) return whole;
+        const name = reads.find((r) => r.entry === i && r.block === block)!.path.split(/[\\/]/).pop();
+        return whole.replace(
+          /<result>([\s\S]*?)<\/result>/,
+          (result: string, body: string) =>
+            body.length < KEEP_BELOW
+              ? result
+              : `<result>\n[SHIELD ${REMOVED_MARK}: this result, ${chars(body.length)}, an older read of ${name}. You read it again later; that read is the current one.]\n</result>`
+        );
+      }
+    );
+    savedChars += entry.content.length - content.length;
+    return content === entry.content ? entry : { ...entry, content };
+  });
+  return { history: out, savedChars };
 }
 
 /**

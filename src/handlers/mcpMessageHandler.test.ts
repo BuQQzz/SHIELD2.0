@@ -497,6 +497,57 @@ describe("multi-round tool chaining", () => {
     );
   });
 
+  it("shows a big read of a code file in part, with an outline", async () => {
+    const lines = Array.from({ length: 500 }, (_, i) =>
+      i % 50 === 0 ? `def step_${i + 1}(args):` : `    x = ${i + 1}`
+    );
+    const file = `${lines.join("\n")}\n`;
+    const read = async (args: Record<string, unknown>, data: string) => {
+      const addMessage = vi.fn();
+      await processMCPToolCalls(
+        {
+          id: `assistant-read-${JSON.stringify(args)}`,
+          role: "assistant",
+          content: `<tool_call>\n<server>filesystem</server>\n<tool>read_text_file</tool>\n<arguments>${JSON.stringify(args)}</arguments>\n</tool_call>`,
+          timestamp: new Date(),
+        },
+        {
+          onToolCallDetected: vi.fn().mockResolvedValue({ success: true, data }),
+          addMessage,
+          continueConversation: vi.fn().mockResolvedValue("ok"),
+          maxToolRounds: 1,
+          readFile: vi.fn().mockResolvedValue(file),
+        }
+      );
+      return (addMessage.mock.calls[0]?.[0] as Message).content;
+    };
+
+    const whole = await read({ path: "/p/spend.py" }, file);
+    expect(whole).toContain("spend.py has 500 lines. You asked for 500 of them (lines 1-500)");
+    expect(whole).toContain("Lines 1-200:");
+    expect(whole).toContain("    x = 200\n");
+    expect(whole).not.toContain("    x = 201\n");
+    expect(whole).toContain("51: def step_51(args)");
+    expect(whole).toContain("451: def step_451(args)");
+    expect(whole).toContain("sed -n 'START,ENDp' /p/spend.py");
+
+    // A tail read keeps its end, numbered as in the file
+    const tail = await read(
+      { path: "/p/spend.py", tail: 370 },
+      `${lines.slice(-370).join("\n")}\n`
+    );
+    expect(tail).toContain("(lines 131-500)");
+    expect(tail).toContain("Lines 301-500:");
+    expect(tail).toContain("    x = 500");
+    expect(tail).not.toContain("    x = 300\n");
+
+    // Small reads and other files are left as they are
+    const small = await read({ path: "/p/spend.py", head: 40 }, lines.slice(0, 40).join("\n"));
+    expect(small).not.toContain("Outline");
+    const notes = await read({ path: "/p/notes.md" }, file);
+    expect(notes).not.toContain("Outline");
+  });
+
   it("runs a whole call even when the reply's text copied a removal note", async () => {
     const onToolCallDetected = vi.fn().mockResolvedValue({
       success: true,
