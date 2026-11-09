@@ -33,6 +33,7 @@ import { useSettingsStore } from "@/store/settingsStore";
 import { isMutatingTool } from "@/config/toolClassification";
 import {
   RUN_COMMAND_TOOL_NAME,
+  leavesFolder,
   scriptsInCommand,
 } from "@/config/commandSafety";
 import type { ToolPolicy } from "@/hooks/useToolPolicy";
@@ -46,7 +47,11 @@ import { isAgentsMd } from "@/config/agentsMd";
 import { modelWrittenFiles } from "@/handlers/workLedger";
 import { savePlanFromCall } from "@/handlers/sessionPlan";
 import { changePreview, type ChangePreview } from "@/utils/changePreview";
-import { ambiguousEdit, type AmbiguousEdit } from "@/utils/editMatches";
+import {
+  ambiguousEdit,
+  relaxedEdits,
+  type AmbiguousEdit,
+} from "@/utils/editMatches";
 
 /**
  * A command that asks the user carries the model's reason, shown in the
@@ -217,6 +222,21 @@ interface UseMCPDialogsProps {
   policy: ToolPolicy;
 }
 
+/** The first path a filesystem call names outside `folder` (sh folders only) */
+export function outsideFolderPath(
+  toolCall: { serverName: string; arguments: Record<string, unknown> },
+  folder?: string
+): string | null {
+  if (!folder?.startsWith("/") || toolCall.serverName !== "filesystem") return null;
+  for (const key of ["path", "source", "destination"]) {
+    const value = toolCall.arguments[key];
+    if (typeof value === "string" && /^[/~]/.test(value) && leavesFolder(value, folder, true)) {
+      return value;
+    }
+  }
+  return null;
+}
+
 export function useMCPDialogs({
   callTool,
   policy: defaultPolicy,
@@ -330,7 +350,12 @@ export function useMCPDialogs({
         if (!read.success || (read.data as { isError?: unknown })?.isError) {
           return null;
         }
-        const found = ambiguousEdit(resultPayload(read.data), args.edits);
+        const content = resultPayload(read.data);
+        // A miss only in blank lines or trailing spaces takes the file's text
+        const edits = args.edits as unknown[];
+        const relaxed = relaxedEdits(content, edits);
+        if (relaxed) args.edits = relaxed;
+        const found = ambiguousEdit(content, relaxed ?? edits);
         return found ? ambiguousMessage(args.path, found) : null;
       } catch {
         return null;
@@ -478,6 +503,18 @@ export function useMCPDialogs({
         toolCall.arguments
       );
       if (ambiguous) return { success: false, error: ambiguous };
+
+      // A file tool aimed outside a Code session's folder: the filesystem
+      // server is scoped to it and refuses, so asking the user first only
+      // asks them to approve a call that fails (g11 step 1: Move to Trash
+      // for /tmp/spendtest, approved, then "Access denied")
+      const outside = outsideFolderPath(toolCall, policy.folder);
+      if (outside) {
+        return {
+          success: false,
+          error: `${outside} is outside the project folder (${policy.folder}); the file tools only reach files inside it. For a folder such as /tmp, use run_command.`,
+        };
+      }
 
       // Reads in auto/plan/readonly run without interrupting the user
       if (decision === "run") {

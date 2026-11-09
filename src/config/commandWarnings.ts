@@ -165,8 +165,10 @@ function outsidePaths(
     if (word.startsWith("-")) continue;
     // Output thrown away or sent to the terminal reaches nothing
     if (/^\/dev\/(null|stdout|stderr|tty)$/.test(word)) continue;
-    if (leavesFolder(word, folder, posix) && !found.includes(word)) {
-      found.push(word);
+    // /tmp/x and /tmp/x/ are one folder
+    const path = word.length > 1 ? word.replace(/\/+$/, "") : word;
+    if (leavesFolder(path, folder, posix) && !found.includes(path)) {
+      found.push(path);
     }
   }
   return found.slice(0, 3);

@@ -23,6 +23,9 @@ describe("promptWarnings", () => {
       "Reaches outside the project folder: /home/user/Projects, ~/.spend, ../other",
     ]);
     expect(levels("mkdir -p ~/.spend")).toEqual(["outside"]);
+    expect(texts("rm -rf /tmp/spendtest && mkdir /tmp/spendtest/")).toEqual([
+      "Reaches outside the project folder: /tmp/spendtest",
+    ]);
   });
 
   it("reads search patterns and code apart from paths (g6, g7)", () => {
