@@ -70,6 +70,29 @@ describe("promptWarnings", () => {
     expect(texts("pkill -f server")).toContain("Stops other programs");
   });
 
+  it("flags deleting a folder tree that is not throwaway (g13 step 16)", () => {
+    expect(texts(`cd ${folder} && rm -rf .profiles test-exp && mkdir -p .profiles/testexp`)).toContain(
+      "Deletes folders and everything in them: .profiles, test-exp"
+    );
+    expect(texts("Remove-Item -Recurse -Force data")).toContain("Deletes folders and everything in them: data");
+    expect(texts("find ./records -name '*.json' -delete")).toContain("Deletes folders and everything in them: ./records");
+    expect(texts(`python3 -c "import shutil; shutil.rmtree('profiles')"`)).toContain(
+      "Deletes folders and everything in them: profiles"
+    );
+  });
+
+  it("leaves throwaway and rebuildable folders alone", () => {
+    const deletes = (command: string) => texts(command).filter((t) => t.startsWith("Deletes folders"));
+    expect(deletes("rm -rf /tmp/spendtest /tmp/prof_test/")).toEqual([]);
+    expect(deletes("cd /tmp && rm -rf spendtest && mkdir spendtest")).toEqual([]);
+    expect(deletes("cd /tmp/a && rm -rf ../b")).toEqual([]);
+    expect(deletes('TMP=$(mktemp -d) && echo x > $TMP/d.json && rm -rf "$TMP"')).toEqual([]);
+    expect(deletes("rm -rf /tmp/x 2>/dev/null")).toEqual([]);
+    expect(deletes("rm -rf __pycache__ build dist node_modules .pytest_cache")).toEqual([]);
+    expect(deletes("rm notes.txt")).toEqual([]);
+    expect(deletes("rm -f old.json")).toEqual([]);
+  });
+
   it("leaves ordinary downloads and installs unflagged as danger", () => {
     expect(levels("curl -s https://api.example.com/rates")).toEqual([]);
     expect(levels("pip install requests")).toEqual([]);

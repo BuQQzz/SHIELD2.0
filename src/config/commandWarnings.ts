@@ -174,6 +174,52 @@ function outsidePaths(
   return found.slice(0, 3);
 }
 
+/** Folders a project can rebuild: deleting them loses nothing of the user's */
+const REBUILDABLE =
+  /^(__pycache__|node_modules|dist|build|out|target|coverage|\.pytest_cache|\.mypy_cache|\.ruff_cache|\.cache|\.next|\.turbo|\.venv|venv|env|htmlcov|\.tox|.*\.egg-info)$/;
+/** Throwaway places: deleting a test folder there is the cleanup asked for */
+const TEMP = /^(\/tmp|\/var\/tmp|\/private\/tmp|\$TMPDIR|\$\{TMPDIR\}|%TEMP%|\$env:TEMP)(\/|\\|$)/i;
+
+/**
+ * The folders a command deletes with everything in them, other than
+ * throwaway and rebuildable ones. Seeding test data in g13 step 16, Bonsai
+ * 2 ran `rm -rf .profiles test-exp` in the project: .profiles is where the
+ * tracker keeps every person's data. Nothing real was in it yet, and the
+ * prompt showed nothing but the command (2026-11-09).
+ */
+function recursiveDeletes(command: string): string[] {
+  const found: string[] = [];
+  // the folder a `cd` earlier in the command moved to
+  let dir = "";
+  const add = (target: string) => {
+    const path = target.replace(/^["']|["']$/g, "").replace(/[/\\]+$/, "");
+    // a file descriptor left by 2>&1, or a variable (mktemp -d) we cannot
+    // see into; rm -rf $HOME is caught by DANGERS
+    if (!path || path.startsWith("-") || /^\d+$/.test(path) || /^\$\{?\w+\}?$/.test(path)) return;
+    const full = /^([/~\\$%]|[A-Za-z]:)/.test(path) || !dir ? path : `${dir}/${path}`;
+    if (TEMP.test(full)) return;
+    const name = path.split(/[/\\]/).pop()!;
+    if (REBUILDABLE.test(name) || found.includes(path)) return;
+    found.push(path);
+  };
+  for (const words of commandWords(command)) {
+    const [name = "", ...args] = words;
+    if (/^(cd|Set-Location|pushd)$/i.test(name) && args.length === 1) {
+      dir = /^([/~\\$%]|[A-Za-z]:)/.test(args[0]!) || !dir ? args[0]! : `${dir}/${args[0]}`;
+      continue;
+    }
+    const flags = args.filter((a) => a.startsWith("-"));
+    const recursive =
+      (name === "rm" && flags.some((f) => /^-[a-zA-Z]*[rR]/.test(f) || f === "--recursive")) ||
+      (/^(Remove-Item|ri|rd|rmdir)$/i.test(name) && flags.some((f) => /^-r(ecurse)?$/i.test(f) || /^\/s$/i.test(f)));
+    if (recursive) args.filter((a) => !a.startsWith("-") && !/^\/s$/i.test(a)).forEach(add);
+    // find DIR ... -delete
+    if (name === "find" && args.includes("-delete") && args[0] && !args[0].startsWith("-")) add(args[0]);
+  }
+  for (const match of command.matchAll(/shutil\.rmtree\(\s*(?:r?["']([^"']+)["'])/g)) add(match[1]!);
+  return found;
+}
+
 /** SHIELD's warnings for a call waiting on the user; empty when none apply */
 export function promptWarnings(
   args: Record<string, unknown>,
@@ -187,6 +233,13 @@ export function promptWarnings(
         warnings.push({ level: "danger", text: danger.text });
       }
     }
+  }
+  const deleted = command ? recursiveDeletes(command) : [];
+  if (deleted.length > 0) {
+    warnings.push({
+      level: "danger",
+      text: `Deletes folders and everything in them: ${deleted.slice(0, 3).join(", ")}`,
+    });
   }
   const outside = outsidePaths(args, folder);
   if (outside.length > 0) {
