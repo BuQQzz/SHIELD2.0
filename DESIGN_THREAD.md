@@ -466,3 +466,19 @@ First observation from a 2-step smoke run: asked for a spending tracker, Bonsai 
 - Clearing and summaries cost about 3.5 of the 25 minutes: real, but not what made the step run out. Most of the rest of the reading is new content (file reads of 4-9K tokens), which is processed once either way.
 - Thinking is the larger lever: planning requests ran 50-113 s with 5,000-6,000 characters of thinking each, several of them re-planning after a read was cleared ("I now have the full picture" four times).
 - So the window-aware clearing rule drops in priority. Going deeper per clearing (CLEAR_TO 0.4 → 0.3 at 32K) might halve the 11 cache losses (~1.5 min) but clears more of what the model is working from. Not changed.
+
+### 2026-11-09 · Opus · Big-read outline and stale-read clearing (6dc919b): step 17 three times
+
+*Measured, Bonsai 2, each run resumed g5 at 16 and ran only step 17 ("what else would make this better? go ahead and add it").*
+
+| Run | Time | Calls (failed) | Built | Clearing / summaries |
+| --- | --- | --- | --- | --- |
+| g5 (before) | 1,502 s, timed out | 48 (2) | income, weekly view, net savings | 16 / 3 |
+| g8 | 519 s | 21 (1) | free-text `search` | 9 / 0 |
+| g9 | 371 s | 13 (0) | "By week" section in `status` | 6 / 0 |
+| g10 | 760 s | 22 (0) | `list --from/--to` date range | 14 / 1 |
+
+- **No big reads in any run.** g8 and g10 found their way with `grep -n`, `sed -n 'A,Bp'` and `awk '/def x/,/def y/'` from the start. g9 asked for `head: 458` once, got the outline and 200 lines, and went on with `sed` ranges as the result suggested. The outline fired once; it worked as intended that once.
+- **The stale-read clearing never fired**: it covers `read_text_file`, and the reading moved to `run_command` (`sed`, `awk`). g10 re-read overlapping ranges (640-760 then 700-835; `cmd_list` twice). Extending "stale" to overlapping `sed -n` ranges of the same file is the next step if this pattern holds.
+- All three tested on throwaway data; the user's data file was byte-identical after each.
+- The features were one each, smaller than g5's three, so the time drop is not all the fixes'. The useful signal: across g6-g10 (five runs of this step) no run read big again, and none came near the limit.
