@@ -60,12 +60,88 @@ const DANGERS: Array<{ pattern: RegExp; text: string }> = [
   },
 ];
 
-/** Words of a command, quotes stripped; good enough to spot paths */
-function words(command: string): string[] {
-  return command
-    .split(/[\s|;&<>()]+/)
-    .map((word) => word.replace(/^["']+|["']+$/g, ""))
-    .filter(Boolean);
+/**
+ * A command split into its commands (at unquoted ; | & ( ) < > and line
+ * breaks) and each into words, quotes removed: enough to tell an argument
+ * from a pattern, not a full shell parser
+ */
+function commandWords(command: string): string[][] {
+  const result: string[][] = [[]];
+  let word = "";
+  let inWord = false;
+  let quote: string | null = null;
+  const endWord = () => {
+    if (inWord) result[result.length - 1]!.push(word);
+    word = "";
+    inWord = false;
+  };
+  for (const char of command) {
+    if (quote) {
+      if (char === quote) quote = null;
+      else word += char;
+    } else if (char === '"' || char === "'") {
+      quote = char;
+      inWord = true;
+    } else if (/[;|&()<>\n]/.test(char)) {
+      endWord();
+      result.push([]);
+    } else if (/\s/.test(char)) {
+      endWord();
+    } else {
+      word += char;
+      inWord = true;
+    }
+  }
+  endWord();
+  return result.filter((words) => words.length > 0);
+}
+
+/** Commands whose first plain argument is a pattern or a program, not a file */
+const PATTERN_FIRST = new Set(["grep", "egrep", "fgrep", "rg", "awk", "gawk", "sed", "perl"]);
+
+/**
+ * The words of a command that could be paths. A grep, awk or sed pattern is
+ * left out: g6 and g7 showed `/^def` and `/def` (from `awk '/def
+ * cmd_status/,...'`) as paths outside the project. Each word is cut at
+ * quotes, commas and "=", so `P=/tmp/x` and the `open("/tmp/x","w")` of a
+ * python -c script give /tmp/x (2026-11-09).
+ */
+function pathWords(command: string): string[] {
+  const pieces: string[] = [];
+  for (const words of commandWords(command)) {
+    // VAR=value before the command sets a variable; its value can be a path
+    while (words.length > 1 && /^[A-Za-z_]\w*=/.test(words[0]!)) {
+      pieces.push(words.shift()!.replace(/^[A-Za-z_]\w*=/, ""));
+    }
+    const [name = "", ...args] = words;
+    // echo and printf only print their words
+    if (/^(echo|printf|Write-Output|Write-Host)$/i.test(name)) continue;
+    let skipPattern = PATTERN_FIRST.has(name.replace(/^.*\//, ""));
+    let skipNext = false;
+    for (const arg of args) {
+      if (skipNext) {
+        skipNext = false;
+        continue;
+      }
+      // grep -e PATTERN, sed -e SCRIPT, awk -f is a file and stays
+      if (skipPattern && /^-(e|-regexp|-expression)$/.test(arg)) {
+        skipNext = true;
+        skipPattern = false;
+        continue;
+      }
+      if (skipPattern && !arg.startsWith("-")) {
+        skipPattern = false;
+        continue;
+      }
+      pieces.push(...arg.split(/[\s"',=;()[\]{}]+/));
+    }
+  }
+  // A regex, not a path: anchors, escapes, alternation
+  // "~" names the home folder only alone or before "/"
+  return pieces.filter(
+    (piece) =>
+      piece && !/[\^$\\|]/.test(piece) && !/^~[^/]/.test(piece)
+  );
 }
 
 /** The paths a call names that lie outside `folder`, at most three */
@@ -75,23 +151,22 @@ function outsidePaths(
 ): string[] {
   const posix = !folder || folder.startsWith("/");
   const found: string[] = [];
-  const candidates =
-    typeof args.command === "string"
-      ? words(args.command)
-      : ["path", "source", "destination"]
-          .map((key) => args[key])
-          .filter((value): value is string => typeof value === "string");
+  const isCommand = typeof args.command === "string";
+  const candidates = isCommand
+    ? pathWords(args.command as string)
+    : ["path", "source", "destination"]
+        .map((key) => args[key])
+        .filter((value): value is string => typeof value === "string");
   for (const word of candidates) {
     // A relative file argument stays in the project; only commands are
     // read word by word for rooted paths and climbs
-    if (typeof args.command !== "string" && !/^([/~\\]|[A-Za-z]:|\.\.)/.test(word))
-      continue;
-    // flags such as -name or a glob pattern are no path
-    if (word.startsWith("-") && !word.includes("=")) continue;
+    if (!isCommand && !/^([/~\\]|[A-Za-z]:|\.\.)/.test(word)) continue;
+    // flags such as -name are no path
+    if (word.startsWith("-")) continue;
     // Output thrown away or sent to the terminal reaches nothing
     if (/^\/dev\/(null|stdout|stderr|tty)$/.test(word)) continue;
     if (leavesFolder(word, folder, posix) && !found.includes(word)) {
-      found.push(word.replace(/^-[^=]*=/, ""));
+      found.push(word);
     }
   }
   return found.slice(0, 3);
