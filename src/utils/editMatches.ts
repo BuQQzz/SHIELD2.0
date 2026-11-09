@@ -80,14 +80,40 @@ function relaxedPattern(oldText: string): RegExp {
       }
       source += "\\n";
     }
-    source += `${escapeRegex(line)}[ \\t]*`;
+    // oldText ending in a line break: nothing after it, not the next
+    // line's indentation
+    if (line === "" && i === lines.length - 1) break;
+    source += `${relaxedLine(line)}[ \\t]*`;
   }
   return new RegExp(source, "g");
 }
 
 /**
+ * One line of oldText as a pattern: its indentation exactly (it matters in
+ * Python), any run of spaces inside it as any run (column alignment), and
+ * two or three quotes as two or three. g12 step 12: Bonsai 2 copied a
+ * docstring's closing """ as "" five times in a row, the closest-lines
+ * hint showing the right text each time; steps 9 and 10 missed on the
+ * spaces that line up help text (2026-11-09).
+ */
+function relaxedLine(line: string): string {
+  const indent = line.match(/^[ \t]*/)![0];
+  const rest = line.slice(indent.length);
+  let source = escapeRegex(indent);
+  for (const piece of rest.split(/([ \t]+|"{2,3}|'{2,3})/)) {
+    if (!piece) continue;
+    if (/^[ \t]+$/.test(piece)) source += "[ \\t]+";
+    else if (/^"{2,3}$/.test(piece)) source += '"{2,3}';
+    else if (/^'{2,3}$/.test(piece)) source += "'{2,3}";
+    else source += escapeRegex(piece);
+  }
+  return source;
+}
+
+/**
  * Edits whose oldText misses the file only in how many blank lines sit
- * between its lines, or in trailing spaces, get the file's own text when
+ * between its lines, in trailing spaces, in runs of spaces inside a line,
+ * or in "" for """, get the file's own text when
  * that matches exactly one place. Bonsai 2 sent one edit_file of 11 edits
  * with one blank line between two functions where the file had two; the
  * whole call failed, and after fixing that edit alone it rewrote the file
