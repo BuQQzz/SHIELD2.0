@@ -437,3 +437,18 @@ First observation from a 2-step smoke run: asked for a spending tracker, Bonsai 
 - **Memory held at the end.** Step 19's answer was right in every detail (g1's equivalent invented a dropdown). One slip: g6 step 17 called month-over-month "the single most useful number that was missing" though `compare` was built at step 10.
 - **Prompt warnings:** 0 red in steps 16-20; every amber prompt had a plain reason (temp files in `/tmp`, checking installed packages). Noise to fix: a grep pattern (`/^def`) and fragments like `P=/tmp/x` read as paths. Also fixed on the way: `/dev/null` was "outside", and `grep`/`sed` on a script was shown as "Runs spend.py".
 - **Left in the project:** a stray `out.csv` test export (step 18).
+
+### 2026-11-09 · Opus · g7: steps 17-20 again, with the test-data rule
+
+*Measured, Bonsai 2, resumed g5 at 16, with the definitions fix (e110554) and "Test with throwaway data … never the user's own data files" (0c86f34).* No struggle; 0 failed calls in four steps.
+
+| Step | Time | Calls | Result |
+| --- | --- | --- | --- |
+| 17 what else would make this better | 475 s | 12 | budget pace ("on track for the month") in `status` |
+| 18 clean up the code | 878 s | 25 | every command still works (checked by hand) |
+| 19 remind me how... | 35 s | 0 | correct from memory |
+| 20 is everything still working | 396 s | 15 | installed openpyxl in a project `.venv` (system pip is apt-managed; it chose not to use sudo), which exposed and fixed a real bug in the XLSX writer (`datetime.date` with `datetime` the class) |
+
+- **The test-data rule held:** every check ran on a `mktemp` file or `--file`; the user's data file is byte-identical from step 16 to 20. It still leaves throwaway files behind sometimes (`_t.json` in the project, like g6's `out.csv`).
+- **It navigated by grep from the start** (a `grep -n` of every definition, then short ranges), so no big re-reads happened and the definitions list was never needed. The fix is still unmeasured on a turn that does read big.
+- **Slips:** step 17 listed budget commands as "set/list/clear" (it is `remove`; step 19 got it right). Prompt-warning noise again: an awk pattern `/def cmd_status/` shown as a path.
