@@ -482,3 +482,7 @@ First observation from a 2-step smoke run: asked for a spending tracker, Bonsai 
 - **The stale-read clearing never fired**: it covers `read_text_file`, and the reading moved to `run_command` (`sed`, `awk`). g10 re-read overlapping ranges (640-760 then 700-835; `cmd_list` twice). Extending "stale" to overlapping `sed -n` ranges of the same file is the next step if this pattern holds.
 - All three tested on throwaway data; the user's data file was byte-identical after each.
 - The features were one each, smaller than g5's three, so the time drop is not all the fixes'. The useful signal: across g6-g10 (five runs of this step) no run read big again, and none came near the limit.
+
+### 2026-11-09 · Opus · Stale reads in commands
+
+*Unit-tested and replayed on saved histories; not yet seen firing in a live run.* Stale-read clearing now reads `run_command` too: a command that only shows parts of files (`sed -n 'A,Bp;C,Dp'`, `awk '/x/,/y/'`, `cat`, `head -n`, after a `cd` and between `echo`s) is a read, and its result is stale when later reads show every part again; a later `tail` at least as long covers a `tail`. A command that also ran something, piped or printed other output is never cleared this way. Replayed on step 17's histories: g5 would clear ~41K characters (~13K tokens) of out-of-date copies before anything else (its four `tail` reads of 370-374 lines and the `head` reads before them); g8 and g9 had nothing to clear; g10 ~1.9K (a repeated awk span). Partial overlaps (640-760, then 700-835) are left whole.
