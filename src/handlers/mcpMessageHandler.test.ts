@@ -497,6 +497,49 @@ describe("multi-round tool chaining", () => {
     );
   });
 
+  it("says when Python text opens a triple-quoted string it never closes", async () => {
+    const run = async (tool: string, args: Record<string, unknown>, file: string) => {
+      const addMessage = vi.fn();
+      await processMCPToolCalls(
+        {
+          id: `assistant-quote-${tool}-${JSON.stringify(args).length}`,
+          role: "assistant",
+          content: `<tool_call>\n<server>filesystem</server>\n<tool>${tool}</tool>\n<arguments>${JSON.stringify(args)}</arguments>\n</tool_call>`,
+          timestamp: new Date(),
+        },
+        {
+          onToolCallDetected: vi.fn().mockResolvedValue({ success: true, data: "OK" }),
+          addMessage,
+          continueConversation: vi.fn().mockResolvedValue("ok"),
+          maxToolRounds: 1,
+          readFile: vi.fn().mockResolvedValue(file),
+        }
+      );
+      return (addMessage.mock.calls[0]?.[0] as Message).content;
+    };
+    // g13 step 14: a docstring closed with one quote
+    const added =
+      'def _audit(action, detail):\n    """Append one line to the audit log so every\n    change is recorded with a timestamp and profile."\n    pass\n';
+    const file = `import os\n\n\n${added}\ndef main():\n    """Run."""\n`;
+    const noted = await run(
+      "edit_file",
+      { path: "/p/spend.py", edits: [{ oldText: "import os\n", newText: `import os\n\n\n${added}` }] },
+      file
+    );
+    expect(noted).toContain("opens a triple-quoted string at line 5");
+    expect(noted).toContain('"""Append one line to the audit log so every');
+
+    // Balanced text, an edit that only moves a closing quote, other files
+    expect(
+      await run("edit_file", { path: "/p/spend.py", edits: [{ oldText: "x", newText: '"""Doc."""' }] }, file)
+    ).not.toContain("triple-quoted");
+    expect(
+      await run("edit_file", { path: "/p/spend.py", edits: [{ oldText: 'every\n    """', newText: 'every."""' }] }, file)
+    ).not.toContain("triple-quoted");
+    expect(await run("append_file", { path: "/p/notes.md", content: '"""' }, file)).not.toContain("triple-quoted");
+    expect(await run("write_file", { path: "/p/a.py", content: added }, added)).toContain("opens a triple-quoted string at line 2");
+  });
+
   it("shows a big read of a code file in part, with an outline", async () => {
     const lines = Array.from({ length: 500 }, (_, i) =>
       i % 50 === 0 ? `def step_${i + 1}(args):` : `    x = ${i + 1}`

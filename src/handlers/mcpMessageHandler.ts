@@ -307,6 +307,79 @@ async function withAppendHint(
   };
 }
 
+/** Where each \"\"\" or \'\'\' in `text` starts that is left open, in order */
+function unclosedTripleQuotes(text: string): number[] {
+  const open: number[] = [];
+  let inside: { quote: string; at: number } | null = null;
+  const re = /"""|'''/g;
+  for (const match of text.matchAll(re)) {
+    if (!inside) inside = { quote: match[0], at: match.index };
+    else if (match[0] === inside.quote) inside = null;
+  }
+  if (inside) open.push(inside.at);
+  return open;
+}
+
+const tripleQuotes = (text: string) => (text.match(/"""|'''/g) ?? []).length;
+
+/**
+ * After a change to a Python file: a note when the new text opens a
+ * triple-quoted string it never closes. Bonsai 2 closed a new docstring
+ * with " instead of """; Python reported an unterminated string 60 lines
+ * further down, and the model spent about 10 requests on hexdumps and the
+ * tokenizer before finding it (g13 step 14, 2026-11-09). The same model
+ * copied """ as "" in edits five times in g12. An odd count of triple
+ * quotes in what an edit adds (against what it replaces) is that mistake.
+ */
+async function withQuoteHint(
+  toolCall: ToolCallRequest,
+  result: MCPToolResult,
+  readFile?: (path: string) => Promise<string | null>
+): Promise<MCPToolResult> {
+  const { path } = toolCall.arguments;
+  if (!result.success || typeof path !== "string" || !/\.pyw?$/i.test(path)) {
+    return result;
+  }
+  const added: string[] = [];
+  if (
+    toolCall.tool === "edit_file" &&
+    Array.isArray(toolCall.arguments.edits)
+  ) {
+    for (const raw of toolCall.arguments.edits) {
+      const edit = raw as { oldText?: unknown; newText?: unknown };
+      if (typeof edit?.newText !== "string") continue;
+      const before =
+        typeof edit.oldText === "string" ? tripleQuotes(edit.oldText) : 0;
+      if ((tripleQuotes(edit.newText) - before) % 2 !== 0)
+        added.push(edit.newText);
+    }
+  } else if (
+    ["write_file", "append_file"].includes(toolCall.tool) &&
+    typeof toolCall.arguments.content === "string" &&
+    tripleQuotes(toolCall.arguments.content) % 2 !== 0
+  ) {
+    added.push(toolCall.arguments.content);
+  }
+  if (added.length === 0) return result;
+  const file = readFile ? await readFile(path).catch(() => null) : null;
+  const name = path.split(/[\\/]/).pop();
+  const notes = added.map((text) => {
+    const at = unclosedTripleQuotes(text)[0];
+    const opener = at === undefined ? text : text.slice(at);
+    const first = opener.split("\n")[0]!.trim().slice(0, 80);
+    const where = file?.indexOf(text) ?? -1;
+    const line =
+      where >= 0 && at !== undefined
+        ? ` at line ${file!.slice(0, where + at).split("\n").length}`
+        : "";
+    return `Note: the text you added to ${name} opens a triple-quoted string${line} ("${first}") that it does not close - a docstring ending in " or "" instead of """, for example. Python will report an unterminated string further down, where it is not. Close it in that text.`;
+  });
+  return {
+    ...result,
+    data: `${resultPayload(result.data)}\n\n${notes.join("\n")}`,
+  };
+}
+
 /** A read of more lines than this, of a code file, is shown in part */
 export const READ_LINES_MAX = 300;
 /** How many of the lines asked for a big read shows */
@@ -400,11 +473,15 @@ async function runToolCall(
         readFile
       );
     }
-    return await withReadOutline(
+    return await withQuoteHint(
       toolCall,
-      await withAppendHint(
+      await withReadOutline(
         toolCall,
-        await withEditHint(toolCall, result, readFile),
+        await withAppendHint(
+          toolCall,
+          await withEditHint(toolCall, result, readFile),
+          readFile
+        ),
         readFile
       ),
       readFile
