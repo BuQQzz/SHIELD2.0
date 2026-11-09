@@ -452,3 +452,17 @@ First observation from a 2-step smoke run: asked for a spending tracker, Bonsai 
 - **The test-data rule held:** every check ran on a `mktemp` file or `--file`; the user's data file is byte-identical from step 16 to 20. It still leaves throwaway files behind sometimes (`_t.json` in the project, like g6's `out.csv`).
 - **It navigated by grep from the start** (a `grep -n` of every definition, then short ranges), so no big re-reads happened and the definitions list was never needed. The fix is still unmeasured on a turn that does read big.
 - **Slips:** step 17 listed budget commands as "set/list/clear" (it is `remove`; step 19 got it right). Prompt-warning noise again: an awk pattern `/def cmd_status/` shown as a path.
+
+### 2026-11-09 · Opus · Where g5's timed-out step went: clearing is not the main cost
+
+*Measured from the server log of g5 step 17 (52 requests, 25 minutes, Bonsai 2 at 32K).*
+
+| | Time |
+| --- | --- |
+| Generating (37,200 tokens, thinking included, ~715 a request) | ~1,027 s |
+| Reading prompts | ~412 s |
+| ...of which re-reading what the cache lost after a clearing or summary (11 requests, ~82K tokens, f_keep 0.31-0.43 on the big ones) | ~215 s |
+
+- Clearing and summaries cost about 3.5 of the 25 minutes: real, but not what made the step run out. Most of the rest of the reading is new content (file reads of 4-9K tokens), which is processed once either way.
+- Thinking is the larger lever: planning requests ran 50-113 s with 5,000-6,000 characters of thinking each, several of them re-planning after a read was cleared ("I now have the full picture" four times).
+- So the window-aware clearing rule drops in priority. Going deeper per clearing (CLEAR_TO 0.4 → 0.3 at 32K) might halve the 11 cache losses (~1.5 min) but clears more of what the model is working from. Not changed.
