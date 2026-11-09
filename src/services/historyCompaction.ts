@@ -207,17 +207,112 @@ function compactResults(content: string): string {
 
 const READ_TOOLS = new Set(["read_text_file", "read_file"]);
 
-interface ReadAt {
-  entry: number;
-  block: number;
-  path: string;
-  head?: unknown;
-  tail?: unknown;
+/**
+ * What one result showed of a file: all of it, some line ranges, or the
+ * lines between two awk patterns (known only by the pattern)
+ */
+interface FilePart {
+  file: string;
+  whole?: boolean;
+  lines?: Array<[number, number]>;
+  awk?: string;
+  /** The last N lines */
+  tail?: number;
 }
 
-/** Each read of a file in `history`: the result block that holds it */
-function readsIn(history: HistoryEntry[]): ReadAt[] {
-  const reads: ReadAt[] = [];
+/** A result block that did nothing but show parts of files */
+interface ReadBlock {
+  entry: number;
+  block: number;
+  parts: FilePart[];
+}
+
+/** An sh line split at unquoted ;, && and ||; null when it pipes or redirects */
+function shSegments(command: string): string[][] | null {
+  const segments: string[][] = [[]];
+  let word = "";
+  let inWord = false;
+  let quote: string | null = null;
+  const end = () => {
+    if (inWord) segments[segments.length - 1]!.push(word);
+    word = "";
+    inWord = false;
+  };
+  const chars = [...command];
+  for (let i = 0; i < chars.length; i++) {
+    const c = chars[i]!;
+    if (quote) {
+      if (c === quote) quote = null;
+      else word += c;
+    } else if (c === "'" || c === '"') {
+      quote = c;
+      inWord = true;
+    } else if (c === ";" || c === "\n" || (c === "&" && chars[i + 1] === "&") || (c === "|" && chars[i + 1] === "|")) {
+      if (c !== ";" && c !== "\n") i++;
+      end();
+      segments.push([]);
+    } else if (/[|<>&`$()]/.test(c)) {
+      return null;
+    } else if (/\s/.test(c)) {
+      end();
+    } else {
+      word += c;
+      inWord = true;
+    }
+  }
+  if (quote) return null;
+  end();
+  return segments.filter((words) => words.length > 0);
+}
+
+/**
+ * The parts of files a command only shows - `sed -n 'A,Bp;C,Dp' F`,
+ * `awk '/x/,/y/' F`, `cat F`, `head -n N F` - after an optional `cd DIR`
+ * and with `echo` lines between. Null when it does anything else: a block
+ * that also ran the script or printed other output is never stale. Bonsai 2
+ * moved from read_text_file to these in g8-g10 and re-read overlapping
+ * ranges (640-760, then 700-835) (2026-11-09).
+ */
+function commandReads(command: string): FilePart[] | null {
+  const segments = shSegments(command);
+  if (!segments || segments.length === 0) return null;
+  let dir = "";
+  const parts: FilePart[] = [];
+  for (const [name, ...args] of segments) {
+    const at = (file: string) =>
+      /^[/~]/.test(file) || !dir ? file : `${dir.replace(/\/+$/, "")}/${file}`;
+    if (name === "cd" && args.length === 1) dir = args[0]!;
+    else if (name === "echo" || name === "wc") continue;
+    else if (name === "sed" && args[0] === "-n" && args.length >= 3) {
+      const ranges = args[1]!.split(";").map((r) => r.trim().match(/^(\d+)(?:,(\d+))?p$/));
+      if (ranges.some((r) => !r)) return null;
+      const lines = ranges.map((r) => [Number(r![1]), Number(r![2] ?? r![1])] as [number, number]);
+      for (const file of args.slice(2)) parts.push({ file: at(file), lines });
+    } else if ((name === "awk" || name === "gawk") && args.length === 2 && /^\/.*\/\s*,\s*\/.*\/$/.test(args[0]!)) {
+      parts.push({ file: at(args[1]!), awk: args[0]! });
+    } else if (name === "cat" && args.length >= 1 && args.every((a) => !a.startsWith("-"))) {
+      for (const file of args) parts.push({ file: at(file), whole: true });
+    } else if (name === "head" && args.length === 3 && args[0] === "-n" && /^\d+$/.test(args[1]!)) {
+      parts.push({ file: at(args[2]!), lines: [[1, Number(args[1])]] });
+    } else return null;
+  }
+  return parts.length > 0 ? parts : null;
+}
+
+/** What a read_text_file call showed */
+function toolRead(args: Record<string, unknown>): FilePart[] | null {
+  const { path, head, tail } = args;
+  if (typeof path !== "string") return null;
+  if (head === undefined && tail === undefined) return [{ file: path, whole: true }];
+  if (typeof head === "number" && tail === undefined) return [{ file: path, lines: [[1, head]] }];
+  // g5 read the end of spend.py four times: tail 370, 372, 374, 374
+  if (typeof tail === "number" && head === undefined) return [{ file: path, tail }];
+  return null;
+}
+
+/** Each result block in `history` that only showed parts of files */
+function readBlocks(history: HistoryEntry[]): ReadBlock[] {
+  const reads: ReadBlock[] = [];
   history.forEach((entry, i) => {
     const results = history[i + 1];
     if (entry.role !== "assistant" || results?.role !== "user") return;
@@ -226,46 +321,68 @@ function readsIn(history: HistoryEntry[]): ReadAt[] {
     // One result block per call, in order; otherwise they can't be paired
     if (calls.length === 0 || blocks !== calls.length) return;
     calls.forEach((call, block) => {
-      const path = call.arguments.path;
-      if (!READ_TOOLS.has(call.tool) || typeof path !== "string") return;
-      reads.push({
-        entry: i + 1,
-        block,
-        path,
-        head: call.arguments.head,
-        tail: call.arguments.tail,
-      });
+      const parts = READ_TOOLS.has(call.tool)
+        ? toolRead(call.arguments)
+        : call.tool === "run_command" && typeof call.arguments.command === "string"
+          ? commandReads(call.arguments.command)
+          : null;
+      if (parts) reads.push({ entry: i + 1, block, parts });
     });
   });
   return reads;
 }
 
-/** A later read that shows at least what `earlier` showed */
-function covers(later: ReadAt, earlier: ReadAt): boolean {
-  if (later.path !== earlier.path) return false;
-  const whole = later.head === undefined && later.tail === undefined;
-  return whole || (later.head === earlier.head && later.tail === earlier.tail);
+/** The same file: full paths must match; a bare name matches by name */
+function sameFile(a: string, b: string): boolean {
+  if (a === b) return true;
+  const rooted = (p: string) => /^[/~]/.test(p) || /^[A-Za-z]:/.test(p);
+  if (rooted(a) && rooted(b)) return false;
+  const base = (p: string) => p.split(/[\\/]/).pop();
+  return base(a) === base(b);
+}
+
+/** Every line of `part` is shown by one of `later` */
+function covered(part: FilePart, later: FilePart[]): boolean {
+  const same = later.filter((l) => sameFile(l.file, part.file));
+  if (same.some((l) => l.whole)) return true;
+  if (part.whole) return false;
+  if (part.awk !== undefined) return same.some((l) => l.awk === part.awk);
+  // A later tail at least as long shows the end of the file again
+  if (part.tail !== undefined) return same.some((l) => (l.tail ?? 0) >= part.tail!);
+  const ranges = same.flatMap((l) => l.lines ?? []);
+  const lines = part.lines ?? [];
+  if (lines.length === 0) return false;
+  return lines.every(([from, to]) => {
+    for (let line = from; line <= to; ) {
+      const next = ranges.find(([a, b]) => a <= line && line <= b);
+      if (!next) return false;
+      line = next[1] + 1;
+    }
+    return true;
+  });
 }
 
 /**
  * Clear the results of reads the model has since read again (the same
- * file, the same part or all of it): those copies are out of date, and
- * clearing them first keeps what it is working from. In g5 step 17 the
- * oldest results went first, often the read the model had just planned
- * from, and it read the file again (2026-11-09). The last entry, the
- * results the model is about to see, is left alone.
+ * lines, or all of the file): those copies are out of date, and clearing
+ * them first keeps what it is working from. In g5 step 17 the oldest
+ * results went first, often the read the model had just planned from,
+ * and it read the file again (2026-11-09). The last entry, the results the
+ * model is about to see, is left alone.
  */
 export function compactStaleReads(history: HistoryEntry[]): {
   history: HistoryEntry[];
   savedChars: number;
 } {
-  const reads = readsIn(history);
-  const stale = new Map<number, Set<number>>();
-  reads.forEach((read, i) => {
+  const reads = readBlocks(history);
+  const stale = new Map<number, Map<number, string>>();
+  reads.forEach((read) => {
     if (read.entry >= history.length - 1) return;
-    if (reads.slice(i + 1).some((later) => later.entry > read.entry && covers(later, read))) {
-      const blocks = stale.get(read.entry) ?? new Set<number>();
-      blocks.add(read.block);
+    const later = reads.filter((r) => r.entry > read.entry).flatMap((r) => r.parts);
+    if (read.parts.every((part) => covered(part, later))) {
+      const blocks = stale.get(read.entry) ?? new Map<number, string>();
+      const names = [...new Set(read.parts.map((p) => p.file.split(/[\\/]/).pop()))];
+      blocks.set(read.block, names.join(", "));
       stale.set(read.entry, blocks);
     }
   });
@@ -278,14 +395,14 @@ export function compactStaleReads(history: HistoryEntry[]): {
       /<tool_result[\s\S]*?<\/tool_result>/g,
       (whole: string) => {
         block += 1;
-        if (!blocks.has(block)) return whole;
-        const name = reads.find((r) => r.entry === i && r.block === block)!.path.split(/[\\/]/).pop();
+        const name = blocks.get(block);
+        if (name === undefined) return whole;
         return whole.replace(
           /<result>([\s\S]*?)<\/result>/,
           (result: string, body: string) =>
             body.length < KEEP_BELOW
               ? result
-              : `<result>\n[SHIELD ${REMOVED_MARK}: this result, ${chars(body.length)}, an older read of ${name}. You read it again later; that read is the current one.]\n</result>`
+              : `<result>\n[SHIELD ${REMOVED_MARK}: this result, ${chars(body.length)}, an older read of ${name}. You read those lines again later; that read is the current one.]\n</result>`
         );
       }
     );

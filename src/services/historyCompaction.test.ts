@@ -200,7 +200,7 @@ describe("compactStaleReads", () => {
     ];
     const { history: out, savedChars } = compactStaleReads(history);
     expect(savedChars).toBeGreaterThan(500);
-    expect(out[2]!.content).toContain("an older read of spend.py. You read it again later");
+    expect(out[2]!.content).toContain("an older read of spend.py. You read those lines again later");
     expect(out[2]!.content).not.toContain("old_version");
     // other.py was read once; the latest spend.py read stays
     expect(out[4]).toBe(history[4]);
@@ -217,9 +217,51 @@ describe("compactStaleReads", () => {
       { role: "assistant" as const, content: "Done." },
     ];
     expect(compactStaleReads(history).savedChars).toBe(0);
-    // ... but a whole-file read covers it
+    // a later tail at least as long covers a tail (g5: 370, 372, 374)
+    history[3] = { role: "assistant", content: readCall({ path: "/p/spend.py", tail: 120 }) };
+    expect(compactStaleReads(history).savedChars).toBeGreaterThan(500);
+    history[3] = { role: "assistant", content: readCall({ path: "/p/spend.py", tail: 50 }) };
+    expect(compactStaleReads(history).savedChars).toBe(0);
+    // ... and a whole-file read covers it
     history[3] = { role: "assistant", content: readCall({ path: "/p/spend.py" }) };
     expect(compactStaleReads(history).savedChars).toBeGreaterThan(500);
+  });
+
+  const cmd = (command: string) =>
+    `<tool_call>\n<server>terminal</server>\n<tool>run_command</tool>\n<arguments>${JSON.stringify({ command, reason: "look" })}</arguments>\n</tool_call>`;
+  const out = (body: string) =>
+    `You executed 1 tool call(s). Here are the results:\n\n<tool_result trusted="false">\n<tool>run_command</tool>\n<result>\n${body}\n</result>\n</tool_result>`;
+  const session = (first: string, second: string) => [
+    { role: "user" as const, content: "add it" },
+    { role: "assistant" as const, content: cmd(first) },
+    { role: "user" as const, content: out(v1) },
+    { role: "assistant" as const, content: cmd(second) },
+    { role: "user" as const, content: out(v2) },
+    { role: "assistant" as const, content: "Done." },
+  ];
+  const cleared = (first: string, second: string) =>
+    compactStaleReads(session(first, second)).savedChars > 0;
+
+  it("counts sed, awk and cat reads in commands (g8-g10)", () => {
+    const at = "cd /p/project && ";
+    // g10: 640-760, then 700-835 does not cover 640-699
+    expect(cleared(`${at}sed -n '640,760p' spend.py`, `${at}sed -n '700,835p' spend.py`)).toBe(false);
+    expect(cleared(`${at}sed -n '700,760p' spend.py`, `${at}sed -n '640,835p' spend.py`)).toBe(true);
+    // several ranges, covered by several later ones together
+    expect(cleared(`sed -n '397,458p;567,634p' spend.py`, `sed -n '390,460p;560,640p' spend.py`)).toBe(true);
+    // g10: the same awk span twice
+    expect(cleared("awk '/^def cmd_list/,/^def cmd_summary/' spend.py", "awk '/^def cmd_list/,/^def cmd_summary/' spend.py")).toBe(true);
+    // a whole read covers any part, by full path or by name
+    expect(cleared(`${at}sed -n '458,526p' spend.py`, "cat /p/project/spend.py")).toBe(true);
+    expect(cleared(`${at}echo "=== status ===" && sed -n '1,9p' spend.py`, `${at}cat spend.py`)).toBe(true);
+  });
+
+  it("keeps a command that did more than show the file", () => {
+    expect(cleared("python3 -m py_compile spend.py && sed -n '1,9p' spend.py", "cat spend.py")).toBe(false);
+    expect(cleared("sed -n '490,516p' spend.py | cat -A | head -30", "cat spend.py")).toBe(false);
+    expect(cleared("grep -n def spend.py", "cat spend.py")).toBe(false);
+    expect(cleared("sed -n '1,9p' spend.py", "cat other.py")).toBe(false);
+    expect(cleared("sed -i '1,9d' spend.py", "cat spend.py")).toBe(false);
   });
 
   it("never touches the results the model is about to see", () => {
