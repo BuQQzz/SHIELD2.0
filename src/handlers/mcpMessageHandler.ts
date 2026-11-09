@@ -359,14 +359,28 @@ export async function processMCPToolCalls(
     if (unreadable) return [unreadable];
     // Old calls in the model's history are shortened to their path and a
     // removal note; Bonsai 27B wrote one of those as its next write_file,
-    // with no content (2026-10-28). Never run a call from such a reply.
-    if (isRemovalNote(text)) {
-      return calls.map((call) => ({
-        ...call,
-        argumentsError: `${COPIED_NOTE_ERROR_PREFIX} ("[SHIELD removed from your context ...]"), so it was not run and nothing changed. That note only marks old calls in your history whose text was removed; it is not part of a call. Send ${call.tool} again with all of its arguments written out in full${call.tool === "write_file" ? " (path and the whole content)" : ""}.`,
-      }));
-    }
-    return calls;
+    // with no content (2026-10-28). Never run a call that carries one. A
+    // note in the reply's text is not refused: Bonsai 2 copied the note
+    // into its prose before clean calls, and refusing those 33 calls left
+    // it thinking SHIELD was broken (2026-11-09)
+    // A write with no content next to a note is still the copy, though
+    const noted = isRemovalNote(text);
+    const lacksBulk = (call: ToolCallRequest) => {
+      const args = (call.arguments ?? {}) as Record<string, unknown>;
+      if (["write_file", "append_file"].includes(call.tool)) {
+        return typeof args.content !== "string";
+      }
+      return call.tool === "edit_file" && !Array.isArray(args.edits);
+    };
+    return calls.map((call) =>
+      isRemovalNote(JSON.stringify(call.arguments ?? {})) ||
+      (noted && lacksBulk(call))
+        ? {
+            ...call,
+            argumentsError: `${COPIED_NOTE_ERROR_PREFIX} ("[SHIELD removed from your context ...]"), so it was not run and nothing changed. That note only marks old calls in your history whose text was removed; it is not part of a call. Send ${call.tool} again with all of its arguments written out in full${call.tool === "write_file" ? " (path and the whole content)" : ""}.`,
+          }
+        : call
+    );
   };
 
   // Asked once per turn to make the call it announced (endsByAnnouncing)

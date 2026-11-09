@@ -342,3 +342,31 @@ Estimated savings per run: dropping the prose summary, 18-24 s (6.6-7.8%); compr
 - **One session, Auto mode, every prompt approved.** Harness: `tmp/ui-check/grow.mjs` (git-ignored), branch `test/growing-project`.
 
 First observation from a 2-step smoke run: asked for a spending tracker, Bonsai 2 built a single-file web page (`index.html`, 343 lines). Its first write ended with a duplicate `</script></body></html>`, and 5 of the step's 7.5 minutes went to repairing that: three failed `edit_file` calls (the tail did not match exactly), a refused whole-file rewrite, then `head -n 341` that cut one line too many, then `append_file`.
+
+*Seen by the user while g1 ran (to check after the run, no change during it):* the model makes a plan with `update_plan` but never marks steps done as it works; the checklist sat at "0 of 4 done" mid-step. Also on screen: SHIELD's record flagged 4 failed `edit_file` calls on `index.html` whose changes were never made, while the model's reply said it had "fixed a couple of things". To check: whether its replies claim work the record shows failed.
+
+*Seen in a screenshot of g1 (step 8-9, about 23:45):* one step ended "Stopped: the model kept sending a edit_file call that could not be read", after 3 failed edits; the next step's reply opens "Done. Here's what I added and verified" while the plan still read "0 of 4 done".
+
+*g1, step 10 (about 23:53):* SHIELD's record: 8 `edit_file` calls on `index.html` failed and "the file still does not have the change", while the reply said "both edits are confirmed in the file". The model then wrote a Python script (`_polish.py`) to patch `index.html` instead of editing it. Run paused about 5 minutes at a "Move to Trash" prompt (deleting that script) that the harness did not click; clicked by hand, harness fixed for later runs.
+
+### 2026-11-09 · Opus · Growing-project test, run g1: results
+
+*Measured, Bonsai 2, chat mode, one session, 23 steps (20 scripted + 3 nudges), 122 minutes.* It built a single-file web spending tracker (`index.html`, 269 lines at step 1, 454 at the end) and worked well through step 9. The second half collapsed, for a reason in SHIELD, not the model's grasp of the project.
+
+| | |
+| --- | --- |
+| Tool calls / failed | 188 / 51 |
+| Failures: SHIELD's note copied | 33 |
+| Failures: edit_file text not found | 14 (of 43 edit_file calls) |
+| Summaries / compactions | 11 / 54 |
+| Largest prompt | 19,516 tokens of a 32K window |
+| Plan steps ever marked done | 0 (7 plans made) |
+
+- **The main failure: the model learned to write SHIELD's removal note.** Shortened old calls in its history are followed by "[SHIELD removed from your context to save space: N characters of the call above…]" inside its own turns. From request 81 of 210 it wrote that note itself (43 replies, sometimes spelled "SHILD"). In 33 of them a clean call followed, and SHIELD refused it because the reply contained the note (`mcpMessageHandler.ts` checks the whole reply, not the call's arguments). Its thinking: "the command I'm sending is clean text … Perhaps there's some caching issue." In the other 10 the note took the place of the call, so the turn ended. Steps 13-22 mostly end "Let me add X:" followed by the note: 10 steps with almost no change.
+- **Edits on a 400-line file miss.** 14 of 43 `edit_file` calls didn't match; the model switched to writing Python patch scripts (`_polish.py`, `_fix_csv.py`, `_fix.py`). One of those (step 11) left a regex syntax error that broke the whole page for steps 11-22. Nobody noticed until "is everything still working?" at step 23.
+- **Claims outran the record.** SHIELD's record showed 8 failed edits while the reply said "both edits are confirmed in the file".
+- **Memory answers were partly wrong.** Asked "how do I see the monthly thing", it described a "month dropdown at the top-left"; the code has Previous/Next buttons. It announced a trends chart, search and a profile switcher several times; at the end the profile buttons exist in HTML with no code behind them, and there is no trends chart and no search.
+- **The plan never moved.** 7 `update_plan` calls, all creating a plan; no step was ever marked done.
+- **Context was not the limit.** The largest prompt was 19.5K of 32K, yet 11 summaries ran.
+
+**Proposed fixes, in order:** (1) keep removal notes out of the model's own turns (put them in the tool result), refuse a call only when its own arguments carry a note, and strip a note from the reply's prose; (2) check syntax after every edit to `.html`/`.js`/`.py` and report errors in the tool result; (3) on an `edit_file` miss, show the closest matching lines with line numbers; (4) before the final reply, tell the model which of its calls failed; (5) remind it to update the plan, or advance the plan from the calls that succeeded; (6) a project notes file (features built, suggestions pending) kept by SHIELD across summaries. Then run g2 the same way.

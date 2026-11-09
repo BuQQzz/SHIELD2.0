@@ -58,6 +58,7 @@ import {
   CLEAR_TO,
   COMPACT_AT,
   compactHistory,
+  stripRemovalNotes,
   shouldCompact,
 } from "./historyCompaction.js";
 import {
@@ -1119,7 +1120,12 @@ export class LlamaServerProvider {
         this.varying = false;
       }
     }
-    this.history.push(userMessage, { role: "assistant", content });
+    // A removal note the model copied stays out of its history: from its
+    // own turns it learns to write more (historyCompaction, 2026-11-09)
+    this.history.push(userMessage, {
+      role: "assistant",
+      content: stripRemovalNotes(content),
+    });
     if (final?.usage) {
       this.lastContextTokens = nextPromptTokens(final.usage, reply);
     }

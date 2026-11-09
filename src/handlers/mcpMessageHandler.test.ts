@@ -461,6 +461,53 @@ describe("multi-round tool chaining", () => {
     expect(result.content).not.toContain("length limit");
   });
 
+  it("runs a whole call even when the reply's text copied a removal note", async () => {
+    const onToolCallDetected = vi.fn().mockResolvedValue({
+      success: true,
+      data: "a.md",
+    });
+    await processMCPToolCalls(
+      {
+        id: "assistant-noted",
+        role: "assistant",
+        content:
+          'Let me check the folder:\n\n[SHILD removed from your context to save space: 247 characters of the call above. The call already ran.]\n\n<tool_call>\n<server>filesystem</server>\n<tool>list_directory</tool>\n<arguments>{"path":"/p"}</arguments>\n</tool_call>',
+        timestamp: new Date(),
+      },
+      {
+        onToolCallDetected,
+        addMessage: vi.fn(),
+        continueConversation: vi.fn().mockResolvedValue("ok"),
+        maxToolRounds: 3,
+      }
+    );
+    expect(onToolCallDetected).toHaveBeenCalledTimes(1);
+  });
+
+  it("refuses a call whose arguments carry a removal note", async () => {
+    const onToolCallDetected = vi.fn();
+    const addMessage = vi.fn();
+    await processMCPToolCalls(
+      {
+        id: "assistant-in-args",
+        role: "assistant",
+        content:
+          '<tool_call>\n<server>terminal</server>\n<tool>run_command</tool>\n<arguments>{"command":"[SHIELD removed from your context to save space: 90 characters of the call above.]"}</arguments>\n</tool_call>',
+        timestamp: new Date(),
+      },
+      {
+        onToolCallDetected,
+        addMessage,
+        continueConversation: vi.fn().mockResolvedValue("ok"),
+        maxToolRounds: 3,
+      }
+    );
+    expect(onToolCallDetected).not.toHaveBeenCalled();
+    expect((addMessage.mock.calls[0]?.[0] as Message).content).toContain(
+      "copied one of SHIELD's notes"
+    );
+  });
+
   it("keeps going when a reply is cut off mid-call", async () => {
     const assistantMessage: Message = {
       id: "assistant-cut",

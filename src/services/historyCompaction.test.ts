@@ -3,6 +3,7 @@ import {
   compactHistory,
   isRemovalNote,
   shouldCompact,
+  stripRemovalNotes,
 } from "./historyCompaction";
 
 const bigFile = "const x = 1;\n".repeat(400); // ~5k characters
@@ -28,14 +29,17 @@ describe("compactHistory", () => {
     // The step is still there, with its path, minus the content
     expect(out[1]!.content).toContain("Now let me write server.js");
     expect(out[1]!.content).toContain("<tool>write_file</tool>");
-    // The content is dropped from the call itself; a note after it says so.
-    // A placeholder inside the call was copied by Qwen3-Coder into
-    // write_file as if it were content (2026-09-28).
-    expect(out[1]!.content).toContain(
-      '<arguments>{"path":"server.js"}</arguments>'
-    );
+    // The content is dropped from the call itself. A placeholder inside
+    // the call was copied by Qwen3-Coder into write_file as if it were
+    // content (2026-09-28); a note after it, in the model's own turn, was
+    // copied by Bonsai 2 into its replies (2026-11-09). The note opens the
+    // next message instead.
     expect(out[1]!.content).toMatch(
-      /<\/tool_call>\n\[SHIELD removed from your context to save space: 5,200 characters of the call above\. .*not file content/
+      /<arguments>\{"path":"server\.js"\}<\/arguments>\n<\/tool_call>$/
+    );
+    expect(isRemovalNote(out[1]!.content)).toBe(false);
+    expect(out[2]!.content).toMatch(
+      /^\[SHIELD removed from your context to save space: 5,200 characters of long text .*not from the files/
     );
     expect(out[1]!.content).not.toContain("const x = 1;");
     // The read result keeps its envelope
@@ -73,9 +77,8 @@ describe("compactHistory", () => {
       ],
       1
     );
-    expect(out[0]!.content).toContain("Writing it:");
-    expect(out[0]!.content).toContain("never ran");
-    expect(out[0]!.content.length).toBeLessThan(200);
+    expect(out[0]!.content).toBe("Writing it:");
+    expect(out[1]!.content).toMatch(/unfinished tool call .* It never ran\.\]\n\ncontinue$/);
   });
 
   it("drops long edit texts but keeps the call's shape", () => {
@@ -90,7 +93,24 @@ describe("compactHistory", () => {
     expect(out[0]!.content).toContain(
       '<arguments>{"path":"a.js","edits":[{}]}</arguments>'
     );
-    expect(isRemovalNote(out[0]!.content)).toBe(true);
+    expect(isRemovalNote(out[0]!.content)).toBe(false);
+    expect(isRemovalNote(out[1]!.content)).toBe(true);
+  });
+
+  it("takes old notes, and ones the model copied, out of its turns", () => {
+    const copied =
+      "Let me look:\n\n[SHILD removed from your context to save space: 247 characters of the call above. The call already ran.]";
+    const { history: out } = compactHistory(
+      [
+        { role: "assistant", content: copied },
+        { role: "user", content: "next" },
+        { role: "assistant", content: "ok" },
+      ],
+      1
+    );
+    expect(out[0]!.content).toBe("Let me look:");
+    expect(out[1]!.content).toBe("next");
+    expect(stripRemovalNotes(copied)).toBe("Let me look:");
   });
 
   it("recognises its notes, this version's and older ones", () => {

@@ -35,15 +35,20 @@ const chars = (n: number) => `${n.toLocaleString("en-US")} characters`;
  * write_file rebuilt as {"content":"[2,450 characters, cleared to save
  * space]"} is an example of a write_file call, and Qwen3-Coder copied it -
  * it wrote that line into PLAN.md, and over a working script.js
- * (2026-09-28). The long values are dropped from the call instead, and
- * this note follows it, plainly not file content.
+ * (2026-09-28). The long values are dropped from the call instead.
+ *
+ * Nor in the model's own turns: a note right after each shortened call was
+ * read as part of how its turns look. In a 23-step session Bonsai 2 began
+ * writing the note itself, 43 times in 210 replies, often in place of the
+ * call, and stopped doing any work for ten steps (2026-11-09). The note goes
+ * at the head of the next message, the one that carries the results.
  */
 export const REMOVED_MARK = "removed from your context to save space";
 
 /**
  * True for text that is one of SHIELD's removal notes - this version's, or
  * the "[N characters, cleared to save space]" of saved histories - rather
- * than real content. A write carrying one is refused (useMCPDialogs).
+ * than real content. A call carrying one is refused (mcpMessageHandler).
  */
 export function isRemovalNote(text: string): boolean {
   return (
@@ -52,8 +57,29 @@ export function isRemovalNote(text: string): boolean {
   );
 }
 
-const removedArgumentsNote = (n: number) =>
-  `[SHIELD ${REMOVED_MARK}: ${chars(n)} of the call above. The call already ran; its text is not shown here and is not file content. Read the file to see what it contains now.]`;
+/** A removal note in a reply's text: SHIELD's own in old histories, or one the model copied */
+const NOTE_IN_REPLY = /\n*\[[^[\]]*removed from your context to save space[^[\]]*\]/g;
+
+/**
+ * The reply without removal notes in its text. One the model wrote itself
+ * would teach it, from its own turns, to write more.
+ */
+export function stripRemovalNotes(text: string): string {
+  return text.replace(NOTE_IN_REPLY, "");
+}
+
+/** For the message after a shortened reply */
+const movedNote = (removed: number, unfinished: number) =>
+  [
+    removed > 0
+      ? `[SHIELD ${REMOVED_MARK}: ${chars(removed)} of long text (file content, edit text) from the tool calls in your message above. Those calls already ran; the text is gone from this history, not from the files. Read a file to see what it contains now.]`
+      : "",
+    unfinished > 0
+      ? `[SHIELD ${REMOVED_MARK}: an unfinished tool call of ${chars(unfinished)} at the end of your message above. It never ran.]`
+      : "",
+  ]
+    .filter(Boolean)
+    .join("\n");
 
 /** The call's arguments without long strings, and how much was dropped */
 function dropLongStrings(value: unknown): { value: unknown; dropped: number } {
@@ -89,29 +115,47 @@ function dropLongStrings(value: unknown): { value: unknown; dropped: number } {
   return { value, dropped: 0 };
 }
 
-function compactCall(block: string): string {
-  if (block.length < KEEP_BELOW) return block;
+function compactCall(block: string): { block: string; dropped: number } {
+  if (block.length < KEEP_BELOW) return { block, dropped: 0 };
   const [call] = extractToolCalls(block);
   if (!call || call.argumentsError) {
     // Unreadable anyway; keep the frame, drop the bulk
-    return `${block.replace(
-      /<arguments>[\s\S]*?(<\/arguments>|(?=<\/tool_call>))/,
-      () => "<arguments>{}</arguments>"
-    )}\n${removedArgumentsNote(block.length)}`;
+    return {
+      block: block.replace(
+        /<arguments>[\s\S]*?(<\/arguments>|(?=<\/tool_call>))/,
+        () => "<arguments>{}</arguments>"
+      ),
+      dropped: block.length,
+    };
   }
   const { value, dropped } = dropLongStrings(call.arguments);
-  return [
-    "<tool_call>",
-    `<server>${call.serverName}</server>`,
-    `<tool>${call.tool}</tool>`,
-    `<arguments>${JSON.stringify(value)}</arguments>`,
-    "</tool_call>",
-    ...(dropped > 0 ? [removedArgumentsNote(dropped)] : []),
-  ].join("\n");
+  return {
+    block: [
+      "<tool_call>",
+      `<server>${call.serverName}</server>`,
+      `<tool>${call.tool}</tool>`,
+      `<arguments>${JSON.stringify(value)}</arguments>`,
+      "</tool_call>",
+    ].join("\n"),
+    dropped,
+  };
 }
 
-function compactAssistant(content: string): string {
-  let out = content.replace(/<tool_call>[\s\S]*?<\/tool_call>/g, compactCall);
+function compactAssistant(content: string): {
+  content: string;
+  removed: number;
+  unfinished: number;
+} {
+  let removed = 0;
+  let unfinished = 0;
+  let out = stripRemovalNotes(content).replace(
+    /<tool_call>[\s\S]*?<\/tool_call>/g,
+    (block: string) => {
+      const compacted = compactCall(block);
+      removed += compacted.dropped;
+      return compacted.block;
+    }
+  );
 
   // A call the reply was cut off in the middle of (it never ran)
   const CLOSE = "</tool_call>";
@@ -121,11 +165,10 @@ function compactAssistant(content: string): string {
     lastClose === -1 ? 0 : lastClose + CLOSE.length
   );
   if (openAfter !== -1 && out.length - openAfter > KEEP_BELOW) {
-    out =
-      out.slice(0, openAfter) +
-      `[An unfinished tool call of ${chars(out.length - openAfter)}, ${REMOVED_MARK}. It never ran.]`;
+    unfinished = out.length - openAfter;
+    out = out.slice(0, openAfter).trimEnd();
   }
-  return out;
+  return { content: out, removed, unfinished };
 }
 
 function compactResults(content: string): string {
@@ -150,17 +193,38 @@ export function compactHistory(
   const cutoff = Math.max(0, history.length - keepRecent);
   let savedChars = 0;
 
-  const compacted = history.map((entry, i) => {
-    if (i >= cutoff || entry.role === "system") return entry;
-    const content =
-      entry.role === "assistant"
-        ? compactAssistant(entry.content)
-        : compactResults(entry.content);
-    savedChars += entry.content.length - content.length;
-    return content === entry.content ? entry : { ...entry, content };
-  });
+  const compacted = history.map((entry, i) =>
+    i >= cutoff || entry.role !== "user"
+      ? entry
+      : { ...entry, content: compactResults(entry.content) }
+  );
+  for (let i = 0; i < cutoff; i++) {
+    if (history[i]!.role !== "assistant") continue;
+    const { content, removed, unfinished } = compactAssistant(
+      history[i]!.content
+    );
+    compacted[i] = { ...history[i]!, content };
+    const note = movedNote(removed, unfinished);
+    const next = compacted[i + 1];
+    if (note && next?.role === "user") {
+      compacted[i + 1] = { ...next, content: `${note}\n\n${next.content}` };
+    }
+  }
 
-  return { history: compacted, savedChars };
+  let before = 0;
+  let after = 0;
+  for (let i = 0; i < history.length; i++) {
+    before += history[i]!.content.length;
+    after += compacted[i]!.content.length;
+  }
+  savedChars = before - after;
+  // Unchanged entries stay the same objects
+  return {
+    history: compacted.map((entry, i) =>
+      entry.content === history[i]!.content ? history[i]! : entry
+    ),
+    savedChars,
+  };
 }
 
 /** Share of the window past which the next request makes room first */
