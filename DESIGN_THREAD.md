@@ -370,3 +370,33 @@ First observation from a 2-step smoke run: asked for a spending tracker, Bonsai 
 - **Context was not the limit.** The largest prompt was 19.5K of 32K, yet 11 summaries ran.
 
 **Proposed fixes, in order:** (1) keep removal notes out of the model's own turns (put them in the tool result), refuse a call only when its own arguments carry a note, and strip a note from the reply's prose; (2) check syntax after every edit to `.html`/`.js`/`.py` and report errors in the tool result; (3) on an `edit_file` miss, show the closest matching lines with line numbers; (4) before the final reply, tell the model which of its calls failed; (5) remind it to update the plan, or advance the plan from the calls that succeeded; (6) a project notes file (features built, suggestions pending) kept by SHIELD across summaries. Then run g2 the same way.
+
+### 2026-11-09 · Opus · Growing-project test, run g2 (after the note fix): first 10 steps
+
+*Measured, Bonsai 2, chat mode, same script as g1; stopped by the user after step 10 (62 minutes), to continue later.* This time the same first prompt produced a Python command-line tool (`spend.py`, 278 lines at step 1, 775 at step 10), so the comparison with g1's web page is about how it worked, not what it built.
+
+| | g1, steps 1-10 | g2, steps 1-10 |
+| --- | --- | --- |
+| Requests / copied notes | 136 / 20 | 145 / 0 |
+| Failed calls | 35 | 5 |
+| Steps that changed nothing when asked to build | 2 (7, 8) | 0 |
+| Plan calls marking steps done | 0 | 1 of 3 |
+| Largest prompt | 19.5K | 19.5K |
+
+- **The note fix held:** no copied note in 145 requests (g1's first came at request 81 and it had 20 by step 10). The 5 failures were 4 `edit_file` misses and 1 refused rewrite; each time it re-read the file and the change landed.
+- **It followed its own suggestions.** Step 3 ranked budgets, month comparison, recurring spending; "the first one" built budgets, "the second one" built `compare`. Step 8 ranked edit, a yearly view and recurring detection; steps 9-10 built `edit`, `recurring` and a `status` dashboard.
+- **The tool works when checked by hand** (a copy of step 10): add, list, summary with budget status, budget set, status, edit, export, the interactive shell, and the 3/4 date complaint answered with a clear error suggesting 3/4/2026. Two bugs it didn't catch: `recurring` divides the monthly average by the number of months again (9.99/month shown as "EST. TOTAL ~5.00/mo"), and the help's example `add 12.50 groceries weekly shop` fails (the note needs quotes).
+- **SHIELD's record raised a false alarm.** After step 4 it said "These 2 edits failed, and the file still does not have the change, whatever the reply says", but both changes (the budget warning in `cmd_add`, the `budget` command) are in the file: the model's retries succeeded. The record should not flag a failed edit that a later edit to the same file made good.
+- **Clearing still runs often** (8-12 times in the long steps, plus 1-2 summaries) with prompts never past 19.5K of 32K; each clearing has the server re-read the prompt.
+
+**To pick up:** finish g2 (steps 11-20); then the fixes from g1 still open: syntax check after each edit, closest lines on an `edit_file` miss, failed-call reminder before the final reply, the plan, project notes; plus the record's false alarm and the clearing frequency.
+
+### 2026-11-09 · Opus · Stop-on-struggle: g3, step 11 (spreadsheet export)
+
+*The harness now stops at the first sign of struggle and can resume from any saved step (`RESUME=<tag>:<step>`), so each problem is fixed where it shows up.* g3 resumed g2 after step 10 and stopped at step 11, "I want to get my stuff out into a spreadsheet": timed out at 25 minutes, 46 requests.
+
+- **Cause in the model's work:** it wrote a standard-library `.xlsx` writer, and its `append_file` put the helper below `if __name__ == "__main__": main()`, so run as a script `main()` ran before the helper existed. It then spent 11 minutes (12:16-12:28, up to 6,000 characters of thinking per request) on stale `.pyc` files, shadowing and import differences before reading the end of the file and moving the guard. It was still verifying when time ran out.
+- **Fixed in SHIELD:** after a successful `append_file` on a `.py` file whose `__main__` block sits above the new text, the result says so and says to move the block to the end.
+- **Found on the way: a long turn is never saved until it ends.** The conversation is written at the end of a turn (or on error or Stop). When the app closed 25 minutes in, the whole turn, including the user's message, was gone. **Fixed:** saved after the first tool round and then at most every 15 seconds.
+- **Found on the way: the Stop button has no name** (an icon only), so neither a screen reader nor the harness could find it. **Fixed:** `aria-label` and `title` "Stop".
+- **Not changed yet: clearing churn.** About 7 clearing passes in 46 requests; one request waited 59 s for its first token to re-read 9,261 tokens. Clearing starts at 60% of the window and goes to 40%, and one file read refills the gap. Raising the start to 70% would leave Qwen3.8's 12K window only 3.7K for a reply, so it needs a window-aware rule and its own test.

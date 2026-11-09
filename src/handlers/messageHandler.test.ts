@@ -279,7 +279,9 @@ describe("messageHandler OpenAI-style tool call roundtrip", () => {
       role: "assistant",
       content: "Created note.txt.",
     });
-    expect(saveCurrentConversation).toHaveBeenCalledOnce();
+    // Once after the first tool round, so a long turn is never all unsaved,
+    // and once at the end
+    expect(saveCurrentConversation).toHaveBeenCalledTimes(2);
   });
 
   it("returns a permission denial to the same native call and preserves the blocked result", async () => {

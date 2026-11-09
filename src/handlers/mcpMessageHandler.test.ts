@@ -461,6 +461,42 @@ describe("multi-round tool chaining", () => {
     expect(result.content).not.toContain("length limit");
   });
 
+  it("says when append_file put code below a script's __main__ block", async () => {
+    const helper = "def write_xlsx(rows):\n    return len(rows)\n";
+    const file = `def main():\n    write_xlsx([])\n\n\nif __name__ == "__main__":\n    main()\n${helper}`;
+    const addMessage = vi.fn();
+    const append = (path: string) =>
+      processMCPToolCalls(
+        {
+          id: `assistant-append-${path}`,
+          role: "assistant",
+          content: `<tool_call>\n<server>filesystem</server>\n<tool>append_file</tool>\n<arguments>${JSON.stringify({ path, content: helper })}</arguments>\n</tool_call>`,
+          timestamp: new Date(),
+        },
+        {
+          onToolCallDetected: vi
+            .fn()
+            .mockResolvedValue({ success: true, data: "Appended." }),
+          addMessage,
+          continueConversation: vi.fn().mockResolvedValue("ok"),
+          maxToolRounds: 1,
+          readFile: vi.fn().mockResolvedValue(file),
+        }
+      );
+
+    await append("/p/spend.py");
+    const noted = (addMessage.mock.calls[0]?.[0] as Message).content;
+    expect(noted).toContain("Appended.");
+    expect(noted).toContain('block at line 5 of spend.py');
+
+    // Not for other files, nor when the block comes after the new text
+    addMessage.mockClear();
+    await append("/p/notes.md");
+    expect((addMessage.mock.calls[0]?.[0] as Message).content).not.toContain(
+      "__main__"
+    );
+  });
+
   it("runs a whole call even when the reply's text copied a removal note", async () => {
     const onToolCallDetected = vi.fn().mockResolvedValue({
       success: true,

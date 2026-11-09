@@ -233,6 +233,8 @@ export const ChatInput = forwardRef<ChatInputRef, ChatInputProps>(
               <motion.button
                 whileTap={{ scale: 0.92 }}
                 onClick={onStop}
+                aria-label="Stop"
+                title="Stop"
                 className="shrink-0 rounded-md p-2 transition-colors"
               >
                 <Square className="h-5 w-5 text-destructive transition-colors" />

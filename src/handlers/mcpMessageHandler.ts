@@ -264,6 +264,48 @@ async function withEditHint(
   return result;
 }
 
+/**
+ * After append_file on a Python script: a note when the added text lands
+ * below the script's `if __name__ == "__main__":` block, where it is only
+ * defined after main() has run. Bonsai 2 appended an export helper there and
+ * spent 11 minutes on stale caches and shadowed modules before looking at
+ * the end of the file (2026-11-09)
+ */
+async function withAppendHint(
+  toolCall: ToolCallRequest,
+  result: MCPToolResult,
+  readFile?: (path: string) => Promise<string | null>
+): Promise<MCPToolResult> {
+  const { path, content } = toolCall.arguments;
+  if (
+    toolCall.tool !== "append_file" ||
+    !result.success ||
+    !readFile ||
+    typeof path !== "string" ||
+    !/\.pyw?$/i.test(path) ||
+    typeof content !== "string" ||
+    !content.trim()
+  ) {
+    return result;
+  }
+  const file = await readFile(path).catch(() => null);
+  if (!file) return result;
+  const added = file.lastIndexOf(content.trim().slice(0, 200));
+  const guard = /^if\s+__name__\s*==\s*["']__main__["']\s*:/gm;
+  let line = 0;
+  for (const match of file.matchAll(guard)) {
+    if (added >= 0 && match.index < added) {
+      line = file.slice(0, match.index).split("\n").length;
+    }
+  }
+  if (!line) return result;
+  const name = path.split(/[\\/]/).pop();
+  return {
+    ...result,
+    data: `${resultPayload(result.data)}\n\nNote: the text was added after the \`if __name__ == "__main__":\` block at line ${line} of ${name}. Run as a script, that block runs before anything below it is defined, so what you added does not exist yet when main() runs. Move the block to the end of the file.`,
+  };
+}
+
 async function runToolCall(
   toolCall: ToolCallRequest,
   onToolCallDetected: MCPMessageHandlerProps["onToolCallDetected"],
@@ -288,7 +330,11 @@ async function runToolCall(
         readFile
       );
     }
-    return await withEditHint(toolCall, result, readFile);
+    return await withAppendHint(
+      toolCall,
+      await withEditHint(toolCall, result, readFile),
+      readFile
+    );
   } catch (error) {
     console.error("[MCP] Error processing tool call:", error);
     return {

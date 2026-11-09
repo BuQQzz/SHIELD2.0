@@ -78,6 +78,8 @@ import type { ConversationKind } from "../types/conversation";
 
 /** A solo turn's tool rounds are checked for progress this often */
 const PROGRESS_CHECK_ROUNDS = 10;
+/** Least time between saves of the chat while a turn's tool rounds run */
+const MID_TURN_SAVE_MS = 15_000;
 
 const FILE_WORDS =
   /\b(?:folders?|director(?:y|ies)|dirs?|workspace|files?|paths?|projects?|repos?|repositor(?:y|ies)|codebase|readme)\b|\bin here\b/i;
@@ -424,6 +426,8 @@ export function createMessageHandler({
 
       // Check for MCP tool calls in the AI response
       if (handleToolCallRequest) {
+        // The first round saves at once: the message and first reply are kept
+        let lastSavedAt = 0;
         await processMCPToolCalls(assistantMessage, {
           onToolCallDetected: handleToolCallRequest,
           addMessage,
@@ -452,6 +456,13 @@ export function createMessageHandler({
             )
           ),
           continueConversation: async (resultPrompt: string) => {
+            // Saved as the turn goes, not only at its end: a 25-minute turn
+            // was lost whole when the app closed before it finished
+            // (2026-11-09). Not after every round: the file is the whole chat
+            if (Date.now() - lastSavedAt > MID_TURN_SAVE_MS) {
+              lastSavedAt = Date.now();
+              void saveCurrentConversation().catch(() => undefined);
+            }
             const toolPrompt = withSteer(
               resultPrompt,
               useGenerationStore.getState().takeSteer()
