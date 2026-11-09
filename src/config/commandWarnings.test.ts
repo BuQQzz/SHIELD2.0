@@ -12,6 +12,7 @@ describe("promptWarnings", () => {
     expect(promptWarnings({ command: "python3 spend.py --help" }, folder)).toEqual([]);
     expect(promptWarnings({ command: `python3 ${folder}/spend.py list` }, folder)).toEqual([]);
     expect(promptWarnings({ command: "find . -name '*.json'" }, folder)).toEqual([]);
+    expect(promptWarnings({ command: "cat data.json 2>/dev/null || echo none" }, folder)).toEqual([]);
   });
 
   it("names the paths outside the project (g4 step 14)", () => {

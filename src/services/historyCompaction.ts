@@ -171,13 +171,44 @@ function compactAssistant(content: string): {
   return { content: out, removed, unfinished };
 }
 
+/** A line that defines something in Python, JS/TS, Go, Rust or a shell */
+const DEFINITION =
+  /^\s*(?:(?:export\s+)?(?:default\s+)?(?:async\s+)?(?:def|class|function\*?|interface|type|enum|func|fn|struct|impl)\s+[\w$]+|(?:export\s+)?(?:const|let|var)\s+[\w$]+\s*=\s*(?:async\s*)?(?:\([^)]*\)|[\w$]+)\s*=>|[\w-]+\s*\(\)\s*\{)/;
+const MAX_DEFINITIONS = 60;
+
+/**
+ * The definitions a cleared read showed, so the model knows what is in the
+ * file without reading it all again. In g5 step 17 Bonsai 2 read a
+ * 1,069-line spend.py 11 times in one turn, in chunks of up to 760 lines:
+ * each time a read was cleared it read the file again "to see the full
+ * picture", about 15 of the turn's 25 minutes. Once it used grep -n and
+ * short ranges, each look took 4-8 s (2026-11-09).
+ */
+function definitionsIn(body: string): string[] {
+  const found: string[] = [];
+  for (const line of body.split("\n")) {
+    if (DEFINITION.test(line)) {
+      found.push(line.trim().replace(/\s*[{:]\s*$/, "").slice(0, 90));
+    }
+  }
+  return found.length >= 3 ? found : [];
+}
+
 function compactResults(content: string): string {
   return content.replace(
     /<result>([\s\S]*?)<\/result>/g,
-    (whole: string, body: string) =>
-      body.length < KEEP_BELOW
-        ? whole
-        : `<result>\n[SHIELD ${REMOVED_MARK}: this result, ${chars(body.length)}. It is not the file's content. Run the tool again if you need it.]\n</result>`
+    (whole: string, body: string) => {
+      if (body.length < KEEP_BELOW) return whole;
+      const note = `[SHIELD ${REMOVED_MARK}: this result, ${chars(body.length)}. It is not the file's content. Run the tool again if you need it.]`;
+      const definitions = definitionsIn(body);
+      if (definitions.length === 0) return `<result>\n${note}\n</result>`;
+      const shown = definitions.slice(0, MAX_DEFINITIONS);
+      const more =
+        definitions.length > shown.length
+          ? `\n... and ${definitions.length - shown.length} more`
+          : "";
+      return `<result>\n${note}\nIt showed these definitions (grep -n for one to find its lines, then read just that range):\n${shown.join("\n")}${more}\n</result>`;
+    }
   );
 }
 

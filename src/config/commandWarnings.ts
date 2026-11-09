@@ -88,6 +88,8 @@ function outsidePaths(
       continue;
     // flags such as -name or a glob pattern are no path
     if (word.startsWith("-") && !word.includes("=")) continue;
+    // Output thrown away or sent to the terminal reaches nothing
+    if (/^\/dev\/(null|stdout|stderr|tty)$/.test(word)) continue;
     if (leavesFolder(word, folder, posix) && !found.includes(word)) {
       found.push(word.replace(/^-[^=]*=/, ""));
     }

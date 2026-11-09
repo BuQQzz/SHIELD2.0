@@ -137,6 +137,49 @@ describe("compactHistory", () => {
   });
 });
 
+describe("cleared reads of code", () => {
+  it("keep the definitions they showed", () => {
+    const py = [
+      "import json",
+      "def load_data(path: Path) -> dict:",
+      "    return json.loads(path.read_text())",
+      "class Budget:",
+      "    def check(self, amount):",
+      "        pass",
+      "async function fetchRates() {",
+      "export const total = (items) => items.length;",
+      ...Array(200).fill("    x = 1"),
+    ].join("\n");
+    const history = [
+      { role: "user" as const, content: "build it" },
+      { role: "assistant" as const, content: "Reading." },
+      { role: "user" as const, content: readResult(py) },
+      { role: "assistant" as const, content: "Done." },
+    ];
+    const out = compactHistory(history, 1).history[2]!.content;
+    expect(out).toContain("It showed these definitions");
+    expect(out).toContain("def load_data(path: Path) -> dict\n");
+    expect(out).toContain("class Budget\n");
+    expect(out).toContain("def check(self, amount)");
+    expect(out).toContain("async function fetchRates()");
+    expect(out).toContain("export const total = (items) => items.length;");
+    expect(out).not.toContain("x = 1");
+    expect(out).not.toContain("import json");
+  });
+
+  it("say nothing extra for text that is not code", () => {
+    const history = [
+      { role: "user" as const, content: "build it" },
+      { role: "assistant" as const, content: "Reading." },
+      { role: "user" as const, content: readResult("some notes\n".repeat(100)) },
+      { role: "assistant" as const, content: "Done." },
+    ];
+    expect(compactHistory(history, 1).history[2]!.content).not.toContain(
+      "definitions"
+    );
+  });
+});
+
 describe("shouldCompact", () => {
   it("fires once the prompt would pass 60% of the window", () => {
     expect(shouldCompact(10_000, 300, 32_768)).toBe(false);
