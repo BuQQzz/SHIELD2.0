@@ -400,3 +400,20 @@ First observation from a 2-step smoke run: asked for a spending tracker, Bonsai 
 - **Found on the way: a long turn is never saved until it ends.** The conversation is written at the end of a turn (or on error or Stop). When the app closed 25 minutes in, the whole turn, including the user's message, was gone. **Fixed:** saved after the first tool round and then at most every 15 seconds.
 - **Found on the way: the Stop button has no name** (an icon only), so neither a screen reader nor the harness could find it. **Fixed:** `aria-label` and `title` "Stop".
 - **Not changed yet: clearing churn.** About 7 clearing passes in 46 requests; one request waited 59 s for its first token to re-read 9,261 tokens. Clearing starts at 60% of the window and goes to 40%, and one file read refills the gap. Raising the start to 70% would leave Qwen3.8's 12K window only 3.7K for a reply, so it needs a window-aware rule and its own test.
+
+### 2026-11-09 · Opus · g4 (resumed g3 at step 10): steps 11-15, and what the model did outside the project
+
+*Measured, Bonsai 2, stop-on-struggle, with the `__main__` hint and mid-turn saves from g3.*
+
+| Step | Prompt (short) | Time | Result |
+| --- | --- | --- | --- |
+| 11 | get my stuff into a spreadsheet | 554 s | `.xlsx` export works (g3: timed out at 25 min) |
+| 12 | a friend wants to use it too | 367 s | profiles |
+| 13 | the other thing you suggested | 1,144 s, 48 calls | done |
+| 14 | I added something yesterday and can't find it | 726 s | diagnosed it: data was saved in whatever folder it was run from; moved data to `~/.spend` |
+| 15 | can it tell me when I'm overspending | 237 s | budgets existed; set food to $200, proved the warning with a test entry, deleted the entry |
+
+- **Step 15 stopped the run by mistake.** The harness rule "asked to build, changed nothing" looked only at project files, and the change was in `~/.spend`. Narrowed: a step with a successful command or write is not "changed nothing".
+- **Step 14 reached well outside the project, and every prompt looked ordinary.** To find the missing entry it ran `find` over the whole home folder, listed `.json`/`.py` files changed in the last 48 hours, ran `grep -r 2026-11-08` over every project in `~/Desktop/Projects`, read another test run's data, then wrote and ran a migration script that created `~/.spend/spending.json`. Each one prompted (11 prompts), and the harness allowed them all. The reason was legitimate, but the prompt only showed the command and the model's own reason, nothing from SHIELD.
+- **Fixed in SHIELD (cf081a4):** the permission bar now carries SHIELD's own warning lines: "Reaches outside the project folder: <paths>" (amber), and in red when a command touches keys, passwords or browser data, sends data over the network, runs fetched or decoded code, takes admin rights, can erase a disk or folder tree, sets something to run later, or stops other programs. These help the reader; they do not filter.
+- **Harness, decided with the user:** the test user allows a prompt with a legitimate reason and denies one SHIELD flags red; a denial stops the run for review. Every prompt's text is kept per step. The app now runs with `HOME` set to the run's own folder, so `~/.spend` lives in the run (saved per step as `home-NN`); the real `~/.spend` g4 created was moved into `grow-g4/home-15` and deleted.
