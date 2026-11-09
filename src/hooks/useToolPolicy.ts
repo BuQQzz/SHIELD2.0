@@ -51,6 +51,8 @@ export interface ToolPolicy {
   isPlanning: boolean;
   /** The mode this policy was derived from */
   mode: PermissionMode;
+  /** The Code session's project folder, when there is one */
+  folder?: string;
 }
 
 export interface ToolPolicyInput {
@@ -184,6 +186,7 @@ export function resolveToolPolicy({
     decide,
     isPlanning: mode === "plan",
     mode,
+    folder,
   };
 }
 

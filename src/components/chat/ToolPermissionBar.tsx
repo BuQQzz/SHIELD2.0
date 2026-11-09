@@ -18,6 +18,7 @@ import {
   Shield,
   SquareTerminal,
   Trash2,
+  TriangleAlert,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import type { PendingToolRequest } from "@/hooks/useMCPDialogs";
@@ -271,6 +272,20 @@ export function ToolPermissionBar({
               {request.instructionsFile && request.proposed !== undefined && (
                 <ProposedText text={request.proposed} />
               )}
+              {request.warnings?.map((warning) => (
+                <p
+                  key={warning.text}
+                  data-warning={warning.level}
+                  className={`mt-0.5 flex items-center gap-1 text-xs font-medium ${
+                    warning.level === "danger"
+                      ? "text-red-600 dark:text-red-400"
+                      : "text-amber-600 dark:text-amber-400"
+                  }`}
+                >
+                  <TriangleAlert className="h-3 w-3 shrink-0" />
+                  <span className="min-w-0 break-all">{warning.text}</span>
+                </p>
+              ))}
               {request.commandReason && (
                 <p className="mt-0.5 text-xs text-muted-foreground">
                   {request.commandReason}

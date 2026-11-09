@@ -36,6 +36,10 @@ import {
   scriptsInCommand,
 } from "@/config/commandSafety";
 import type { ToolPolicy } from "@/hooks/useToolPolicy";
+import {
+  promptWarnings,
+  type PromptWarning,
+} from "@/config/commandWarnings";
 import { useConversationStore } from "@/stores/conversation-store";
 import { isRemovalNote } from "@/services/historyCompaction";
 import { isAgentsMd } from "@/config/agentsMd";
@@ -189,6 +193,8 @@ export interface PendingToolRequest {
   command?: string;
   /** For run_command: the model's one-sentence account of what it does */
   commandReason?: string;
+  /** SHIELD's own warnings: outside the project, or rarely needed */
+  warnings?: PromptWarning[];
   /** Scripts the command runs that the model wrote or edited itself */
   modelScripts?: { path: string; content?: string }[];
   /** A write or edit of AGENTS.md: asked every time, never "for session" */
@@ -549,6 +555,10 @@ export function useMCPDialogs({
                 : undefined,
           command,
           commandReason: command !== undefined ? reason : undefined,
+          warnings: (() => {
+            const found = promptWarnings(toolCall.arguments, policy.folder);
+            return found.length ? found : undefined;
+          })(),
           modelScripts: modelScripts?.length ? modelScripts : undefined,
           instructionsFile: writesInstructions || undefined,
           proposed: writesInstructions

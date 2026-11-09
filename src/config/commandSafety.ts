@@ -244,7 +244,7 @@ function shCommands(command: string): string[][] | null {
  * (and was refused in an unattended run) though it only read the project
  * (2026-11-06).
  */
-function leavesFolder(word: string, folder?: string, posix = false): boolean {
+export function leavesFolder(word: string, folder?: string, posix = false): boolean {
   // In sh only "/" separates folders: "\*" in a grep pattern is no path
   const climb = posix ? /(^|[/=])\.\.(\/|$)/ : /(^|[\\/=])\.\.([\\/]|$)/;
   const rooted = posix ? /^(?:-[^=]*=)?([/~].*)$/ : /^(?:-[^=]*=)?([\\/~].*)$/;
