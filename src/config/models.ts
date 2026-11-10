@@ -100,7 +100,7 @@ export interface ModelFile {
   caution?: string;
 }
 
-export type LibraryFamilyId = "qwen" | "gemma" | "bonsai";
+export type LibraryFamilyId = "qwen" | "gemma" | "bonsai" | "lfm";
 
 /**
  * Model metadata for catalog and UI display - one variant of a family
@@ -171,7 +171,7 @@ export interface ModelMetadata {
   /** Release date (YYYY-MM) */
   releaseDate?: string;
   /** Model family/provider */
-  provider: "Alibaba" | "Google" | "PrismML";
+  provider: "Alibaba" | "Google" | "PrismML" | "Liquid AI";
   /** Chat template format (qwen, gemma, ...) */
   chatTemplate: string;
   roles: ModelRole[];
@@ -739,6 +739,76 @@ export const MODEL_FAMILIES: ModelFamilyEntry[] = [
           minVRAM: 2,
           recommendedVRAM: 4,
           minRAM: 4,
+          recommendedRAM: 8,
+        },
+      },
+    ]),
+  },
+  {
+    id: "lfm",
+    name: "LFM",
+    provider: "Liquid AI",
+    description:
+      "Liquid's small hybrid models: fast and light, made for tool calling on small machines.",
+    variants: variants("lfm", [
+      {
+        // Added 2026-11-10 to test the user's find: a community fine-tune
+        // of LFM3 1.7B on Claude reasoning traces (9 datasets on its card,
+        // no benchmarks). Liquid says the base is not recommended for
+        // agentic coding. Needs llama.cpp b12238 or newer (architecture
+        // lfm3); the Prism build SHIELD ships for Bonsai cannot load it.
+        id: "lfm3-coder-claude-distill",
+        name: "LFM-3-Coder-Claude-Distill",
+        displayName: "LFM3 Coder Claude Distill 1.7B",
+        description:
+          "Experimental: a 1.7B community fine-tune of LFM3 on Claude reasoning traces, under test. Needs a llama.cpp newer than the bundled one.",
+        contextSize: 32768,
+        provider: "Liquid AI",
+        releaseDate: "2026-11",
+        chatTemplate: "auto",
+        roles: ["coding", "chat"],
+        runtime: "llama-server",
+        team: {
+          fit: "untested",
+          note: "Under test 2026-11-10; not run as a team.",
+        },
+        // Its trained tool format, held to each tool's schema by a grammar:
+        // in SHIELD's text form it left out run_command's reason 4 times in
+        // one review (2026-11-10)
+        nativeToolCalls: true,
+        // Liquid's card: general use, tool use, agents and coding (the GGUF
+        // carries the same in general.sampling)
+        sampling: {
+          temperature: 0.1,
+          topK: 50,
+          repeatPenalty: 1.1,
+        },
+        files: [
+          {
+            name: "LFM-3-Coder-Claude-Distill.Q8_0.gguf",
+            hfRepo: "mradermacher/LFM-3-Coder-Claude-Distill-GGUF",
+            sizeBytes: 1_846_241_056,
+            minVRAM: 0,
+            // Uncapped, its thinking repeated itself twice in the complex
+            // task, so SHIELD's guard turned thinking off for the review
+            // that needed it (2026-11-10)
+            reasoningBudget: 1024,
+          },
+        ],
+        capabilities: {
+          toolCalling: true,
+          complexReasoning: false,
+          webSearch: true,
+          structuredOutput: true,
+          longContext: true,
+          codeGeneration: true,
+          multilingual: "good",
+          temperatureRange: { min: 0.1, max: 1.0, default: 0.1 },
+        },
+        hardware: {
+          minVRAM: 4,
+          recommendedVRAM: 4,
+          minRAM: 8,
           recommendedRAM: 8,
         },
       },

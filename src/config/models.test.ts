@@ -22,11 +22,12 @@ const file = (overrides: Partial<ModelFile> = {}): ModelFile => ({
 });
 
 describe("the library", () => {
-  it("has three families: Qwen, Gemma and Bonsai", () => {
+  it("has four families: Qwen, Gemma, Bonsai and LFM (under test)", () => {
     expect(MODEL_FAMILIES.map((f) => f.id)).toEqual([
       "qwen",
       "gemma",
       "bonsai",
+      "lfm",
     ]);
   });
 

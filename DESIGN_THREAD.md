@@ -535,3 +535,11 @@ First observation from a 2-step smoke run: asked for a spending tracker, Bonsai 
 - **Build: 0 of 11.** 264 lines of tool and 275 of tests, written in about a minute, but the tool registers the `summary` subcommand twice, so argparse raises `ValueError: conflicting subparser` before any command runs; all 11 of its own tests error.
 - **Review and fix: 0 of 11, nothing changed.** It ran the tool about 20 times (four first refused for a missing `reason`), got the same traceback every time, and never edited either file. SHIELD paused it after 20 rounds with no new results. 157 s in all, 30 rounds, ~129 tok/s.
 - So on a task that needs reading an error and acting on it, the 1.7B distill does not close the loop at all; on the short tasks it never ran its code, and here running it did not help. It fits fast drafting where something else checks the result, not coding on its own.
+
+### 2026-11-10 · Opus · LFM3 1.7B with SHIELD tuned for it: complex task again
+
+*Measured. Changes for this model (library entry, local): native tool calls (its trained format, held to the schema by a grammar; checked directly on b12238), a 1,024-token thinking budget (uncapped, its thinking repeated and SHIELD turned thinking off for the review), and for every model (committed): when a command ends with the same error as an earlier one in the turn with no file edited since, the result says so and names the project line that raised it. Sampling was already Liquid's (the GGUF carries it).*
+
+- **2 of 11** (was 0), the same after build and after review. The tool now starts, but it misread the spec: no FILE argument, and `summary --json` registered as a subcommand name, so every real command fails on the file name; only the two exit-code checks pass. Its 13 tests: 12 errors.
+- **The review changed nothing in kitplan.py.** 53 rounds, 351 s, 43K tokens: failed edits to its test file, `list_directory` and `search_files` on a file path, one ambiguous edit. The same-error note fired once. No refused calls for a missing reason this time.
+- **Conclusion:** the tuning fixed the mechanics (calls well-formed, thinking kept), not the outcome. At 1.7B it cannot hold a ten-requirement spec or turn a failing run into a code fix. Next comparison worth making: the official LiquidAI/LFM3-1.7B on the same tasks, to see whether the Claude distill helped or hurt.
