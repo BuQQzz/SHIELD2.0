@@ -3,7 +3,9 @@ import {
   callSignature,
   callTarget,
   canonicalPath,
+  failureSignature,
   processMCPToolCalls,
+  tracebackPlace,
   unrunToolCallsNote,
 } from "./mcpMessageHandler";
 import type { Message } from "../hooks/useLlama";
@@ -1353,5 +1355,55 @@ describe("large results and repeats", () => {
     const repeat = continueConversation.mock.calls[1]?.[0] as string;
     expect(repeat).toContain("its result is not repeated");
     expect(repeat).not.toContain("zzzz");
+  });
+});
+
+describe("the same error again", () => {
+  // LFM3 1.7B's crash in the complex task (2026-11-10)
+  const crash = (seconds: string) =>
+    `Exit code 1 · ${seconds} s\nTraceback (most recent call last):\n  File "/p/kitplan.py", line 264, in <module>\n    main()\n  File "/p/kitplan.py", line 109, in build_parser\n    subparsers.add_parser("summary", dest="x")\n  File "/usr/lib/python3.14/argparse.py", line 1269, in add_parser\n    raise ValueError(f'conflicting subparser: {name}')\nValueError: conflicting subparser: summary`;
+
+  it("reads the failure and where the project's code raised it", () => {
+    expect(failureSignature(crash("0.1"))).toBe(failureSignature(crash("0.3")));
+    expect(failureSignature("Exit code 0 · 0.1 s\nok")).toBeNull();
+    expect(tracebackPlace(crash("0.1"))).toBe("line 109 of kitplan.py");
+  });
+
+  it("says so when a command ends with the same error and nothing was edited", async () => {
+    const call = (tool: string, args: Record<string, unknown>) =>
+      `<tool_call>\n<server>terminal</server>\n<tool>${tool}</tool>\n<arguments>${JSON.stringify(args)}</arguments>\n</tool_call>`;
+    const replies = [
+      call("run_command", { command: "python3 kitplan.py F search water", reason: "try" }),
+      call("edit_file", { path: "/p/kitplan.py", edits: [{ oldText: "a", newText: "b" }] }),
+      call("run_command", { command: "python3 kitplan.py F missing 1 3", reason: "try" }),
+      "Done.",
+    ];
+    const onToolCallDetected = vi.fn(async (c: { tool: string }) =>
+      c.tool === "run_command" ? { success: true, data: crash("0.1") } : { success: true, data: "Edited." }
+    );
+    const addMessage = vi.fn();
+    let n = 0;
+    await processMCPToolCalls(
+      {
+        id: "a-same-error",
+        role: "assistant",
+        content: call("run_command", { command: "python3 kitplan.py F summary", reason: "try" }),
+        timestamp: new Date(),
+      },
+      {
+        onToolCallDetected,
+        addMessage,
+        continueConversation: vi.fn(async () => replies[n++] ?? "Done."),
+        maxToolRounds: 6,
+      }
+    );
+    const results = addMessage.mock.calls
+      .map((c) => (c[0] as Message).content)
+      .filter((t) => t.includes("<tool_result"));
+    expect(results[0]).not.toContain("same error");
+    expect(results[1]).toContain("same error as an earlier command");
+    expect(results[1]).toContain("raised at line 109 of kitplan.py");
+    // After an edit the slate is clean
+    expect(results[3]).not.toContain("same error");
   });
 });

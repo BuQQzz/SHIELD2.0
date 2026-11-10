@@ -120,6 +120,46 @@ function repeatNote(
     : `You already made this exact call in this turn, so it was not run again. Its result is repeated below; use it instead of calling again.\n${formatted}`;
 }
 
+/**
+ * The failure a command's output ends with - its last lines, timings
+ * dropped - when it exited with an error; null when it succeeded
+ */
+export function failureSignature(output: string): string | null {
+  const exit = output.match(/^Exit code (\d+)/m);
+  if (!exit || exit[1] === "0") return null;
+  const lines = output
+    .replace(/\d+(\.\d+)? ?(ms|s)\b/g, "")
+    .split("\n")
+    .map((line) => line.trim())
+    .filter(Boolean);
+  return lines.slice(-3).join("\n") || null;
+}
+
+/** Where a Python traceback points in the project's own code, if it does */
+export function tracebackPlace(output: string): string | null {
+  const places = [...output.matchAll(/File "([^"]+)", line (\d+)/g)].filter(
+    (m) => !/[/\\](lib|site-packages|dist-packages)[/\\]|^<frozen/.test(m[1]!)
+  );
+  const last = places.at(-1);
+  if (!last) return null;
+  return `line ${last[2]} of ${last[1]!.split(/[\\/]/).pop()}`;
+}
+
+/**
+ * The note for a command that ended with the same error as an earlier one
+ * in this turn, with no file edited in between. LFM3 1.7B ran its crashing
+ * kitplan.py about 20 times in a review, each command slightly different,
+ * never editing it; SHIELD's repeat guard only knew identical calls, and a
+ * command that exits with an error is not a failed call (2026-11-10).
+ */
+export function sameErrorNote(output: string, times: number): string {
+  const last = output.trim().split("\n").filter(Boolean).at(-1) ?? "";
+  const place = tracebackPlace(output);
+  return `Note: this is the same error as ${times === 1 ? "an earlier command" : `${times} earlier commands`} in this turn ended with, and no file has been edited since, so running it again will end the same way. The error: ${last.trim().slice(0, 200)}${place ? `, raised at ${place}` : ""}. Read that part of the code and fix it before running anything else.`;
+}
+
+const FILE_EDIT_TOOLS = new Set(["write_file", "edit_file", "append_file", "move_file", "delete_file"]);
+
 const PATH_KEYS = ["path", "source", "destination"];
 
 /**
@@ -542,6 +582,8 @@ export async function processMCPToolCalls(
   // and how many new ones since the last check
   const succeeded = new Set<string>();
   let newSteps = 0;
+  // Errors commands ended with since the last file edit, and how often
+  const failures = new Map<string, number>();
 
   // Complete calls, plus a stand-in for one the reply stopped in the middle
   // of, so a reply that hits the token limit mid-call does not end the turn
@@ -658,6 +700,18 @@ export async function processMCPToolCalls(
         if (count >= MAX_REPEATS) stuckOn = toolCall;
       } else {
         result = await runToolCall(toolCall, onToolCallDetected, readFile);
+        if (FILE_EDIT_TOOLS.has(toolCall.tool) && result.success) failures.clear();
+        if (toolCall.tool === RUN_COMMAND_TOOL_NAME && result.success) {
+          const output = resultPayload(result.data);
+          const failure = failureSignature(output);
+          if (failure) {
+            const times = failures.get(failure) ?? 0;
+            failures.set(failure, times + 1);
+            if (times > 0) {
+              result = { ...result, data: `${output}\n\n${sameErrorNote(output, times)}` };
+            }
+          }
+        }
         // delegate counts as read-only, but its agent may have changed files:
         // a tester sent the same task after a fix must run again. The run
         // itself is kept, so the same task right after it is not redone.
