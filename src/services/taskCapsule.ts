@@ -74,10 +74,11 @@ export function keepCharsFor(
   return Math.max(window * MIN_KEEP_SHARE, Math.min(window * KEEP_SHARE, room));
 }
 /**
- * Three short lines. Low, so a model that drifts into its reply instead
- * (it did at 300) is cut off within seconds.
+ * Five short lines. Low, so a model that drifts into its reply instead
+ * (it did at 300) is cut off within seconds; at 180 for three lines,
+ * Bonsai 2's state line was cut mid-sentence (2026-11-10).
  */
-export const NOTE_MAX_TOKENS = 180;
+export const NOTE_MAX_TOKENS = 360;
 
 const MAX_REQUESTS = 12;
 /** An older request, in the capsule */
@@ -90,7 +91,7 @@ const MAX_REQUEST_CHARS = 300;
  */
 const MAX_LATEST_REQUEST_CHARS = 2000;
 const MAX_STEPS = 40;
-const MAX_NOTE_CHARS = 1200;
+const MAX_NOTE_CHARS = 2000;
 
 /** Shortened replies in the kept part keep at least this much */
 const MIN_REPLY_CHARS = 1500;
@@ -114,10 +115,12 @@ export function noteRequest(nextMessage: string): string {
     "Pause the task: do not answer the user and do not continue the work.",
     "SHIELD is about to remove the messages above from your context to make room. Your most recent messages stay, and SHIELD keeps a list of the user's requests and of your tool calls.",
     next,
-    "Write a note to yourself for carrying on afterwards, as three short lines:",
+    "Write a note to yourself for carrying on afterwards, as five short lines:",
     "State: where the work stands.",
     'Decisions: what you decided and why, or "none".',
     'Next: what is still to do, or "nothing".',
+    'Offered: ideas or options you suggested to the user that are not built yet, or "none". Keep the ones from your earlier note unless they are built now.',
+    'Facts: what you would otherwise have to look up again, such as where the project keeps its data, file and key names, and command names, or "none". Keep the ones from your earlier note that still hold.',
     "Plain text only. No headings, no code, no tool calls.",
   ].join("\n");
 }
@@ -241,13 +244,13 @@ function addStep(steps: CapsuleStep[], step: CapsuleStep): void {
 }
 
 /**
- * The model's note: its State / Decisions / Next lines when it wrote them,
- * else the text before it drifted into a reply (a heading or a code
- * block). No tool calls, within its size.
+ * The model's note: its State / Decisions / Next / Offered / Facts lines
+ * when it wrote them, else the text before it drifted into a reply (a
+ * heading or a code block). No tool calls, within its size.
  */
 export function cleanNote(note: string): string {
   const text = stripToolCallMarkup(note);
-  const fields = text.match(/^[\s*_-]*(State|Decisions|Next)\b[^:\n]*:.*$/gim);
+  const fields = text.match(/^[\s*_-]*(State|Decisions|Next|Offered|Facts)\b[^:\n]*:.*$/gim);
   let kept: string;
   if (fields) {
     kept = fields.map((line) => line.replace(/\*\*|__/g, "").trim()).join("\n");

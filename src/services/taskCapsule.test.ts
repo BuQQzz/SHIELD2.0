@@ -256,6 +256,24 @@ describe("cleanNote", () => {
     );
   });
 
+  it("keeps the offered ideas and project facts (growing-project, 2026-11-10)", () => {
+    const note = [
+      "State: profiles done.",
+      "Decisions: none",
+      "Next: nothing",
+      "**Offered:** an edit command, month-over-month comparison.",
+      "Facts: data in .profiles/<name>/data.json, key expenses.",
+      "Sure! Here is what I did:",
+    ].join("\n");
+    expect(cleanNote(note).split("\n")).toEqual([
+      "State: profiles done.",
+      "Decisions: none",
+      "Next: nothing",
+      "Offered: an edit command, month-over-month comparison.",
+      "Facts: data in .profiles/<name>/data.json, key expenses.",
+    ]);
+  });
+
   it("cuts a note that drifts into the reply itself", () => {
     // What Qwen3-Coder wrote when asked mid-task (2026-09-25)
     const note = [
@@ -366,6 +384,8 @@ describe("noteRequest", () => {
     );
     expect(request).toContain("You have not seen them yet");
     expect(request).toContain("State:");
+    expect(request).toContain("Offered:");
+    expect(request).toContain("Facts:");
   });
 
   it("says the user speaks next otherwise", () => {
