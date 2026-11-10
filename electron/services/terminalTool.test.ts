@@ -407,3 +407,11 @@ describe.runIf(process.platform !== "win32")(
     }
   }
 );
+
+describe("runCommandTool description", () => {
+  it("says each call starts a new shell (g13 step 20)", () => {
+    expect(runCommandTool().description).toContain(
+      "Each call starts a new shell in the project folder: a cd, export or variable from one call is gone in the next"
+    );
+  });
+});
