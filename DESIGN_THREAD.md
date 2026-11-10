@@ -543,3 +543,26 @@ First observation from a 2-step smoke run: asked for a spending tracker, Bonsai 
 - **2 of 11** (was 0), the same after build and after review. The tool now starts, but it misread the spec: no FILE argument, and `summary --json` registered as a subcommand name, so every real command fails on the file name; only the two exit-code checks pass. Its 13 tests: 12 errors.
 - **The review changed nothing in kitplan.py.** 53 rounds, 351 s, 43K tokens: failed edits to its test file, `list_directory` and `search_files` on a file path, one ambiguous edit. The same-error note fired once. No refused calls for a missing reason this time.
 - **Conclusion:** the tuning fixed the mechanics (calls well-formed, thinking kept), not the outcome. At 1.7B it cannot hold a ten-requirement spec or turn a failing run into a code fix. Next comparison worth making: the official LiquidAI/LFM3-1.7B on the same tasks, to see whether the Claude distill helped or hurt.
+
+### 2026-11-10 · Opus · LFM3 1.7B base vs the Claude distill, same SHIELD settings
+
+*Measured in the app on llama.cpp b12238 (Vulkan): Liquid's own `LFM3-1.7B-Q8_0` against `LFM-3-Coder-Claude-Distill.Q8_0`, both with native tool calls, a 1,024-token thinking budget and Liquid's sampling. Short tasks 5 minutes each (`DENY=1`), the complex task 10 minutes a prompt with commands allowed. A power cut stopped the first run after the base's complex task and its edit and write runs; the rest resumed from there. `compare.mjs` now answers Move to Trash prompts (it had stalled on one for 8 minutes).*
+
+| Task | Base | Distill (tuned) | Distill (before tuning) |
+| --- | --- | --- | --- |
+| edit | 2/2 | 2/2 | 2/2 |
+| write | 2/2 | 2/2 | 2/2 |
+| code | 0/2 | 0/2 | 1/2 |
+| fix | 1/2 | 0/2 | 0/2 |
+| mid (right one of three look-alike lists) | 2/2 | 0/2 | 0/2 |
+| dedupe | 2/2 | 1/2 | 1/2 |
+| xwater | 1/2 | 1/2 | 2/2 |
+| split | 1/1 | 1/1 | 0/1 |
+| **Short tasks** | **11 of 15** | **7 of 15** | **10 of 15** |
+| complex (11 checks) | 1 of 11 (timed out twice, 165 rounds) | 2 of 11 | 0 of 11 |
+
+- **The base is the better coder of the two.** It edits precisely where the distill does not: mid 2 of 2 against 0 of 2, dedupe 2 of 2 against 1 of 2; the distill again removed a fragment instead of the duplicate block (dedupe1, 110 lines off). The base takes more rounds (6-14 on fix and dedupe) and uses them: it reads, edits and checks. The distill answers in 1-4 rounds at 20-36 s.
+- **On the complex task it works the problem and still fails:** it ran its tool, saw 0 kits, printed the file's raw lines to find out why and rewrote both files, for 165 rounds and 107K tokens; its tests pass, but the tool prints nothing for any command. The distill wrote a tool that starts and misreads the spec.
+- **With n=2 a task, the distill's 10 to 7 is noise, not the tuning;** the base-vs-distill gap on precise edits is the consistent signal across both distill sweeps.
+- **Verdict:** neither is a coding model for SHIELD. If a small LFM3 ever takes helper jobs (notes, summaries, single edits SHIELD checks), use Liquid's base: the Claude distill made it faster to answer and worse at exact edits.
+- **Seen in passing:** while the model is thinking, the session's step summary disappears from the chat and only "Thinking" shows, so a 40-step run looks stuck; it returns when the next step starts.
