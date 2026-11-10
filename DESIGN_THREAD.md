@@ -506,3 +506,24 @@ First observation from a 2-step smoke run: asked for a spending tracker, Bonsai 
 - Proposed: a project notes file SHIELD keeps across summaries (features and command names, data layout, suggestions not yet built), offered back to the model at the start of each turn.
 
 **Other observations:** reading moved to `awk '/def x/,/def y/'` and `sed -n` spans, which the big-read outline does not cap (step 17 made 13 reads before its edits). Step 16's own fix is doubtful: it prefixed CSV dates with `'` to keep them as text, which a spreadsheet shows literally. Stale-read clearing fired live for the first time (step 7).
+
+### 2026-11-10 · Opus · LFM3 Coder Claude Distill 1.7B: first test
+
+*Measured in the app, the user's find: `mradermacher/LFM-3-Coder-Claude-Distill-GGUF` Q8_0 (1.85 GB), a community fine-tune of LiquidAI/LFM3-1.7B on 9 Claude-trace datasets (card: no benchmarks). Architecture `lfm3`: the Prism b12128 build cannot load it, so the test ran on stock llama.cpp b12238 (Vulkan, 36 MB) through SHIELD_LLAMA_SERVER. Added to the library as an experimental "LFM" family entry (local). Same short tasks as Bonsai 2's sweeps, `DENY=1`, 5 minutes each.*
+
+| Task | Result | Time |
+| --- | --- | --- |
+| edit (add a section) | 2 of 2 | 34-48 s |
+| write (new 72-hour kit file) | 2 of 2 | 24-26 s |
+| xwater (fact from one file into the right list of another) | 2 of 2 | 22-28 s |
+| code (new counting script) | 1 of 2 (one counted 1 of 3 right) | 20 s |
+| dedupe (remove the second of two identical blocks) | 1 of 2 | 20-30 s |
+| mid (add one item to the right one of three look-alike lists) | 0 of 2 | 26-32 s |
+| fix (two seeded bugs in a script) | 0 of 2 | 30-34 s |
+| split (move a function to a module, add --total) | 0 of 1 | 22 s |
+
+**10 of 15**, against Bonsai 2 27B's 100% on the same tasks; 4 s to load, ~80-110 tok/s, every run under a minute.
+- **Good at:** single-shot writing and appending, and lookups that copy a fact into a clearly named place. Fast enough to feel instant.
+- **Weak at:** anything that needs checking its own work. Code and fix tasks ended in 1 round without running the script (Bonsai 2 runs it and fixes what fails); fix1 replaced the buggy script with a new one of its own. In mid it sent the same ambiguous edit until SHIELD stopped the loop.
+- **Claims outrun the file:** mid2 grew the file by 1,431 characters and replied it "changed nothing else"; dedupe1 removed 34 characters, not the block, and replied done. That is the riskiest trait for an agent.
+- **Where it could fit:** fast helper jobs where SHIELD checks the result itself (capsule notes, summaries, first drafts), not the main coding model. Liquid's own card says the base is not for agentic coding; the distill does not change that.
