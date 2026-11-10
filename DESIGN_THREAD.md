@@ -527,3 +527,11 @@ First observation from a 2-step smoke run: asked for a spending tracker, Bonsai 
 - **Weak at:** anything that needs checking its own work. Code and fix tasks ended in 1 round without running the script (Bonsai 2 runs it and fixes what fails); fix1 replaced the buggy script with a new one of its own. In mid it sent the same ambiguous edit until SHIELD stopped the loop.
 - **Claims outrun the file:** mid2 grew the file by 1,431 characters and replied it "changed nothing else"; dedupe1 removed 34 characters, not the block, and replied done. That is the riskiest trait for an agent.
 - **Where it could fit:** fast helper jobs where SHIELD checks the result itself (capsule notes, summaries, first drafts), not the main coding model. Liquid's own card says the base is not for agentic coding; the distill does not change that.
+
+### 2026-11-10 · Opus · LFM3 1.7B on a complex coding task: build, then review and fix
+
+*Measured in the app. New compare.mjs task `complex`: build `kitplan.py` (summary with --json, search with exit 1 on no match, missing A B with a normalised comparison, exit 2 on bad input) plus unittest tests; second prompt: review, run the tests, try every command on the real file, fix what is wrong. Commands allowed, 10 minutes a prompt. Scored by `tmp/ui-check/kitcheck.py`, 11 checks against an independent reading of the spec, after each prompt.*
+
+- **Build: 0 of 11.** 264 lines of tool and 275 of tests, written in about a minute, but the tool registers the `summary` subcommand twice, so argparse raises `ValueError: conflicting subparser` before any command runs; all 11 of its own tests error.
+- **Review and fix: 0 of 11, nothing changed.** It ran the tool about 20 times (four first refused for a missing `reason`), got the same traceback every time, and never edited either file. SHIELD paused it after 20 rounds with no new results. 157 s in all, 30 rounds, ~129 tok/s.
+- So on a task that needs reading an error and acting on it, the 1.7B distill does not close the loop at all; on the short tasks it never ran its code, and here running it did not help. It fits fast drafting where something else checks the result, not coding on its own.
