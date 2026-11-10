@@ -752,32 +752,26 @@ export const MODEL_FAMILIES: ModelFamilyEntry[] = [
       "Liquid's small hybrid models: fast and light, made for tool calling on small machines.",
     variants: variants("lfm", [
       {
-        // Added 2026-11-10 to test the user's find: a community fine-tune
-        // of LFM3 1.7B on Claude reasoning traces (9 datasets on its card,
-        // no benchmarks). Liquid says the base is not recommended for
-        // agentic coding. Needs llama.cpp b12238 or newer (architecture
-        // lfm3); the Prism build SHIELD ships for Bonsai cannot load it.
-        id: "lfm3-coder-claude-distill",
-        name: "LFM-3-Coder-Claude-Distill",
-        displayName: "LFM3 Coder Claude Distill 1.7B",
+        // Liquid's own LFM3 1.7B, kept as a chat model (2026-11-10): 11 of 15
+        // short coding tasks and 1 of 11 on the complex task, so not a coding
+        // model. It beat the Claude distill of it (7 of 15), which was
+        // dropped. Needs llama.cpp b12238 or newer (architecture lfm3)
+        id: "lfm3-1.7b",
+        name: "LFM3-1.7B",
+        displayName: "LFM3 1.7B",
         description:
-          "Experimental: a 1.7B community fine-tune of LFM3 on Claude reasoning traces, under test. Needs a llama.cpp newer than the bundled one.",
+          "Liquid's small 1.7B model for quick chat: light and fast. Too weak for coding work. Needs a llama.cpp newer than the bundled one.",
         contextSize: 32768,
         provider: "Liquid AI",
         releaseDate: "2026-11",
         chatTemplate: "auto",
-        roles: ["coding", "chat"],
+        roles: ["small", "chat"],
         runtime: "llama-server",
         team: {
-          fit: "untested",
-          note: "Under test 2026-11-10; not run as a team.",
+          fit: "poor",
+          note: "Not run as a team: 1 of 11 checks on the build-then-review task (2026-11-10), too weak for multi-step tool work.",
         },
-        // Its trained tool format, held to each tool's schema by a grammar:
-        // in SHIELD's text form it left out run_command's reason 4 times in
-        // one review (2026-11-10)
         nativeToolCalls: true,
-        // Liquid's card: general use, tool use, agents and coding (the GGUF
-        // carries the same in general.sampling)
         sampling: {
           temperature: 0.1,
           topK: 50,
@@ -785,13 +779,10 @@ export const MODEL_FAMILIES: ModelFamilyEntry[] = [
         },
         files: [
           {
-            name: "LFM-3-Coder-Claude-Distill.Q8_0.gguf",
-            hfRepo: "mradermacher/LFM-3-Coder-Claude-Distill-GGUF",
-            sizeBytes: 1_846_241_056,
+            name: "LFM3-1.7B-Q8_0.gguf",
+            hfRepo: "LiquidAI/LFM3-1.7B-GGUF",
+            sizeBytes: 1_846_238_496,
             minVRAM: 0,
-            // Uncapped, its thinking repeated itself twice in the complex
-            // task, so SHIELD's guard turned thinking off for the review
-            // that needed it (2026-11-10)
             reasoningBudget: 1024,
           },
         ],
@@ -801,7 +792,7 @@ export const MODEL_FAMILIES: ModelFamilyEntry[] = [
           webSearch: true,
           structuredOutput: true,
           longContext: true,
-          codeGeneration: true,
+          codeGeneration: false,
           multilingual: "good",
           temperatureRange: { min: 0.1, max: 1.0, default: 0.1 },
         },

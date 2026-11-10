@@ -22,7 +22,7 @@ const file = (overrides: Partial<ModelFile> = {}): ModelFile => ({
 });
 
 describe("the library", () => {
-  it("has four families: Qwen, Gemma, Bonsai and LFM (under test)", () => {
+  it("has four families: Qwen, Gemma, Bonsai and LFM", () => {
     expect(MODEL_FAMILIES.map((f) => f.id)).toEqual([
       "qwen",
       "gemma",
