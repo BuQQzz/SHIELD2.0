@@ -68,6 +68,15 @@ describe("promptWarnings", () => {
       "Sets something to run later on its own"
     );
     expect(texts("pkill -f server")).toContain("Stops other programs");
+    const admin = "Takes admin rights or changes who can use files";
+    expect(texts("cd /x && sudo rm -rf build")).toContain(admin);
+    expect(texts("ls | xargs sudo rm")).toContain(admin);
+    expect(texts("echo hi;su root")).toContain(admin);
+    expect(texts("x=$(sudo cat /etc/shadow)")).toContain(admin);
+    // looked up or mentioned, not run (g22 step 11)
+    expect(texts("which apt-get sudo 2>/dev/null")).not.toContain(admin);
+    expect(texts('echo "needs sudo to install"')).not.toContain(admin);
+    expect(texts("command -v sudo")).not.toContain(admin);
   });
 
   it("flags deleting a folder tree that is not throwaway (g13 step 16)", () => {

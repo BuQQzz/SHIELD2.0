@@ -46,8 +46,9 @@ const DANGERS: Array<{ pattern: RegExp; text: string }> = [
     text: "Runs code it fetches or decodes on the fly",
   },
   {
+    // Only where it runs: `which apt-get sudo` only looks it up (g22 step 11)
     pattern:
-      /(^|[\s;&|(])(sudo|su|doas|pkexec|runas)(\s|$)|\bchmod\s+(-R\s+)?[0-7]*7[0-7]{0,2}7\b|\bchown\b|Set-ExecutionPolicy|Start-Process\b[^;]*-Verb\s+RunAs/i,
+      /(^|[\n;&|(`]|\$\(|\b(?:xargs|env|nohup|exec|time|command)\s+)\s*(sudo|su|doas|pkexec|runas)(\s|$)|\bchmod\s+(-R\s+)?[0-7]*7[0-7]{0,2}7\b|\bchown\b|Set-ExecutionPolicy|Start-Process\b[^;]*-Verb\s+RunAs/i,
     text: "Takes admin rights or changes who can use files",
   },
   {
