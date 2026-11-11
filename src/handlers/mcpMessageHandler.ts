@@ -528,9 +528,19 @@ async function withReadOutline(
       ? `\n... and ${definitions.length - MAX_OUTLINE} more`
       : "";
   const name = path.split(/[\\/]/).pop();
+  // head and tail together are not a range: the server read the whole file.
+  // In g26 step 16 Bonsai 2 sent {head: 346, tail: 80} for lines 346-425,
+  // was told it "asked for 833 of them (lines 1-833)", decided the tool
+  // ignored it and read the file twice more (2026-11-11)
+  const both = typeof head === "number" && typeof tail === "number";
+  const meant =
+    both && head >= 1 && tail >= 1 ? ` For lines ${head}-${head + tail - 1}: sed -n '${head},${head + tail - 1}p' ${path}` : "";
+  const asked = both
+    ? `You sent head ${head} and tail ${tail}. read_text_file takes one of them (head: the first N lines, tail: the last N), not a range, so it read the whole file; that fills your context and is cleared soon after, so it is shown in part.${meant}`
+    : `You asked for ${shownLines.length} of them (lines ${askedFirst}-${askedFirst + shownLines.length - 1}); a read that size fills your context and is cleared soon after, so it is shown in part.`;
   return {
     ...result,
-    data: `${name} has ${total} lines. You asked for ${shownLines.length} of them (lines ${askedFirst}-${askedFirst + shownLines.length - 1}); a read that size fills your context and is cleared soon after, so it is shown in part.
+    data: `${name} has ${total} lines. ${asked}
 
 Lines ${keptFirst}-${keptLast}:
 ${keep.join("\n")}

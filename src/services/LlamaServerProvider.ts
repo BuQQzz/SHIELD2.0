@@ -176,11 +176,16 @@ export function withRequestThinking(turns: ChatMessage[]): ChatMessage[] {
     }
   }
   if (start === turns.length) start = 0;
-  // Up to THINKING_CHARS, oldest first: ten rounds of ~1.5K tokens would
-  // take half of a 32K window. A thought once sent stays as it was, so the
-  // server's prompt cache holds; dropping the oldest instead would change
-  // the prompt near its end each round and make the server read it again.
-  const keep = new Set<number>();
+  // Up to THINKING_CHARS, kept in sets: the thoughts so far while they fit,
+  // and when the next one does not, a new set from it. Ten rounds of ~1.5K
+  // tokens would take half of a 32K window. Within a set what was sent stays
+  // as it was, so the server's prompt cache holds; dropping the oldest each
+  // round would make the server read the prompt again every round, so it
+  // happens once a set fills. Keeping the oldest only (7be91de) held the
+  // first six thoughts of g26 step 16 for its last 27 rounds, including a
+  // first reading of "the monthly view" the model had moved past; it went
+  // "back and forth" and timed out (2026-11-11)
+  let keep = new Set<number>();
   let total = 0;
   for (let i = start + 1; i < turns.length; i++) {
     const thought = turns[i]!.reasoning;
@@ -189,7 +194,11 @@ export function withRequestThinking(turns: ChatMessage[]): ChatMessage[] {
     // the error. In kt-fix2 Bonsai 2 read a misspelled file name and sent
     // the same read three more times (2026-11-11)
     if (/<error>|already failed in this turn/.test(turns[i + 1]?.content ?? "")) continue;
-    if (total + thought.length > THINKING_CHARS) break;
+    if (thought.length > THINKING_CHARS) continue;
+    if (total + thought.length > THINKING_CHARS) {
+      keep = new Set();
+      total = 0;
+    }
     total += thought.length;
     keep.add(i);
   }

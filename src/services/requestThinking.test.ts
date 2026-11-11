@@ -36,15 +36,23 @@ describe("thinking within a request (g24 step 16)", () => {
     ]);
   });
 
-  it("keeps the oldest up to the cap, so what was sent never changes", () => {
+  it("keeps sets up to the cap: a new set when the next thought does not fit (g26)", () => {
     const big = "x".repeat(THINKING_CHARS / 2 - 10);
     const turns: ChatMessage[] = [{ role: "user", content: "go" }];
-    for (let i = 0; i < 4; i++) {
+    const kept = () => (thoughts(withRequestThinking(turns)).filter(Boolean) as string[]).map((t) => t[0]);
+    for (let i = 0; i < 5; i++) {
       turns.push({ role: "assistant", content: call, reasoning: `${i}${big}` });
       turns.push({ role: "user", content: result });
     }
-    const kept = thoughts(withRequestThinking(turns)).filter(Boolean) as string[];
-    expect(kept.map((t) => t[0])).toEqual(["0", "1"]);
+    // 0 and 1 filled a set; 2 and 3 the next; 4 starts a third
+    expect(kept()).toEqual(["4"]);
+    turns.pop();
+    turns.pop();
+    expect(kept()).toEqual(["2", "3"]);
+    turns.pop();
+    turns.pop();
+    // Within a set what was sent stays the same
+    expect(kept()).toEqual(["2"]);
   });
 
   it("leaves out the thought behind a call that failed (kt-fix2)", () => {

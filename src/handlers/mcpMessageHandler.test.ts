@@ -586,6 +586,14 @@ describe("multi-round tool chaining", () => {
     expect(tail).toContain("    x = 500");
     expect(tail).not.toContain("    x = 300\n");
 
+    // head and tail together read the whole file: say so, and give the range
+    const both = await read({ path: "/p/spend.py", head: 346, tail: 80 }, file);
+    expect(both).toContain("You sent head 346 and tail 80");
+    expect(both).toContain("not a range, so it read the whole file");
+    expect(both).toContain("For lines 346-425: sed -n '346,425p' /p/spend.py");
+    expect(both).not.toContain("You asked for");
+    expect(both).toContain("Lines 1-200:");
+
     // Small reads and other files are left as they are
     const small = await read({ path: "/p/spend.py", head: 40 }, lines.slice(0, 40).join("\n"));
     expect(small).not.toContain("Outline");
