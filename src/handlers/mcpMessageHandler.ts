@@ -26,6 +26,7 @@ import { isRemovalNote } from "../services/historyCompaction";
 import { closestLines } from "../utils/closestLines";
 import { CODE_FILE, outline } from "../utils/codeOutline";
 import { buildActNowPrompt, endsByAnnouncing } from "./mcpRetryPolicy";
+import { changedCodeFile, filesRun, runReminder } from "./runReminder";
 
 export interface MCPMessageHandlerProps {
   onToolCallDetected: (toolCall: ToolCallRequest) => Promise<MCPToolResult>;
@@ -64,6 +65,11 @@ export interface MCPMessageHandlerProps {
    * one cut off at the length limit (2026-09-24).
    */
   isStopped?: () => boolean;
+  /**
+   * Before the turn ends, ask once to run code it changed and never ran
+   * (runReminder.ts). Per model: ModelMetadata.remindToRun
+   */
+  remindToRun?: boolean;
   /**
    * Reads a file as it is now, or null. When an edit_file finds no exact
    * match, the file's closest lines go into the error (closestLines.ts).
@@ -621,6 +627,7 @@ export async function processMCPToolCalls(
     maxResultChars,
     isStopped,
     readFile,
+    remindToRun = false,
   } = props;
 
   // A single request usually needs several tool calls in sequence: list a
@@ -690,6 +697,9 @@ export async function processMCPToolCalls(
 
   // Asked once per turn to make the call it announced (endsByAnnouncing)
   let toldToAct = false;
+  // Code files changed in this turn and not run since (runReminder.ts)
+  const notRun = new Set<string>();
+  let toldToRun = false;
 
   for (let round = 1; round <= maxToolRounds; round++) {
     if (isStopped?.()) {
@@ -704,6 +714,16 @@ export async function processMCPToolCalls(
         toldToAct = true;
         console.warn("[MCP] Reply announced a step with no call; asked once");
         const again = await continueConversation(buildActNowPrompt());
+        if (typeof again === "string" && again.trim() !== "") {
+          content = again;
+          round--; // No call ran: the asking takes no round
+          continue;
+        }
+      }
+      if (remindToRun && round > 1 && !toldToRun && notRun.size > 0) {
+        toldToRun = true;
+        console.warn(`[MCP] Changed code never ran (${[...notRun].join(", ")}); asked once`);
+        const again = await continueConversation(runReminder([...notRun]));
         if (typeof again === "string" && again.trim() !== "") {
           content = again;
           round--; // No call ran: the asking takes no round
@@ -766,6 +786,17 @@ export async function processMCPToolCalls(
         if (count >= MAX_REPEATS) stuckOn = toolCall;
       } else {
         result = await runToolCall(toolCall, onToolCallDetected, readFile);
+        const args = (toolCall.arguments ?? {}) as Record<string, unknown>;
+        const changedFile = changedCodeFile(toolCall.tool, args, result.success);
+        if (changedFile) notRun.add(changedFile);
+        if (
+          toolCall.tool === RUN_COMMAND_TOOL_NAME &&
+          typeof args.command === "string" &&
+          !result.blocked &&
+          !/^Not run: /.test(result.error ?? "")
+        ) {
+          for (const file of filesRun(args.command, notRun)) notRun.delete(file);
+        }
         if (FILE_EDIT_TOOLS.has(toolCall.tool) && result.success)
           failures.clear();
         if (toolCall.tool === RUN_COMMAND_TOOL_NAME && result.success) {

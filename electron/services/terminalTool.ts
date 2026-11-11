@@ -252,6 +252,16 @@ const FAILURE_PATTERNS = [
 /** A line that says it passed, even if it names an error ("✓ handles errors") */
 const PASS_LINE = /^\s*(✓|✔|√|PASS\b|ok\b)/i;
 
+/**
+ * Source code, not something that went wrong: a printed `except
+ * ValueError:` matched "error:". Bonsai 2 read spend.py with sed and was
+ * told three times in one step that its handlers looked like failures
+ * ("false positives from the heuristic", g30 step 17, 2026-11-11). A
+ * grep -n or awk line number in front is allowed.
+ */
+const CODE_LINE =
+  /^(\d+[:|\t-]\s*)?['"]?\s*(except\b|}?\s*catch\b|raise\b|throw\b|rescue\b|class\s+\w+|def\s|(async\s+)?function\b|from\s+\S+\s+import\b|import\b|if\b|elif\b|return\b|print\(|console\.\w+\(|logger?\.\w+\(|#|\/\/)/;
+
 export const MAX_FAILURE_LINES = 8;
 
 /** Lines of the output that look like failures, first ones first */
@@ -263,6 +273,7 @@ export function failureLines(output: string): string[] {
       (line) =>
         line &&
         !PASS_LINE.test(line) &&
+        !CODE_LINE.test(line) &&
         FAILURE_PATTERNS.some((pattern) => pattern.test(line))
     );
 }

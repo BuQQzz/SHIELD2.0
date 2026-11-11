@@ -601,6 +601,32 @@ describe("multi-round tool chaining", () => {
     expect(notes).not.toContain("Outline");
   });
 
+  it("asks once to run changed code before the turn ends (g28 step 17)", async () => {
+    const edit = `<tool_call>\n<server>filesystem</server>\n<tool>edit_file</tool>\n<arguments>{"path":"/p/spend.py","edits":[{"oldText":"a","newText":"b"}]}</arguments>\n</tool_call>`;
+    const run = (remindToRun: boolean, replies: string[]) => {
+      const continueConversation = vi.fn();
+      for (const reply of replies) continueConversation.mockResolvedValueOnce(reply);
+      return processMCPToolCalls(
+        { id: `assistant-remind-${remindToRun}-${replies.length}`, role: "assistant", content: edit, timestamp: new Date() },
+        {
+          onToolCallDetected: vi.fn().mockResolvedValue({ success: true, data: "ok" }),
+          addMessage: vi.fn(),
+          continueConversation,
+          maxToolRounds: 5,
+          remindToRun,
+        }
+      ).then(() => continueConversation.mock.calls.map((c) => String(c[0])));
+    };
+    const reminded = await run(true, ["Done, import added.", "I ran it: works."]);
+    expect(reminded).toHaveLength(2);
+    expect(reminded[1]).toContain("you changed spend.py");
+    // Once only, and not for a model without the switch
+    const ranCmd = `<tool_call>\n<server>terminal</server>\n<tool>run_command</tool>\n<arguments>{"command":"cd /p && python3 spend.py list"}</arguments>\n</tool_call>`;
+    const afterRun = await run(true, [ranCmd, "Works."]);
+    expect(afterRun.some((t) => t.includes("you changed"))).toBe(false);
+    expect(await run(false, ["Done."])).toHaveLength(1);
+  });
+
   it("runs a whole call even when the reply's text copied a removal note", async () => {
     const onToolCallDetected = vi.fn().mockResolvedValue({
       success: true,

@@ -192,6 +192,12 @@ export interface ModelMetadata {
    */
   presencePenalty?: number;
   /**
+   * Before a Code turn ends, ask the model once to run code it changed and
+   * never ran (handlers/runReminder.ts). Bonsai 2 27B shipped untested
+   * features (g28 step 17); a model that tests on its own leaves it off
+   */
+  remindToRun?: boolean;
+  /**
    * llama-server only: tools go to the server as native function
    * definitions, and it holds each call to its schema with a grammar
    * (llamaServer/nativeCalls.ts) instead of the model writing SHIELD's text
@@ -619,6 +625,7 @@ export const MODEL_FAMILIES: ModelFamilyEntry[] = [
         // s), medium 1,899-2,439 (46-59 s) with fuller answers (2026-10-29)
         reasoningEffort: "medium",
         nativeToolCalls: true,
+        remindToRun: true,
         // Its own value is unset; write task at 32k, native history: one of
         // two runs listed batteries by type until the 8,192-token reply
         // limit, a 20 KB file with 3 of 6 sections (2026-11-06). 1.5 is
@@ -641,8 +648,10 @@ export const MODEL_FAMILIES: ModelFamilyEntry[] = [
             // Bug-fix task, 2026-11-06: uncapped, medium thinking looped
             // twice in one run, reworded each time, so the repetition guard
             // took 60-110 s to stop it (188-279 s a run). Capped: fix 3 of 3
-            // at 66-148 s, split, code 1 of 1 each, ~70 s
-            reasoningBudget: 1536,
+            // at 66-148 s, split, code 1 of 1 each, ~70 s. g26 step 16
+            // (2026-11-11): 939 of 1,452 s in thoughts cut at 1,536, each
+            // cut followed by re-reading and re-deciding; trying 2,560
+            reasoningBudget: 2560,
           },
         ],
         capabilities: {

@@ -74,6 +74,7 @@ import type { MCPToolResult } from "@/types";
 import { parseAllThinking } from "../utils/thinkingParser";
 import { detectTruncation } from "../utils/messageTruncation";
 import { kindOf } from "../lib/sessions";
+import { getModelById } from "../config/models";
 import type { ConversationKind } from "../types/conversation";
 
 /** A solo turn's tool rounds are checked for progress this often */
@@ -443,6 +444,11 @@ export function createMessageHandler({
           workspaceFolder: settings.mcp.workspaceFolder,
           isStopped: () => useGenerationStore.getState().stopRequested,
           readFile: readProjectFile,
+          remindToRun: Boolean(
+            getModelById(
+              useConversationStore.getState().currentConversation?.modelId ?? ""
+            )?.remindToRun
+          ),
           // One result at most the gap between CLEAR_TO and COMPACT_AT (~3
           // chars per token): after making room, the next result does not
           // set it off again. At a third of the window, each web page after

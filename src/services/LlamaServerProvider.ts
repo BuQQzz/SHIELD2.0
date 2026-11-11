@@ -149,8 +149,12 @@ export const MIN_REPLY_TOKENS = 8192;
 /** What launch.ts adds to a thought cut at the budget, not the model's own */
 const BUDGET_NOTE = /\s*Thinking budget reached\. Act now on what I have worked out\.\s*$/;
 
-/** Thinking sent back within one request, at most (~4K tokens) */
-export const THINKING_CHARS = 12_000;
+/**
+ * Thinking sent back within one request, at most (~6K tokens of a 32K
+ * window): two thoughts at Bonsai 2's 2,560-token budget (~10K characters
+ * each). 12,000 held one, so every round started a new set
+ */
+export const THINKING_CHARS = 20_000;
 
 /** A reply's thinking as it is kept: without the budget note, trimmed */
 export function keptThinking(thinking: string): string {
