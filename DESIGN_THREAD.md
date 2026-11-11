@@ -566,3 +566,20 @@ First observation from a 2-step smoke run: asked for a spending tracker, Bonsai 
 - **With n=2 a task, the distill's 10 to 7 is noise, not the tuning;** the base-vs-distill gap on precise edits is the consistent signal across both distill sweeps.
 - **Verdict:** neither is a coding model for SHIELD. If a small LFM3 ever takes helper jobs (notes, summaries, single edits SHIELD checks), use Liquid's base: the Claude distill made it faster to answer and worse at exact edits.
 - **Seen in passing:** while the model is thinking, the session's step summary disappears from the chat and only "Thinking" shows, so a 40-step run looks stuck; it returns when the next step starts.
+
+### 2026-11-10 · Opus · Project memory in summaries, and delete warnings that cried wolf (g14 → g20)
+
+*Measured, Bonsai 2 27B at 32K. g14 resumed g11 at step 3 (before any summary), so every summary from step 4 on used the new code; g16-g20 resumed g14/g16 after each fix.* With the fixes, steps 4-21 all pass (step 17 is a harness nudge, so the script's step 20 is 21 here). LFM3 1.7B kept in the library as a small chat model; the Claude distill dropped (6c81c6d).
+
+**Memory of the project (the open signal from g13)**
+- **Bug (38b44df):** since removal notes head the results message (beae93f), `isToolResultTurn` missed those turns. Each summary listed tool results as the user's requests and pushed the real ones out of its 12 slots (g13 by step 12: raw command output and the latest message only), and asked for a note every time. Fixed: it looks past leading SHIELD notes.
+- **Note lines Offered and Facts (38b44df):** suggestions not built yet, and data layout, file, key and command names, each carried from the earlier note. Note budget 180 → 360.
+- **Thinking off for the note (bddb906):** with thinking on, Bonsai 2 spent the tokens thinking; g14's notes stopped mid-sentence (101 chars once) and never reached the new lines. After: every note had both, e.g. "Facts: Data at profiles/<user>/spending.json, budgets.json, subs.json … Commands: add, list, summary, delete, edit, compare…".
+- **Result:** step 13 ("the other thing you suggested earlier") built month-over-month comparison, an unbuilt item from step 3's list, and said edit was already built (g13: "my memory was trimmed", built something new). Step 20's "remind me" answer was right. Steps 14-19 did not rediscover the data layout by trial as in g13.
+
+**Red delete warnings on the model's own test files (01d185c, f25b9c9, 62cbb6d)**
+- g14 step 16 timed out: `rm -rf spending.xlsx …` and `profiles/testuser9` turned red, the test user denied them, the model reworded its test until 25 min. Now skipped: names with a file extension, test/tmp/scratch-named folders (not `test`/`tests`).
+- g16 step 21: `rm -rf profiles/chk && mkdir -p profiles/chk`, a folder that did not exist. g17-g19: `profiles/smoke`, made earlier in the same request. Names alone never end (chk, smoke, smk, tst), so before the prompt SHIELD asks the file server (`get_file_info`) about each folder: missing, or created after the user's latest message, is left out; one it cannot see keeps the warning. Two bugs on the way, found only in the app: a tool error comes back as success with `isError` (g18), and tool results are stored as user messages, so "latest message" was a tool result (g19).
+- g20 step 21: 18 prompts, 0 red, 0 failed calls; the model tested every command on a throwaway profile and removed it. g13's `rm -rf .profiles` (a folder from step 12) would still be red.
+
+**Open:** a full run from scratch on this build (planned for the morning); the model left `profiles/tst` behind in g14 (leftover files, item 3 of the open list); the step summary hiding while the model thinks.
