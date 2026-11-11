@@ -207,7 +207,7 @@ export function ToolPermissionBar({
           className="mx-auto mb-2 w-full max-w-3xl px-4"
         >
           <div
-            className={`flex gap-3 rounded-lg border border-border bg-muted/60 px-3 py-2 text-sm backdrop-blur ${
+            className={`flex gap-3 rounded-xl bg-background px-3 py-2 text-sm shadow-card backdrop-blur ${
               request.command !== undefined || request.instructionsFile
                 ? "items-start"
                 : "items-center"

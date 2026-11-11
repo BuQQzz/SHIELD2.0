@@ -144,7 +144,7 @@ export function RuntimeSettings() {
               setRelease(null);
             }}
             disabled={busy}
-            className="h-8 rounded-md border bg-background px-2 text-xs"
+            className="h-8 rounded-lg bg-soft px-2 text-xs"
           >
             {variants.map((v) => (
               <option key={v} value={v}>

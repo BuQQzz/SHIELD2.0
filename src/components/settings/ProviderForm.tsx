@@ -79,7 +79,7 @@ export function ProviderForm({
   };
 
   return (
-    <div className="space-y-3 rounded-lg border p-3">
+    <div className="space-y-3 rounded-xl bg-soft p-3">
       {!initial && (
         <div className="flex gap-2">
           {PROVIDER_PRESETS.map((p) => (

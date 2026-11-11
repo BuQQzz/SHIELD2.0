@@ -33,7 +33,7 @@ export function KeyboardShortcut({ keys, description }: KeyboardShortcutProps) {
         {keys.map((key, index) => (
           <kbd
             key={index}
-            className="px-2 py-1 text-xs font-semibold text-foreground bg-muted border border-border rounded"
+            className="px-2 py-1 text-xs font-semibold text-foreground bg-background shadow-raise rounded-md"
           >
             {key}
           </kbd>

@@ -210,7 +210,7 @@ export function ContextRing() {
           </div>
         )}
 
-        <div className="mt-3 space-y-1 border-t pt-2 text-xs text-muted-foreground">
+        <div className="mt-3 space-y-1 pt-1 text-xs text-muted-foreground">
           {breakdown && breakdown.trainContextSize > size && (
             <p>
               Loaded at {formatTokens(size)} · model supports{" "}

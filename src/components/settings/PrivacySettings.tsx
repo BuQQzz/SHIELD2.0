@@ -75,7 +75,7 @@ export function PrivacySettings({ settings: _settings }: PrivacySettingsProps) {
         </div>
       </div>
 
-      <div className="space-y-3 pt-4 border-t">
+      <div className="space-y-3 pt-5">
         <h3 className="text-sm font-medium">Settings Management</h3>
 
         <div className="flex flex-col gap-2">

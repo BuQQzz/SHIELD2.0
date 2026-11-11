@@ -164,6 +164,15 @@ section {
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-ring: var(--sidebar-ring);
   --color-signal: var(--signal);
+  /* Surfaces: the page behind, the panel on it, soft fills inside */
+  --color-page: var(--page);
+  --color-panel: var(--panel);
+  --color-soft: var(--soft);
+  /* Depth instead of lines: raised items, the main panel, cards, menus */
+  --shadow-raise: var(--elev-raise);
+  --shadow-panel: var(--elev-panel);
+  --shadow-card: var(--elev-card);
+  --shadow-pop: var(--elev-pop);
   --color-signal-soft: var(--signal-soft);
   /* Numbers and specs: sizes, VRAM, speeds. Ships with Windows 11. */
   --font-instrument:
@@ -189,7 +198,7 @@ section {
   --destructive: oklch(0.577 0.245 27.325);
   --border: oklch(0.922 0 0);
   --input: oklch(0.922 0 0);
-  --ring: oklch(0.708 0 0);
+  --ring: oklch(0.55 0.17 250);
   --chart-1: oklch(0.646 0.222 41.116);
   --chart-2: oklch(0.6 0.118 184.704);
   --chart-3: oklch(0.398 0.07 227.392);
@@ -206,14 +215,22 @@ section {
   /* SHIELD's accent - the logo's blue */
   --signal: oklch(0.55 0.17 250);
   --signal-soft: oklch(0.55 0.17 250 / 12%);
+  /* White, greys and black, with a hint of the blue in the greys */
+  --page: oklch(0.962 0.003 250);
+  --panel: oklch(1 0 0);
+  --soft: oklch(0.955 0.003 250);
+  --elev-raise: 0 1px 2px oklch(0 0 0 / 6%), 0 1px 1px oklch(0 0 0 / 4%);
+  --elev-panel: 0 1px 2px oklch(0 0 0 / 5%), 0 10px 30px oklch(0 0 0 / 7%);
+  --elev-card: 0 1px 2px oklch(0 0 0 / 6%), 0 6px 18px oklch(0 0 0 / 7%);
+  --elev-pop: 0 2px 6px oklch(0 0 0 / 8%), 0 12px 32px oklch(0 0 0 / 12%);
 }
 
 .dark {
-  --background: oklch(0.145 0 0);
+  --background: oklch(0.185 0.004 250);
   --foreground: oklch(0.985 0 0);
-  --card: oklch(0.205 0 0);
+  --card: oklch(0.215 0.004 250);
   --card-foreground: oklch(0.985 0 0);
-  --popover: oklch(0.205 0 0);
+  --popover: oklch(0.215 0.004 250);
   --popover-foreground: oklch(0.985 0 0);
   --primary: oklch(0.922 0 0);
   --primary-foreground: oklch(0.205 0 0);
@@ -226,7 +243,7 @@ section {
   --destructive: oklch(0.704 0.191 22.216);
   --border: oklch(1 0 0 / 10%);
   --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.556 0 0);
+  --ring: oklch(0.72 0.15 245);
   --chart-1: oklch(0.488 0.243 264.376);
   --chart-2: oklch(0.696 0.17 162.48);
   --chart-3: oklch(0.769 0.188 70.08);
@@ -242,6 +259,14 @@ section {
   --sidebar-ring: oklch(0.556 0 0);
   --signal: oklch(0.72 0.15 245);
   --signal-soft: oklch(0.72 0.15 245 / 14%);
+  /* A near-black page, lighter panels on it; a faint edge keeps the depth */
+  --page: oklch(0.135 0.004 250);
+  --panel: oklch(0.185 0.004 250);
+  --soft: oklch(0.235 0.005 250);
+  --elev-raise: 0 1px 2px oklch(0 0 0 / 40%), inset 0 0 0 1px oklch(1 0 0 / 5%);
+  --elev-panel: 0 1px 2px oklch(0 0 0 / 50%), 0 12px 32px oklch(0 0 0 / 45%), inset 0 0 0 1px oklch(1 0 0 / 5%);
+  --elev-card: 0 1px 2px oklch(0 0 0 / 50%), 0 8px 22px oklch(0 0 0 / 40%), inset 0 0 0 1px oklch(1 0 0 / 6%);
+  --elev-pop: 0 2px 8px oklch(0 0 0 / 50%), 0 16px 40px oklch(0 0 0 / 50%), inset 0 0 0 1px oklch(1 0 0 / 7%);
 }
 
 @layer base {

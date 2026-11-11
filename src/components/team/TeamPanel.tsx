@@ -87,7 +87,7 @@ export function TeamPanel({ conversationId, teamMode }: TeamPanelProps) {
     return (
       <aside
         aria-label="Team"
-        className="flex h-full w-12 shrink-0 flex-col items-center gap-2 border-l py-2"
+        className="flex h-full w-12 shrink-0 flex-col items-center gap-2 bg-soft/60 py-2"
       >
         <button
           type="button"
@@ -119,9 +119,9 @@ export function TeamPanel({ conversationId, teamMode }: TeamPanelProps) {
   return (
     <aside
       aria-label="Team"
-      className="flex h-full w-80 max-w-[45%] shrink-0 flex-col border-l"
+      className="flex h-full w-80 max-w-[45%] shrink-0 flex-col bg-soft/60"
     >
-      <div className="flex items-center gap-1 border-b px-3 py-2">
+      <div className="flex items-center gap-1 px-3 py-2">
         <span className="text-sm font-medium">Team</span>
         <span className="text-xs text-muted-foreground">
           {runs.length === 0
@@ -163,7 +163,7 @@ export function TeamPanel({ conversationId, teamMode }: TeamPanelProps) {
           <div
             className={cn(
               "space-y-0.5 overflow-y-auto p-1.5",
-              open ? "max-h-40 shrink-0 border-b" : "flex-1"
+              open ? "max-h-40 shrink-0" : "flex-1"
             )}
           >
             {runs.map((run) => (

@@ -98,7 +98,7 @@ function StepRow({ step, remark, onChange }: StepRowProps) {
                 setEditing(false);
               }
             }}
-            className="w-full rounded border border-border bg-background px-1 text-xs text-foreground outline-none"
+            className="w-full rounded-md bg-background shadow-raise px-1 text-xs text-foreground outline-none"
           />
         ) : (
           <button
@@ -174,7 +174,7 @@ export function PlanPanel({ plan, onChange }: PlanPanelProps) {
 
   return (
     <div className="mx-auto w-full max-w-3xl px-5">
-      <div className="rounded-md border border-border bg-muted/30 text-xs">
+      <div className="rounded-xl bg-soft text-xs">
         <button
           onClick={toggle}
           className="flex w-full items-center gap-2 px-2.5 py-1.5 text-left"
@@ -202,7 +202,7 @@ export function PlanPanel({ plan, onChange }: PlanPanelProps) {
           )}
         </button>
         {open && (
-          <div className="border-t border-border px-2.5 py-1.5">
+          <div className="px-2.5 pb-1.5 pt-0.5">
             <ol className="max-h-48 overflow-y-auto">
               {plan.steps.map((step, i) => (
                 <StepRow

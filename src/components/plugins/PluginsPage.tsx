@@ -34,9 +34,9 @@ export function PluginsPage({ currentModel }: PluginsPageProps) {
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.3, delay: 0.06 }}
-          className="mt-8 overflow-hidden rounded-xl border border-border/60 bg-card/30"
+          className="mt-8 overflow-hidden rounded-2xl bg-background shadow-card"
         >
-          <div className="flex items-center gap-3 border-b border-border/60 px-5 py-4">
+          <div className="flex items-center gap-3 px-5 py-4">
             <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-signal-soft">
               <FolderTree className="h-4 w-4 text-signal" />
             </div>

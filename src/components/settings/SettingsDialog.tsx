@@ -58,18 +58,18 @@ export function SettingsDialog({
                 currentModel={currentModel}
               />
             </div>
-            <div className="space-y-3 pt-3 border-t">
+            <div className="space-y-3 pt-5">
               <h3 className="text-sm font-semibold">Runtime</h3>
               <RuntimeSettings />
             </div>
-            <div className="space-y-3 pt-3 border-t">
-              <h3 className="text-sm font-semibold">System Prompt</h3>
+            <div className="space-y-3 pt-5">
+              <h3 className="text-sm font-semibold">System prompt</h3>
               <SystemSettings
                 settings={settings.system}
                 onApplySystemPrompt={onApplySystemPrompt}
               />
             </div>
-            <div className="space-y-3 pt-3 border-t">
+            <div className="space-y-3 pt-5">
               <h3 className="text-sm font-semibold">Features</h3>
               <div className="space-y-3">
                 <WebSearchSettings settings={settings.webSearch} />
@@ -81,11 +81,11 @@ export function SettingsDialog({
                 </div>
               </div>
             </div>
-            <div className="space-y-3 pt-3 border-t">
+            <div className="space-y-3 pt-5">
               <h3 className="text-sm font-semibold">Providers</h3>
               <ProvidersSettings />
             </div>
-            <div className="space-y-3 pt-3 border-t">
+            <div className="space-y-3 pt-5">
               <h3 className="text-sm font-semibold">Privacy</h3>
               <PrivacySettings settings={settings.privacy} />
             </div>

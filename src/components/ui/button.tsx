@@ -21,7 +21,7 @@ const Button = ({
             variant === "default",
           "bg-destructive text-destructive-foreground hover:bg-destructive/90":
             variant === "destructive",
-          "border border-input bg-background hover:bg-accent hover:text-accent-foreground":
+          "bg-background shadow-raise hover:bg-soft hover:text-accent-foreground":
             variant === "outline",
           "bg-secondary text-secondary-foreground hover:bg-secondary/80":
             variant === "secondary",

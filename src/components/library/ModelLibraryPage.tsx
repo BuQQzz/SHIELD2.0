@@ -51,10 +51,10 @@ function Stat({
   value: string;
 }) {
   return (
-    <div className="flex items-center gap-2.5 rounded-lg border border-border/60 bg-card/40 px-3 py-2">
+    <div className="flex items-center gap-2.5 rounded-xl bg-soft px-3 py-2">
       <Icon className="h-4 w-4 text-muted-foreground" />
       <div className="leading-tight">
-        <div className="text-[10px] uppercase tracking-[0.12em] text-muted-foreground/80">
+        <div className="text-[11px] text-muted-foreground">
           {label}
         </div>
         <div className="font-instrument text-sm">{value}</div>
@@ -143,7 +143,7 @@ export function ModelLibraryPage({
           transition={{ duration: 0.25 }}
         >
           <h1 className="text-2xl font-semibold tracking-tight">
-            Model Library
+            Model library
           </h1>
           <p className="mt-1 text-sm text-muted-foreground">
             A few current models, matched to this PC. Everything runs locally.
@@ -164,7 +164,7 @@ export function ModelLibraryPage({
           </div>
 
           {/* Filters */}
-          <div className="mt-8 flex flex-wrap gap-1 border-b border-border/60 pb-px">
+          <div className="mt-8 flex flex-wrap gap-1">
             {FILTERS.map(({ key, label }) => (
               <button
                 key={key}
@@ -198,7 +198,7 @@ export function ModelLibraryPage({
               transition={{ duration: 0.3, delay: 0.05 + index * 0.06 }}
             >
               <div className="mb-3 flex items-baseline gap-3">
-                <h2 className="text-sm font-semibold uppercase tracking-[0.14em]">
+                <h2 className="text-sm font-semibold">
                   {family.name}
                 </h2>
                 <span className="text-xs text-muted-foreground">
@@ -208,7 +208,7 @@ export function ModelLibraryPage({
                   — {family.description}
                 </span>
               </div>
-              <div className="divide-y divide-border/60 overflow-hidden rounded-xl border border-border/60 bg-card/30">
+              <div className="divide-y divide-foreground/[0.06] overflow-hidden rounded-2xl bg-background shadow-card">
                 {variants.map((model) => (
                   <LibraryModelRow
                     key={model.id}

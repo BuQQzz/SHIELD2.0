@@ -52,7 +52,7 @@ export function ProvidersSettings() {
         return (
           <div
             key={provider.id}
-            className="flex items-start justify-between gap-3 rounded-lg border p-3"
+            className="flex items-start justify-between gap-3 rounded-xl bg-soft p-3"
           >
             <div className="min-w-0 space-y-0.5">
               <p className="truncate text-sm font-medium">{provider.name}</p>

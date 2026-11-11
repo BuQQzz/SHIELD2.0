@@ -73,7 +73,7 @@ export function HelpSettings() {
       </section>
 
       {/* Version */}
-      <section className="pt-4 border-t">
+      <section className="pt-5">
         <div className="text-center text-sm text-muted-foreground">
           <p className="font-medium">SHIELD</p>
           <p>Version 0.1.0 (Experimental)</p>

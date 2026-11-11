@@ -107,10 +107,10 @@ export function StuckBar({ isGenerating }: StuckBarProps) {
           data-testid="stuck-bar"
         >
           <div
-            className={`flex items-center gap-3 rounded-lg border px-3 text-sm backdrop-blur ${
+            className={`flex items-center gap-3 rounded-xl px-3 text-sm backdrop-blur ${
               state === "timer"
-                ? "border-transparent py-0.5 text-xs text-muted-foreground"
-                : "border-border bg-muted/60 py-2"
+                ? "py-0.5 text-xs text-muted-foreground"
+                : "bg-background py-2 shadow-card"
             }`}
           >
             {state === "timer" ? (

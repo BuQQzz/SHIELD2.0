@@ -96,7 +96,7 @@ export function WebSearchSettings({ settings }: WebSearchSettingsProps) {
           </div>
 
           {/* Cache Settings */}
-          <div className="space-y-4 pt-4 border-t">
+          <div className="space-y-4 pt-5">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <Database className="h-4 w-4 text-muted-foreground" />

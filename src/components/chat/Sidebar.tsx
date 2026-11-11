@@ -8,9 +8,9 @@ import {
   MessageSquare,
   PanelLeftClose,
   PanelLeftOpen,
-  Plus,
   Search,
   Settings,
+  SquarePen,
   X,
   type LucideIcon,
 } from "lucide-react";
@@ -44,17 +44,9 @@ interface NavItem {
 const NAV: NavItem[] = [
   { view: "chat", label: "Chat", icon: MessageSquare },
   { view: "code", label: "Code", icon: Code2 },
-  { view: "library", label: "Model Library", icon: Library },
+  { view: "library", label: "Model library", icon: Library },
   { view: "plugins", label: "Plugins", icon: Blocks },
 ];
-
-function SectionLabel({ children }: { children: React.ReactNode }) {
-  return (
-    <h2 className="px-2 pb-1.5 text-[10px] font-medium uppercase tracking-[0.14em] text-muted-foreground/70">
-      {children}
-    </h2>
-  );
-}
 
 export function Sidebar({ onNewChat, onOpenSettings }: SidebarProps) {
   const {
@@ -161,7 +153,7 @@ export function Sidebar({ onNewChat, onOpenSettings }: SidebarProps) {
   if (!sidebarOpen) return null;
 
   return (
-    <div className="flex h-full flex-col border-r border-border/60 bg-sidebar/40">
+    <div className="flex h-full flex-col">
       {/* ── Top half: brand, actions, navigation ── */}
       {/* Natural height, capped so the chat list always keeps room, and
           scrolling only below that */}
@@ -181,13 +173,13 @@ export function Sidebar({ onNewChat, onOpenSettings }: SidebarProps) {
             <img
               src="./shield-logo.png"
               alt="SHIELD"
-              className="h-9 w-auto object-contain"
+              className="h-9 w-auto object-contain dark:brightness-0 dark:invert"
             />
           )}
           <button
             onClick={toggleSidebarCollapse}
             title={collapsed ? "Expand sidebar" : "Collapse sidebar"}
-            className="rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+            className="rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-foreground/5 hover:text-foreground"
           >
             {collapsed ? (
               <PanelLeftOpen className="h-4 w-4" />
@@ -197,24 +189,23 @@ export function Sidebar({ onNewChat, onOpenSettings }: SidebarProps) {
           </button>
         </div>
 
-        {/* New chat */}
-        <div className={cn("flex gap-1.5 pb-4", collapsed ? "px-3" : "px-3")}>
+        {/* New chat: a row like the others, not a heavy button */}
+        <div className="px-3 pb-1">
           <button
             onClick={handleNewChat}
             title={code ? "New code session in a project folder" : "New chat"}
             className={cn(
-              "flex h-9 flex-1 items-center justify-center gap-2 rounded-lg bg-primary text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90",
-              collapsed && "px-0"
+              "flex h-9 w-full items-center gap-3 rounded-lg text-sm text-foreground transition-colors duration-150 hover:bg-foreground/5",
+              collapsed ? "justify-center" : "px-2.5"
             )}
           >
-            <Plus className="h-4 w-4" />
+            <SquarePen className="h-4 w-4 shrink-0" />
             {!collapsed && (code ? "New session" : "New chat")}
           </button>
         </div>
 
         {/* Navigation */}
-        <nav className="px-3 pb-4">
-          {!collapsed && <SectionLabel>Workspace</SectionLabel>}
+        <nav className="px-3 pb-3">
           <ul className="space-y-0.5">
             {NAV.map(({ view, label, icon: Icon, soon }) => {
               const active = activeView === view;
@@ -229,7 +220,7 @@ export function Sidebar({ onNewChat, onOpenSettings }: SidebarProps) {
                       collapsed ? "justify-center" : "px-2.5",
                       active
                         ? "text-foreground"
-                        : "text-muted-foreground hover:bg-accent/50 hover:text-foreground",
+                        : "text-muted-foreground hover:bg-foreground/5 hover:text-foreground",
                       soon &&
                         "cursor-default opacity-50 hover:bg-transparent hover:text-muted-foreground"
                     )}
@@ -237,7 +228,7 @@ export function Sidebar({ onNewChat, onOpenSettings }: SidebarProps) {
                     {active && (
                       <motion.span
                         layoutId="sidebar-nav-active"
-                        className="absolute inset-0 rounded-lg bg-accent"
+                        className="absolute inset-0 rounded-lg bg-panel shadow-raise"
                         transition={{
                           type: "spring",
                           stiffness: 500,
@@ -273,7 +264,7 @@ export function Sidebar({ onNewChat, onOpenSettings }: SidebarProps) {
 
       {/* ── Bottom half: chats ── */}
       {!collapsed ? (
-        <div className="flex min-h-[6rem] flex-1 flex-col border-t border-border/60">
+        <div className="flex min-h-[6rem] flex-1 flex-col">
           <div className="flex h-10 shrink-0 items-center gap-1 pl-5 pr-3">
             {searchOpen ? (
               <div className="relative flex-1">
@@ -285,15 +276,15 @@ export function Sidebar({ onNewChat, onOpenSettings }: SidebarProps) {
                   value={searchInput}
                   onChange={(e) => handleSearch(e.target.value)}
                   onKeyDown={(e) => e.key === "Escape" && closeSearch()}
-                  className="h-7 w-full rounded-md bg-accent/60 pl-7 pr-2 text-[13px] outline-none placeholder:text-muted-foreground focus-visible:ring-1 focus-visible:ring-signal/60"
+                  className="h-7 w-full rounded-md bg-foreground/5 pl-7 pr-2 text-[13px] outline-none placeholder:text-muted-foreground focus-visible:ring-1 focus-visible:ring-signal/60"
                 />
               </div>
             ) : (
-              <span className="flex-1 text-[10px] font-medium uppercase tracking-[0.14em] text-muted-foreground/70">
+              <span
+                className="flex-1 text-xs text-muted-foreground"
+                title={`${sessions.length}`}
+              >
                 {code ? "Sessions" : "Chats"}
-                <span className="ml-1.5 font-instrument normal-case tracking-normal text-muted-foreground/50">
-                  {sessions.length}
-                </span>
               </span>
             )}
             {!searchOpen && (
@@ -304,7 +295,7 @@ export function Sidebar({ onNewChat, onOpenSettings }: SidebarProps) {
                     ? "New project: pick its folder"
                     : "New project for chats"
                 }
-                className="rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+                className="rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-foreground/5 hover:text-foreground"
               >
                 <FolderPlus className="h-3.5 w-3.5" />
               </button>
@@ -318,7 +309,7 @@ export function Sidebar({ onNewChat, onOpenSettings }: SidebarProps) {
                     ? "Search sessions"
                     : "Search chats"
               }
-              className="rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+              className="rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-foreground/5 hover:text-foreground"
             >
               {searchOpen ? (
                 <X className="h-3.5 w-3.5" />
@@ -340,7 +331,7 @@ export function Sidebar({ onNewChat, onOpenSettings }: SidebarProps) {
                     void finishNaming(e.currentTarget.value);
                   if (e.key === "Escape") setNaming(false);
                 }}
-                className="mb-1 h-8 w-full rounded-md bg-accent/60 px-2 text-[13px] outline-none placeholder:text-muted-foreground focus-visible:ring-1 focus-visible:ring-signal/60"
+                className="mb-1 h-8 w-full rounded-md bg-foreground/5 px-2 text-[13px] outline-none placeholder:text-muted-foreground focus-visible:ring-1 focus-visible:ring-signal/60"
               />
             )}
             {searching || projects.length === 0 ? (
@@ -369,7 +360,7 @@ export function Sidebar({ onNewChat, onOpenSettings }: SidebarProps) {
                     void deleteProject(id).then(() => loadConversationList())
                   }
                 />
-                <h3 className="px-2 pb-1 pt-2 text-[10px] font-medium uppercase tracking-[0.12em] text-muted-foreground/70">
+                <h3 className="px-2 pb-1 pt-3 text-xs text-muted-foreground">
                   Not in a project
                 </h3>
                 <ConversationList
@@ -386,10 +377,10 @@ export function Sidebar({ onNewChat, onOpenSettings }: SidebarProps) {
           </div>
 
           {onOpenSettings && (
-            <div className="shrink-0 border-t border-border/60 p-2">
+            <div className="shrink-0 px-3 pb-3 pt-1">
               <button
                 onClick={onOpenSettings}
-                className="flex h-9 w-full items-center gap-3 rounded-lg px-3 text-sm text-muted-foreground transition-colors hover:bg-accent/50 hover:text-foreground"
+                className="flex h-9 w-full items-center gap-3 rounded-lg px-2.5 text-sm text-muted-foreground transition-colors duration-150 hover:bg-foreground/5 hover:text-foreground"
               >
                 <Settings className="h-4 w-4" />
                 Settings
@@ -403,7 +394,7 @@ export function Sidebar({ onNewChat, onOpenSettings }: SidebarProps) {
             <button
               onClick={onOpenSettings}
               title="Settings"
-              className="rounded-lg p-2.5 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+              className="rounded-lg p-2.5 text-muted-foreground transition-colors hover:bg-foreground/5 hover:text-foreground"
             >
               <Settings className="h-4 w-4" />
             </button>

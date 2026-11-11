@@ -11,7 +11,7 @@
 
 import { memo, useState, type ReactNode } from "react";
 import { motion } from "framer-motion";
-import { Bot, Check, Copy, RefreshCw, User, Zap } from "lucide-react";
+import { Check, Copy, RefreshCw, User } from "lucide-react";
 import { formatTokens } from "@/lib/format";
 import { ServedBadge } from "./ServedBadge";
 import { stripToolCallMarkup } from "@/handlers/mcpToolHandler";
@@ -177,45 +177,16 @@ export const AssistantTurn = memo(function AssistantTurn({
     }
   };
 
+  // No avatar or name: the reply reads as plain text under your message,
+  // with copy, retry and its speed below it
   return (
     <motion.div
-      initial={{ opacity: 0, y: 12 }}
+      initial={{ opacity: 0, y: 8 }}
       animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.25, ease: "easeOut" }}
-      className="group flex gap-2 rounded-lg p-3"
+      transition={{ duration: 0.2, ease: "easeOut" }}
+      className="group"
     >
-      <div className="flex h-7 w-7 shrink-0 select-none items-center justify-center rounded-md bg-muted text-muted-foreground">
-        <Bot className="h-3.5 w-3.5" />
-      </div>
-      <div className="flex-1 space-y-2 overflow-hidden">
-        <div className="flex items-center justify-between">
-          <p className="text-sm font-medium">SHIELD Assistant</p>
-          {!isLive && (
-            <div className="flex gap-1">
-              {onRegenerate && (
-                <button
-                  onClick={onRegenerate}
-                  className="rounded-md p-1.5 opacity-0 transition-opacity hover:bg-muted group-hover:opacity-100"
-                  aria-label="Regenerate response"
-                >
-                  <RefreshCw className="h-4 w-4 text-muted-foreground" />
-                </button>
-              )}
-              <button
-                onClick={handleCopy}
-                className="rounded-md p-1.5 opacity-0 transition-opacity hover:bg-muted group-hover:opacity-100"
-                aria-label="Copy reply"
-              >
-                {copied ? (
-                  <Check className="h-4 w-4 text-green-500" />
-                ) : (
-                  <Copy className="h-4 w-4 text-muted-foreground" />
-                )}
-              </button>
-            </div>
-          )}
-        </div>
-
+      <div className="space-y-2 overflow-hidden">
         {parts.map((part, i) => (
           <Part
             key={partKey(part)}
@@ -240,18 +211,39 @@ export const AssistantTurn = memo(function AssistantTurn({
         )}
         {children}
 
-        {stats && (
-          <div
-            className="flex items-center justify-end gap-1 text-[11px] text-muted-foreground/60"
-            title={`${stats.outputTokens} tokens in ${(stats.durationMs / 1000).toFixed(1)}s across this reply, ${stats.tokensPerSecond.toFixed(1)} tokens per second`}
-          >
-            {stats.servedBy && <ServedBadge servedBy={stats.servedBy} />}
-            <Zap className="h-3 w-3" />
-            <span>
-              {stats.tokensPerSecond.toFixed(1)} tok/s ·{" "}
-              {formatTokens(stats.outputTokens)} tok ·{" "}
-              {(stats.durationMs / 1000).toFixed(1)}s
-            </span>
+        {!isLive && (
+          <div className="flex items-center gap-0.5 pt-0.5 text-[11px] text-muted-foreground/70">
+            <button
+              onClick={handleCopy}
+              className="rounded-md p-1.5 opacity-0 transition-opacity duration-150 hover:bg-foreground/5 focus-visible:opacity-100 group-hover:opacity-100"
+              aria-label="Copy reply"
+            >
+              {copied ? (
+                <Check className="h-3.5 w-3.5 text-signal" />
+              ) : (
+                <Copy className="h-3.5 w-3.5" />
+              )}
+            </button>
+            {onRegenerate && (
+              <button
+                onClick={onRegenerate}
+                className="rounded-md p-1.5 opacity-0 transition-opacity duration-150 hover:bg-foreground/5 focus-visible:opacity-100 group-hover:opacity-100"
+                aria-label="Regenerate response"
+              >
+                <RefreshCw className="h-3.5 w-3.5" />
+              </button>
+            )}
+            {stats && (
+              <span
+                className="ml-1 flex items-center gap-1"
+                title={`${stats.outputTokens} tokens in ${(stats.durationMs / 1000).toFixed(1)}s across this reply, ${stats.tokensPerSecond.toFixed(1)} tokens per second`}
+              >
+                {stats.servedBy && <ServedBadge servedBy={stats.servedBy} />}
+                {stats.tokensPerSecond.toFixed(1)} tok/s ·{" "}
+                {formatTokens(stats.outputTokens)} tok ·{" "}
+                {(stats.durationMs / 1000).toFixed(1)}s
+              </span>
+            )}
           </div>
         )}
       </div>

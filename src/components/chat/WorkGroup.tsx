@@ -219,7 +219,7 @@ export function WorkGroup({ items, live }: WorkGroupProps) {
             transition={{ duration: 0.15, ease: "easeOut" }}
             className="overflow-hidden"
           >
-            <div className="mt-1 mb-2 ml-1.5 space-y-0.5 border-l border-border/60 pl-3">
+            <div className="mt-1 mb-2 ml-1.5 space-y-0.5 pl-3">
               {items.map((item) => (
                 <WorkItemView
                   key={`${item.kind}-${item.message.id}`}
