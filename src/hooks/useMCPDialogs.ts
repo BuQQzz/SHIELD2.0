@@ -44,6 +44,7 @@ import {
 } from "@/config/commandWarnings";
 import { useConversationStore } from "@/stores/conversation-store";
 import { isRemovalNote } from "@/services/historyCompaction";
+import { isToolResultTurn } from "@/services/contextBreakdown";
 import { isAgentsMd } from "@/config/agentsMd";
 import { modelWrittenFiles } from "@/handlers/workLedger";
 import { savePlanFromCall } from "@/handlers/sessionPlan";
@@ -224,6 +225,21 @@ interface UseMCPDialogsProps {
 }
 
 /** The first path a filesystem call names outside `folder` (sh folders only) */
+/**
+ * When the user's latest message was sent, less a little for clock
+ * rounding; Infinity when there is none
+ */
+function requestStart(): number {
+  const messages =
+    useConversationStore.getState().currentConversation?.messages ?? [];
+  // Tool results are stored as user messages too
+  const latest = [...messages]
+    .reverse()
+    .find((m) => m.role === "user" && !isToolResultTurn(m.content));
+  const at = latest ? new Date(latest.timestamp).getTime() : NaN;
+  return Number.isFinite(at) ? at - 2000 : Infinity;
+}
+
 /** A file server error for a path that is not there */
 const NOT_FOUND = /ENOENT|no such file|not found|does not exist/i;
 
@@ -374,8 +390,11 @@ export function useMCPDialogs({
    */
   /**
    * The warnings without "Deletes folders" entries for folders that are not
-   * there. Asked of the file server, which reaches only the project: a
-   * folder it cannot see, or any other error, keeps its warning.
+   * there, or that were made after the user's latest message: the model's
+   * own test folder (g17 step 21: it made profiles/smoke for a smoke test,
+   * and both commands that removed it were red). Asked of the file server,
+   * which reaches only the project: a folder it cannot see, or any other
+   * error, keeps its warning.
    */
   const existingWarnings = useCallback(
     async (warnings: PromptWarning[], folder?: string) => {
@@ -394,9 +413,17 @@ export function useMCPDialogs({
               tool: "get_file_info",
               arguments: { path: full },
             });
-            if (!info.success && NOT_FOUND.test(String(info.error ?? ""))) {
-              missing.add(path);
+            // A tool's own error comes back as success with isError set
+            // and the message in its content
+            if (!info.success || (info.data as { isError?: unknown })?.isError) {
+              const text = info.success ? resultPayload(info.data) : String(info.error ?? "");
+              if (NOT_FOUND.test(text)) missing.add(path);
+              return;
             }
+            const created = Date.parse(
+              resultPayload(info.data).match(/^created: (.+)$/m)?.[1] ?? ""
+            );
+            if (created >= requestStart()) missing.add(path);
           } catch {
             // unknown: keep the warning
           }
