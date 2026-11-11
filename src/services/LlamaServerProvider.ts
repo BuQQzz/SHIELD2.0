@@ -37,7 +37,11 @@ import {
   type OpenAiTool,
   type ToolCallDelta,
 } from "./llamaServer/nativeCalls.js";
-import { nativeHistory } from "./llamaServer/nativeHistory.js";
+import {
+  nativeHistory,
+  type WireMessage,
+} from "./llamaServer/nativeHistory.js";
+import { isToolResultTurn } from "./contextBreakdown.js";
 import type { ToolDefinition } from "../types/prompts.js";
 import {
   adaptRequestBody,
@@ -141,6 +145,69 @@ export const STALL_MS = 5 * 60 * 1000;
  * A ceiling, not a target: a short answer still ends when it is done.
  */
 export const MIN_REPLY_TOKENS = 8192;
+
+/** What launch.ts adds to a thought cut at the budget, not the model's own */
+const BUDGET_NOTE = /\s*Thinking budget reached\. Act now on what I have worked out\.\s*$/;
+
+/** Thinking sent back within one request, at most (~4K tokens) */
+export const THINKING_CHARS = 12_000;
+
+/** A reply's thinking as it is kept: without the budget note, trimmed */
+export function keptThinking(thinking: string): string {
+  return thinking.replace(BUDGET_NOTE, "").trim();
+}
+
+/**
+ * The turns with thinking kept only on replies since the user's latest
+ * message (tool results do not count as one). Within a request the model
+ * sees what it already worked out; Bonsai 2's template keeps it there
+ * ("supports preserving reasoning"). Without it, in g24 step 16 the model
+ * started over on what the user meant in each of ~10 rounds, each cut at
+ * its 1,536-token budget, and the step timed out (2026-11-11). Older
+ * requests' thinking is left out, as the template itself would.
+ */
+export function withRequestThinking(turns: ChatMessage[]): ChatMessage[] {
+  let start = turns.length;
+  for (let i = turns.length - 1; i >= 0; i--) {
+    const turn = turns[i]!;
+    if (turn.role === "user" && !isToolResultTurn(turn.content)) {
+      start = i;
+      break;
+    }
+  }
+  if (start === turns.length) start = 0;
+  // Up to THINKING_CHARS, oldest first: ten rounds of ~1.5K tokens would
+  // take half of a 32K window. A thought once sent stays as it was, so the
+  // server's prompt cache holds; dropping the oldest instead would change
+  // the prompt near its end each round and make the server read it again.
+  const keep = new Set<number>();
+  let total = 0;
+  for (let i = start + 1; i < turns.length; i++) {
+    const thought = turns[i]!.reasoning;
+    if (!thought) continue;
+    // Nor the thought behind a call that failed: kept, its plan outweighed
+    // the error. In kt-fix2 Bonsai 2 read a misspelled file name and sent
+    // the same read three more times (2026-11-11)
+    if (/<error>|already failed in this turn/.test(turns[i + 1]?.content ?? "")) continue;
+    if (total + thought.length > THINKING_CHARS) break;
+    total += thought.length;
+    keep.add(i);
+  }
+  return turns.map((turn, i) => {
+    if (!turn.reasoning || keep.has(i)) return turn;
+    const { reasoning: _dropped, ...rest } = turn;
+    return rest;
+  });
+}
+
+/** A message as the server reads it: thinking as reasoning_content */
+function asWire(
+  message: WireMessage
+): WireMessage | (Omit<WireMessage, "reasoning"> & { reasoning_content: string }) {
+  if (!("reasoning" in message) || !message.reasoning) return message;
+  const { reasoning, ...rest } = message;
+  return { ...rest, reasoning_content: reasoning };
+}
 
 /** max_tokens for a chat request: the setting, raised to MIN_REPLY_TOKENS */
 export function replyTokenLimit(maxTokens: number | undefined): number {
@@ -737,12 +804,21 @@ export class LlamaServerProvider {
       : this.systemPrompt;
   }
 
-  /** With native calls, the turns in the template's own form (nativeHistory) */
+  /**
+   * With native calls, the turns in the template's own form (nativeHistory).
+   * The thinking of each reply since the user's latest message goes back as
+   * `reasoning_content` (withRequestThinking).
+   */
   private messages(extra?: ChatMessage) {
-    const turns = [...this.history, ...(extra ? [extra] : [])];
+    const turns = withRequestThinking([
+      ...this.history,
+      ...(extra ? [extra] : []),
+    ]);
+    const wire =
+      this.nativeTools.length > 0 ? nativeHistory(turns) : turns;
     return [
       { role: "system", content: this.systemContent() },
-      ...(this.nativeTools.length > 0 ? nativeHistory(turns) : turns),
+      ...wire.map(asWire),
     ];
   }
 
@@ -751,7 +827,10 @@ export class LlamaServerProvider {
     return (
       (this.systemContent().length +
         this.nativeToolChars +
-        this.history.reduce((n, m) => n + m.content.length, 0)) /
+        withRequestThinking(this.history).reduce(
+          (n, m) => n + m.content.length + (m.reasoning?.length ?? 0),
+          0
+        )) /
       3
     );
   }
@@ -1123,12 +1202,14 @@ export class LlamaServerProvider {
     }
     // A removal note the model copied stays out of its history: from its
     // own turns it learns to write more (historyCompaction, 2026-11-09)
+    const kept = keptThinking(thinking);
     this.history.push(userMessage, {
       role: "assistant",
       content: stripRemovalNotes(content),
+      ...(kept ? { reasoning: kept } : {}),
     });
     if (final?.usage) {
-      this.lastContextTokens = nextPromptTokens(final.usage, reply);
+      this.lastContextTokens = nextPromptTokens(final.usage, reply + kept);
     }
 
     const endedAt = performance.now();

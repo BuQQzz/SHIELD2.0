@@ -22,7 +22,12 @@ export interface NativeToolCall {
 
 export type WireMessage =
   | ChatMessage
-  | { role: "assistant"; content: string; tool_calls: NativeToolCall[] }
+  | {
+      role: "assistant";
+      content: string;
+      tool_calls: NativeToolCall[];
+      reasoning?: string;
+    }
   | { role: "tool"; tool_call_id: string; content: string };
 
 const CALL =
@@ -46,7 +51,7 @@ export function nativeHistory(messages: ChatMessage[]): WireMessage[] {
     const next = messages[i + 1];
     const pair =
       message.role === "assistant" && next?.role === "user"
-        ? asNative(message.content, next.content, i)
+        ? asNative(message.content, next.content, i, message.reasoning)
         : null;
     if (!pair) {
       out.push(message);
@@ -61,7 +66,8 @@ export function nativeHistory(messages: ChatMessage[]): WireMessage[] {
 function asNative(
   reply: string,
   results: string,
-  at: number
+  at: number,
+  reasoning?: string
 ): WireMessage[] | null {
   const calls = [...reply.matchAll(CALL)];
   if (calls.length === 0) return null;
@@ -94,6 +100,7 @@ function asNative(
       role: "assistant",
       content: reply.replace(CALL, "").trim(),
       tool_calls: toolCalls,
+      ...(reasoning ? { reasoning } : {}),
     },
     ...tools,
   ];
