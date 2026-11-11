@@ -422,7 +422,7 @@ export async function runAgent(
       commandsRun += 1;
     }
     const result = await deps.execute(call, { role });
-    if (!result.success && result.error === USER_DENIED) {
+    if (!result.success && result.error?.startsWith(USER_DENIED)) {
       work.refused.push(
         `${role} ${call.tool}${pathOf(call) ? ` ${shortPath(pathOf(call))}` : ""} ${DENIED_BY_USER}`
       );
@@ -453,7 +453,7 @@ export async function runAgent(
       // by SHIELD's rules ("Not run: …") or by the user in Ask mode
       refused:
         !result.success &&
-        (text.startsWith("Not run:") || text === USER_DENIED),
+        (text.startsWith("Not run:") || text.startsWith(USER_DENIED)),
       text: text.slice(0, EVENT_TEXT_CHARS),
     });
     return result;

@@ -109,7 +109,7 @@ function repeatNote(
     return `You already gave the ${callTarget(toolCall) ?? "agent"} exactly this task in this turn, and nothing has changed since, so it was not run again: it would end the same way. If that run did not finish the work, delegate again with what the agent lacked (the exact file name, the error it hit, what to do differently), or tell the user what was not done.`;
   }
   if (!result.success) {
-    if (result.error === "User denied permission") {
+    if (result.error?.startsWith("User denied permission")) {
       return `The user already declined this exact call (${toolCall.tool}) in this turn, so it was not asked again. Do not try it again; tell the user it was not done.`;
     }
     const error = (result.error ?? formatted).slice(0, REPEAT_ERROR_CHARS);

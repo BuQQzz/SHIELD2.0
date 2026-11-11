@@ -735,8 +735,18 @@ export function useMCPDialogs({
   const handleDeny = useCallback(() => {
     if (approvalInFlight.current) return;
     console.log("[MCP] User denied tool request");
-    settle({ success: false, error: "User denied permission" });
-  }, [settle]);
+    // With the warnings the user saw: told only "denied", the model had to
+    // guess why its test that deleted the users folder was refused (g23
+    // step 15)
+    const shown = (pendingRequest?.warnings ?? []).map((w) => w.text);
+    settle({
+      success: false,
+      error:
+        shown.length > 0
+          ? `User denied permission. The prompt showed SHIELD's warning: ${shown.join("; ")}.`
+          : "User denied permission",
+    });
+  }, [settle, pendingRequest]);
 
   return {
     pendingRequest,
