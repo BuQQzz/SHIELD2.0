@@ -72,7 +72,7 @@ describe("promptWarnings", () => {
 
   it("flags deleting a folder tree that is not throwaway (g13 step 16)", () => {
     expect(texts(`cd ${folder} && rm -rf .profiles test-exp && mkdir -p .profiles/testexp`)).toContain(
-      "Deletes folders and everything in them: .profiles, test-exp"
+      "Deletes folders and everything in them: .profiles"
     );
     expect(texts("Remove-Item -Recurse -Force data")).toContain("Deletes folders and everything in them: data");
     expect(texts("find ./records -name '*.json' -delete")).toContain("Deletes folders and everything in them: ./records");
@@ -91,6 +91,14 @@ describe("promptWarnings", () => {
     expect(deletes("rm -rf __pycache__ build dist node_modules .pytest_cache")).toEqual([]);
     expect(deletes("rm notes.txt")).toEqual([]);
     expect(deletes("rm -f old.json")).toEqual([]);
+    // g14 step 16: its own export files and test profiles
+    expect(deletes("rm -rf spending.xlsx spending.csv out.csv")).toEqual([]);
+    expect(deletes("rm -rf profiles/testuser profiles/testuser9 tmp_out .profiles/smc-test")).toEqual([]);
+    expect(deletes("rm -rf tests")).toEqual(["Deletes folders and everything in them: tests"]);
+    expect(deletes("rm -rf test")).toEqual(["Deletes folders and everything in them: test"]);
+    expect(deletes("rm -rf profiles .profiles")).toEqual([
+      "Deletes folders and everything in them: profiles, .profiles",
+    ]);
   });
 
   it("leaves ordinary downloads and installs unflagged as danger", () => {

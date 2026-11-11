@@ -177,6 +177,19 @@ function outsidePaths(
 /** Folders a project can rebuild: deleting them loses nothing of the user's */
 const REBUILDABLE =
   /^(__pycache__|node_modules|dist|build|out|target|coverage|\.pytest_cache|\.mypy_cache|\.ruff_cache|\.cache|\.next|\.turbo|\.venv|venv|env|htmlcov|\.tox|.*\.egg-info)$/;
+/**
+ * A name with a file extension (`spending.xlsx`), not a folder: `rm -rf`
+ * on its own output files turned three of g14's test runs red at step 16,
+ * and the test user's denials timed the step out (2026-11-10)
+ */
+const LOOKS_LIKE_FILE = /^[^.].*\.[A-Za-z0-9]{1,5}$/;
+/**
+ * A folder the model names as a test of its own (`testuser9`, `test-exp`,
+ * `tmp_out`, `smc-test`); not `test` or `tests`, which hold a project's
+ * tests
+ */
+const THROWAWAY_NAME =
+  /^(?:(?!tests$)(test|tmp|temp|scratch)[-_]?[A-Za-z0-9][\w-]*|[\w-]+[-_](test|tmp)\d*)$/i;
 /** Throwaway places: deleting a test folder there is the cleanup asked for */
 const TEMP = /^(\/tmp|\/var\/tmp|\/private\/tmp|\$TMPDIR|\$\{TMPDIR\}|%TEMP%|\$env:TEMP)(\/|\\|$)/i;
 
@@ -199,7 +212,14 @@ function recursiveDeletes(command: string): string[] {
     const full = /^([/~\\$%]|[A-Za-z]:)/.test(path) || !dir ? path : `${dir}/${path}`;
     if (TEMP.test(full)) return;
     const name = path.split(/[/\\]/).pop()!;
-    if (REBUILDABLE.test(name) || found.includes(path)) return;
+    if (
+      REBUILDABLE.test(name) ||
+      LOOKS_LIKE_FILE.test(name) ||
+      THROWAWAY_NAME.test(name) ||
+      found.includes(path)
+    ) {
+      return;
+    }
     found.push(path);
   };
   for (const words of commandWords(command)) {
