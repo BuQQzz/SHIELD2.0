@@ -13,6 +13,7 @@ import {
   tree,
 } from "../services/projectInstructions.js";
 import { indexConversation } from "./memoryHandlers.js";
+import { checkPage } from "../services/pageCheck.js";
 
 /** Projects, and moving conversations in and out of them */
 export function registerProjectHandlers(): void {
@@ -73,6 +74,12 @@ export function registerProjectHandlers(): void {
       tree(folder, PROMPT_TREE_LINES).catch(() => []),
     ]);
     return { ...instructions, listing };
+  });
+
+  // Load a web page the model wrote, hidden, and report its errors
+  ipcMain.handle("project:check-page", async (_event, file: unknown) => {
+    if (typeof file !== "string") return { errors: [], blocked: [] };
+    return checkPage(file).catch(() => ({ errors: [], blocked: [] }));
   });
 
   // What SHIELD sees of a project, for the model to draft AGENTS.md from

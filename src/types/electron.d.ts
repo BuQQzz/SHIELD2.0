@@ -386,6 +386,7 @@ export interface ConversationAPI {
   }>;
   /** What SHIELD sees of a project, for drafting AGENTS.md */
   projectFacts: (folder: string) => Promise<string>;
+  checkPage: (file: string) => Promise<{ errors: string[]; blocked: string[] }>;
 }
 
 export interface AppSettings {

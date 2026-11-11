@@ -158,7 +158,13 @@ export function sameErrorNote(output: string, times: number): string {
   return `Note: this is the same error as ${times === 1 ? "an earlier command" : `${times} earlier commands`} in this turn ended with, and no file has been edited since, so running it again will end the same way. The error: ${last.trim().slice(0, 200)}${place ? `, raised at ${place}` : ""}. Read that part of the code and fix it before running anything else.`;
 }
 
-const FILE_EDIT_TOOLS = new Set(["write_file", "edit_file", "append_file", "move_file", "delete_file"]);
+const FILE_EDIT_TOOLS = new Set([
+  "write_file",
+  "edit_file",
+  "append_file",
+  "move_file",
+  "delete_file",
+]);
 
 const PATH_KEYS = ["path", "source", "destination"];
 
@@ -420,6 +426,53 @@ async function withQuoteHint(
   };
 }
 
+const PAGE_TOOLS = ["write_file", "edit_file", "append_file"];
+
+/**
+ * After a change to an .html file, what the page reports as it loads in a
+ * hidden window (electron/services/pageCheck.ts). A syntax check passed a
+ * page that threw on load in g21 step 1, and the model could not see it
+ * from the terminal (2026-11-11).
+ */
+export async function withPageCheck(
+  toolCall: ToolCallRequest,
+  result: MCPToolResult,
+  checkPage:
+    | ((file: string) => Promise<{ errors: string[]; blocked: string[] }>)
+    | undefined = typeof window !== "undefined"
+    ? window.conversations?.checkPage
+    : undefined
+): Promise<MCPToolResult> {
+  const { path } = toolCall.arguments;
+  if (
+    !checkPage ||
+    !result.success ||
+    !PAGE_TOOLS.includes(toolCall.tool) ||
+    typeof path !== "string" ||
+    !/\.html?$/i.test(path) ||
+    !/^([/\\]|[A-Za-z]:)/.test(path)
+  ) {
+    return result;
+  }
+  const found = await checkPage(path).catch(() => null);
+  if (!found) return result;
+  const name = path.split(/[\\/]/).pop();
+  const lines = [
+    found.errors.length > 0
+      ? `SHIELD opened ${name} in a hidden browser window (fresh storage, no network) and the page reported:\n${found.errors.map((e) => `- ${e}`).join("\n")}\nFix these before you tell the user it works.`
+      : `SHIELD opened ${name} in a hidden browser window (fresh storage, no network): it loaded with no errors. Clicks and typing were not tried.`,
+  ];
+  if (found.blocked.length > 0) {
+    lines.push(
+      `It tried to reach addresses outside the computer, which this check blocks, so an error above may come from that rather than your code:\n${found.blocked.map((u) => `- ${u}`).join("\n")}`
+    );
+  }
+  return {
+    ...result,
+    data: `${resultPayload(result.data)}\n\n${lines.join("\n")}`,
+  };
+}
+
 /** A read of more lines than this, of a code file, is shown in part */
 export const READ_LINES_MAX = 300;
 /** How many of the lines asked for a big read shows */
@@ -513,18 +566,21 @@ async function runToolCall(
         readFile
       );
     }
-    return await withQuoteHint(
+    return await withPageCheck(
       toolCall,
-      await withReadOutline(
+      await withQuoteHint(
         toolCall,
-        await withAppendHint(
+        await withReadOutline(
           toolCall,
-          await withEditHint(toolCall, result, readFile),
+          await withAppendHint(
+            toolCall,
+            await withEditHint(toolCall, result, readFile),
+            readFile
+          ),
           readFile
         ),
         readFile
-      ),
-      readFile
+      )
     );
   } catch (error) {
     console.error("[MCP] Error processing tool call:", error);
@@ -700,7 +756,8 @@ export async function processMCPToolCalls(
         if (count >= MAX_REPEATS) stuckOn = toolCall;
       } else {
         result = await runToolCall(toolCall, onToolCallDetected, readFile);
-        if (FILE_EDIT_TOOLS.has(toolCall.tool) && result.success) failures.clear();
+        if (FILE_EDIT_TOOLS.has(toolCall.tool) && result.success)
+          failures.clear();
         if (toolCall.tool === RUN_COMMAND_TOOL_NAME && result.success) {
           const output = resultPayload(result.data);
           const failure = failureSignature(output);
@@ -708,7 +765,10 @@ export async function processMCPToolCalls(
             const times = failures.get(failure) ?? 0;
             failures.set(failure, times + 1);
             if (times > 0) {
-              result = { ...result, data: `${output}\n\n${sameErrorNote(output, times)}` };
+              result = {
+                ...result,
+                data: `${output}\n\n${sameErrorNote(output, times)}`,
+              };
             }
           }
         }

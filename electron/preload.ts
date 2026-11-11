@@ -198,6 +198,7 @@ export interface ConversationAPI {
   }>;
   /** What SHIELD sees of a project, for drafting AGENTS.md */
   projectFacts: (folder: string) => Promise<string>;
+  checkPage: (file: string) => Promise<{ errors: string[]; blocked: string[] }>;
 }
 
 interface Project {
@@ -297,6 +298,7 @@ const conversationAPI: ConversationAPI = {
   projectInstructions: (folder) =>
     ipcRenderer.invoke("project:instructions", folder),
   projectFacts: (folder) => ipcRenderer.invoke("project:facts", folder),
+  checkPage: (file) => ipcRenderer.invoke("project:check-page", file),
 };
 
 contextBridge.exposeInMainWorld("conversations", conversationAPI);
