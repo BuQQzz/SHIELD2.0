@@ -1359,6 +1359,10 @@ export class LlamaServerProvider {
         cache_prompt: true,
         temperature: 0.2,
         max_tokens: NOTE_MAX_TOKENS,
+        // With thinking on, Bonsai 2 spent the note's tokens thinking and
+        // its note stopped mid-sentence, before the Offered and Facts
+        // lines (growing-project g14, 2026-11-10)
+        chat_template_kwargs: { enable_thinking: false },
       },
       signal
     );

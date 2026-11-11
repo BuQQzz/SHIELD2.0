@@ -84,6 +84,11 @@ describe("LlamaServerProvider restoring a summarised chat", () => {
     live.provider.setChatHistory(chat);
     await live.provider.chat("add paging");
     expect(live.sent.map((r) => r.stream === true)).toEqual([false, true]);
+    // The note is asked without thinking: Bonsai 2 spent its tokens
+    // thinking and the note stopped mid-sentence (g14, 2026-11-10)
+    expect(
+      (live.sent[0] as { chat_template_kwargs?: unknown }).chat_template_kwargs
+    ).toEqual({ enable_thinking: false });
 
     const capsule = live.provider.getLastCapsule();
     expect(capsule?.modelHistory).toEqual([
