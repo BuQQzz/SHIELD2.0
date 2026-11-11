@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { promptWarnings } from "./commandWarnings";
+import { promptWarnings, withoutMissingFolders } from "./commandWarnings";
 
 const folder = "/home/user/Projects/spend";
 const levels = (command: string) =>
@@ -112,5 +112,25 @@ describe("promptWarnings", () => {
       "Reaches outside the project folder: /etc/hosts"
     );
     expect(promptWarnings({ path: "notes.md" }, folder)).toEqual([]);
+  });
+
+  it("leaves out folders that do not exist (g16 step 21)", () => {
+    const warnings = promptWarnings(
+      { command: `cd ${folder} && rm -rf profiles/chk .profiles && mkdir -p profiles/chk` },
+      folder
+    );
+    expect(warnings[0]?.folders).toEqual([
+      { shown: "profiles/chk", path: `${folder}/profiles/chk` },
+      { shown: ".profiles", path: `${folder}/.profiles` },
+    ]);
+    const exists = new Set([`${folder}/.profiles`]);
+    expect(withoutMissingFolders(warnings, (p) => !exists.has(p)).map((w) => w.text)).toEqual([
+      "Deletes folders and everything in them: .profiles",
+    ]);
+    expect(withoutMissingFolders(warnings, () => true)).toEqual([]);
+    // relative with no cd: left for the caller to resolve against the project
+    expect(promptWarnings({ command: "rm -rf data" }, folder)[0]?.folders).toEqual([
+      { shown: "data", path: "data" },
+    ]);
   });
 });

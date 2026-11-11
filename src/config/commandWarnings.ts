@@ -21,6 +21,12 @@ export interface PromptWarning {
   /** "danger": rarely part of a project task; "outside": leaves the folder */
   level: "danger" | "outside";
   text: string;
+  /**
+   * For "Deletes folders": each folder as the command names it, and its
+   * path after any `cd` (relative to the project when there is none), so
+   * the caller can leave out folders that do not exist
+   */
+  folders?: { shown: string; path: string }[];
 }
 
 const DANGERS: Array<{ pattern: RegExp; text: string }> = [
@@ -200,8 +206,8 @@ const TEMP = /^(\/tmp|\/var\/tmp|\/private\/tmp|\$TMPDIR|\$\{TMPDIR\}|%TEMP%|\$e
  * tracker keeps every person's data. Nothing real was in it yet, and the
  * prompt showed nothing but the command (2026-11-09).
  */
-function recursiveDeletes(command: string): string[] {
-  const found: string[] = [];
+function recursiveDeletes(command: string): { shown: string; path: string }[] {
+  const found: { shown: string; path: string }[] = [];
   // the folder a `cd` earlier in the command moved to
   let dir = "";
   const add = (target: string) => {
@@ -216,11 +222,11 @@ function recursiveDeletes(command: string): string[] {
       REBUILDABLE.test(name) ||
       LOOKS_LIKE_FILE.test(name) ||
       THROWAWAY_NAME.test(name) ||
-      found.includes(path)
+      found.some((f) => f.shown === path)
     ) {
       return;
     }
-    found.push(path);
+    found.push({ shown: path, path: full });
   };
   for (const words of commandWords(command)) {
     const [name = "", ...args] = words;
@@ -240,6 +246,34 @@ function recursiveDeletes(command: string): string[] {
   return found;
 }
 
+function deletesWarning(folders: { shown: string; path: string }[]): PromptWarning {
+  return {
+    level: "danger",
+    text: `Deletes folders and everything in them: ${folders
+      .slice(0, 3)
+      .map((f) => f.shown)
+      .join(", ")}`,
+    folders,
+  };
+}
+
+/**
+ * The warnings without folders that do not exist: a command that clears a
+ * test folder before making it deletes nothing. g16 step 21 had three red
+ * prompts for `rm -rf profiles/chk && mkdir -p profiles/chk`, a folder that
+ * was not there; the test user denied them all (2026-11-10).
+ */
+export function withoutMissingFolders(
+  warnings: PromptWarning[],
+  missing: (path: string) => boolean
+): PromptWarning[] {
+  return warnings.flatMap((warning) => {
+    if (!warning.folders) return [warning];
+    const left = warning.folders.filter((f) => !missing(f.path));
+    return left.length > 0 ? [deletesWarning(left)] : [];
+  });
+}
+
 /** SHIELD's warnings for a call waiting on the user; empty when none apply */
 export function promptWarnings(
   args: Record<string, unknown>,
@@ -255,12 +289,7 @@ export function promptWarnings(
     }
   }
   const deleted = command ? recursiveDeletes(command) : [];
-  if (deleted.length > 0) {
-    warnings.push({
-      level: "danger",
-      text: `Deletes folders and everything in them: ${deleted.slice(0, 3).join(", ")}`,
-    });
-  }
+  if (deleted.length > 0) warnings.push(deletesWarning(deleted));
   const outside = outsidePaths(args, folder);
   if (outside.length > 0) {
     warnings.push({

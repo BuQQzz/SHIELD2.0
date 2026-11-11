@@ -39,6 +39,7 @@ import {
 import type { ToolPolicy } from "@/hooks/useToolPolicy";
 import {
   promptWarnings,
+  withoutMissingFolders,
   type PromptWarning,
 } from "@/config/commandWarnings";
 import { useConversationStore } from "@/stores/conversation-store";
@@ -223,6 +224,9 @@ interface UseMCPDialogsProps {
 }
 
 /** The first path a filesystem call names outside `folder` (sh folders only) */
+/** A file server error for a path that is not there */
+const NOT_FOUND = /ENOENT|no such file|not found|does not exist/i;
+
 export function outsideFolderPath(
   toolCall: { serverName: string; arguments: Record<string, unknown> },
   folder?: string
@@ -368,6 +372,41 @@ export function useMCPDialogs({
    * The scripts a command runs that the model wrote, with their contents:
    * written since SHIELD started, or earlier in the open conversation
    */
+  /**
+   * The warnings without "Deletes folders" entries for folders that are not
+   * there. Asked of the file server, which reaches only the project: a
+   * folder it cannot see, or any other error, keeps its warning.
+   */
+  const existingWarnings = useCallback(
+    async (warnings: PromptWarning[], folder?: string) => {
+      const paths = warnings.flatMap((w) => w.folders ?? []).map((f) => f.path);
+      if (paths.length === 0) return warnings;
+      const missing = new Set<string>();
+      await Promise.all(
+        paths.map(async (path) => {
+          const full =
+            folder && !/^([/~\\$%]|[A-Za-z]:)/.test(path)
+              ? `${folder.replace(/[/\\]+$/, "")}/${path}`
+              : path;
+          try {
+            const info = await callTool({
+              serverName: "filesystem",
+              tool: "get_file_info",
+              arguments: { path: full },
+            });
+            if (!info.success && NOT_FOUND.test(String(info.error ?? ""))) {
+              missing.add(path);
+            }
+          } catch {
+            // unknown: keep the warning
+          }
+        })
+      );
+      return withoutMissingFolders(warnings, (p) => missing.has(p));
+    },
+    [callTool]
+  );
+
   const modelScriptsIn = useCallback(
     async (command: string) => {
       const written = new Set(modelWritten.current);
@@ -553,6 +592,10 @@ export function useMCPDialogs({
       }
       const modelScripts =
         command !== undefined ? await modelScriptsIn(command) : undefined;
+      const warnings = await existingWarnings(
+        promptWarnings(toolCall.arguments, policy.folder),
+        policy.folder
+      );
 
       // Only one request can be open at a time. Refuse rather than clobber.
       if (resolverRef.current) {
@@ -592,10 +635,7 @@ export function useMCPDialogs({
                 : undefined,
           command,
           commandReason: command !== undefined ? reason : undefined,
-          warnings: (() => {
-            const found = promptWarnings(toolCall.arguments, policy.folder);
-            return found.length ? found : undefined;
-          })(),
+          warnings: warnings.length ? warnings : undefined,
           modelScripts: modelScripts?.length ? modelScripts : undefined,
           instructionsFile: writesInstructions || undefined,
           proposed: writesInstructions
@@ -606,7 +646,7 @@ export function useMCPDialogs({
         });
       });
     },
-    [defaultPolicy, callTool, noteWrite, modelScriptsIn, rewriteWarning]
+    [defaultPolicy, callTool, noteWrite, modelScriptsIn, existingWarnings, rewriteWarning]
   );
 
   /**
