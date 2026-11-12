@@ -168,6 +168,29 @@ describe("cleared reads of code", () => {
     expect(out).not.toContain("import json");
   });
 
+  // g33: a note with many definitions passed the 400-character mark and
+  // was cleared again at every later clearing, changing early results by a
+  // few characters each time and costing the server a re-read (2026-11-12)
+  it("are left alone once cleared, also by stale-read clearing", () => {
+    const py = Array.from({ length: 40 }, (_, i) => `def step_${i}(rows):\n    return rows`).join("\n");
+    const readCall = `<tool_call>\n<server>filesystem</server>\n<tool>read_text_file</tool>\n<arguments>{"path":"/p/spend.py"}</arguments>\n</tool_call>`;
+    const history = [
+      { role: "user" as const, content: "build it" },
+      { role: "assistant" as const, content: readCall },
+      { role: "user" as const, content: readResult(py) },
+      { role: "assistant" as const, content: "Done." },
+    ];
+    const once = compactHistory(history, 1).history;
+    expect(once[2]!.content.length).toBeGreaterThan(400);
+    const twice = compactHistory(once, 1);
+    expect(twice.savedChars).toBe(0);
+    expect(twice.history[2]).toBe(once[2]);
+    // read again later: the cleared copy is not rewritten as an older read
+    const later = [...once, { role: "assistant" as const, content: readCall }, { role: "user" as const, content: readResult(py) }, { role: "assistant" as const, content: "Done." }];
+    const stale = compactStaleReads(later);
+    expect(stale.history[2]).toBe(later[2]);
+  });
+
   it("say nothing extra for text that is not code", () => {
     const history = [
       { role: "user" as const, content: "build it" },

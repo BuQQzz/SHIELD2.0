@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   keptThinking,
+  noteBody,
   THINKING_CHARS,
   withRequestThinking,
 } from "./LlamaServerProvider";
@@ -73,5 +74,35 @@ describe("thinking within a request (g24 step 16)", () => {
       { role: "user", content: result },
     ]);
     expect(wire[1]).toMatchObject({ role: "assistant", reasoning: "list first", tool_calls: [{ function: { name: "run_command" } }] });
+  });
+});
+
+describe("the note request goes on from the chat's last prompt (g32)", () => {
+  const tools = [{ type: "function", function: { name: "run_command" } }];
+  const turns: ChatMessage[] = [
+    { role: "user", content: "make a tracker" },
+    { role: "assistant", content: call, reasoning: "list the folder" },
+    { role: "user", content: result },
+    { role: "assistant", content: call, reasoning: "run it" },
+  ];
+
+  it("sends the turns, tools and thinking the chat sent, then the note request", () => {
+    const body = noteBody("system", turns, result, tools);
+    const chat = nativeHistory(withRequestThinking(turns)).map((m) => {
+      const { reasoning, ...rest } = m as ChatMessage;
+      return reasoning ? { ...rest, reasoning_content: reasoning } : rest;
+    });
+    expect(body.messages.slice(0, -1)).toEqual([{ role: "system", content: "system" }, ...chat]);
+    expect(body.messages.at(-1)).toMatchObject({ role: "user" });
+    expect(String((body.messages.at(-1) as ChatMessage).content)).toContain("Write a note");
+    expect(body.tools).toBe(tools);
+    // a note, not a tool call
+    expect(body.tool_choice).toBe("none");
+  });
+
+  it("sends no tools for a model without native calls", () => {
+    const body = noteBody("system", turns, result, []);
+    expect(body.tools).toBeUndefined();
+    expect(body.tool_choice).toBeUndefined();
   });
 });

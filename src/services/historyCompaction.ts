@@ -187,11 +187,23 @@ function definitionsIn(body: string): string[] {
   return found.length >= 3 ? found : [];
 }
 
+/** A result SHIELD has cleared already: clearing it again only rewrites it */
+function isCleared(body: string): boolean {
+  return body.trimStart().startsWith(`[SHIELD ${REMOVED_MARK}`);
+}
+
 function compactResults(content: string): string {
   return content.replace(
     /<result>([\s\S]*?)<\/result>/g,
     (whole: string, body: string) => {
       if (body.length < KEEP_BELOW) return whole;
+      // Cleared already: a note with definitions can pass KEEP_BELOW, and
+      // clearing it again rewrote it ("this result, 4,537 characters" of
+      // the note, definitions read from the note's own list). In g33 every
+      // later clearing changed 21-25 early results for ~45 characters, and
+      // the server re-read the prompt from the first of them: "cleared 2
+      // characters", then 6,865 tokens read again (2026-11-12)
+      if (isCleared(body)) return whole;
       const note = `[SHIELD ${REMOVED_MARK}: this result, ${chars(body.length)}. It is not the file's content. Run the tool again if you need it.]`;
       const definitions = definitionsIn(body);
       if (definitions.length === 0) return `<result>\n${note}\n</result>`;
@@ -400,7 +412,7 @@ export function compactStaleReads(history: HistoryEntry[]): {
         return whole.replace(
           /<result>([\s\S]*?)<\/result>/,
           (result: string, body: string) =>
-            body.length < KEEP_BELOW
+            body.length < KEEP_BELOW || isCleared(body)
               ? result
               : `<result>\n[SHIELD ${REMOVED_MARK}: this result, ${chars(body.length)}, an older read of ${name}. You read those lines again later; that read is the current one.]\n</result>`
         );
@@ -414,8 +426,9 @@ export function compactStaleReads(history: HistoryEntry[]): {
 
 /**
  * Compact every entry except the last `keepRecent`, which the model is
- * still working from. Idempotent: compacted entries are short enough to be
- * left alone next time, so the history only changes when there is new bulk.
+ * still working from. Idempotent: cleared results and compacted calls are
+ * left alone next time (isCleared), so the history only changes when there
+ * is new bulk.
  */
 export function compactHistory(
   history: HistoryEntry[],

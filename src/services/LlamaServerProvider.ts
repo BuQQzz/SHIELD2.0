@@ -213,6 +213,40 @@ export function withRequestThinking(turns: ChatMessage[]): ChatMessage[] {
   });
 }
 
+/**
+ * The note request: the chat's last prompt and reply as they were sent
+ * (same system message, tools, native turns and thinking), then the note
+ * request. The server then reads only the note request: its saved state
+ * from the last reply covers the rest. Two things cost a full read before
+ * (g32, all 5 notes, 8-12K tokens and 20-27 s each, 2026-11-11): the note
+ * request was sent without the tools, so its prompt differed from the
+ * start, and it was sent the history already cleared and cut to the older
+ * turns. A matching prefix alone is not enough with Bonsai 2: the server
+ * resumes only from a saved state (end of an earlier request), and the cut
+ * between older and newer turns is not one; matched to the cut, it re-read
+ * 3,450 of 3,823 tokens. The template's thinking-off prompt changes only
+ * the end, where the reply starts, as long as the chat's reasoning effort
+ * adds no line to the system message (medium, as Bonsai 2's catalog entry
+ * sets; xhigh and low do). tool_choice "none": a note, not a tool call.
+ */
+export function noteBody(
+  system: string,
+  turns: ChatMessage[],
+  nextMessage: string,
+  tools: unknown[]
+): { messages: unknown[]; tools?: unknown[]; tool_choice?: "none" } {
+  const kept = withRequestThinking(turns);
+  const wire = tools.length > 0 ? nativeHistory(kept) : kept;
+  return {
+    messages: [
+      { role: "system", content: system },
+      ...wire.map(asWire),
+      { role: "user", content: noteRequest(nextMessage) },
+    ],
+    ...(tools.length > 0 ? { tools, tool_choice: "none" as const } : {}),
+  };
+}
+
 /** A message as the server reads it: thinking as reasoning_content */
 function asWire(
   message: WireMessage
@@ -1319,6 +1353,8 @@ export class LlamaServerProvider {
     signal: AbortSignal,
     onProgress?: (progress: ChatProgress) => void
   ): Promise<void> {
+    // As the last request sent it: the note goes on from there (noteBody)
+    const sent = this.history;
     if (this.makeRoomCheaply(nextMessage.length)) return;
 
     onProgress?.({ phase: "summarising" });
@@ -1330,7 +1366,7 @@ export class LlamaServerProvider {
         this.systemPrompt.length + this.nativeToolChars,
         CLEAR_TO
       ),
-      (older) => this.writeNote(older, nextMessage, signal)
+      () => this.writeNote(sent, nextMessage, signal)
     );
     if (!summarised) return;
 
@@ -1434,22 +1470,18 @@ export class LlamaServerProvider {
 
   /**
    * The model's note on the turns about to be removed, told what comes
-   * after it (`nextMessage`). Sent with the same system message and history
-   * as the chat, so the server's prompt cache covers everything before the
-   * first message clearing changed.
+   * after it (`nextMessage`). `turns`: the history as the last request sent
+   * it, before clearing, so the server goes on from its saved state
+   * (noteBody).
    */
   private async writeNote(
-    older: ChatMessage[],
+    turns: ChatMessage[],
     nextMessage: string,
     signal: AbortSignal
   ): Promise<string> {
     const result = await this.completion(
       {
-        messages: [
-          { role: "system", content: this.systemContent() },
-          ...older,
-          { role: "user", content: noteRequest(nextMessage) },
-        ],
+        ...noteBody(this.systemContent(), turns, nextMessage, this.nativeTools),
         cache_prompt: true,
         temperature: 0.2,
         max_tokens: NOTE_MAX_TOKENS,
