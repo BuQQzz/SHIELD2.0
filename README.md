@@ -9,11 +9,11 @@
 [![Latest release](https://img.shields.io/github/v/release/BuQQzz/SHIELD2.0?style=flat-square&logo=github&label=Latest%20release&color=green)](https://github.com/BuQQzz/SHIELD2.0/releases/latest)
 [![Downloads](https://img.shields.io/github/downloads/BuQQzz/SHIELD2.0/total?style=flat-square&logo=github&label=Downloads&color=blue)](https://github.com/BuQQzz/SHIELD2.0/releases)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=flat-square)](LICENSE)
-![Platform](https://img.shields.io/badge/Platform-Windows%2010%2F11-0078D6?style=flat-square&logo=windows)
+![Platform](https://img.shields.io/badge/Platform-Windows%20%7C%20Linux-0078D6?style=flat-square)
 
-### [⬇️ Download SHIELD for Windows](https://github.com/BuQQzz/SHIELD2.0/releases/latest)
+### [⬇️ Download SHIELD for Windows or Linux](https://github.com/BuQQzz/SHIELD2.0/releases/latest)
 
-Installer or portable `.exe`, no account and no sign-up.
+Windows installer or portable `.exe`, or a Linux AppImage. No account and no sign-up.
 
 <a href="https://github.com/BuQQzz/SHIELD2.0/releases/download/v0.2.0/shield-demo.mp4">
   <img src="docs/media/shield-demo.gif" alt="SHIELD fixing a bug in a Code session: it reads the files, asks before editing, runs the test and reports the fix" width="100%" />
@@ -31,8 +31,17 @@ SHIELD started as a local chatbot. It is now an **agent harness**, built to be a
 
 - 💬 **Chat** with local GGUF models, with live token counts and collapsible reasoning.
 - 🛠️ **Code** in a project folder. SHIELD reads, edits and writes files, runs terminal commands and searches the web, and asks you first when a step can change something.
-- 👥 **Team mode** lets an orchestrator delegate parts of a task to sub-agents, for example a coder and a reviewer.
-- 🧠 **Memory and projects**: notes survive restarts, past chats can be searched, and a project remembers its folder and its `AGENTS.md` instructions.
+- 👥 **Teams** let an orchestrator delegate parts of a task to sub-agents, for example a coder and a reviewer.
+- 🧠 **Recall and projects**: SHIELD brings back what matters from past chats, and a project remembers its folder and its `AGENTS.md` instructions.
+- 🔌 **Connectors** link SHIELD to Notion, Linear, GitHub and other services with one click, or to any MCP server you add.
+
+## What makes SHIELD different
+
+- **👥 Teams on one GPU.** An orchestrator splits a task across sub-agents, such as a coder and a reviewer, and they take turns on the same local model. Agents report back with a short handoff, and one that runs out of room hands over so the next carries on instead of starting over. Team agents use native tool calls too.
+- **🧠 Recall.** Before each message, SHIELD searches its memory of your other conversations (full-text, no extra model, nothing leaves your PC) and passes the one or two best matches along. A match from a session whose record shows changes that were never made says so, so an old "fix" that failed doesn't come back as a fact.
+- **📒 A record of what really happened.** SHIELD keeps its own log of what each session changed and ran, separately from what the model says it did. Recall, summaries and handoffs build on that record.
+- **🛡️ Safety that explains itself.** Permission prompts say when a call leaves your project or is risky, and a red warning appears before a real folder is deleted. Tool results are treated as untrusted data. SHIELD checks its work with throwaway data rather than your files, and opens pages it built to catch their errors.
+- **⚡ Big models on small GPUs.** Bonsai 2 27B runs with a 32K context, fully on an 8 GB card.
 
 ## Features
 
@@ -42,14 +51,23 @@ SHIELD started as a local chatbot. It is now an **agent harness**, built to be a
 - **One-click runtime install:** in **Settings › Runtime**, SHIELD picks the right build for your hardware (CUDA 13, CUDA 12.4, Vulkan or CPU), checks its SHA-256, test-runs it before switching over, and keeps the previous build so you can roll back.
 - **GPU-aware loading:** context size and layer placement are planned from your VRAM. Models that need it get a fixed all-on-GPU placement, and speculative drafting (ngram) is always on.
 - **Model Library:** browse, download and manage GGUF models, including gated Hugging Face models with your own token.
-- **Native tool calls:** on models that support them, llama-server limits each tool call to the tool's JSON schema, so the model can't write a malformed call.
+- **Native tool calls:** on models that support them, llama-server limits each tool call to the tool's JSON schema, so the model can't write a malformed call. The model gets its own thinking back within a request, so a multi-step task keeps its train of thought.
+
+### 🔌 Connectors (new in 0.3)
+
+- **One click:** on the **Plugins** page, press **Connect** and sign in in your browser. Listed services are Notion, Linear, Jira & Confluence, Asana, Sentry, Zapier, Hugging Face and Context7. GitHub connects with a token. SHIELD registers itself with each service, so there's nothing to set up.
+- **Your own servers:** add any MCP server by its address (with a token, or a browser sign-in if it asks), or by a command SHIELD starts on your PC.
+- **Native tools:** a connector's tools reach the model as native calls (`notion__search`), in chats and Code sessions, and still go through your permission mode.
+- **You stay in control:** switch any tool off, and see how much of the context window each service's tools take up.
+- **Encrypted sign-ins:** tokens and sign-ins are encrypted with the system key store and never written in plain text. Read-only claims are trusted only from listed services.
 
 ### 🤖 Agent harness and tools
 
-- **MCP tools:** built-in filesystem tools (read, write, edit, list, search) through the Model Context Protocol, plus your own MCP servers.
-- **SHIELD's own tools:** `run_command` (PowerShell / shell), web search and page fetch, deletion through the Recycle Bin, and memory search.
+- **MCP tools:** built-in filesystem tools (read, write, edit, list, search) through the Model Context Protocol, plus [connectors](#-connectors-new-in-03).
+- **SHIELD's own tools:** `run_command` (PowerShell / shell), web search and page fetch, deletion through the Recycle Bin or Trash, and memory search.
 - **Plan mode:** the model describes the steps without running anything that changes your files.
-- **Reliable long tasks:** context summaries when the window fills, a progress check instead of a fixed round limit, a repetition and thinking-loop guard, and a **stuck bar** (Nudge, Skip step, Restart and retry) when a step stalls.
+- **Reliable long tasks:** a progress check instead of a fixed round limit, a repetition and thinking-loop guard, and a **stuck bar** (Nudge, Skip step, Restart and retry) when a step stalls.
+- **Long sessions that stay on track:** big code files are read as an outline plus the part needed, stale reads are cleared first when the window fills, and summaries keep your requests, offered ideas and project facts. Clearing and summarising are arranged so the server reuses its cache, which avoids slow full re-reads.
 - **Edit safety:** an `edit_file` that would match more than one place is sent back to the model unrun, and a failed edit shows the model the file's closest lines.
 - **Tolerant parsing:** XML, OpenAI, Qwen and DeepSeek DSML call formats are all read as SHIELD tool calls.
 - **Model-switch handoff:** switching models mid-chat offers a new session that starts from a short briefing the old model writes.
@@ -65,7 +83,8 @@ SHIELD started as a local chatbot. It is now an **agent harness**, built to be a
 
 - Unknown tools fail closed.
 - **Tool results are untrusted data:** file contents, web pages and command output are wrapped in a `trusted="false"` envelope so that instructions planted inside them are not obeyed (see [Research](#-research-and-experimental-work)).
-- **API keys** for hosted providers are encrypted with the operating system's credential store (Electron `safeStorage`) and never reach the app window.
+- **Prompts that explain:** a permission prompt says when a call leaves the project, needs admin rights, or deletes a folder that isn't throwaway, and a denied call tells the model which warning you saw.
+- **API keys** for hosted providers and **connector sign-ins** are encrypted with the operating system's credential store (Electron `safeStorage`) and never reach the app window.
 - **No telemetry.** Model lists are fetched only when you open the picker, never at startup. Message text isn't logged for hosted models.
 
 ### ☁️ Optional hosted models, privacy first
@@ -78,25 +97,28 @@ Bring your own API key in **Settings › Providers** to run the same harness on 
 
 ## Working vs experimental
 
-| ✅ Working (used in real sessions)                     | 🧪 Experimental / in progress                                     |
-| ------------------------------------------------------ | ----------------------------------------------------------------- |
-| Local chat and Code sessions on llama-server           | Team mode on hosted models (untested)                             |
-| File tools, terminal, web search, permission modes     | Native function calling for hosted models                         |
-| Runtime installer (Vulkan build tested end to end)     | Recall tool: re-reading what a summary replaced                   |
-| Hosted models through Experiential with zero retention | Policy: always ask before a change that follows an untrusted read |
-| Memory, projects, `AGENTS.md`, Plan mode               | Linux build (runs from source; no packaged release yet)           |
-| Native tool calls on Bonsai 2 27B                      | Grammar-constrained calls for more model families                 |
+| ✅ Working (used in real sessions)                      | 🧪 Experimental / in progress                                     |
+| ------------------------------------------------------- | ----------------------------------------------------------------- |
+| Local chat and Code sessions on llama-server            | Team mode on hosted models (untested)                             |
+| File tools, terminal, web search, permission modes      | Native function calling for hosted models                         |
+| Runtime installer (Vulkan build tested end to end)      | Re-reading what a summary replaced                                |
+| Hosted models through Experiential with zero retention  | Policy: always ask before a change that follows an untrusted read |
+| Recall, memory, projects, `AGENTS.md`, Plan mode        | Sign-in services (Notion, Linear, ...): tested up to the browser  |
+| Native tool calls on Bonsai 2 27B, team agents included | Linux AppImage (new in 0.3; the app itself is developed on Linux) |
+| Connectors: Context7 and your own MCP servers           | Grammar-constrained calls for more model families                 |
 
 ## Tested models
 
 Measured on consumer GPUs (RTX 2070 SUPER 8 GB, RTX 4070 12 GB):
 
-| Model                   | Notes                                                                  |
-| ----------------------- | ---------------------------------------------------------------------- |
-| **Bonsai 2 27B** PTQ1_0 | Default. Fully on GPU, ~36-42 tok/s, best tool-call reliability so far |
-| Gemma 4 12B Q4_K_M      | ~42 tok/s on 12 GB, 8/8 on the GPU smoke test                          |
-| Qwen3.5 9B Q4_K_M       | ~39-62 tok/s, good on 8 GB cards                                       |
-| Qwen3-Coder 30B         | Works, spills into system RAM on 12 GB                                 |
+| Model                   | Notes                                                                                             |
+| ----------------------- | ------------------------------------------------------------------------------------------------- |
+| **Bonsai 2 27B** PTQ1_0 | Default. Fully on GPU with a 32K context on 8 GB, ~36-42 tok/s, best tool-call reliability so far |
+| Qwen3.8 27B IQ1_M       | Fits on 8 GB with a shorter window; marked with a caution label                                   |
+| LFM3 1.7B               | A small, fast chat model                                                                          |
+| Gemma 4 12B Q4_K_M      | ~42 tok/s on 12 GB, 8/8 on the GPU smoke test                                                     |
+| Qwen3.5 9B Q4_K_M       | ~39-62 tok/s, good on 8 GB cards                                                                  |
+| Qwen3-Coder 30B         | Works, spills into system RAM on 12 GB                                                            |
 
 ## 🧪 Research and experimental work
 
@@ -110,11 +132,14 @@ SHIELD is also a test bed for **agent security on small local models**:
 
 ### Install
 
-1. Download `SHIELD-<version>-x64.exe` (installer) or `SHIELD-<version>-portable.exe` from the [latest release](https://github.com/BuQQzz/SHIELD2.0/releases/latest).
+1. From the [latest release](https://github.com/BuQQzz/SHIELD2.0/releases/latest), download:
+   - **Windows:** `SHIELD-<version>-x64.exe` (installer) or `SHIELD-<version>-portable.exe`
+   - **Linux:** `SHIELD-<version>-x86_64.AppImage`, then make it executable (`chmod +x SHIELD-*.AppImage`) and run it
 2. Open **Settings › Runtime** and install the llama.cpp runtime (one click).
 3. Open the **Library**, download a model, and start a chat.
+4. Optional: open **Plugins** to connect your services.
 
-**Recommended:** Windows 10/11, 16 GB+ RAM, and an NVIDIA GPU with 8 GB+ VRAM (12 GB is comfortable). Vulkan and CPU builds also work, but more slowly.
+**Recommended:** Windows 10/11 or a recent 64-bit Linux, 16 GB+ RAM, and an NVIDIA GPU with 8 GB+ VRAM (12 GB is comfortable). Vulkan and CPU builds also work, but more slowly.
 
 > **Windows SmartScreen:** SHIELD isn't code-signed yet, so Windows may say it "couldn't verify" the file. Click **More info → Run anyway**. The source is all here if you want to check it or build it yourself.
 
@@ -126,7 +151,8 @@ cd SHIELD2.0
 npx npm@11 install
 npm run dev:electron          # run the app
 npx vitest run                # tests
-npm run build:win             # installer + portable in release/<version>/
+npm run build:win             # Windows installer + portable in release/<version>/
+npm run build:linux           # Linux AppImage in release/<version>/
 ```
 
 ## Tech stack
