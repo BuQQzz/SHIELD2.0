@@ -11,6 +11,11 @@ import type {
 } from "./runtime";
 import type { AgentRunView } from "../agents/runView";
 import type {
+  CatalogEntry,
+  ConnectorSummary,
+  ManualConnectorInput,
+} from "../config/connectors";
+import type {
   RequestStatus,
   RescueAction,
 } from "../services/llamaServer/rescue";
@@ -777,6 +782,38 @@ export interface AutoUpdateAPI {
   onUpdateError: (callback: (error: { message: string }) => void) => () => void;
 }
 
+type ConnectorResult = { success: boolean; error?: string };
+
+/** The Plugins page's connectors (src/config/connectors.ts) */
+export interface ConnectorsAPI {
+  catalog: () => Promise<{
+    success: boolean;
+    catalog: CatalogEntry[];
+    /** False: sign-ins and tokens last only until SHIELD closes */
+    canSaveSecrets: boolean;
+  }>;
+  list: () => Promise<{ success: boolean; connectors: ConnectorSummary[] }>;
+  addFromCatalog: (
+    catalogId: string,
+    token?: string
+  ) => Promise<ConnectorResult & { connector?: ConnectorSummary }>;
+  addManual: (
+    input: ManualConnectorInput
+  ) => Promise<ConnectorResult & { connector?: ConnectorSummary }>;
+  /** Connects, opening the browser if the service asks for a sign-in */
+  connect: (id: string) => Promise<ConnectorResult>;
+  setEnabled: (id: string, enabled: boolean) => Promise<ConnectorResult>;
+  setToolEnabled: (
+    id: string,
+    tool: string,
+    enabled: boolean
+  ) => Promise<ConnectorResult>;
+  signOut: (id: string) => Promise<ConnectorResult>;
+  remove: (id: string) => Promise<ConnectorResult>;
+  /** A connector, its state or its tools changed */
+  onChanged: (callback: () => void) => () => void;
+}
+
 declare global {
   interface Window {
     llama: LlamaAPI;
@@ -792,6 +829,7 @@ declare global {
       runtime: RuntimeAPI;
       system: SystemAPI;
       autoUpdate: AutoUpdateAPI;
+      connectors: ConnectorsAPI;
     };
     _mcpToolResolve?: (result: MCPToolResult) => void;
   }

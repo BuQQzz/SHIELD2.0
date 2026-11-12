@@ -44,6 +44,33 @@ import {
 } from "../../src/agents/delegate.js";
 import type { MCPToolCall, MCPToolResult } from "../services/MCPService.js";
 import { ensurePageCache, fetchPageCached } from "./searchHandlers.js";
+import { getConnectorService } from "./connectorHandlers.js";
+import {
+  connectorIdOfServer,
+  connectorServerName,
+  splitConnectorTool,
+} from "../../src/config/connectors.js";
+
+/**
+ * The connector a call is for, and the tool's own name: by its server
+ * ("ext:notion") or, as a model writes it, by the tool name's prefix
+ * ("notion__search"), which the chat files under the filesystem server
+ */
+function connectorCall(
+  request: MCPToolCall
+): { id: string; tool: string } | null {
+  const service = getConnectorService();
+  if (!service) return null;
+  const split = splitConnectorTool(request.tool);
+  const byServer = connectorIdOfServer(request.serverName);
+  if (byServer) {
+    return {
+      id: byServer,
+      tool: split?.id === byServer ? split.tool : request.tool,
+    };
+  }
+  return split && service.has(split.id) ? split : null;
+}
 
 const BROWSER_OPTIONS = { blockTrackers: true, useRandomUA: true };
 
@@ -97,8 +124,14 @@ export async function registerMcpHandlers() {
       // SHIELD's own web and terminal tools are routed by name as well: a
       // model writes bare tool names, which the chat assumes are filesystem
       // tools. Commands run in the open session's project folder.
-      const result =
-        request.serverName === WEB_SERVER_NAME || isWebTool(request.tool)
+      const connector = connectorCall(request);
+      const result = connector
+        ? await getConnectorService()!.callTool(
+            connector.id,
+            connector.tool,
+            request.arguments ?? {}
+          )
+        : request.serverName === WEB_SERVER_NAME || isWebTool(request.tool)
           ? await callWebTool(request)
           : isTerminalTool(request.tool)
             ? await runCommand(
@@ -147,8 +180,10 @@ export async function registerMcpHandlers() {
   // List available tools
   ipcMain.handle("mcp:list-tools", async (_event, serverName) => {
     try {
-      const tools =
-        serverName === WEB_SERVER_NAME
+      const connectorId = connectorIdOfServer(serverName);
+      const tools = connectorId
+        ? (getConnectorService()?.listTools(connectorId) ?? [])
+        : serverName === WEB_SERVER_NAME
           ? WEB_TOOLS
           : serverName === TERMINAL_SERVER_NAME
             ? [runCommandTool()]
@@ -184,6 +219,9 @@ export async function registerMcpHandlers() {
           MEMORY_SERVER_NAME,
           PLAN_SERVER_NAME,
           AGENTS_SERVER_NAME,
+          ...(getConnectorService()?.connectedIds() ?? []).map(
+            connectorServerName
+          ),
         ],
       };
     } catch (error) {

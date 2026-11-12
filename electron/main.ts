@@ -7,6 +7,10 @@ import { createMainWindow } from "./setup/windowSetup.js";
 import { registerLlamaHandlers } from "./ipc/llamaHandlers.js";
 import { registerConversationHandlers } from "./ipc/conversationHandlers.js";
 import { registerMcpHandlers } from "./ipc/mcpHandlers.js";
+import {
+  getConnectorService,
+  registerConnectorHandlers,
+} from "./ipc/connectorHandlers.js";
 import { registerMemoryHandlers } from "./ipc/memoryHandlers.js";
 import { registerProjectHandlers } from "./ipc/projectHandlers.js";
 import { registerProviderHandlers } from "./ipc/providerHandlers.js";
@@ -62,7 +66,11 @@ async function setupIpcHandlers() {
   registerConversationHandlers();
   registerProjectHandlers();
   registerMemoryHandlers();
+  const connectorService = registerConnectorHandlers();
   await registerMcpHandlers();
+  // Online services and the user's own servers start in the background;
+  // one that needs a sign-in waits for the Plugins page
+  void connectorService.startAll();
   const { webSearchService, getWebCacheService } = registerSearchHandlers();
   const modelDownloadService = registerModelHandlers();
   registerSystemHandlers();
@@ -144,6 +152,7 @@ app.on("window-all-closed", async () => {
   }
   stopRunningCommands();
   await mcpService.shutdown();
+  await getConnectorService()?.shutdown();
   if (process.platform !== "darwin") {
     app.quit();
   }

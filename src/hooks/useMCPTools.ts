@@ -124,6 +124,16 @@ export function useMCPTools(isMCPReady: boolean, workspaceFolder?: string) {
   const [tools, setTools] = useState<ToolDefinition[]>([]);
   const [allowedPaths, setAllowedPaths] = useState<string[]>([]);
   const [settled, setSettled] = useState(false);
+  // Bumped when a connector connects, disconnects or changes its tools
+  const [connectorsVersion, setConnectorsVersion] = useState(0);
+
+  useEffect(
+    () =>
+      window.electronAPI?.connectors?.onChanged(() =>
+        setConnectorsVersion((v) => v + 1)
+      ),
+    []
+  );
 
   useEffect(() => {
     if (!isMCPReady) {
@@ -199,7 +209,7 @@ export function useMCPTools(isMCPReady: boolean, workspaceFolder?: string) {
       cancelled = true;
     };
     // A new workspace restarts the filesystem server with different folders
-  }, [isMCPReady, workspaceFolder]);
+  }, [isMCPReady, workspaceFolder, connectorsVersion]);
 
   return { tools, allowedPaths, settled };
 }

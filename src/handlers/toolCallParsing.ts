@@ -6,6 +6,7 @@
 
 import { stoppedForLooping } from "../utils/loopGuard";
 import { normaliseDsml, splitToolCallName, withoutDsmlTags } from "./dsml";
+import { connectorServerName, splitConnectorTool } from "../config/connectors";
 
 export interface ToolCallRequest {
   serverName: string;
@@ -384,6 +385,16 @@ function normalizeToolNameAndServer(name: string): {
   const trimmedName = name.trim();
   if (!trimmedName) {
     return { serverName: "filesystem", tool: "" };
+  }
+
+  // A connector's tool (src/config/connectors): the full name stays the
+  // tool's, as the model was offered it and the policy knows it
+  const connector = splitConnectorTool(trimmedName);
+  if (connector) {
+    return {
+      serverName: connectorServerName(connector.id),
+      tool: trimmedName,
+    };
   }
 
   const dotIndex = trimmedName.indexOf(".");

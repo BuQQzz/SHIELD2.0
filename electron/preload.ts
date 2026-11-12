@@ -32,6 +32,7 @@ import type {
   MemoryCheck,
   ProvidersAPI,
   RuntimeAPI,
+  ConnectorsAPI,
 } from "../src/types/electron";
 import type { RuntimeProgress } from "../src/types/runtime";
 import type { RecommendedSampling } from "../src/services/modelSampling";
@@ -619,6 +620,26 @@ const runtimeAPI: RuntimeAPI = {
   },
 };
 
+const connectorsAPI: ConnectorsAPI = {
+  catalog: () => ipcRenderer.invoke("connectors:catalog"),
+  list: () => ipcRenderer.invoke("connectors:list"),
+  addFromCatalog: (catalogId, token) =>
+    ipcRenderer.invoke("connectors:add-catalog", catalogId, token),
+  addManual: (input) => ipcRenderer.invoke("connectors:add-manual", input),
+  connect: (id) => ipcRenderer.invoke("connectors:connect", id),
+  setEnabled: (id, enabled) =>
+    ipcRenderer.invoke("connectors:set-enabled", id, enabled),
+  setToolEnabled: (id, tool, enabled) =>
+    ipcRenderer.invoke("connectors:set-tool-enabled", id, tool, enabled),
+  signOut: (id) => ipcRenderer.invoke("connectors:sign-out", id),
+  remove: (id) => ipcRenderer.invoke("connectors:remove", id),
+  onChanged: (callback) => {
+    const handler = () => callback();
+    ipcRenderer.on("connectors:changed", handler);
+    return () => ipcRenderer.removeListener("connectors:changed", handler);
+  },
+};
+
 contextBridge.exposeInMainWorld("electronAPI", {
   settings: settingsAPI,
   settingsPersistence: settingsPersistenceAPI,
@@ -629,6 +650,7 @@ contextBridge.exposeInMainWorld("electronAPI", {
   runtime: runtimeAPI,
   system: systemAPI,
   autoUpdate: autoUpdateAPI,
+  connectors: connectorsAPI,
 });
 
 // Log that preload executed successfully
