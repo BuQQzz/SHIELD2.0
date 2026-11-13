@@ -16,7 +16,11 @@ import { MAX_SAVED_RUNS } from "@/agents/runView";
 import { toolsForRole } from "@/agents/roles";
 import { teamFor } from "@/agents/team";
 import type { AgentRunDeps } from "@/agents/agentRunner";
-import { buildSystemPrompt, detectModelFamily } from "@/config/systemPrompts";
+import {
+  buildSystemPrompt,
+  detectModelFamily,
+  usesNativeToolCalling,
+} from "@/config/systemPrompts";
 import { useGenerationStore } from "@/store/generationStore";
 import { useConversationStore } from "@/stores/conversation-store";
 import { useTeamStore } from "@/stores/team-store";
@@ -115,11 +119,19 @@ export function useAgentTeam({
     async (request: ToolCallRequest): Promise<MCPToolResult> => {
       if (!isDelegateTool(request.tool)) return handleToolCallRequest(request);
       const team = teamFor(conversationId ?? "no-conversation");
+      // Agents call tools natively when the model does, as the main session
+      const native = usesNativeToolCalling(modelName ?? "");
+      const roleTools = (spec: {
+        role: Parameters<typeof toolsForRole>[0];
+      }) => [
+        ...toolsForRole(spec.role, workerPolicy.advertisedTools),
+        TEAM_NOTE_TOOL as unknown as ToolDefinition,
+      ];
 
       const deps: AgentRunDeps = {
-        openSession: async (prompt) => {
+        openSession: async (prompt, tools) => {
           const opened = must(
-            await window.llama.agentOpen(prompt),
+            await window.llama.agentOpen(prompt, tools),
             "Opening an agent session"
           );
           return opened.sessionId ?? "";
@@ -156,13 +168,11 @@ export function useAgentTeam({
             capabilities: [],
             customPrompt: spec.prompt,
             mcpEnabled: true,
-            nativeTools: false,
-            availableTools: [
-              ...toolsForRole(spec.role, workerPolicy.advertisedTools),
-              TEAM_NOTE_TOOL as unknown as ToolDefinition,
-            ],
+            nativeTools: native,
+            availableTools: roleTools(spec),
             allowedPaths,
           }).prompt,
+        nativeToolsFor: (spec) => (native ? roleTools(spec) : []),
         workspaceFolder,
         readFile: readProjectFile,
         isStopped: () => useGenerationStore.getState().stopRequested,

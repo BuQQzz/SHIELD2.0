@@ -90,6 +90,29 @@ describe("runAgent", () => {
     expect(roles).toEqual(["reviewer"]);
   });
 
+  it("opens the session with the role's native tools, when there are any", async () => {
+    const opened: { prompt: string; tools: unknown }[] = [];
+    const { deps } = harness([`Done.\n\n${HANDOFF_DONE}`], {
+      openSession: async (prompt, tools) => {
+        opened.push({ prompt, tools });
+        return "s1";
+      },
+    });
+    const readTool = { name: "read_text_file", description: "Read a file" };
+    await runAgent(
+      { role: "coder", task: "t", team: new TeamRun() },
+      {
+        ...deps,
+        nativeToolsFor: (spec) => (spec.role === "coder" ? [readTool] : []),
+      }
+    );
+    await runAgent({ role: "tester", task: "t", team: new TeamRun() }, deps);
+    expect(opened).toEqual([
+      { prompt: "PROMPT for coder", tools: [readTool] },
+      { prompt: "PROMPT for tester", tools: [] },
+    ]);
+  });
+
   it("runs a task through the tool loop and reports what SHIELD saw", async () => {
     const { deps, sent, executed } = harness([
       call("edit_file", {

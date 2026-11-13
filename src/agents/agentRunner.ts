@@ -27,6 +27,7 @@ import {
 } from "../handlers/mcpToolHandler";
 import { processMCPToolCalls } from "../handlers/mcpMessageHandler";
 import type { MCPToolResult } from "../types/electron";
+import type { ToolDefinition } from "../types/prompts";
 import {
   DENIED_BY_USER,
   describeWork,
@@ -56,7 +57,8 @@ import type {
 } from "./types";
 
 export interface AgentRunDeps {
-  openSession(systemPrompt: string): Promise<string>;
+  /** `tools`: sent natively, for a model with native calls (else empty) */
+  openSession(systemPrompt: string, tools?: ToolDefinition[]): Promise<string>;
   /** `thinking: false` asks a thinking model to answer without thought */
   chat(
     sessionId: string,
@@ -73,6 +75,8 @@ export interface AgentRunDeps {
   ): Promise<MCPToolResult>;
   /** The system prompt for a role: its text plus the tools it may use */
   buildPrompt(spec: RoleSpec): string;
+  /** The role's tools as native definitions; empty for the text form */
+  nativeToolsFor?(spec: RoleSpec): ToolDefinition[];
   workspaceFolder?: string;
   /** Reads a file as it is now, for an edit that missed (closestLines.ts) */
   readFile?: (path: string) => Promise<string | null>;
@@ -134,9 +138,9 @@ export function namedFilesNote(task: string, folder?: string): string {
     : "";
 }
 
-const SHORT_REPORT_REQUEST = `[SHIELD: your last reply was empty. Do not think at length. Reply in a few short lines: what you did and saw, then your HANDOFF block:\n${HANDOFF_FORMAT}]`;
+const SHORT_REPORT_REQUEST = `[SHIELD: your last reply was empty. Do not think at length. Reply with only your HANDOFF block, a few short lines, what you saw under NOTES:\n${HANDOFF_FORMAT}]`;
 
-const REPORT_REQUEST = `[SHIELD: stop here. Do not call any tool. Reply now with your report: first what you did and found, in plain words, quoting real output (a reviewer lists each problem with file and line, or says "no problems found"); then your HANDOFF block, in this format:\n${HANDOFF_FORMAT}]`;
+const REPORT_REQUEST = `[SHIELD: stop here. Do not call any tool. Reply now with only your HANDOFF block, no summary before it. Quote the real output that matters under NOTES (a reviewer lists each problem with file and line, or says "no problems found"). In this format:\n${HANDOFF_FORMAT}]`;
 
 /** After this many refused calls following the checkpoint, the run is ended */
 const MAX_REFUSALS_AFTER_CHECKPOINT = 2;
@@ -244,7 +248,10 @@ function endEvent(report: AgentReport): AgentEvent {
     type: "end",
     runId: report.handoffId,
     status: report.status,
-    summary: report.summary,
+    // The panel shows the hand-off's lines when the agent wrote no prose
+    summary:
+      report.summary ||
+      [report.parsed.done, report.parsed.notes].filter(Boolean).join("\n"),
     reason: report.reason,
     workLines: describeWork(report.work),
     steps: report.steps,
@@ -342,7 +349,10 @@ export async function runAgent(
 
   let sessionId: string;
   try {
-    sessionId = await deps.openSession(deps.buildPrompt(spec));
+    sessionId = await deps.openSession(
+      deps.buildPrompt(spec),
+      deps.nativeToolsFor?.(spec) ?? []
+    );
   } catch (error) {
     const report = failed(
       input,

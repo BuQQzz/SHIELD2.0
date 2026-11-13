@@ -17,6 +17,7 @@ import type { SavedMessage } from "./taskCapsule";
 interface SentRequest {
   stream?: boolean;
   messages: { role: string; content: string }[];
+  tools?: { function: { name: string } }[];
 }
 
 /**
@@ -361,6 +362,9 @@ describe("LlamaServerProvider context count", () => {
     expect(usage).not.toBeNull();
     expect(usage?.size).toBe(4096);
     expect(usage?.used).toBeGreaterThan(0);
+    // not even asked: each refusal is an HTTP 500 in the server's log
+    const urls = vi.mocked(fetch).mock.calls.map(([url]) => String(url));
+    expect(urls.some((url) => url.endsWith("/apply-template"))).toBe(false);
   });
 
   it("asks for a title with thinking off, so a thinking model has tokens left to answer", async () => {
@@ -427,6 +431,24 @@ describe("LlamaServerProvider forked sessions", () => {
       "done",
       "and then?",
     ]);
+  });
+
+  it("sends an agent its own tools natively, and none to a text-form agent", async () => {
+    const { provider, sent } = connected(4000, "", "done");
+    const read = {
+      name: "read_text_file",
+      description: "Read a file",
+      inputSchema: { type: "object", properties: { path: { type: "string" } } },
+    };
+    const native = provider.fork("You are the coder.", { tools: [read] });
+    await native.chat("read a.sh");
+    const text = provider.fork("You are the tester.");
+    await text.chat("run the tests");
+
+    expect(sent[0]?.tools?.map((t) => t.function.name)).toEqual([
+      "read_text_file",
+    ]);
+    expect(sent[1]?.tools).toBeUndefined();
   });
 
   it("measures how full the window is from the server's own count", async () => {

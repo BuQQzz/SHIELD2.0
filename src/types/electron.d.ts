@@ -296,7 +296,8 @@ export interface LlamaAPI {
     callback: (event: { sessionId: string; token: string }) => void
   ) => () => void;
   agentOpen: (
-    systemPrompt: string
+    systemPrompt: string,
+    tools?: ToolDefinition[]
   ) => Promise<{ success: boolean; sessionId?: string; error?: string }>;
   agentChat: (
     sessionId: string,

@@ -36,7 +36,7 @@ How you work:
 - Each result ends with a line like [Context: 42% used]. At 70% you will be told to stop. Keep reading short: read only the files and lines you need.
 - Quote real output. Never say a command passed or a file changed unless you saw the result in this conversation.
 - Use add_team_note for a fact the rest of the team needs (a decision, a command that works, a gotcha). One short line each.
-- When you finish, or are told to stop, end your reply with this block and nothing after it:
+- When you finish, or are told to stop, reply with only this block: no summary before it, nothing after it. Its lines are your whole report: what you did under DONE, and the real output that matters under NOTES (the counts you saw, a failing test's exact error lines, each problem's file and line, or the answer to a question):
 
 ${HANDOFF_FORMAT}`;
 

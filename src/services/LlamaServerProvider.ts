@@ -276,7 +276,7 @@ export class LlamaServerProvider {
   /**
    * Tools sent as native function definitions, for a model whose catalog
    * sets nativeToolCalls (llamaServer/nativeCalls.ts); empty otherwise.
-   * Not passed to forked sessions: agents keep the text form for now.
+   * A forked session gets its agent role's own (`fork`'s `tools`).
    */
   private nativeTools: OpenAiTool[] = [];
   /**
@@ -345,7 +345,15 @@ export class LlamaServerProvider {
    */
   fork(
     systemPrompt: string,
-    options: { keepWholeHistory?: boolean } = {}
+    options: {
+      keepWholeHistory?: boolean;
+      /**
+       * The agent's tools, sent natively as for the main session; empty
+       * when the model takes the text form. Agents used the text form only
+       * until the user decided on native calls for them too (2026-11-07)
+       */
+      tools?: ToolDefinition[];
+    } = {}
   ): LlamaServerProvider {
     if (!this.isRunning()) {
       throw new Error("No model loaded. Call loadModel() first");
@@ -356,7 +364,7 @@ export class LlamaServerProvider {
     session.trainContextSize = this.trainContextSize;
     session.reasoningEffort = this.reasoningEffort;
     session.presencePenalty = this.presencePenalty;
-    session.systemPrompt = systemPrompt;
+    session.applySystemPrompt(systemPrompt, options.tools ?? []);
     session.keepWholeHistory = options.keepWholeHistory ?? false;
     return session;
   }
@@ -1359,12 +1367,17 @@ export class LlamaServerProvider {
 
     // Some templates refuse a chat without a user message (Bonsai's, built on
     // Qwen3.5's, raises "No user query found"), which is what a new chat is.
-    // The pieces counted below stand in for the rendered total then.
+    // The pieces counted below stand in for the rendered total then. Such a
+    // chat is not sent at all: each refusal was an HTTP 500 in the server
+    // log, three at the start of every team run (2026-11-08)
     let prompt = "";
+    const messages = this.messages();
     try {
-      ({ prompt } = (await this.post("/apply-template", {
-        messages: this.messages(),
-      })) as { prompt: string });
+      if (messages.some((m) => m.role === "user")) {
+        ({ prompt } = (await this.post("/apply-template", { messages })) as {
+          prompt: string;
+        });
+      }
     } catch (error) {
       console.warn(
         "[LlamaServer] Chat template could not render the chat; counting its parts:",
