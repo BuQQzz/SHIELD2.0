@@ -376,7 +376,11 @@ export const ChatMessage = memo(function ChatMessage({
   const actionClass =
     "rounded-md p-1.5 text-muted-foreground opacity-0 transition-opacity duration-150 hover:bg-foreground/5 focus-visible:opacity-100 group-hover:opacity-100";
   const copyButton = (
-    <button onClick={handleCopy} className={actionClass} aria-label="Copy message">
+    <button
+      onClick={handleCopy}
+      className={actionClass}
+      aria-label="Copy message"
+    >
       {copied ? (
         <Check className="h-3.5 w-3.5 text-signal" />
       ) : (
@@ -405,7 +409,11 @@ export const ChatMessage = memo(function ChatMessage({
         {!isEditing && (
           <div className="flex gap-0.5 pt-1">
             {onEdit && (
-              <button onClick={handleStartEdit} className={actionClass} aria-label="Edit message">
+              <button
+                onClick={handleStartEdit}
+                className={actionClass}
+                aria-label="Edit message"
+              >
                 <Edit2 className="h-3.5 w-3.5" />
               </button>
             )}
@@ -428,7 +436,11 @@ export const ChatMessage = memo(function ChatMessage({
       <div className="flex items-center gap-0.5 text-[11px] text-muted-foreground/70">
         {copyButton}
         {!isStreaming && onRegenerate && (
-          <button onClick={onRegenerate} className={actionClass} aria-label="Regenerate response">
+          <button
+            onClick={onRegenerate}
+            className={actionClass}
+            aria-label="Regenerate response"
+          >
             <RefreshCw className="h-3.5 w-3.5" />
           </button>
         )}

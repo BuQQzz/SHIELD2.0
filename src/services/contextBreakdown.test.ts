@@ -41,13 +41,17 @@ describe("isToolResultTurn", () => {
     expect(isToolResultTurn("what's in this folder?")).toBe(false);
     expect(
       isToolResultTurn(
-        "[SHIELD removed from your context to save space: 223 characters of long text.]\n[SHIELD removed from your context to save space: an unfinished tool call.]\n<tool_result trusted=\"false\">..."
+        '[SHIELD removed from your context to save space: 223 characters of long text.]\n[SHIELD removed from your context to save space: an unfinished tool call.]\n<tool_result trusted="false">...'
       )
     ).toBe(true);
     expect(
-      isToolResultTurn("[SHIELD removed from your context to save space: x]\nYou executed 1 tool call(s).")
+      isToolResultTurn(
+        "[SHIELD removed from your context to save space: x]\nYou executed 1 tool call(s)."
+      )
     ).toBe(true);
-    expect(isToolResultTurn("[SHIELD note] can we each have our own stuff?")).toBe(false);
+    expect(
+      isToolResultTurn("[SHIELD note] can we each have our own stuff?")
+    ).toBe(false);
   });
 });
 

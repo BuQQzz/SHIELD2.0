@@ -59,7 +59,8 @@ export function isRemovalNote(text: string): boolean {
 }
 
 /** A removal note in a reply's text: SHIELD's own in old histories, or one the model copied */
-const NOTE_IN_REPLY = /\n*\[[^[\]]*removed from your context to save space[^[\]]*\]/g;
+const NOTE_IN_REPLY =
+  /\n*\[[^[\]]*removed from your context to save space[^[\]]*\]/g;
 
 /**
  * The reply without removal notes in its text. One the model wrote itself
@@ -259,7 +260,12 @@ function shSegments(command: string): string[][] | null {
     } else if (c === "'" || c === '"') {
       quote = c;
       inWord = true;
-    } else if (c === ";" || c === "\n" || (c === "&" && chars[i + 1] === "&") || (c === "|" && chars[i + 1] === "|")) {
+    } else if (
+      c === ";" ||
+      c === "\n" ||
+      (c === "&" && chars[i + 1] === "&") ||
+      (c === "|" && chars[i + 1] === "|")
+    ) {
       if (c !== ";" && c !== "\n") i++;
       end();
       segments.push([]);
@@ -296,15 +302,32 @@ function commandReads(command: string): FilePart[] | null {
     if (name === "cd" && args.length === 1) dir = args[0]!;
     else if (name === "echo" || name === "wc") continue;
     else if (name === "sed" && args[0] === "-n" && args.length >= 3) {
-      const ranges = args[1]!.split(";").map((r) => r.trim().match(/^(\d+)(?:,(\d+))?p$/));
+      const ranges = args[1]!
+        .split(";")
+        .map((r) => r.trim().match(/^(\d+)(?:,(\d+))?p$/));
       if (ranges.some((r) => !r)) return null;
-      const lines = ranges.map((r) => [Number(r![1]), Number(r![2] ?? r![1])] as [number, number]);
+      const lines = ranges.map(
+        (r) => [Number(r![1]), Number(r![2] ?? r![1])] as [number, number]
+      );
       for (const file of args.slice(2)) parts.push({ file: at(file), lines });
-    } else if ((name === "awk" || name === "gawk") && args.length === 2 && /^\/.*\/\s*,\s*\/.*\/$/.test(args[0]!)) {
+    } else if (
+      (name === "awk" || name === "gawk") &&
+      args.length === 2 &&
+      /^\/.*\/\s*,\s*\/.*\/$/.test(args[0]!)
+    ) {
       parts.push({ file: at(args[1]!), awk: args[0]! });
-    } else if (name === "cat" && args.length >= 1 && args.every((a) => !a.startsWith("-"))) {
+    } else if (
+      name === "cat" &&
+      args.length >= 1 &&
+      args.every((a) => !a.startsWith("-"))
+    ) {
       for (const file of args) parts.push({ file: at(file), whole: true });
-    } else if (name === "head" && args.length === 3 && args[0] === "-n" && /^\d+$/.test(args[1]!)) {
+    } else if (
+      name === "head" &&
+      args.length === 3 &&
+      args[0] === "-n" &&
+      /^\d+$/.test(args[1]!)
+    ) {
       parts.push({ file: at(args[2]!), lines: [[1, Number(args[1])]] });
     } else return null;
   }
@@ -315,10 +338,13 @@ function commandReads(command: string): FilePart[] | null {
 function toolRead(args: Record<string, unknown>): FilePart[] | null {
   const { path, head, tail } = args;
   if (typeof path !== "string") return null;
-  if (head === undefined && tail === undefined) return [{ file: path, whole: true }];
-  if (typeof head === "number" && tail === undefined) return [{ file: path, lines: [[1, head]] }];
+  if (head === undefined && tail === undefined)
+    return [{ file: path, whole: true }];
+  if (typeof head === "number" && tail === undefined)
+    return [{ file: path, lines: [[1, head]] }];
   // g5 read the end of spend.py four times: tail 370, 372, 374, 374
-  if (typeof tail === "number" && head === undefined) return [{ file: path, tail }];
+  if (typeof tail === "number" && head === undefined)
+    return [{ file: path, tail }];
   return null;
 }
 
@@ -335,7 +361,8 @@ function readBlocks(history: HistoryEntry[]): ReadBlock[] {
     calls.forEach((call, block) => {
       const parts = READ_TOOLS.has(call.tool)
         ? toolRead(call.arguments)
-        : call.tool === "run_command" && typeof call.arguments.command === "string"
+        : call.tool === "run_command" &&
+            typeof call.arguments.command === "string"
           ? commandReads(call.arguments.command)
           : null;
       if (parts) reads.push({ entry: i + 1, block, parts });
@@ -360,12 +387,13 @@ function covered(part: FilePart, later: FilePart[]): boolean {
   if (part.whole) return false;
   if (part.awk !== undefined) return same.some((l) => l.awk === part.awk);
   // A later tail at least as long shows the end of the file again
-  if (part.tail !== undefined) return same.some((l) => (l.tail ?? 0) >= part.tail!);
+  if (part.tail !== undefined)
+    return same.some((l) => (l.tail ?? 0) >= part.tail!);
   const ranges = same.flatMap((l) => l.lines ?? []);
   const lines = part.lines ?? [];
   if (lines.length === 0) return false;
   return lines.every(([from, to]) => {
-    for (let line = from; line <= to; ) {
+    for (let line = from; line <= to;) {
       const next = ranges.find(([a, b]) => a <= line && line <= b);
       if (!next) return false;
       line = next[1] + 1;
@@ -390,10 +418,14 @@ export function compactStaleReads(history: HistoryEntry[]): {
   const stale = new Map<number, Map<number, string>>();
   reads.forEach((read) => {
     if (read.entry >= history.length - 1) return;
-    const later = reads.filter((r) => r.entry > read.entry).flatMap((r) => r.parts);
+    const later = reads
+      .filter((r) => r.entry > read.entry)
+      .flatMap((r) => r.parts);
     if (read.parts.every((part) => covered(part, later))) {
       const blocks = stale.get(read.entry) ?? new Map<number, string>();
-      const names = [...new Set(read.parts.map((p) => p.file.split(/[\\/]/).pop()))];
+      const names = [
+        ...new Set(read.parts.map((p) => p.file.split(/[\\/]/).pop())),
+      ];
       blocks.set(read.block, names.join(", "));
       stale.set(read.entry, blocks);
     }

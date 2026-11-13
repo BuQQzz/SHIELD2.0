@@ -72,14 +72,26 @@ describe("relaxedEdits", () => {
   });
 
   it("leaves edits alone when they match, miss outright, or match twice", () => {
-    expect(relaxedEdits(file, [{ oldText: "def main():", newText: "x" }])).toBeNull();
-    expect(relaxedEdits(file, [{ oldText: "def other():\n\n    pass", newText: "x" }])).toBeNull();
+    expect(
+      relaxedEdits(file, [{ oldText: "def main():", newText: "x" }])
+    ).toBeNull();
+    expect(
+      relaxedEdits(file, [
+        { oldText: "def other():\n\n    pass", newText: "x" },
+      ])
+    ).toBeNull();
     const twice = "a\n\n\nb\na\n\nb\n";
-    expect(relaxedEdits(twice, [{ oldText: "a\n\n\n\nb", newText: "x" }])).toBeNull();
+    expect(
+      relaxedEdits(twice, [{ oldText: "a\n\n\n\nb", newText: "x" }])
+    ).toBeNull();
   });
 
   it("never adds blank lines where oldText has none", () => {
-    expect(relaxedEdits(file, [{ oldText: '    return f"${amount:.2f}"\ndef main():', newText: "x" }])).toBeNull();
+    expect(
+      relaxedEdits(file, [
+        { oldText: '    return f"${amount:.2f}"\ndef main():', newText: "x" },
+      ])
+    ).toBeNull();
   });
 });
 
@@ -87,16 +99,26 @@ describe("relaxedEdits, inside lines", () => {
   const file =
     'def active_profile_name():\n    """Return the current profile name."""\n    try:\n        pass\n\nHELP = """\n    python spend.py export       -> write CSV files\n    python spend.py delete N     -> remove an expense\n"""\n';
 
-  it("takes \"\"\" where oldText closed a docstring with \"\" (g12 step 12)", () => {
+  it('takes """ where oldText closed a docstring with "" (g12 step 12)', () => {
     const out = relaxedEdits(file, [
-      { oldText: 'def active_profile_name():\n    """Return the current profile name.""\n    try:', newText: "x" },
+      {
+        oldText:
+          'def active_profile_name():\n    """Return the current profile name.""\n    try:',
+        newText: "x",
+      },
     ]) as Array<{ oldText: string }>;
-    expect(out[0]!.oldText).toBe('def active_profile_name():\n    """Return the current profile name."""\n    try:');
+    expect(out[0]!.oldText).toBe(
+      'def active_profile_name():\n    """Return the current profile name."""\n    try:'
+    );
   });
 
   it("takes the file's alignment spaces (g12 steps 9-10)", () => {
     const out = relaxedEdits(file, [
-      { oldText: "    python spend.py export -> write CSV files\n    python spend.py delete N -> remove an expense", newText: "x" },
+      {
+        oldText:
+          "    python spend.py export -> write CSV files\n    python spend.py delete N -> remove an expense",
+        newText: "x",
+      },
     ]) as Array<{ oldText: string }>;
     expect(out[0]!.oldText).toBe(
       "    python spend.py export       -> write CSV files\n    python spend.py delete N     -> remove an expense"
@@ -105,16 +127,26 @@ describe("relaxedEdits, inside lines", () => {
 
   it("ends where oldText ends, leaving the next line's indentation", () => {
     const out = relaxedEdits(file, [
-      { oldText: 'def active_profile_name():\n    """Return the current profile name.""\n    try:\n', newText: "x" },
+      {
+        oldText:
+          'def active_profile_name():\n    """Return the current profile name.""\n    try:\n',
+        newText: "x",
+      },
     ]) as Array<{ oldText: string }>;
-    expect(out[0]!.oldText).toBe('def active_profile_name():\n    """Return the current profile name."""\n    try:\n');
+    expect(out[0]!.oldText).toBe(
+      'def active_profile_name():\n    """Return the current profile name."""\n    try:\n'
+    );
   });
 
   it("keeps indentation exact", () => {
-    expect(relaxedEdits(file, [{ oldText: "  try:\n      pass", newText: "x" }])).toBeNull();
+    expect(
+      relaxedEdits(file, [{ oldText: "  try:\n      pass", newText: "x" }])
+    ).toBeNull();
   });
 
   it("does not join words that had no space", () => {
-    expect(relaxedEdits(file, [{ oldText: "pythonspend.py export", newText: "x" }])).toBeNull();
+    expect(
+      relaxedEdits(file, [{ oldText: "pythonspend.py export", newText: "x" }])
+    ).toBeNull();
   });
 });

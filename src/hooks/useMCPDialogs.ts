@@ -247,10 +247,15 @@ export function outsideFolderPath(
   toolCall: { serverName: string; arguments: Record<string, unknown> },
   folder?: string
 ): string | null {
-  if (!folder?.startsWith("/") || toolCall.serverName !== "filesystem") return null;
+  if (!folder?.startsWith("/") || toolCall.serverName !== "filesystem")
+    return null;
   for (const key of ["path", "source", "destination"]) {
     const value = toolCall.arguments[key];
-    if (typeof value === "string" && /^[/~]/.test(value) && leavesFolder(value, folder, true)) {
+    if (
+      typeof value === "string" &&
+      /^[/~]/.test(value) &&
+      leavesFolder(value, folder, true)
+    ) {
       return value;
     }
   }
@@ -415,8 +420,13 @@ export function useMCPDialogs({
             });
             // A tool's own error comes back as success with isError set
             // and the message in its content
-            if (!info.success || (info.data as { isError?: unknown })?.isError) {
-              const text = info.success ? resultPayload(info.data) : String(info.error ?? "");
+            if (
+              !info.success ||
+              (info.data as { isError?: unknown })?.isError
+            ) {
+              const text = info.success
+                ? resultPayload(info.data)
+                : String(info.error ?? "");
               if (NOT_FOUND.test(text)) missing.add(path);
               return;
             }
@@ -673,7 +683,14 @@ export function useMCPDialogs({
         });
       });
     },
-    [defaultPolicy, callTool, noteWrite, modelScriptsIn, existingWarnings, rewriteWarning]
+    [
+      defaultPolicy,
+      callTool,
+      noteWrite,
+      modelScriptsIn,
+      existingWarnings,
+      rewriteWarning,
+    ]
   );
 
   /**

@@ -925,8 +925,9 @@ describe("Qwen 3.8 calls swallowed into one value (2026-11-05)", () => {
 
 describe("a reply that stops right after its call's arguments", () => {
   const start =
-    'I\'ll write it.\n\n<tool_call>\n<server>filesystem</server>\n<tool>write_file</tool>\n<arguments>';
-  const whole = '{"content": "# Kit\\n- [ ] Water", "path": "/p/72_Hour_Kit.md"}';
+    "I'll write it.\n\n<tool_call>\n<server>filesystem</server>\n<tool>write_file</tool>\n<arguments>";
+  const whole =
+    '{"content": "# Kit\\n- [ ] Water", "path": "/p/72_Hour_Kit.md"}';
 
   it("is closed and runs (Ornith 1.5 9B, 2026-11-13)", () => {
     const text = closeFinishedCall(start + whole);

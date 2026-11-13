@@ -152,8 +152,8 @@ describe("failureLines", () => {
     "19\t    except ValueError:",
     "'        raise SystemExit(f\"error: no expense with id {args.id}\")'",
     "} catch (error) {",
-    "raise SystemExit(f\"error: {path} not found\")",
-    "throw new TypeError(\"bad input\");",
+    'raise SystemExit(f"error: {path} not found")',
+    'throw new TypeError("bad input");',
     "# Error: handled below",
   ])("leaves %s", (line) => {
     expect(failureLines(line)).toEqual([]);

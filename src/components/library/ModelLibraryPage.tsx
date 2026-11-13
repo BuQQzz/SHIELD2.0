@@ -54,9 +54,7 @@ function Stat({
     <div className="flex items-center gap-2.5 rounded-xl bg-soft px-3 py-2">
       <Icon className="h-4 w-4 text-muted-foreground" />
       <div className="leading-tight">
-        <div className="text-[11px] text-muted-foreground">
-          {label}
-        </div>
+        <div className="text-[11px] text-muted-foreground">{label}</div>
         <div className="font-instrument text-sm">{value}</div>
       </div>
     </div>
@@ -198,9 +196,7 @@ export function ModelLibraryPage({
               transition={{ duration: 0.3, delay: 0.05 + index * 0.06 }}
             >
               <div className="mb-3 flex items-baseline gap-3">
-                <h2 className="text-sm font-semibold">
-                  {family.name}
-                </h2>
+                <h2 className="text-sm font-semibold">{family.name}</h2>
                 <span className="text-xs text-muted-foreground">
                   {family.provider}
                 </span>

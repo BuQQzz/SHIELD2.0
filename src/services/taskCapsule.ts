@@ -250,7 +250,9 @@ function addStep(steps: CapsuleStep[], step: CapsuleStep): void {
  */
 export function cleanNote(note: string): string {
   const text = stripToolCallMarkup(note);
-  const fields = text.match(/^[\s*_-]*(State|Decisions|Next|Offered|Facts)\b[^:\n]*:.*$/gim);
+  const fields = text.match(
+    /^[\s*_-]*(State|Decisions|Next|Offered|Facts)\b[^:\n]*:.*$/gim
+  );
   let kept: string;
   if (fields) {
     kept = fields.map((line) => line.replace(/\*\*|__/g, "").trim()).join("\n");

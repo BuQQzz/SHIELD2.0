@@ -58,8 +58,12 @@ export function filesRun(command: string, changed: Iterable<string>): string[] {
   return names.filter((name) => {
     const stem = name.replace(/\.[^.]+$/, "");
     const word = (text: string) =>
-      new RegExp(`(^|[^\\w.-])${text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}([^\\w-]|$)`);
-    return pieces.some((piece) => word(name).test(piece) || word(stem).test(piece));
+      new RegExp(
+        `(^|[^\\w.-])${text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}([^\\w-]|$)`
+      );
+    return pieces.some(
+      (piece) => word(name).test(piece) || word(stem).test(piece)
+    );
   });
 }
 

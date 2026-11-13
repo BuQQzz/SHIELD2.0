@@ -60,7 +60,8 @@ export function ambiguousEdit(
   return null;
 }
 
-const escapeRegex = (text: string) => text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+const escapeRegex = (text: string) =>
+  text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
 /**
  * A pattern for `oldText` that allows any number of blank lines where it
@@ -120,12 +121,19 @@ function relaxedLine(line: string): string {
  * (g11 step 5, 2026-11-09). Edits are applied in turn as the tool would.
  * Null when no edit needed this.
  */
-export function relaxedEdits(content: string, edits: unknown[]): unknown[] | null {
+export function relaxedEdits(
+  content: string,
+  edits: unknown[]
+): unknown[] | null {
   let text = content.replace(/\r\n/g, "\n");
   let changed = false;
   const out = edits.map((raw) => {
     const edit = raw as { oldText?: unknown; newText?: unknown };
-    if (typeof edit?.oldText !== "string" || !edit.oldText.trim() || typeof edit.newText !== "string") {
+    if (
+      typeof edit?.oldText !== "string" ||
+      !edit.oldText.trim() ||
+      typeof edit.newText !== "string"
+    ) {
       return raw;
     }
     let oldText = edit.oldText.replace(/\r\n/g, "\n");
@@ -136,7 +144,8 @@ export function relaxedEdits(content: string, edits: unknown[]): unknown[] | nul
       changed = true;
     }
     const at = text.indexOf(oldText);
-    if (at !== -1) text = text.slice(0, at) + edit.newText + text.slice(at + oldText.length);
+    if (at !== -1)
+      text = text.slice(0, at) + edit.newText + text.slice(at + oldText.length);
     return oldText === edit.oldText ? raw : { ...edit, oldText };
   });
   return changed ? out : null;

@@ -489,7 +489,7 @@ describe("multi-round tool chaining", () => {
     await append("/p/spend.py");
     const noted = (addMessage.mock.calls[0]?.[0] as Message).content;
     expect(noted).toContain("Appended.");
-    expect(noted).toContain('block at line 5 of spend.py');
+    expect(noted).toContain("block at line 5 of spend.py");
 
     // Not for other files, nor when the block comes after the new text
     addMessage.mockClear();
@@ -500,7 +500,11 @@ describe("multi-round tool chaining", () => {
   });
 
   it("says when Python text opens a triple-quoted string it never closes", async () => {
-    const run = async (tool: string, args: Record<string, unknown>, file: string) => {
+    const run = async (
+      tool: string,
+      args: Record<string, unknown>,
+      file: string
+    ) => {
       const addMessage = vi.fn();
       await processMCPToolCalls(
         {
@@ -510,7 +514,9 @@ describe("multi-round tool chaining", () => {
           timestamp: new Date(),
         },
         {
-          onToolCallDetected: vi.fn().mockResolvedValue({ success: true, data: "OK" }),
+          onToolCallDetected: vi
+            .fn()
+            .mockResolvedValue({ success: true, data: "OK" }),
           addMessage,
           continueConversation: vi.fn().mockResolvedValue("ok"),
           maxToolRounds: 1,
@@ -525,7 +531,10 @@ describe("multi-round tool chaining", () => {
     const file = `import os\n\n\n${added}\ndef main():\n    """Run."""\n`;
     const noted = await run(
       "edit_file",
-      { path: "/p/spend.py", edits: [{ oldText: "import os\n", newText: `import os\n\n\n${added}` }] },
+      {
+        path: "/p/spend.py",
+        edits: [{ oldText: "import os\n", newText: `import os\n\n\n${added}` }],
+      },
       file
     );
     expect(noted).toContain("opens a triple-quoted string at line 5");
@@ -533,13 +542,31 @@ describe("multi-round tool chaining", () => {
 
     // Balanced text, an edit that only moves a closing quote, other files
     expect(
-      await run("edit_file", { path: "/p/spend.py", edits: [{ oldText: "x", newText: '"""Doc."""' }] }, file)
+      await run(
+        "edit_file",
+        {
+          path: "/p/spend.py",
+          edits: [{ oldText: "x", newText: '"""Doc."""' }],
+        },
+        file
+      )
     ).not.toContain("triple-quoted");
     expect(
-      await run("edit_file", { path: "/p/spend.py", edits: [{ oldText: 'every\n    """', newText: 'every."""' }] }, file)
+      await run(
+        "edit_file",
+        {
+          path: "/p/spend.py",
+          edits: [{ oldText: 'every\n    """', newText: 'every."""' }],
+        },
+        file
+      )
     ).not.toContain("triple-quoted");
-    expect(await run("append_file", { path: "/p/notes.md", content: '"""' }, file)).not.toContain("triple-quoted");
-    expect(await run("write_file", { path: "/p/a.py", content: added }, added)).toContain("opens a triple-quoted string at line 2");
+    expect(
+      await run("append_file", { path: "/p/notes.md", content: '"""' }, file)
+    ).not.toContain("triple-quoted");
+    expect(
+      await run("write_file", { path: "/p/a.py", content: added }, added)
+    ).toContain("opens a triple-quoted string at line 2");
   });
 
   it("shows a big read of a code file in part, with an outline", async () => {
@@ -557,7 +584,9 @@ describe("multi-round tool chaining", () => {
           timestamp: new Date(),
         },
         {
-          onToolCallDetected: vi.fn().mockResolvedValue({ success: true, data }),
+          onToolCallDetected: vi
+            .fn()
+            .mockResolvedValue({ success: true, data }),
           addMessage,
           continueConversation: vi.fn().mockResolvedValue("ok"),
           maxToolRounds: 1,
@@ -568,7 +597,9 @@ describe("multi-round tool chaining", () => {
     };
 
     const whole = await read({ path: "/p/spend.py" }, file);
-    expect(whole).toContain("spend.py has 500 lines. You asked for 500 of them (lines 1-500)");
+    expect(whole).toContain(
+      "spend.py has 500 lines. You asked for 500 of them (lines 1-500)"
+    );
     expect(whole).toContain("Lines 1-200:");
     expect(whole).toContain("    x = 200\n");
     expect(whole).not.toContain("    x = 201\n");
@@ -595,7 +626,10 @@ describe("multi-round tool chaining", () => {
     expect(both).toContain("Lines 1-200:");
 
     // Small reads and other files are left as they are
-    const small = await read({ path: "/p/spend.py", head: 40 }, lines.slice(0, 40).join("\n"));
+    const small = await read(
+      { path: "/p/spend.py", head: 40 },
+      lines.slice(0, 40).join("\n")
+    );
     expect(small).not.toContain("Outline");
     const notes = await read({ path: "/p/notes.md" }, file);
     expect(notes).not.toContain("Outline");
@@ -605,11 +639,19 @@ describe("multi-round tool chaining", () => {
     const edit = `<tool_call>\n<server>filesystem</server>\n<tool>edit_file</tool>\n<arguments>{"path":"/p/spend.py","edits":[{"oldText":"a","newText":"b"}]}</arguments>\n</tool_call>`;
     const run = (remindToRun: boolean, replies: string[]) => {
       const continueConversation = vi.fn();
-      for (const reply of replies) continueConversation.mockResolvedValueOnce(reply);
+      for (const reply of replies)
+        continueConversation.mockResolvedValueOnce(reply);
       return processMCPToolCalls(
-        { id: `assistant-remind-${remindToRun}-${replies.length}`, role: "assistant", content: edit, timestamp: new Date() },
         {
-          onToolCallDetected: vi.fn().mockResolvedValue({ success: true, data: "ok" }),
+          id: `assistant-remind-${remindToRun}-${replies.length}`,
+          role: "assistant",
+          content: edit,
+          timestamp: new Date(),
+        },
+        {
+          onToolCallDetected: vi
+            .fn()
+            .mockResolvedValue({ success: true, data: "ok" }),
           addMessage: vi.fn(),
           continueConversation,
           maxToolRounds: 5,
@@ -617,7 +659,10 @@ describe("multi-round tool chaining", () => {
         }
       ).then(() => continueConversation.mock.calls.map((c) => String(c[0])));
     };
-    const reminded = await run(true, ["Done, import added.", "I ran it: works."]);
+    const reminded = await run(true, [
+      "Done, import added.",
+      "I ran it: works.",
+    ]);
     expect(reminded).toHaveLength(2);
     expect(reminded[1]).toContain("you changed spend.py");
     // Once only, and not for a model without the switch
@@ -1407,13 +1452,24 @@ describe("the same error again", () => {
     const call = (tool: string, args: Record<string, unknown>) =>
       `<tool_call>\n<server>terminal</server>\n<tool>${tool}</tool>\n<arguments>${JSON.stringify(args)}</arguments>\n</tool_call>`;
     const replies = [
-      call("run_command", { command: "python3 kitplan.py F search water", reason: "try" }),
-      call("edit_file", { path: "/p/kitplan.py", edits: [{ oldText: "a", newText: "b" }] }),
-      call("run_command", { command: "python3 kitplan.py F missing 1 3", reason: "try" }),
+      call("run_command", {
+        command: "python3 kitplan.py F search water",
+        reason: "try",
+      }),
+      call("edit_file", {
+        path: "/p/kitplan.py",
+        edits: [{ oldText: "a", newText: "b" }],
+      }),
+      call("run_command", {
+        command: "python3 kitplan.py F missing 1 3",
+        reason: "try",
+      }),
       "Done.",
     ];
     const onToolCallDetected = vi.fn(async (c: { tool: string }) =>
-      c.tool === "run_command" ? { success: true, data: crash("0.1") } : { success: true, data: "Edited." }
+      c.tool === "run_command"
+        ? { success: true, data: crash("0.1") }
+        : { success: true, data: "Edited." }
     );
     const addMessage = vi.fn();
     let n = 0;
@@ -1421,7 +1477,10 @@ describe("the same error again", () => {
       {
         id: "a-same-error",
         role: "assistant",
-        content: call("run_command", { command: "python3 kitplan.py F summary", reason: "try" }),
+        content: call("run_command", {
+          command: "python3 kitplan.py F summary",
+          reason: "try",
+        }),
         timestamp: new Date(),
       },
       {

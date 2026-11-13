@@ -23,7 +23,10 @@ export function outline(text: string, firstLine = 1): OutlineLine[] {
     if (DEFINITION.test(line)) {
       found.push({
         line: firstLine + i,
-        text: line.trim().replace(/\s*[{:]\s*$/, "").slice(0, 90),
+        text: line
+          .trim()
+          .replace(/\s*[{:]\s*$/, "")
+          .slice(0, 90),
       });
     }
   });

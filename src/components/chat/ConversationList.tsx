@@ -129,9 +129,7 @@ export const ConversationList = memo(function ConversationList({
       {groups.map(([label, items]) => (
         <section key={label || "all"}>
           {label && (
-            <h3 className="px-2 pb-1 text-xs text-muted-foreground">
-              {label}
-            </h3>
+            <h3 className="px-2 pb-1 text-xs text-muted-foreground">{label}</h3>
           )}
           <ul className="space-y-px">
             {items.map((conversation) => {

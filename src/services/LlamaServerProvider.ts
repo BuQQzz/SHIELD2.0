@@ -147,7 +147,8 @@ export const STALL_MS = 5 * 60 * 1000;
 export const MIN_REPLY_TOKENS = 8192;
 
 /** What launch.ts adds to a thought cut at the budget, not the model's own */
-const BUDGET_NOTE = /\s*Thinking budget reached\. Act now on what I have worked out\.\s*$/;
+const BUDGET_NOTE =
+  /\s*Thinking budget reached\. Act now on what I have worked out\.\s*$/;
 
 /**
  * Thinking sent back within one request, at most (~6K tokens of a 32K
@@ -197,7 +198,8 @@ export function withRequestThinking(turns: ChatMessage[]): ChatMessage[] {
     // Nor the thought behind a call that failed: kept, its plan outweighed
     // the error. In kt-fix2 Bonsai 2 read a misspelled file name and sent
     // the same read three more times (2026-11-11)
-    if (/<error>|already failed in this turn/.test(turns[i + 1]?.content ?? "")) continue;
+    if (/<error>|already failed in this turn/.test(turns[i + 1]?.content ?? ""))
+      continue;
     if (thought.length > THINKING_CHARS) continue;
     if (total + thought.length > THINKING_CHARS) {
       keep = new Set();
@@ -250,7 +252,9 @@ export function noteBody(
 /** A message as the server reads it: thinking as reasoning_content */
 function asWire(
   message: WireMessage
-): WireMessage | (Omit<WireMessage, "reasoning"> & { reasoning_content: string }) {
+):
+  | WireMessage
+  | (Omit<WireMessage, "reasoning"> & { reasoning_content: string }) {
   if (!("reasoning" in message) || !message.reasoning) return message;
   const { reasoning, ...rest } = message;
   return { ...rest, reasoning_content: reasoning };
@@ -861,8 +865,7 @@ export class LlamaServerProvider {
       ...this.history,
       ...(extra ? [extra] : []),
     ]);
-    const wire =
-      this.nativeTools.length > 0 ? nativeHistory(turns) : turns;
+    const wire = this.nativeTools.length > 0 ? nativeHistory(turns) : turns;
     return [
       { role: "system", content: this.systemContent() },
       ...wire.map(asWire),

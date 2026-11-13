@@ -104,7 +104,16 @@ function commandWords(command: string): string[][] {
 }
 
 /** Commands whose first plain argument is a pattern or a program, not a file */
-const PATTERN_FIRST = new Set(["grep", "egrep", "fgrep", "rg", "awk", "gawk", "sed", "perl"]);
+const PATTERN_FIRST = new Set([
+  "grep",
+  "egrep",
+  "fgrep",
+  "rg",
+  "awk",
+  "gawk",
+  "sed",
+  "perl",
+]);
 
 /**
  * The words of a command that could be paths. A grep, awk or sed pattern is
@@ -146,8 +155,7 @@ function pathWords(command: string): string[] {
   // A regex, not a path: anchors, escapes, alternation
   // "~" names the home folder only alone or before "/"
   return pieces.filter(
-    (piece) =>
-      piece && !/[\^$\\|]/.test(piece) && !/^~[^/]/.test(piece)
+    (piece) => piece && !/[\^$\\|]/.test(piece) && !/^~[^/]/.test(piece)
   );
 }
 
@@ -198,7 +206,8 @@ const LOOKS_LIKE_FILE = /^[^.].*\.[A-Za-z0-9]{1,5}$/;
 const THROWAWAY_NAME =
   /^(?:(?!tests$)(test|tmp|temp|scratch)[-_]?[A-Za-z0-9][\w-]*|[\w-]+[-_](test|tmp)\d*)$/i;
 /** Throwaway places: deleting a test folder there is the cleanup asked for */
-const TEMP = /^(\/tmp|\/var\/tmp|\/private\/tmp|\$TMPDIR|\$\{TMPDIR\}|%TEMP%|\$env:TEMP)(\/|\\|$)/i;
+const TEMP =
+  /^(\/tmp|\/var\/tmp|\/private\/tmp|\$TMPDIR|\$\{TMPDIR\}|%TEMP%|\$env:TEMP)(\/|\\|$)/i;
 
 /**
  * The folders a command deletes with everything in them, other than
@@ -215,8 +224,15 @@ function recursiveDeletes(command: string): { shown: string; path: string }[] {
     const path = target.replace(/^["']|["']$/g, "").replace(/[/\\]+$/, "");
     // a file descriptor left by 2>&1, or a variable (mktemp -d) we cannot
     // see into; rm -rf $HOME is caught by DANGERS
-    if (!path || path.startsWith("-") || /^\d+$/.test(path) || /^\$\{?\w+\}?$/.test(path)) return;
-    const full = /^([/~\\$%]|[A-Za-z]:)/.test(path) || !dir ? path : `${dir}/${path}`;
+    if (
+      !path ||
+      path.startsWith("-") ||
+      /^\d+$/.test(path) ||
+      /^\$\{?\w+\}?$/.test(path)
+    )
+      return;
+    const full =
+      /^([/~\\$%]|[A-Za-z]:)/.test(path) || !dir ? path : `${dir}/${path}`;
     if (TEMP.test(full)) return;
     const name = path.split(/[/\\]/).pop()!;
     if (
@@ -232,22 +248,39 @@ function recursiveDeletes(command: string): { shown: string; path: string }[] {
   for (const words of commandWords(command)) {
     const [name = "", ...args] = words;
     if (/^(cd|Set-Location|pushd)$/i.test(name) && args.length === 1) {
-      dir = /^([/~\\$%]|[A-Za-z]:)/.test(args[0]!) || !dir ? args[0]! : `${dir}/${args[0]}`;
+      dir =
+        /^([/~\\$%]|[A-Za-z]:)/.test(args[0]!) || !dir
+          ? args[0]!
+          : `${dir}/${args[0]}`;
       continue;
     }
     const flags = args.filter((a) => a.startsWith("-"));
     const recursive =
-      (name === "rm" && flags.some((f) => /^-[a-zA-Z]*[rR]/.test(f) || f === "--recursive")) ||
-      (/^(Remove-Item|ri|rd|rmdir)$/i.test(name) && flags.some((f) => /^-r(ecurse)?$/i.test(f) || /^\/s$/i.test(f)));
-    if (recursive) args.filter((a) => !a.startsWith("-") && !/^\/s$/i.test(a)).forEach(add);
+      (name === "rm" &&
+        flags.some((f) => /^-[a-zA-Z]*[rR]/.test(f) || f === "--recursive")) ||
+      (/^(Remove-Item|ri|rd|rmdir)$/i.test(name) &&
+        flags.some((f) => /^-r(ecurse)?$/i.test(f) || /^\/s$/i.test(f)));
+    if (recursive)
+      args.filter((a) => !a.startsWith("-") && !/^\/s$/i.test(a)).forEach(add);
     // find DIR ... -delete
-    if (name === "find" && args.includes("-delete") && args[0] && !args[0].startsWith("-")) add(args[0]);
+    if (
+      name === "find" &&
+      args.includes("-delete") &&
+      args[0] &&
+      !args[0].startsWith("-")
+    )
+      add(args[0]);
   }
-  for (const match of command.matchAll(/shutil\.rmtree\(\s*(?:r?["']([^"']+)["'])/g)) add(match[1]!);
+  for (const match of command.matchAll(
+    /shutil\.rmtree\(\s*(?:r?["']([^"']+)["'])/g
+  ))
+    add(match[1]!);
   return found;
 }
 
-function deletesWarning(folders: { shown: string; path: string }[]): PromptWarning {
+function deletesWarning(
+  folders: { shown: string; path: string }[]
+): PromptWarning {
   return {
     level: "danger",
     text: `Deletes folders and everything in them: ${folders

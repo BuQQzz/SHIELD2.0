@@ -293,11 +293,11 @@ describe("scriptsInCommand", () => {
     expect(scriptsInCommand("npm test")).toEqual([]);
     expect(scriptsInCommand("git diff -- '*.ps1'")).toEqual([]);
     expect(
-      scriptsInCommand("cd /p && grep -n \"date\" spend.py | head -80")
+      scriptsInCommand('cd /p && grep -n "date" spend.py | head -80')
     ).toEqual([]);
     expect(scriptsInCommand("sed -n '431,560p' spend.py")).toEqual([]);
-    expect(
-      scriptsInCommand("cat spend.py && python3 spend.py list")
-    ).toEqual(["spend.py"]);
+    expect(scriptsInCommand("cat spend.py && python3 spend.py list")).toEqual([
+      "spend.py",
+    ]);
   });
 });

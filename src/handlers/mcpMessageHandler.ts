@@ -541,7 +541,9 @@ async function withReadOutline(
   // ignored it and read the file twice more (2026-11-11)
   const both = typeof head === "number" && typeof tail === "number";
   const meant =
-    both && head >= 1 && tail >= 1 ? ` For lines ${head}-${head + tail - 1}: sed -n '${head},${head + tail - 1}p' ${path}` : "";
+    both && head >= 1 && tail >= 1
+      ? ` For lines ${head}-${head + tail - 1}: sed -n '${head},${head + tail - 1}p' ${path}`
+      : "";
   const asked = both
     ? `You sent head ${head} and tail ${tail}. read_text_file takes one of them (head: the first N lines, tail: the last N), not a range, so it read the whole file; that fills your context and is cleared soon after, so it is shown in part.${meant}`
     : `You asked for ${shownLines.length} of them (lines ${askedFirst}-${askedFirst + shownLines.length - 1}); a read that size fills your context and is cleared soon after, so it is shown in part.`;
@@ -724,7 +726,9 @@ export async function processMCPToolCalls(
       }
       if (remindToRun && round > 1 && !toldToRun && notRun.size > 0) {
         toldToRun = true;
-        console.warn(`[MCP] Changed code never ran (${[...notRun].join(", ")}); asked once`);
+        console.warn(
+          `[MCP] Changed code never ran (${[...notRun].join(", ")}); asked once`
+        );
         const again = await continueConversation(runReminder([...notRun]));
         if (typeof again === "string" && again.trim() !== "") {
           content = again;
@@ -789,7 +793,11 @@ export async function processMCPToolCalls(
       } else {
         result = await runToolCall(toolCall, onToolCallDetected, readFile);
         const args = (toolCall.arguments ?? {}) as Record<string, unknown>;
-        const changedFile = changedCodeFile(toolCall.tool, args, result.success);
+        const changedFile = changedCodeFile(
+          toolCall.tool,
+          args,
+          result.success
+        );
         if (changedFile) notRun.add(changedFile);
         if (
           toolCall.tool === RUN_COMMAND_TOOL_NAME &&
@@ -797,7 +805,8 @@ export async function processMCPToolCalls(
           !result.blocked &&
           !/^Not run: /.test(result.error ?? "")
         ) {
-          for (const file of filesRun(args.command, notRun)) notRun.delete(file);
+          for (const file of filesRun(args.command, notRun))
+            notRun.delete(file);
         }
         if (FILE_EDIT_TOOLS.has(toolCall.tool) && result.success)
           failures.clear();
