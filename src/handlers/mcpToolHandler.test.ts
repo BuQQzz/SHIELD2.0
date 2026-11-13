@@ -410,6 +410,18 @@ describe("fitToBudget", () => {
     expect(out.length).toBeLessThan(9000);
   });
 
+  it("names the tail read that shows the lines left out", () => {
+    const file = Array.from({ length: 100 }, (_, i) => `line ${i + 1}`).join(
+      "\n"
+    );
+    const out = fitToBudget(file, 400);
+    expect(out.startsWith("line 1\n")).toBe(true);
+    const lastShown = Number(out.split("\n\n[")[0]!.split("line ").at(-1));
+    const hidden = Number(out.match(/the last (\d+) lines/)?.[1]);
+    expect(lastShown + hidden).toBe(100);
+    expect(out).toContain(`"tail": ${hidden}`);
+  });
+
   it("is applied inside the tool result envelope", () => {
     const out = formatToolResult(
       { serverName: "filesystem", tool: "read_text_file", arguments: {} },

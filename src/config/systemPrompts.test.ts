@@ -7,7 +7,11 @@ import {
   generateNativeToolPrompt,
   usesNativeToolCalling,
 } from "./systemPrompts";
-import type { SystemPromptConfig, ToolDefinition } from "../types/prompts";
+import type {
+  PromptCapability,
+  SystemPromptConfig,
+  ToolDefinition,
+} from "../types/prompts";
 
 const baseConfig: SystemPromptConfig = {
   modelFamily: "qwen",
@@ -72,6 +76,25 @@ describe("buildSystemPrompt tool section", () => {
     expect(prompt).toContain("search_files");
     expect(prompt).toContain("Recursively search for files matching a pattern");
     expect(prompt).toContain("fetch");
+  });
+
+  it("leaves the general advice out for a model with native calls", () => {
+    const config = {
+      ...baseConfig,
+      capabilities: [
+        "complexReasoning",
+        "codeGeneration",
+        "structuredOutput",
+      ] as PromptCapability[],
+      availableTools: tools,
+    };
+    expect(buildSystemPrompt(config).prompt).toContain("## Complex Reasoning");
+
+    const native = buildSystemPrompt({ ...config, nativeTools: true });
+    expect(native.prompt).not.toContain("## Complex Reasoning");
+    expect(native.prompt).not.toContain("## Code Generation");
+    expect(native.prompt).not.toContain("## Structured Output");
+    expect(native.includedModules).toContain("native-tools");
   });
 
   it("does not invent tools that no server exposes", () => {

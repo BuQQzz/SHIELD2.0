@@ -28,6 +28,7 @@ import {
   DELETE_TOOL_NAME,
   moveToRecycleBin,
 } from "./recycleBin.js";
+import { APPEND_TOOL, APPEND_TOOL_NAME, appendToFile } from "./appendFile.js";
 import {
   DECODED_EDIT_NOTE,
   decodeEditArguments,
@@ -223,6 +224,21 @@ class MCPService {
           return validated;
         }
 
+        // SHIELD's own, as delete: the server cannot add to a file's end
+        if (tool === APPEND_TOOL_NAME) {
+          return appendToFile(expandedArgs.path, expandedArgs.content, {
+            read: (target) =>
+              fsPromises.readFile(target, "utf8").catch((error) => {
+                if ((error as NodeJS.ErrnoException).code === "ENOENT") {
+                  return null;
+                }
+                throw error;
+              }),
+            append: (target, text) =>
+              fsPromises.appendFile(target, text, "utf8"),
+          });
+        }
+
         // SHIELD's own tool - the server has no delete. Runs only after the
         // same path checks as every server tool.
         if (tool === DELETE_TOOL_NAME) {
@@ -298,8 +314,10 @@ class MCPService {
 
     const result = await client.listTools();
     const tools = result.tools || [];
-    // The filesystem server cannot delete; SHIELD adds a Recycle Bin delete
-    return serverName === "filesystem" ? [...tools, DELETE_TOOL] : tools;
+    // The filesystem server cannot delete or append; SHIELD adds both
+    return serverName === "filesystem"
+      ? [...tools, APPEND_TOOL, DELETE_TOOL]
+      : tools;
   }
 
   /**

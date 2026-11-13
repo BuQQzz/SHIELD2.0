@@ -200,19 +200,30 @@ describe("tool allowlist migration", () => {
 
   it("allows every filesystem tool on a fresh install", () => {
     expect(DEFAULT_SETTINGS.mcp.allowedTools).toEqual(FILESYSTEM_TOOLS);
-    expect(FILESYSTEM_TOOLS).toHaveLength(15);
+    expect(FILESYSTEM_TOOLS).toHaveLength(16);
   });
 });
 
 describe("delete_file allowlist migration", () => {
   it("adds delete_file to the untouched 14-tool default", () => {
-    const previous = FILESYSTEM_TOOLS.filter((t) => t !== "delete_file");
+    const previous = FILESYSTEM_TOOLS.filter(
+      (t) => t !== "delete_file" && t !== "append_file"
+    );
     const migrated = migrateMcpSettings({
       ...DEFAULT_SETTINGS.mcp,
       allowedTools: previous,
     });
     expect(migrated.allowedTools).toContain("delete_file");
-    expect(migrated.allowedTools).toHaveLength(15);
+    expect(migrated.allowedTools).toHaveLength(16);
+  });
+
+  it("adds append_file to the untouched 15-tool default", () => {
+    const migrated = migrateMcpSettings({
+      ...DEFAULT_SETTINGS.mcp,
+      allowedTools: FILESYSTEM_TOOLS.filter((t) => t !== "append_file"),
+    });
+    expect(migrated.allowedTools).toContain("append_file");
+    expect(migrated.allowedTools).toHaveLength(16);
   });
 
   it("does not add it to a list the user trimmed", () => {

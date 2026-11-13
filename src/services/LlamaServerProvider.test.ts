@@ -9,6 +9,7 @@ import {
   STALL_MS,
   MIN_REPLY_TOKENS,
   nextPromptTokens,
+  overflowedPrompt,
 } from "./LlamaServerProvider";
 import { NUDGE_NOTE } from "./llamaServer/rescue";
 import type { SavedMessage } from "./taskCapsule";
@@ -988,6 +989,28 @@ describe("reasoning effort", () => {
   });
 });
 
+describe("presence penalty", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.restoreAllMocks();
+  });
+
+  it("is sent with every request when the model sets one, forks included", async () => {
+    const { provider, sent } = connected(8000);
+    Object.assign(provider, { presencePenalty: 1.5 });
+    await provider.chat("write the kit", { thinking: false });
+    expect(sent[0]).toHaveProperty("presence_penalty", 1.5);
+    await provider.fork("You are the coder.").chat("go");
+    expect(sent[1]).toHaveProperty("presence_penalty", 1.5);
+  });
+
+  it("is left out for a model that sets none", async () => {
+    const { provider, sent } = connected(8000);
+    await provider.chat("hi");
+    expect(sent[0]).not.toHaveProperty("presence_penalty");
+  });
+});
+
 describe("native tool calls", () => {
   afterEach(() => {
     vi.unstubAllGlobals();
@@ -1074,6 +1097,129 @@ describe("native tool calls", () => {
     );
   });
 
+  it("sends a message whose reply came back empty once more, without thinking", async () => {
+    const { provider, sent } = connected(8000);
+    const replies = ["", "Done."];
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (_url: string, init: RequestInit) => {
+        sent.push(JSON.parse(init.body as string));
+        const content = replies.shift() ?? "";
+        const events = content ? [{ choices: [{ delta: { content } }] }] : [];
+        return new Response(
+          [...events.map((e) => `data: ${JSON.stringify(e)}`), "data: [DONE]"]
+            .map((l) => `${l}\n\n`)
+            .join("")
+        );
+      })
+    );
+    const reply = await provider.chat("add the section");
+    const text =
+      typeof reply === "string"
+        ? reply
+        : (reply as { response: string }).response;
+    expect(text).toBe("Done.");
+    expect(sent).toHaveLength(2);
+    expect(sent[1]).toHaveProperty(
+      "chat_template_kwargs.enable_thinking",
+      false
+    );
+  });
+
+  it("ends a reply that writes a made-up result as text, and keeps what came before", async () => {
+    const provider = new LlamaServerProvider();
+    Object.assign(provider, {
+      process: { exitCode: null },
+      baseUrl: "http://server",
+      contextSize: 8000,
+    });
+    provider.applySystemPrompt("You are SHIELD.", [
+      {
+        name: "read_text_file",
+        description: "Read",
+        inputSchema: { type: "object" },
+      },
+    ]);
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => {
+        const events = [
+          "I read the file. ",
+          "You executed 1 tool call(s). Here",
+          " are the results: # made up",
+        ].map((content) => ({ choices: [{ delta: { content } }] }));
+        return new Response(
+          [...events.map((e) => `data: ${JSON.stringify(e)}`), "data: [DONE]"]
+            .map((l) => `${l}\n\n`)
+            .join("")
+        );
+      })
+    );
+    const reply = await provider.chat("read a.md");
+    const text =
+      typeof reply === "string"
+        ? reply
+        : (reply as { response: string }).response;
+    expect(text).toBe("I read the file.");
+  });
+
+  it("ends a reply whose call ran on into a result it wrote, and keeps the repaired call", async () => {
+    const provider = new LlamaServerProvider();
+    Object.assign(provider, {
+      process: { exitCode: null },
+      baseUrl: "http://server",
+      contextSize: 8000,
+    });
+    provider.applySystemPrompt("You are SHIELD.", [
+      {
+        name: "read_text_file",
+        description: "Read",
+        inputSchema: { type: "object" },
+      },
+    ]);
+    const bodies: Record<string, unknown>[] = [];
+    const piece = (args: string, name?: string) => ({
+      choices: [
+        {
+          delta: {
+            tool_calls: [{ index: 0, function: { name, arguments: args } }],
+          },
+        },
+      ],
+    });
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (_url: string, init: RequestInit) => {
+        bodies.push(JSON.parse(init.body as string));
+        const events = [
+          piece(
+            '{"path":"/p/a.md</parameter>\\n</function>\\n</tool_call>\\n',
+            "read_text_file"
+          ),
+          piece("You executed 1 tool call(s). Here are the results:\\n"),
+          piece("# A file it made up"),
+        ];
+        return new Response(
+          [...events.map((e) => `data: ${JSON.stringify(e)}`), "data: [DONE]"]
+            .map((l) => `${l}\n\n`)
+            .join("")
+        );
+      })
+    );
+    const reply = await provider.chat("read a.md");
+    const text =
+      typeof reply === "string"
+        ? reply
+        : (reply as { response: string }).response;
+    expect(text).not.toContain("made up");
+
+    await provider.chat("go on");
+    const messages = bodies[1]!.messages as { role: string; content: string }[];
+    expect(messages[2]!.content).toBe(
+      '<tool_call>\n<server>filesystem</server>\n<tool>read_text_file</tool>\n<arguments>{"path":"/p/a.md"}</arguments>\n</tool_call>\n'
+    );
+  });
+
   it("sends no tools when none are set, and none from a forked session", async () => {
     const { provider, sent } = connected(8000);
     await provider.chat("hi");
@@ -1083,5 +1229,161 @@ describe("native tool calls", () => {
     ]);
     await provider.fork("You are the coder.").chat("go");
     expect(sent[1]).not.toHaveProperty("tools");
+  });
+});
+
+describe("a prompt over the window", () => {
+  beforeEach(() => {
+    vi.spyOn(console, "log").mockImplementation(() => {});
+  });
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.restoreAllMocks();
+  });
+
+  const refusal = (tokens: number) =>
+    JSON.stringify({
+      error: {
+        code: 400,
+        message: `request (${tokens} tokens) exceeds the available context size (1000 tokens), try increasing it`,
+        type: "exceed_context_size_error",
+        n_prompt_tokens: tokens,
+        n_ctx: 1000,
+      },
+    });
+
+  it("reads the prompt's size from llama-server's refusal", () => {
+    expect(overflowedPrompt(refusal(9351))).toBe(9351);
+    expect(
+      overflowedPrompt('{"error":{"code":400,"type":"invalid_request_error"}}')
+    ).toBeNull();
+    expect(overflowedPrompt("Bad Request")).toBeNull();
+  });
+
+  /** A server that refuses the first `refusals` chat requests as too long */
+  function refusing(refusals: number) {
+    const { provider, sent } = connected(WINDOW);
+    const ok = vi.mocked(fetch).getMockImplementation()!;
+    let left = refusals;
+    vi.mocked(fetch).mockImplementation(async (url, init) => {
+      const body = JSON.parse((init as RequestInit).body as string);
+      if (body.stream && left-- > 0) {
+        sent.push(body);
+        return new Response(refusal(1400), { status: 400 });
+      }
+      return ok(url, init);
+    });
+    return { provider, sent };
+  }
+
+  it("makes room from the server's count and sends the message once more", async () => {
+    // Small by SHIELD's estimate, so no room is made before the first try
+    const { provider, sent } = refusing(1);
+    provider.setChatHistory([
+      user("read the file"),
+      assistant(`Here it is. ${"x".repeat(1200)}`),
+      user("thanks"),
+      assistant("Done."),
+    ]);
+
+    expect(await provider.chat("one more thing")).toBe("ok");
+
+    const chats = sent.filter((b) => b.stream);
+    expect(chats).toHaveLength(2);
+    const length = (b: SentRequest) =>
+      b.messages.reduce((n, m) => n + m.content.length, 0);
+    expect(length(chats[1]!)).toBeLessThan(length(chats[0]!));
+  });
+
+  it("clears the latest exchange's tool payloads too before sending once more", async () => {
+    const { provider, sent } = refusing(1);
+    provider.setChatHistory([
+      user("add a section"),
+      assistant(
+        `<tool_call>\n<server>filesystem</server>\n<tool>read_text_file</tool>\n<arguments>{"path":"/p/a.md"}</arguments>\n</tool_call>`
+      ),
+      user(
+        `<tool_result trusted="false">\n<tool>read_text_file</tool>\n<result>\n${"a".repeat(1500)}\n</result>\n</tool_result>`
+      ),
+    ]);
+
+    await provider.chat("one more thing");
+
+    const chats = sent.filter((b) => b.stream);
+    expect(chats).toHaveLength(2);
+    expect(JSON.stringify(chats[0]!.messages)).toContain("a".repeat(1500));
+    expect(JSON.stringify(chats[1]!.messages)).not.toContain("a".repeat(1500));
+  });
+
+  it("gives up when the prompt is refused again", async () => {
+    const { provider } = refusing(2);
+    provider.setChatHistory([user("hi"), assistant("hello")]);
+
+    await expect(provider.chat("one more thing")).rejects.toThrow(
+      /exceeds the available context size/
+    );
+  });
+
+  it("counts the native tool definitions in the window", async () => {
+    // 2,400 characters of tools in a 1,000-token window: with the history
+    // below, over the trigger only when they are counted
+    const { provider, sent } = connected(WINDOW);
+    provider.applySystemPrompt("You are SHIELD.", [
+      {
+        name: "web_search",
+        serverName: "web",
+        description: "d".repeat(2400),
+        inputSchema: { type: "object" },
+      },
+    ]);
+    provider.setChatHistory([
+      user("read the file"),
+      assistant(`Here it is. ${"x".repeat(600)}`),
+      user("thanks"),
+      assistant("Done."),
+    ]);
+
+    await provider.chat("one more thing");
+
+    // Room was made: a note was asked for before the reply
+    expect(sent[0]!.stream).toBeFalsy();
+  });
+});
+
+describe("a reply that repeats the last one", () => {
+  beforeEach(() => {
+    vi.spyOn(console, "log").mockImplementation(() => {});
+  });
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.restoreAllMocks();
+  });
+
+  const read =
+    'Let me read the file.\n\n<tool_call>\n<server>filesystem</server>\n<tool>read_text_file</tool>\n<arguments>{"path":"/p/a.md"}</arguments>\n</tool_call>';
+
+  it("is asked for once more when it repeats a call, sampled more loosely", async () => {
+    const { provider, sent } = connected(8000, "", read);
+    provider.setChatHistory([user("add a section"), assistant(read)]);
+
+    await provider.chat("You already made this exact call");
+
+    const chats = sent.filter((b) => b.stream) as (SentRequest & {
+      temperature?: number;
+    })[];
+    expect(chats).toHaveLength(2);
+    expect(chats[1]!.temperature).toBeCloseTo(1);
+    // Kept, the second time: once is all it is asked again
+    expect(provider["history"].at(-1)?.content).toBe(read);
+  });
+
+  it("is kept at once when it differs, or is a plain answer", async () => {
+    const { provider, sent } = connected(8000, "", "Done.");
+    provider.setChatHistory([user("add a section"), assistant(read)]);
+    await provider.chat("the file");
+    provider.setChatHistory([user("thanks"), assistant("Done.")]);
+    await provider.chat("thanks again");
+
+    expect(sent.filter((b) => b.stream)).toHaveLength(2);
   });
 });

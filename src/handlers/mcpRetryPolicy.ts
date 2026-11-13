@@ -68,3 +68,28 @@ export function buildMCPRetryPrompt(
     `User request: ${userContent}`,
   ].join("\n");
 }
+
+/** Longest reply taken for an announcement alone, not an answer */
+const ANNOUNCEMENT_CHARS = 600;
+
+/**
+ * A short reply that says what it will do and stops, with no call. Qwen3.8
+ * (IQ1_M, thinking off) answered an edit request with "I'll add the
+ * \"Long Island, NY\" section to the end of that checklist file…" and
+ * nothing else, and nothing was changed (2026-11-05).
+ */
+export function announcesWithoutActing(assistantContent: string): boolean {
+  const reply = assistantContent.trim();
+  if (reply === "" || reply.length > ANNOUNCEMENT_CHARS) return false;
+  // A path alone: the rest of a call whose markup was lost (the whole
+  // reply to an edit request, 2026-11-05)
+  if (/^(?:[a-z]:)?[\\/][^\s]*$/i.test(reply)) return true;
+  if (reply.endsWith("?")) return false;
+  return /^(?:(?:ok(?:ay)?|sure|now|first|next),?\s+)?(?:i'll|i will|let me|i'm going to|i am going to)\b/i.test(
+    reply
+  );
+}
+
+export function buildActNowPrompt(): string {
+  return "You said what you would do but made no tool call, so nothing has happened yet. Make the tool call now, with no other text.";
+}

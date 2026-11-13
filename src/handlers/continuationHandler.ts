@@ -137,6 +137,10 @@ export const createContinuationHandler = ({
         streamingContentRef.current = "";
       } else {
         console.error("Error generating continuation:", err);
+        // The message and the rounds done before the error were never
+        // saved: the chat was gone from the list (2026-11-05, a Code
+        // session ending on the empty-reply notice)
+        await saveCurrentConversation();
       }
     } finally {
       setIsGenerating(false);

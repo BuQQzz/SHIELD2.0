@@ -25,6 +25,7 @@ export const MAX_LEDGER_ENTRIES = 15;
 const NOUNS: Record<string, string> = {
   write_file: "write of",
   edit_file: "edit of",
+  append_file: "addition to",
   create_directory: "creating folder",
   move_file: "move of",
   delete_file: "delete of",
@@ -33,6 +34,7 @@ const NOUNS: Record<string, string> = {
 const VERBS: Record<string, string> = {
   write_file: "wrote",
   edit_file: "edited",
+  append_file: "added to",
   create_directory: "created folder",
   move_file: "moved",
   delete_file: `moved to the ${trashName()}`,
@@ -357,7 +359,9 @@ export function modelWrittenFiles(messages: Message[]): string[] {
   for (const message of messages) {
     const info = message.toolResult;
     if (!info?.success || !info.target) continue;
-    if (info.tool !== "write_file" && info.tool !== "edit_file") continue;
+    if (!["write_file", "edit_file", "append_file"].includes(info.tool)) {
+      continue;
+    }
     if (!message.content.trimStart().startsWith("<tool_result")) continue;
     paths.push(info.target);
   }

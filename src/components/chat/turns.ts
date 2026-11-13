@@ -168,6 +168,11 @@ const VERBS: Record<string, Verb> = {
   read_multiple_files: { done: "Read", running: "Reading" },
   write_file: { done: "Wrote", running: "Writing", noun: ["file", "files"] },
   edit_file: { done: "Edited", running: "Editing", noun: ["file", "files"] },
+  append_file: {
+    done: "Added to",
+    running: "Adding to",
+    noun: ["file", "files"],
+  },
   create_directory: {
     done: "Created folder",
     running: "Creating folder",

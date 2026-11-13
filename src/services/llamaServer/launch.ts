@@ -69,6 +69,14 @@ export function buildServerArgs(options: LaunchOptions): string[] {
     ...(options.placement?.allLayersOnGpu
       ? ["--fit", "off", "--n-gpu-layers", "all"]
       : ["--fit", "on"]),
+    ...(options.placement?.kvCacheType
+      ? [
+          "--cache-type-k",
+          options.placement.kvCacheType,
+          "--cache-type-v",
+          options.placement.kvCacheType,
+        ]
+      : []),
     "--flash-attn",
     "on",
     "--ubatch-size",
@@ -83,10 +91,32 @@ export function buildServerArgs(options: LaunchOptions): string[] {
     "--jinja",
     ...(options.reasoningBudget === undefined
       ? []
-      : ["--reasoning-budget", String(options.reasoningBudget)]),
+      : [
+          "--reasoning-budget",
+          String(options.reasoningBudget),
+          "--reasoning-budget-message",
+          REASONING_BUDGET_MESSAGE,
+        ]),
     "--no-webui",
   ];
 }
+
+/** The server's environment: SHIELD's, with CUDA graphs off if the placement says so */
+export function serverEnv(
+  placement: ServerPlacement | undefined,
+  env: NodeJS.ProcessEnv = process.env
+): NodeJS.ProcessEnv {
+  return placement?.cudaGraphs === false
+    ? { ...env, GGML_CUDA_DISABLE_GRAPHS: "1" }
+    : env;
+}
+
+/**
+ * Written into the thought when its budget runs out, so the model goes on
+ * to act rather than stopping mid-sentence
+ */
+const REASONING_BUDGET_MESSAGE =
+  "\n\nThinking budget reached. Act now on what I have worked out.\n";
 
 /**
  * Threads for CPU-side work. Decode is bound by memory bandwidth, so past

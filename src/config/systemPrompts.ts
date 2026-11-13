@@ -229,8 +229,13 @@ ${allowedPaths.map((path) => `- ${path}`).join("\n")}
 
 Always use a full path beginning with one of these. Never guess a path such as "/" or "${osName() === "Windows" ? "C:\\" : "/etc"}".`
         : "";
+  const appendRule = callableTools.some((tool) => tool.name === "append_file")
+    ? " To add something at the end of an existing file, use append_file with only the new text."
+    : "";
   const editRule = callableTools.some((tool) => tool.name === "edit_file")
-    ? "\n- To change an existing file, use edit_file with only the lines that change. Copy oldText exactly from the file and supply the replacement in newText. Use write_file only to create a new file." +
+    ? "\n- To change an existing file, use edit_file with only the lines that change. Copy oldText exactly from the file and supply the replacement in newText." +
+      appendRule +
+      " Use write_file only to create a new file." +
       "\n- When asked to fix, change or add something, make the change with these functions. Do not show the code for the user to apply unless they ask to see it first. When code is broken, fix the broken lines with edit_file - never write a new version of the whole file. Afterwards, say in a sentence or two what you changed."
     : "";
   const commandRule = callableTools.some((tool) => tool.name === "run_command")
@@ -245,7 +250,6 @@ Always use a full path beginning with one of these. Never guess a path such as "
 ## Tool Usage
 - Use the available functions when the request needs information or action from the computer or web, and call only the ones it needs.
 - Make a native function call, then wait for its real result. Never invent a tool result or claim success before a successful result arrives.
-- Use only functions provided to you, with arguments matching their schemas.
 - After a result arrives, either call the next function needed for the request or answer the user.
 - Do not repeat a call that already succeeded; use its result.
 - Once you can answer, answer without making another call.${editRule}${commandRule}${planRule}`
@@ -338,7 +342,13 @@ export function generateMCPToolPrompt(
   const editRule = tools.some((t) => t.name === "edit_file")
     ? `
 6. **EDIT, DON'T REWRITE** - To change an existing file, use edit_file with only the lines that change, copied exactly from the file:
-   {"path": "...", "edits": [{"oldText": "<current lines>", "newText": "<replacement>"}]}
+   {"path": "...", "edits": [{"oldText": "<current lines>", "newText": "<replacement>"}]}${
+     tools.some((t) => t.name === "append_file")
+       ? `
+   To add something at the end of an existing file, use append_file with only the new text:
+   {"path": "...", "content": "<new text>"}`
+       : ""
+   }
    Use write_file only to create a new file.
 7. **MAKE THE CHANGE** - When asked to fix, change or add something, do it with edit_file or write_file. Do not show the code for the user to paste unless they ask to see it first. When code is broken, fix the broken lines with edit_file - never write a new version of the whole file. Afterwards, say in a sentence or two what you changed.`
     : "";
@@ -537,18 +547,22 @@ export function buildSystemPrompt(config: SystemPromptConfig): BuiltPrompt {
     }
   }
 
-  // Add capability-based prompts
-  if (config.capabilities.includes("complexReasoning")) {
+  // Add capability-based prompts. Not for a model with native calls: the
+  // models that have them (Qwen3.8, Bonsai 2 27B, Gemma 4) do all three
+  // unasked, and every request carries the prompt, ~500 characters of an
+  // 8k window that the tools already fill to a third (2026-11-05)
+  const generalAdvice = !config.nativeTools;
+  if (generalAdvice && config.capabilities.includes("complexReasoning")) {
     parts.push(REASONING_PROMPT);
     includedModules.push("reasoning");
   }
 
-  if (config.capabilities.includes("codeGeneration")) {
+  if (generalAdvice && config.capabilities.includes("codeGeneration")) {
     parts.push(CODE_GENERATION_PROMPT);
     includedModules.push("code-generation");
   }
 
-  if (config.capabilities.includes("structuredOutput")) {
+  if (generalAdvice && config.capabilities.includes("structuredOutput")) {
     parts.push(STRUCTURED_OUTPUT_PROMPT);
     includedModules.push("structured-output");
   }
