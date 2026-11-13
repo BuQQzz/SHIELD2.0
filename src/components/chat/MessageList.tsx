@@ -124,9 +124,9 @@ export function MessageList({
       ref={scrollContainerRef}
       onScroll={onScroll}
       onWheel={onWheel}
-      className="flex-1 overflow-y-auto p-4"
+      className="flex-1 overflow-y-auto px-4 pb-4 pt-10"
     >
-      <div ref={contentRef} className="mx-auto max-w-4xl space-y-4">
+      <div ref={contentRef} className="mx-auto max-w-3xl space-y-6">
         {turns.map((turn, i) => {
           if (turn.kind === "user") {
             const message = turn.message;

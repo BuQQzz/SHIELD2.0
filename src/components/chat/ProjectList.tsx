@@ -106,7 +106,7 @@ export function ProjectList({
         return (
           <section key={project.id}>
             <div
-              className="group flex h-8 items-center gap-1 rounded-md pl-1 pr-1 text-[13px] text-muted-foreground transition-colors hover:bg-accent/50 hover:text-foreground"
+              className="group flex h-8 items-center gap-1 rounded-md pl-1 pr-1 text-[13px] text-muted-foreground transition-colors hover:bg-foreground/5 hover:text-foreground"
               title={project.folder ?? project.name}
             >
               <button
@@ -132,7 +132,7 @@ export function ProjectList({
                       }
                       if (e.key === "Escape") setRenamingId(null);
                     }}
-                    className="h-6 min-w-0 flex-1 rounded bg-accent/60 px-1.5 text-[13px] text-foreground outline-none focus-visible:ring-1 focus-visible:ring-signal/60"
+                    className="h-6 min-w-0 flex-1 rounded bg-foreground/5 px-1.5 text-[13px] text-foreground outline-none focus-visible:ring-1 focus-visible:ring-signal/60"
                   />
                 ) : (
                   <span className="truncate font-medium text-foreground/90">
@@ -155,7 +155,7 @@ export function ProjectList({
               <button
                 onClick={() => onNewInProject(project.id)}
                 title={`New ${noun} in ${project.name}`}
-                className="hidden rounded p-1 hover:bg-accent group-hover:block"
+                className="hidden rounded p-1 hover:bg-foreground/5 group-hover:block"
               >
                 <Plus className="h-3.5 w-3.5" />
               </button>
@@ -163,7 +163,7 @@ export function ProjectList({
                 <DropdownMenuTrigger asChild>
                   <button
                     title="Project options"
-                    className="hidden rounded p-1 hover:bg-accent group-hover:block data-[state=open]:block"
+                    className="hidden rounded p-1 hover:bg-foreground/5 group-hover:block data-[state=open]:block"
                   >
                     <MoreHorizontal className="h-3.5 w-3.5" />
                   </button>
@@ -207,7 +207,7 @@ export function ProjectList({
                 <div className="mt-1.5 flex justify-end gap-1.5">
                   <button
                     onClick={() => setConfirmDelete(null)}
-                    className="rounded px-2 py-0.5 hover:bg-accent"
+                    className="rounded px-2 py-0.5 hover:bg-foreground/5"
                   >
                     Cancel
                   </button>
@@ -225,7 +225,7 @@ export function ProjectList({
             )}
 
             {open && (
-              <div className="ml-3 border-l border-border/50 pl-1.5">
+              <div className="ml-3 pl-1.5">
                 <ConversationList
                   flat
                   conversations={sessions}

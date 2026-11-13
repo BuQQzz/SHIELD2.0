@@ -3,7 +3,9 @@ import {
   callSignature,
   callTarget,
   canonicalPath,
+  failureSignature,
   processMCPToolCalls,
+  tracebackPlace,
   unrunToolCallsNote,
 } from "./mcpMessageHandler";
 import type { Message } from "../hooks/useLlama";
@@ -459,6 +461,262 @@ describe("multi-round tool chaining", () => {
     expect(result.content).toContain("copied one of SHIELD's notes");
     expect(result.content).toContain("path and the whole content");
     expect(result.content).not.toContain("length limit");
+  });
+
+  it("says when append_file put code below a script's __main__ block", async () => {
+    const helper = "def write_xlsx(rows):\n    return len(rows)\n";
+    const file = `def main():\n    write_xlsx([])\n\n\nif __name__ == "__main__":\n    main()\n${helper}`;
+    const addMessage = vi.fn();
+    const append = (path: string) =>
+      processMCPToolCalls(
+        {
+          id: `assistant-append-${path}`,
+          role: "assistant",
+          content: `<tool_call>\n<server>filesystem</server>\n<tool>append_file</tool>\n<arguments>${JSON.stringify({ path, content: helper })}</arguments>\n</tool_call>`,
+          timestamp: new Date(),
+        },
+        {
+          onToolCallDetected: vi
+            .fn()
+            .mockResolvedValue({ success: true, data: "Appended." }),
+          addMessage,
+          continueConversation: vi.fn().mockResolvedValue("ok"),
+          maxToolRounds: 1,
+          readFile: vi.fn().mockResolvedValue(file),
+        }
+      );
+
+    await append("/p/spend.py");
+    const noted = (addMessage.mock.calls[0]?.[0] as Message).content;
+    expect(noted).toContain("Appended.");
+    expect(noted).toContain("block at line 5 of spend.py");
+
+    // Not for other files, nor when the block comes after the new text
+    addMessage.mockClear();
+    await append("/p/notes.md");
+    expect((addMessage.mock.calls[0]?.[0] as Message).content).not.toContain(
+      "__main__"
+    );
+  });
+
+  it("says when Python text opens a triple-quoted string it never closes", async () => {
+    const run = async (
+      tool: string,
+      args: Record<string, unknown>,
+      file: string
+    ) => {
+      const addMessage = vi.fn();
+      await processMCPToolCalls(
+        {
+          id: `assistant-quote-${tool}-${JSON.stringify(args).length}`,
+          role: "assistant",
+          content: `<tool_call>\n<server>filesystem</server>\n<tool>${tool}</tool>\n<arguments>${JSON.stringify(args)}</arguments>\n</tool_call>`,
+          timestamp: new Date(),
+        },
+        {
+          onToolCallDetected: vi
+            .fn()
+            .mockResolvedValue({ success: true, data: "OK" }),
+          addMessage,
+          continueConversation: vi.fn().mockResolvedValue("ok"),
+          maxToolRounds: 1,
+          readFile: vi.fn().mockResolvedValue(file),
+        }
+      );
+      return (addMessage.mock.calls[0]?.[0] as Message).content;
+    };
+    // g13 step 14: a docstring closed with one quote
+    const added =
+      'def _audit(action, detail):\n    """Append one line to the audit log so every\n    change is recorded with a timestamp and profile."\n    pass\n';
+    const file = `import os\n\n\n${added}\ndef main():\n    """Run."""\n`;
+    const noted = await run(
+      "edit_file",
+      {
+        path: "/p/spend.py",
+        edits: [{ oldText: "import os\n", newText: `import os\n\n\n${added}` }],
+      },
+      file
+    );
+    expect(noted).toContain("opens a triple-quoted string at line 5");
+    expect(noted).toContain('"""Append one line to the audit log so every');
+
+    // Balanced text, an edit that only moves a closing quote, other files
+    expect(
+      await run(
+        "edit_file",
+        {
+          path: "/p/spend.py",
+          edits: [{ oldText: "x", newText: '"""Doc."""' }],
+        },
+        file
+      )
+    ).not.toContain("triple-quoted");
+    expect(
+      await run(
+        "edit_file",
+        {
+          path: "/p/spend.py",
+          edits: [{ oldText: 'every\n    """', newText: 'every."""' }],
+        },
+        file
+      )
+    ).not.toContain("triple-quoted");
+    expect(
+      await run("append_file", { path: "/p/notes.md", content: '"""' }, file)
+    ).not.toContain("triple-quoted");
+    expect(
+      await run("write_file", { path: "/p/a.py", content: added }, added)
+    ).toContain("opens a triple-quoted string at line 2");
+  });
+
+  it("shows a big read of a code file in part, with an outline", async () => {
+    const lines = Array.from({ length: 500 }, (_, i) =>
+      i % 50 === 0 ? `def step_${i + 1}(args):` : `    x = ${i + 1}`
+    );
+    const file = `${lines.join("\n")}\n`;
+    const read = async (args: Record<string, unknown>, data: string) => {
+      const addMessage = vi.fn();
+      await processMCPToolCalls(
+        {
+          id: `assistant-read-${JSON.stringify(args)}`,
+          role: "assistant",
+          content: `<tool_call>\n<server>filesystem</server>\n<tool>read_text_file</tool>\n<arguments>${JSON.stringify(args)}</arguments>\n</tool_call>`,
+          timestamp: new Date(),
+        },
+        {
+          onToolCallDetected: vi
+            .fn()
+            .mockResolvedValue({ success: true, data }),
+          addMessage,
+          continueConversation: vi.fn().mockResolvedValue("ok"),
+          maxToolRounds: 1,
+          readFile: vi.fn().mockResolvedValue(file),
+        }
+      );
+      return (addMessage.mock.calls[0]?.[0] as Message).content;
+    };
+
+    const whole = await read({ path: "/p/spend.py" }, file);
+    expect(whole).toContain(
+      "spend.py has 500 lines. You asked for 500 of them (lines 1-500)"
+    );
+    expect(whole).toContain("Lines 1-200:");
+    expect(whole).toContain("    x = 200\n");
+    expect(whole).not.toContain("    x = 201\n");
+    expect(whole).toContain("51: def step_51(args)");
+    expect(whole).toContain("451: def step_451(args)");
+    expect(whole).toContain("sed -n 'START,ENDp' /p/spend.py");
+
+    // A tail read keeps its end, numbered as in the file
+    const tail = await read(
+      { path: "/p/spend.py", tail: 370 },
+      `${lines.slice(-370).join("\n")}\n`
+    );
+    expect(tail).toContain("(lines 131-500)");
+    expect(tail).toContain("Lines 301-500:");
+    expect(tail).toContain("    x = 500");
+    expect(tail).not.toContain("    x = 300\n");
+
+    // head and tail together read the whole file: say so, and give the range
+    const both = await read({ path: "/p/spend.py", head: 346, tail: 80 }, file);
+    expect(both).toContain("You sent head 346 and tail 80");
+    expect(both).toContain("not a range, so it read the whole file");
+    expect(both).toContain("For lines 346-425: sed -n '346,425p' /p/spend.py");
+    expect(both).not.toContain("You asked for");
+    expect(both).toContain("Lines 1-200:");
+
+    // Small reads and other files are left as they are
+    const small = await read(
+      { path: "/p/spend.py", head: 40 },
+      lines.slice(0, 40).join("\n")
+    );
+    expect(small).not.toContain("Outline");
+    const notes = await read({ path: "/p/notes.md" }, file);
+    expect(notes).not.toContain("Outline");
+  });
+
+  it("asks once to run changed code before the turn ends (g28 step 17)", async () => {
+    const edit = `<tool_call>\n<server>filesystem</server>\n<tool>edit_file</tool>\n<arguments>{"path":"/p/spend.py","edits":[{"oldText":"a","newText":"b"}]}</arguments>\n</tool_call>`;
+    const run = (remindToRun: boolean, replies: string[]) => {
+      const continueConversation = vi.fn();
+      for (const reply of replies)
+        continueConversation.mockResolvedValueOnce(reply);
+      return processMCPToolCalls(
+        {
+          id: `assistant-remind-${remindToRun}-${replies.length}`,
+          role: "assistant",
+          content: edit,
+          timestamp: new Date(),
+        },
+        {
+          onToolCallDetected: vi
+            .fn()
+            .mockResolvedValue({ success: true, data: "ok" }),
+          addMessage: vi.fn(),
+          continueConversation,
+          maxToolRounds: 5,
+          remindToRun,
+        }
+      ).then(() => continueConversation.mock.calls.map((c) => String(c[0])));
+    };
+    const reminded = await run(true, [
+      "Done, import added.",
+      "I ran it: works.",
+    ]);
+    expect(reminded).toHaveLength(2);
+    expect(reminded[1]).toContain("you changed spend.py");
+    // Once only, and not for a model without the switch
+    const ranCmd = `<tool_call>\n<server>terminal</server>\n<tool>run_command</tool>\n<arguments>{"command":"cd /p && python3 spend.py list"}</arguments>\n</tool_call>`;
+    const afterRun = await run(true, [ranCmd, "Works."]);
+    expect(afterRun.some((t) => t.includes("you changed"))).toBe(false);
+    expect(await run(false, ["Done."])).toHaveLength(1);
+  });
+
+  it("runs a whole call even when the reply's text copied a removal note", async () => {
+    const onToolCallDetected = vi.fn().mockResolvedValue({
+      success: true,
+      data: "a.md",
+    });
+    await processMCPToolCalls(
+      {
+        id: "assistant-noted",
+        role: "assistant",
+        content:
+          'Let me check the folder:\n\n[SHILD removed from your context to save space: 247 characters of the call above. The call already ran.]\n\n<tool_call>\n<server>filesystem</server>\n<tool>list_directory</tool>\n<arguments>{"path":"/p"}</arguments>\n</tool_call>',
+        timestamp: new Date(),
+      },
+      {
+        onToolCallDetected,
+        addMessage: vi.fn(),
+        continueConversation: vi.fn().mockResolvedValue("ok"),
+        maxToolRounds: 3,
+      }
+    );
+    expect(onToolCallDetected).toHaveBeenCalledTimes(1);
+  });
+
+  it("refuses a call whose arguments carry a removal note", async () => {
+    const onToolCallDetected = vi.fn();
+    const addMessage = vi.fn();
+    await processMCPToolCalls(
+      {
+        id: "assistant-in-args",
+        role: "assistant",
+        content:
+          '<tool_call>\n<server>terminal</server>\n<tool>run_command</tool>\n<arguments>{"command":"[SHIELD removed from your context to save space: 90 characters of the call above.]"}</arguments>\n</tool_call>',
+        timestamp: new Date(),
+      },
+      {
+        onToolCallDetected,
+        addMessage,
+        continueConversation: vi.fn().mockResolvedValue("ok"),
+        maxToolRounds: 3,
+      }
+    );
+    expect(onToolCallDetected).not.toHaveBeenCalled();
+    expect((addMessage.mock.calls[0]?.[0] as Message).content).toContain(
+      "copied one of SHIELD's notes"
+    );
   });
 
   it("keeps going when a reply is cut off mid-call", async () => {
@@ -1176,5 +1434,69 @@ describe("large results and repeats", () => {
     const repeat = continueConversation.mock.calls[1]?.[0] as string;
     expect(repeat).toContain("its result is not repeated");
     expect(repeat).not.toContain("zzzz");
+  });
+});
+
+describe("the same error again", () => {
+  // LFM3 1.7B's crash in the complex task (2026-11-10)
+  const crash = (seconds: string) =>
+    `Exit code 1 · ${seconds} s\nTraceback (most recent call last):\n  File "/p/kitplan.py", line 264, in <module>\n    main()\n  File "/p/kitplan.py", line 109, in build_parser\n    subparsers.add_parser("summary", dest="x")\n  File "/usr/lib/python3.14/argparse.py", line 1269, in add_parser\n    raise ValueError(f'conflicting subparser: {name}')\nValueError: conflicting subparser: summary`;
+
+  it("reads the failure and where the project's code raised it", () => {
+    expect(failureSignature(crash("0.1"))).toBe(failureSignature(crash("0.3")));
+    expect(failureSignature("Exit code 0 · 0.1 s\nok")).toBeNull();
+    expect(tracebackPlace(crash("0.1"))).toBe("line 109 of kitplan.py");
+  });
+
+  it("says so when a command ends with the same error and nothing was edited", async () => {
+    const call = (tool: string, args: Record<string, unknown>) =>
+      `<tool_call>\n<server>terminal</server>\n<tool>${tool}</tool>\n<arguments>${JSON.stringify(args)}</arguments>\n</tool_call>`;
+    const replies = [
+      call("run_command", {
+        command: "python3 kitplan.py F search water",
+        reason: "try",
+      }),
+      call("edit_file", {
+        path: "/p/kitplan.py",
+        edits: [{ oldText: "a", newText: "b" }],
+      }),
+      call("run_command", {
+        command: "python3 kitplan.py F missing 1 3",
+        reason: "try",
+      }),
+      "Done.",
+    ];
+    const onToolCallDetected = vi.fn(async (c: { tool: string }) =>
+      c.tool === "run_command"
+        ? { success: true, data: crash("0.1") }
+        : { success: true, data: "Edited." }
+    );
+    const addMessage = vi.fn();
+    let n = 0;
+    await processMCPToolCalls(
+      {
+        id: "a-same-error",
+        role: "assistant",
+        content: call("run_command", {
+          command: "python3 kitplan.py F summary",
+          reason: "try",
+        }),
+        timestamp: new Date(),
+      },
+      {
+        onToolCallDetected,
+        addMessage,
+        continueConversation: vi.fn(async () => replies[n++] ?? "Done."),
+        maxToolRounds: 6,
+      }
+    );
+    const results = addMessage.mock.calls
+      .map((c) => (c[0] as Message).content)
+      .filter((t) => t.includes("<tool_result"));
+    expect(results[0]).not.toContain("same error");
+    expect(results[1]).toContain("same error as an earlier command");
+    expect(results[1]).toContain("raised at line 109 of kitplan.py");
+    // After an edit the slate is clean
+    expect(results[3]).not.toContain("same error");
   });
 });

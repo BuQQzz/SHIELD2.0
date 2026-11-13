@@ -67,12 +67,19 @@ export function splitSystemPrompt(text: string): {
   return { base: text.slice(0, at), tools: text.slice(at) };
 }
 
+/** "[SHIELD removed from your context …]" notes at the start of a turn */
+const LEADING_SHIELD_NOTES = /^(?:\[SHIELD [^\]]*\]\s*)+/;
+
 /**
  * A user-role turn that carries tool output rather than something the user
  * typed: the continuation processMCPToolCalls sends, or a stored result.
  */
 export function isToolResultTurn(text: string): boolean {
-  const start = text.trimStart();
+  // Past SHIELD's removal notes, which head the results message after a
+  // shortened reply (historyCompaction). Missing them, each summary listed
+  // tool results as the user's requests and pushed the real ones out: the
+  // growing-project run lost step 3's request by step 13 (2026-11-10).
+  const start = text.trimStart().replace(LEADING_SHIELD_NOTES, "");
   return start.startsWith("You executed ") || start.startsWith("<tool_result");
 }
 

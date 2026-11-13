@@ -95,7 +95,7 @@ export function ChatHeader({
   };
 
   return (
-    <header className="flex h-14 items-center justify-between bg-background px-4 mb-2">
+    <header className="flex h-12 items-center justify-between bg-background px-3">
       {/* Left Section */}
       <div className="flex items-center gap-2">
         {!sidebarOpen && (
@@ -103,7 +103,7 @@ export function ChatHeader({
             onClick={toggleSidebar}
             whileHover={{ scale: 1.05 }}
             whileTap={{ scale: 0.95 }}
-            className="md:flex rounded-md p-2 transition-colors hover:bg-accent"
+            className="md:flex rounded-md p-2 transition-colors hover:bg-foreground/5"
           >
             <Menu className="h-5 w-5" />
           </motion.button>
@@ -135,7 +135,7 @@ export function ChatHeader({
             <motion.button
               whileHover={{ scale: 1.05 }}
               whileTap={{ scale: 0.95 }}
-              className="rounded-md p-2 transition-colors hover:bg-accent"
+              className="rounded-md p-2 transition-colors hover:bg-foreground/5"
             >
               <MoreVertical className="h-5 w-5" />
             </motion.button>

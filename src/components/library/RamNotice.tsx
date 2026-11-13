@@ -75,7 +75,7 @@ export function RamNotice({
       </button>
 
       {expanded && (
-        <div className="mt-2 max-w-xl rounded-lg border border-amber-500/20 bg-amber-500/5 px-3 py-2.5 text-xs leading-relaxed text-muted-foreground">
+        <div className="mt-2 max-w-xl rounded-xl bg-amber-500/10 px-3 py-2.5 text-xs leading-relaxed text-muted-foreground">
           <p>
             At {formatContext(use.contextSize)} context this model keeps about{" "}
             {formatGB(use.ramBytes)} in system RAM while it runs: heavy,
@@ -88,7 +88,7 @@ export function RamNotice({
               <button
                 onClick={() => chooseLighter(use.lighter!.contextSize)}
                 disabled={disabled}
-                className="rounded-md border border-border/80 px-2 py-1 text-[11px] text-foreground transition-colors hover:bg-accent disabled:opacity-50"
+                className="rounded-md bg-background px-2 py-1 text-[11px] text-foreground shadow-raise transition-colors hover:bg-soft disabled:opacity-50"
               >
                 Use {formatContext(use.lighter.contextSize)} context · ~
                 {formatGB(use.lighter.ramBytes)}

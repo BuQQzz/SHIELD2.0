@@ -7,6 +7,52 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-11-12
+
+### Added
+
+- **Connectors** on the Plugins page (`src/config/connectors.ts`, `electron/services/connectors/`):
+  - One-click services: Notion, Linear, Jira & Confluence, Asana, Sentry, Zapier, Hugging Face and Context7. SHIELD registers itself (dynamic client registration), and the user signs in in the browser. GitHub connects with a token.
+  - Any MCP server by address (token or browser sign-in) or by a local command.
+  - Tools reach the model as native calls named `<id>__<tool>`, in chats and Code sessions, with per-tool switches and the context cost per service.
+  - Sign-ins and tokens are encrypted with the system key store, never written in plain text. Read-only hints are trusted only from listed services.
+- **Linux AppImage**: `npm run build:linux`. The runtime installer already had Linux builds.
+- **Explaining prompts**:
+  - Permission prompts say when a call leaves the project, needs admin rights, or deletes a folder that isn't throwaway.
+  - A denied call tells the model which warning the user saw.
+- **SHIELD opens pages the model wrote** and reports their script errors. Work is checked with throwaway data, not the user's files.
+- **Big code reads come as an outline plus a part.** Code sessions list the folder's files in the prompt.
+- **Native tool calls for team agents**, and agents report with only their HANDOFF fields.
+- **The model gets its own thinking back within a request.**
+- **Bonsai 2 27B**: 32K context on 8 GB, with a run reminder and a larger thinking budget.
+- **Qwen3.8 27B on 8 GB GPUs**, with a caution label.
+- **LFM3 1.7B** as a small chat model.
+
+### Changed
+
+- **Lighter design**: depth from surfaces and shadows instead of lines.
+- **The Plugins page leads with services.** The filesystem tool list is folded behind "Choose tools".
+- **Summaries** keep the user's requests, offered ideas and project facts. The summary note is asked for without thinking.
+- **Stale-read clearing** counts `sed`, `awk`, `cat` and `tail` reads, and clears first when the window fills.
+
+### Fixed
+
+- **Fewer slow full re-reads in long sessions:**
+  - The summary note reuses the chat's prompt cache.
+  - Results that were already cleared are not cleared again.
+- **Edits match more reliably:**
+  - across `""` for `"""` and inner space runs;
+  - when they miss only on blank lines;
+  - when an edit arrives in two halves.
+- **Delete warnings:**
+  - no warning for a folder made during the current request or one that does not exist;
+  - no red warning for the model's own test folders.
+- **Admin-rights warning** only where `sudo` runs, not where it is named.
+- **Read-only shell checks:**
+  - commands with backslashes are read as `sh` reads them;
+  - files inside the project may be named by full path.
+- **Head+tail reads** get an honest message, and thought sets keep the newest thoughts.
+
 ## [0.2.0] - 2026-11-04
 
 ### Added

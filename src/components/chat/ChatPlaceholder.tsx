@@ -67,10 +67,10 @@ function ModelPrompt({
         {onOpenLibrary && (
           <button
             onClick={onOpenLibrary}
-            className="flex h-9 items-center gap-2 rounded-lg border border-border/80 px-4 text-sm transition-colors hover:bg-accent"
+            className="flex h-9 items-center gap-2 rounded-lg bg-soft px-4 text-sm transition-colors hover:bg-foreground/10"
           >
             <Library className="h-3.5 w-3.5" />
-            {selectedModelName ? "Choose another" : "Open the Model Library"}
+            {selectedModelName ? "Choose another" : "Open the model library"}
           </button>
         )}
       </div>
@@ -105,7 +105,7 @@ export function ChatPlaceholder({
         <img
           src="./shield-logo.png"
           alt="SHIELD Logo"
-          className="h-32 w-32 object-contain mb-4"
+          className="h-32 w-32 object-contain mb-4 dark:brightness-0 dark:invert"
         />
         <div className="text-center">
           <p className="text-muted-foreground">

@@ -158,7 +158,7 @@ export function LibraryModelRow({
     action = (
       <button
         onClick={onCancel}
-        className="flex h-8 items-center gap-1.5 rounded-lg border border-border/80 px-3 text-xs text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+        className="flex h-8 items-center gap-1.5 rounded-lg bg-soft px-3 text-xs text-muted-foreground transition-colors hover:bg-foreground/10 hover:text-foreground"
       >
         <X className="h-3.5 w-3.5" />
         Cancel
@@ -167,7 +167,7 @@ export function LibraryModelRow({
   } else if (!runnable) {
     action = (
       <span
-        className="flex h-8 items-center rounded-lg border border-dashed border-border/80 px-3 text-xs text-muted-foreground"
+        className="flex h-8 items-center rounded-lg px-3 text-xs text-muted-foreground"
         title="Needs PrismML's runtime, which SHIELD does not run yet"
       >
         {installed ? "Installed · runtime soon" : "Coming soon"}
@@ -215,7 +215,7 @@ export function LibraryModelRow({
             ? `Needs ${model.hardware.minVRAM} GB of GPU memory and ${model.hardware.minRAM} GB of RAM`
             : undefined
         }
-        className="flex h-8 items-center gap-1.5 rounded-lg border border-border/80 px-3 text-xs font-medium transition-colors hover:border-signal/60 hover:bg-signal-soft hover:text-signal disabled:pointer-events-none disabled:opacity-40"
+        className="flex h-8 items-center gap-1.5 rounded-lg bg-soft px-3 text-xs font-medium transition-colors hover:bg-signal-soft hover:text-signal disabled:pointer-events-none disabled:opacity-40"
       >
         <Download className="h-3.5 w-3.5" />
         Download
@@ -231,20 +231,20 @@ export function LibraryModelRow({
           <div className="flex flex-wrap items-center gap-2">
             <h3 className="font-medium">{model.displayName}</h3>
             {isRecommended && (
-              <span className="rounded-full bg-signal-soft px-2 py-0.5 text-[10px] font-medium uppercase tracking-wider text-signal">
+              <span className="rounded-full bg-signal-soft px-2 py-0.5 text-[11px] font-medium text-signal">
                 Recommended
               </span>
             )}
             {file?.caution && fit !== "too-large" && (
               <span
                 title={file.caution}
-                className="rounded-full bg-amber-500/10 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wider text-amber-600 dark:text-amber-400"
+                className="rounded-full bg-amber-500/10 px-2 py-0.5 text-[11px] font-medium text-amber-600 dark:text-amber-400"
               >
                 Caution
               </span>
             )}
             {fit === "too-large" && (
-              <span className="rounded-full bg-destructive/10 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wider text-destructive">
+              <span className="rounded-full bg-destructive/10 px-2 py-0.5 text-[11px] font-medium text-destructive">
                 Too large for this PC
               </span>
             )}

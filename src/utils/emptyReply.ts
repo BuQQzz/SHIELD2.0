@@ -8,5 +8,5 @@ export function emptyReplyMessage(maxTokens: number | undefined): string {
   const limit = maxTokens
     ? `its whole reply limit (${maxTokens.toLocaleString("en-US")} tokens)`
     : "its whole reply limit";
-  return `The model used ${limit} thinking and wrote no answer. A thinking model needs more room: raise Max Tokens in Settings > Model (8,192 or more suits Bonsai), or ask again.`;
+  return `The model used ${limit} thinking and wrote no answer. A thinking model needs more room: raise Max tokens in Settings > Model (8,192 or more suits Bonsai), or ask again.`;
 }

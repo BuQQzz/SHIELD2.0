@@ -1,6 +1,6 @@
 {
   "name": "shield2.0",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Privacy-first local AI chatbot for Windows with tool integration",
   "main": "dist-electron/main.js",
   "type": "module",
@@ -12,6 +12,7 @@
     "build:win": "npm run build && electron-builder --win --config electron-builder.yml",
     "build:win:installer": "npm run build && electron-builder --win nsis --config electron-builder.yml",
     "build:win:portable": "npm run build && electron-builder --win portable --config electron-builder.yml",
+    "build:linux": "npm run build && electron-builder --linux AppImage --config electron-builder.yml --publish never",
     "build:dir": "npm run build && electron-builder --dir --config electron-builder.yml",
     "preview": "vite preview",
     "test": "vitest",

@@ -41,7 +41,7 @@ function MoveMenu({
       <DropdownMenuTrigger asChild>
         <button
           onClick={(e) => e.stopPropagation()}
-          className="hidden rounded p-1 text-muted-foreground hover:bg-accent hover:text-foreground group-hover:block data-[state=open]:block"
+          className="hidden rounded p-1 text-muted-foreground hover:bg-foreground/5 hover:text-foreground group-hover:block data-[state=open]:block"
           title="Move to project"
         >
           <FolderInput className="h-3.5 w-3.5" />
@@ -129,9 +129,7 @@ export const ConversationList = memo(function ConversationList({
       {groups.map(([label, items]) => (
         <section key={label || "all"}>
           {label && (
-            <h3 className="px-2 pb-1 text-[10px] font-medium uppercase tracking-[0.12em] text-muted-foreground/70">
-              {label}
-            </h3>
+            <h3 className="px-2 pb-1 text-xs text-muted-foreground">{label}</h3>
           )}
           <ul className="space-y-px">
             {items.map((conversation) => {
@@ -150,16 +148,13 @@ export const ConversationList = memo(function ConversationList({
                     }}
                     title={conversation.preview || conversation.title}
                     className={cn(
-                      "group relative flex h-8 cursor-pointer items-center gap-1 rounded-md px-2 text-[13px] transition-colors",
+                      "group relative flex h-8 cursor-pointer items-center gap-1 rounded-lg px-2 text-[13px] transition-colors duration-150",
                       active
-                        ? "bg-accent text-foreground"
-                        : "text-muted-foreground hover:bg-accent/50 hover:text-foreground",
+                        ? "bg-foreground/[0.07] text-foreground"
+                        : "text-muted-foreground hover:bg-foreground/5 hover:text-foreground",
                       confirming && "bg-destructive/10"
                     )}
                   >
-                    {active && (
-                      <span className="absolute left-0 top-1.5 bottom-1.5 w-0.5 rounded-full bg-signal" />
-                    )}
                     {confirming ? (
                       <>
                         <span className="flex-1 truncate text-destructive">
@@ -181,7 +176,7 @@ export const ConversationList = memo(function ConversationList({
                             e.stopPropagation();
                             setDeletingId(null);
                           }}
-                          className="rounded p-1 hover:bg-accent"
+                          className="rounded p-1 hover:bg-foreground/5"
                           title="Cancel"
                         >
                           <X className="h-3.5 w-3.5" />

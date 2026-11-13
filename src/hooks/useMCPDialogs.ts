@@ -33,16 +33,27 @@ import { useSettingsStore } from "@/store/settingsStore";
 import { isMutatingTool } from "@/config/toolClassification";
 import {
   RUN_COMMAND_TOOL_NAME,
+  leavesFolder,
   scriptsInCommand,
 } from "@/config/commandSafety";
 import type { ToolPolicy } from "@/hooks/useToolPolicy";
+import {
+  promptWarnings,
+  withoutMissingFolders,
+  type PromptWarning,
+} from "@/config/commandWarnings";
 import { useConversationStore } from "@/stores/conversation-store";
 import { isRemovalNote } from "@/services/historyCompaction";
+import { isToolResultTurn } from "@/services/contextBreakdown";
 import { isAgentsMd } from "@/config/agentsMd";
 import { modelWrittenFiles } from "@/handlers/workLedger";
 import { savePlanFromCall } from "@/handlers/sessionPlan";
 import { changePreview, type ChangePreview } from "@/utils/changePreview";
-import { ambiguousEdit, type AmbiguousEdit } from "@/utils/editMatches";
+import {
+  ambiguousEdit,
+  relaxedEdits,
+  type AmbiguousEdit,
+} from "@/utils/editMatches";
 
 /**
  * A command that asks the user carries the model's reason, shown in the
@@ -189,6 +200,8 @@ export interface PendingToolRequest {
   command?: string;
   /** For run_command: the model's one-sentence account of what it does */
   commandReason?: string;
+  /** SHIELD's own warnings: outside the project, or rarely needed */
+  warnings?: PromptWarning[];
   /** Scripts the command runs that the model wrote or edited itself */
   modelScripts?: { path: string; content?: string }[];
   /** A write or edit of AGENTS.md: asked every time, never "for session" */
@@ -209,6 +222,44 @@ interface UseMCPDialogsProps {
   }) => Promise<MCPToolResult>;
   /** Decides which calls stop for a prompt and whether they run at all */
   policy: ToolPolicy;
+}
+
+/** The first path a filesystem call names outside `folder` (sh folders only) */
+/**
+ * When the user's latest message was sent, less a little for clock
+ * rounding; Infinity when there is none
+ */
+function requestStart(): number {
+  const messages =
+    useConversationStore.getState().currentConversation?.messages ?? [];
+  // Tool results are stored as user messages too
+  const latest = [...messages]
+    .reverse()
+    .find((m) => m.role === "user" && !isToolResultTurn(m.content));
+  const at = latest ? new Date(latest.timestamp).getTime() : NaN;
+  return Number.isFinite(at) ? at - 2000 : Infinity;
+}
+
+/** A file server error for a path that is not there */
+const NOT_FOUND = /ENOENT|no such file|not found|does not exist/i;
+
+export function outsideFolderPath(
+  toolCall: { serverName: string; arguments: Record<string, unknown> },
+  folder?: string
+): string | null {
+  if (!folder?.startsWith("/") || toolCall.serverName !== "filesystem")
+    return null;
+  for (const key of ["path", "source", "destination"]) {
+    const value = toolCall.arguments[key];
+    if (
+      typeof value === "string" &&
+      /^[/~]/.test(value) &&
+      leavesFolder(value, folder, true)
+    ) {
+      return value;
+    }
+  }
+  return null;
 }
 
 export function useMCPDialogs({
@@ -324,7 +375,12 @@ export function useMCPDialogs({
         if (!read.success || (read.data as { isError?: unknown })?.isError) {
           return null;
         }
-        const found = ambiguousEdit(resultPayload(read.data), args.edits);
+        const content = resultPayload(read.data);
+        // A miss only in blank lines or trailing spaces takes the file's text
+        const edits = args.edits as unknown[];
+        const relaxed = relaxedEdits(content, edits);
+        if (relaxed) args.edits = relaxed;
+        const found = ambiguousEdit(content, relaxed ?? edits);
         return found ? ambiguousMessage(args.path, found) : null;
       } catch {
         return null;
@@ -337,6 +393,57 @@ export function useMCPDialogs({
    * The scripts a command runs that the model wrote, with their contents:
    * written since SHIELD started, or earlier in the open conversation
    */
+  /**
+   * The warnings without "Deletes folders" entries for folders that are not
+   * there, or that were made after the user's latest message: the model's
+   * own test folder (g17 step 21: it made profiles/smoke for a smoke test,
+   * and both commands that removed it were red). Asked of the file server,
+   * which reaches only the project: a folder it cannot see, or any other
+   * error, keeps its warning.
+   */
+  const existingWarnings = useCallback(
+    async (warnings: PromptWarning[], folder?: string) => {
+      const paths = warnings.flatMap((w) => w.folders ?? []).map((f) => f.path);
+      if (paths.length === 0) return warnings;
+      const missing = new Set<string>();
+      await Promise.all(
+        paths.map(async (path) => {
+          const full =
+            folder && !/^([/~\\$%]|[A-Za-z]:)/.test(path)
+              ? `${folder.replace(/[/\\]+$/, "")}/${path}`
+              : path;
+          try {
+            const info = await callTool({
+              serverName: "filesystem",
+              tool: "get_file_info",
+              arguments: { path: full },
+            });
+            // A tool's own error comes back as success with isError set
+            // and the message in its content
+            if (
+              !info.success ||
+              (info.data as { isError?: unknown })?.isError
+            ) {
+              const text = info.success
+                ? resultPayload(info.data)
+                : String(info.error ?? "");
+              if (NOT_FOUND.test(text)) missing.add(path);
+              return;
+            }
+            const created = Date.parse(
+              resultPayload(info.data).match(/^created: (.+)$/m)?.[1] ?? ""
+            );
+            if (created >= requestStart()) missing.add(path);
+          } catch {
+            // unknown: keep the warning
+          }
+        })
+      );
+      return withoutMissingFolders(warnings, (p) => missing.has(p));
+    },
+    [callTool]
+  );
+
   const modelScriptsIn = useCallback(
     async (command: string) => {
       const written = new Set(modelWritten.current);
@@ -473,6 +580,18 @@ export function useMCPDialogs({
       );
       if (ambiguous) return { success: false, error: ambiguous };
 
+      // A file tool aimed outside a Code session's folder: the filesystem
+      // server is scoped to it and refuses, so asking the user first only
+      // asks them to approve a call that fails (g11 step 1: Move to Trash
+      // for /tmp/spendtest, approved, then "Access denied")
+      const outside = outsideFolderPath(toolCall, policy.folder);
+      if (outside) {
+        return {
+          success: false,
+          error: `${outside} is outside the project folder (${policy.folder}); the file tools only reach files inside it. For a folder such as /tmp, use run_command.`,
+        };
+      }
+
       // Reads in auto/plan/readonly run without interrupting the user
       if (decision === "run") {
         console.log(
@@ -510,6 +629,10 @@ export function useMCPDialogs({
       }
       const modelScripts =
         command !== undefined ? await modelScriptsIn(command) : undefined;
+      const warnings = await existingWarnings(
+        promptWarnings(toolCall.arguments, policy.folder),
+        policy.folder
+      );
 
       // Only one request can be open at a time. Refuse rather than clobber.
       if (resolverRef.current) {
@@ -549,6 +672,7 @@ export function useMCPDialogs({
                 : undefined,
           command,
           commandReason: command !== undefined ? reason : undefined,
+          warnings: warnings.length ? warnings : undefined,
           modelScripts: modelScripts?.length ? modelScripts : undefined,
           instructionsFile: writesInstructions || undefined,
           proposed: writesInstructions
@@ -559,7 +683,14 @@ export function useMCPDialogs({
         });
       });
     },
-    [defaultPolicy, callTool, noteWrite, modelScriptsIn, rewriteWarning]
+    [
+      defaultPolicy,
+      callTool,
+      noteWrite,
+      modelScriptsIn,
+      existingWarnings,
+      rewriteWarning,
+    ]
   );
 
   /**
@@ -621,8 +752,18 @@ export function useMCPDialogs({
   const handleDeny = useCallback(() => {
     if (approvalInFlight.current) return;
     console.log("[MCP] User denied tool request");
-    settle({ success: false, error: "User denied permission" });
-  }, [settle]);
+    // With the warnings the user saw: told only "denied", the model had to
+    // guess why its test that deleted the users folder was refused (g23
+    // step 15)
+    const shown = (pendingRequest?.warnings ?? []).map((w) => w.text);
+    settle({
+      success: false,
+      error:
+        shown.length > 0
+          ? `User denied permission. The prompt showed SHIELD's warning: ${shown.join("; ")}.`
+          : "User denied permission",
+    });
+  }, [settle, pendingRequest]);
 
   return {
     pendingRequest,

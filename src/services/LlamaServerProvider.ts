@@ -37,7 +37,11 @@ import {
   type OpenAiTool,
   type ToolCallDelta,
 } from "./llamaServer/nativeCalls.js";
-import { nativeHistory } from "./llamaServer/nativeHistory.js";
+import {
+  nativeHistory,
+  type WireMessage,
+} from "./llamaServer/nativeHistory.js";
+import { isToolResultTurn } from "./contextBreakdown.js";
 import type { ToolDefinition } from "../types/prompts.js";
 import {
   adaptRequestBody,
@@ -58,6 +62,8 @@ import {
   CLEAR_TO,
   COMPACT_AT,
   compactHistory,
+  compactStaleReads,
+  stripRemovalNotes,
   shouldCompact,
 } from "./historyCompaction.js";
 import {
@@ -140,6 +146,120 @@ export const STALL_MS = 5 * 60 * 1000;
  */
 export const MIN_REPLY_TOKENS = 8192;
 
+/** What launch.ts adds to a thought cut at the budget, not the model's own */
+const BUDGET_NOTE =
+  /\s*Thinking budget reached\. Act now on what I have worked out\.\s*$/;
+
+/**
+ * Thinking sent back within one request, at most (~6K tokens of a 32K
+ * window): two thoughts at Bonsai 2's 2,560-token budget (~10K characters
+ * each). 12,000 held one, so every round started a new set
+ */
+export const THINKING_CHARS = 20_000;
+
+/** A reply's thinking as it is kept: without the budget note, trimmed */
+export function keptThinking(thinking: string): string {
+  return thinking.replace(BUDGET_NOTE, "").trim();
+}
+
+/**
+ * The turns with thinking kept only on replies since the user's latest
+ * message (tool results do not count as one). Within a request the model
+ * sees what it already worked out; Bonsai 2's template keeps it there
+ * ("supports preserving reasoning"). Without it, in g24 step 16 the model
+ * started over on what the user meant in each of ~10 rounds, each cut at
+ * its 1,536-token budget, and the step timed out (2026-11-11). Older
+ * requests' thinking is left out, as the template itself would.
+ */
+export function withRequestThinking(turns: ChatMessage[]): ChatMessage[] {
+  let start = turns.length;
+  for (let i = turns.length - 1; i >= 0; i--) {
+    const turn = turns[i]!;
+    if (turn.role === "user" && !isToolResultTurn(turn.content)) {
+      start = i;
+      break;
+    }
+  }
+  if (start === turns.length) start = 0;
+  // Up to THINKING_CHARS, kept in sets: the thoughts so far while they fit,
+  // and when the next one does not, a new set from it. Ten rounds of ~1.5K
+  // tokens would take half of a 32K window. Within a set what was sent stays
+  // as it was, so the server's prompt cache holds; dropping the oldest each
+  // round would make the server read the prompt again every round, so it
+  // happens once a set fills. Keeping the oldest only (7be91de) held the
+  // first six thoughts of g26 step 16 for its last 27 rounds, including a
+  // first reading of "the monthly view" the model had moved past; it went
+  // "back and forth" and timed out (2026-11-11)
+  let keep = new Set<number>();
+  let total = 0;
+  for (let i = start + 1; i < turns.length; i++) {
+    const thought = turns[i]!.reasoning;
+    if (!thought) continue;
+    // Nor the thought behind a call that failed: kept, its plan outweighed
+    // the error. In kt-fix2 Bonsai 2 read a misspelled file name and sent
+    // the same read three more times (2026-11-11)
+    if (/<error>|already failed in this turn/.test(turns[i + 1]?.content ?? ""))
+      continue;
+    if (thought.length > THINKING_CHARS) continue;
+    if (total + thought.length > THINKING_CHARS) {
+      keep = new Set();
+      total = 0;
+    }
+    total += thought.length;
+    keep.add(i);
+  }
+  return turns.map((turn, i) => {
+    if (!turn.reasoning || keep.has(i)) return turn;
+    const { reasoning: _dropped, ...rest } = turn;
+    return rest;
+  });
+}
+
+/**
+ * The note request: the chat's last prompt and reply as they were sent
+ * (same system message, tools, native turns and thinking), then the note
+ * request. The server then reads only the note request: its saved state
+ * from the last reply covers the rest. Two things cost a full read before
+ * (g32, all 5 notes, 8-12K tokens and 20-27 s each, 2026-11-11): the note
+ * request was sent without the tools, so its prompt differed from the
+ * start, and it was sent the history already cleared and cut to the older
+ * turns. A matching prefix alone is not enough with Bonsai 2: the server
+ * resumes only from a saved state (end of an earlier request), and the cut
+ * between older and newer turns is not one; matched to the cut, it re-read
+ * 3,450 of 3,823 tokens. The template's thinking-off prompt changes only
+ * the end, where the reply starts, as long as the chat's reasoning effort
+ * adds no line to the system message (medium, as Bonsai 2's catalog entry
+ * sets; xhigh and low do). tool_choice "none": a note, not a tool call.
+ */
+export function noteBody(
+  system: string,
+  turns: ChatMessage[],
+  nextMessage: string,
+  tools: unknown[]
+): { messages: unknown[]; tools?: unknown[]; tool_choice?: "none" } {
+  const kept = withRequestThinking(turns);
+  const wire = tools.length > 0 ? nativeHistory(kept) : kept;
+  return {
+    messages: [
+      { role: "system", content: system },
+      ...wire.map(asWire),
+      { role: "user", content: noteRequest(nextMessage) },
+    ],
+    ...(tools.length > 0 ? { tools, tool_choice: "none" as const } : {}),
+  };
+}
+
+/** A message as the server reads it: thinking as reasoning_content */
+function asWire(
+  message: WireMessage
+):
+  | WireMessage
+  | (Omit<WireMessage, "reasoning"> & { reasoning_content: string }) {
+  if (!("reasoning" in message) || !message.reasoning) return message;
+  const { reasoning, ...rest } = message;
+  return { ...rest, reasoning_content: reasoning };
+}
+
 /** max_tokens for a chat request: the setting, raised to MIN_REPLY_TOKENS */
 export function replyTokenLimit(maxTokens: number | undefined): number {
   return Math.max(maxTokens ?? 512, MIN_REPLY_TOKENS);
@@ -194,6 +314,24 @@ function appendServerLog(line: string): void {
   if (!file) return;
   try {
     fs.appendFileSync(file, `${new Date().toISOString()} ${line}\n`);
+  } catch {
+    // A diagnostic only: never fail a reply over it
+  }
+}
+
+/**
+ * SHIELD_THOUGHT_LOG=<file>: each request's thinking and reply, one JSON line
+ * per request. Off by default; for test runs that study how the model
+ * decided, since its thinking is otherwise shown live and never kept.
+ */
+function appendThoughtLog(entry: Record<string, unknown>): void {
+  const file = process.env.SHIELD_THOUGHT_LOG;
+  if (!file) return;
+  try {
+    fs.appendFileSync(
+      file,
+      `${JSON.stringify({ at: new Date().toISOString(), ...entry })}\n`
+    );
   } catch {
     // A diagnostic only: never fail a reply over it
   }
@@ -717,12 +855,20 @@ export class LlamaServerProvider {
       : this.systemPrompt;
   }
 
-  /** With native calls, the turns in the template's own form (nativeHistory) */
+  /**
+   * With native calls, the turns in the template's own form (nativeHistory).
+   * The thinking of each reply since the user's latest message goes back as
+   * `reasoning_content` (withRequestThinking).
+   */
   private messages(extra?: ChatMessage) {
-    const turns = [...this.history, ...(extra ? [extra] : [])];
+    const turns = withRequestThinking([
+      ...this.history,
+      ...(extra ? [extra] : []),
+    ]);
+    const wire = this.nativeTools.length > 0 ? nativeHistory(turns) : turns;
     return [
       { role: "system", content: this.systemContent() },
-      ...(this.nativeTools.length > 0 ? nativeHistory(turns) : turns),
+      ...wire.map(asWire),
     ];
   }
 
@@ -731,7 +877,10 @@ export class LlamaServerProvider {
     return (
       (this.systemContent().length +
         this.nativeToolChars +
-        this.history.reduce((n, m) => n + m.content.length, 0)) /
+        withRequestThinking(this.history).reduce(
+          (n, m) => n + m.content.length + (m.reasoning?.length ?? 0),
+          0
+        )) /
       3
     );
   }
@@ -784,6 +933,8 @@ export class LlamaServerProvider {
     let furthestWritten = 0;
     let firstTokenAt: number | null = null;
     let reply = "";
+    /** The reply's thinking, kept only for SHIELD_THOUGHT_LOG */
+    let thinking = "";
     let final: ChatStreamChunk | null = null;
     /** The whole prompt, once the server says how long it is */
     let promptTokens = 0;
@@ -890,6 +1041,7 @@ export class LlamaServerProvider {
           decoder.decode(value, { stream: true })
         )) {
           const thought = chunk.choices?.[0]?.delta?.reasoning_content;
+          if (thought) thinking += thought;
           if (thought && thoughtWatch.push(thought)) looping.abort();
           const deltas = (
             chunk.choices?.[0]?.delta as { tool_calls?: ToolCallDelta[] }
@@ -999,6 +1151,16 @@ export class LlamaServerProvider {
       this.abortController = null;
       this.rescueController = null;
       if (root.inFlight === flight) root.inFlight = null;
+      if (process.env.SHIELD_THOUGHT_LOG && !this.endpoint) {
+        appendThoughtLog({
+          session: this.systemPrompt.slice(0, 60),
+          message: message.slice(0, 2000),
+          promptTokens,
+          thinking,
+          reply,
+          seconds: +((performance.now() - startedAt) / 1000).toFixed(1),
+        });
+      }
     }
     // Nothing of a dropped reply is kept: the history is as it was
     if (refitFrom !== null) {
@@ -1088,9 +1250,16 @@ export class LlamaServerProvider {
         this.varying = false;
       }
     }
-    this.history.push(userMessage, { role: "assistant", content });
+    // A removal note the model copied stays out of its history: from its
+    // own turns it learns to write more (historyCompaction, 2026-11-09)
+    const kept = keptThinking(thinking);
+    this.history.push(userMessage, {
+      role: "assistant",
+      content: stripRemovalNotes(content),
+      ...(kept ? { reasoning: kept } : {}),
+    });
     if (final?.usage) {
-      this.lastContextTokens = nextPromptTokens(final.usage, reply);
+      this.lastContextTokens = nextPromptTokens(final.usage, reply + kept);
     }
 
     const endedAt = performance.now();
@@ -1187,6 +1356,8 @@ export class LlamaServerProvider {
     signal: AbortSignal,
     onProgress?: (progress: ChatProgress) => void
   ): Promise<void> {
+    // As the last request sent it: the note goes on from there (noteBody)
+    const sent = this.history;
     if (this.makeRoomCheaply(nextMessage.length)) return;
 
     onProgress?.({ phase: "summarising" });
@@ -1198,7 +1369,7 @@ export class LlamaServerProvider {
         this.systemPrompt.length + this.nativeToolChars,
         CLEAR_TO
       ),
-      (older) => this.writeNote(older, nextMessage, signal)
+      () => this.writeNote(sent, nextMessage, signal)
     );
     if (!summarised) return;
 
@@ -1236,6 +1407,10 @@ export class LlamaServerProvider {
       );
     if (under(COMPACT_AT)) return true;
 
+    // Old copies of files read again since go first: they are out of date
+    this.clearStaleReads();
+    if (under(CLEAR_TO)) return true;
+
     // Oldest exchanges first, one at a time, down to CLEAR_TO so that the
     // next file read does not clear again. The last few exchanges are what
     // the model is working from right now: they go only if the older ones
@@ -1268,6 +1443,20 @@ export class LlamaServerProvider {
     return true;
   }
 
+  /** Clear the results of reads the model has since read again */
+  private clearStaleReads(): void {
+    const { history, savedChars } = compactStaleReads(this.history);
+    if (savedChars <= 0) return;
+    this.history = history;
+    this.lastContextTokens = Math.max(
+      0,
+      this.lastContextTokens - savedChars / 3
+    );
+    console.log(
+      `[LlamaServer] Compacted history: cleared ${savedChars} characters of files read again since`
+    );
+  }
+
   /** Clear old tool payloads, leaving the last `keepRecent` entries whole */
   private clearPayloads(keepRecent: number): void {
     const { history, savedChars } = compactHistory(this.history, keepRecent);
@@ -1284,25 +1473,25 @@ export class LlamaServerProvider {
 
   /**
    * The model's note on the turns about to be removed, told what comes
-   * after it (`nextMessage`). Sent with the same system message and history
-   * as the chat, so the server's prompt cache covers everything before the
-   * first message clearing changed.
+   * after it (`nextMessage`). `turns`: the history as the last request sent
+   * it, before clearing, so the server goes on from its saved state
+   * (noteBody).
    */
   private async writeNote(
-    older: ChatMessage[],
+    turns: ChatMessage[],
     nextMessage: string,
     signal: AbortSignal
   ): Promise<string> {
     const result = await this.completion(
       {
-        messages: [
-          { role: "system", content: this.systemContent() },
-          ...older,
-          { role: "user", content: noteRequest(nextMessage) },
-        ],
+        ...noteBody(this.systemContent(), turns, nextMessage, this.nativeTools),
         cache_prompt: true,
         temperature: 0.2,
         max_tokens: NOTE_MAX_TOKENS,
+        // With thinking on, Bonsai 2 spent the note's tokens thinking and
+        // its note stopped mid-sentence, before the Offered and Facts
+        // lines (growing-project g14, 2026-11-10)
+        chat_template_kwargs: { enable_thinking: false },
       },
       signal
     );

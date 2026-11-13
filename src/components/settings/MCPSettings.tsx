@@ -133,7 +133,7 @@ export function MCPSettings({ settings, currentModel }: MCPSettingsProps) {
       </div>
 
       {hasWarning && (
-        <div className="flex items-start gap-2 p-3 rounded-md bg-yellow-50 dark:bg-yellow-950/20 border border-yellow-200 dark:border-yellow-900">
+        <div className="flex items-start gap-2 p-3 rounded-xl bg-yellow-50 dark:bg-yellow-950/20">
           <AlertTriangle className="h-4 w-4 text-yellow-600 dark:text-yellow-400 mt-0.5 flex-shrink-0" />
           <div className="text-sm text-yellow-800 dark:text-yellow-200">
             <p className="font-medium mb-1">Model Limitation</p>
@@ -144,7 +144,7 @@ export function MCPSettings({ settings, currentModel }: MCPSettingsProps) {
 
       <div className="space-y-2">
         <Label>Tool Access</Label>
-        <div className="space-y-2 rounded-md border p-3">
+        <div className="space-y-2 rounded-xl bg-soft p-3">
           {availableTools.map((toolName) => {
             const checked = allowedTools.includes(toolName);
             return (

@@ -25,6 +25,7 @@ import { DELEGATE_TOOL_NAME } from "@/agents/roles";
 import { FILESYSTEM_TOOLS } from "@/types/settings";
 import type { PermissionMode } from "@/types/settings";
 import type { ToolDefinition } from "@/types/prompts";
+import { connectorIdOfServer } from "../config/connectors";
 
 /**
  * What should happen when the model calls a tool.
@@ -51,6 +52,8 @@ export interface ToolPolicy {
   isPlanning: boolean;
   /** The mode this policy was derived from */
   mode: PermissionMode;
+  /** The Code session's project folder, when there is one */
+  folder?: string;
 }
 
 export interface ToolPolicyInput {
@@ -109,14 +112,18 @@ export function resolveToolPolicy({
       ? teamMode && fileTools
       : teamMode
         ? false
-        : tool.serverName === WEB_SERVER_NAME
-          ? webSearchEnabled
-          : tool.serverName === MEMORY_SERVER_NAME
-            ? true
-            : tool.serverName === TERMINAL_SERVER_NAME ||
-                tool.serverName === PLAN_SERVER_NAME
-              ? fileTools
-              : fileTools && allowedTools.includes(tool.name)
+        : // Connectors touch no file on this PC: offered in chats too. The
+          // Plugins page decides which of their tools are on.
+          connectorIdOfServer(tool.serverName)
+          ? true
+          : tool.serverName === WEB_SERVER_NAME
+            ? webSearchEnabled
+            : tool.serverName === MEMORY_SERVER_NAME
+              ? true
+              : tool.serverName === TERMINAL_SERVER_NAME ||
+                  tool.serverName === PLAN_SERVER_NAME
+                ? fileTools
+                : fileTools && allowedTools.includes(tool.name)
   );
   const allowedNames = new Set(allowlisted.map((tool) => tool.name));
 
@@ -184,6 +191,7 @@ export function resolveToolPolicy({
     decide,
     isPlanning: mode === "plan",
     mode,
+    folder,
   };
 }
 

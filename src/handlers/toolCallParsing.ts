@@ -6,6 +6,7 @@
 
 import { stoppedForLooping } from "../utils/loopGuard";
 import { normaliseDsml, splitToolCallName, withoutDsmlTags } from "./dsml";
+import { connectorServerName, splitConnectorTool } from "../config/connectors";
 
 export interface ToolCallRequest {
   serverName: string;
@@ -384,6 +385,16 @@ function normalizeToolNameAndServer(name: string): {
   const trimmedName = name.trim();
   if (!trimmedName) {
     return { serverName: "filesystem", tool: "" };
+  }
+
+  // A connector's tool (src/config/connectors): the full name stays the
+  // tool's, as the model was offered it and the policy knows it
+  const connector = splitConnectorTool(trimmedName);
+  if (connector) {
+    return {
+      serverName: connectorServerName(connector.id),
+      tool: trimmedName,
+    };
   }
 
   const dotIndex = trimmedName.indexOf(".");
@@ -803,6 +814,18 @@ function qwenCoderCall(body: string): ToolCallRequest | null {
         : null;
     args[key!] = parsed ?? value;
   }
+  // No <parameter> elements but a JSON object: `<function=read_file>
+  // {"path": "..."}</function>`. MiMo V2.6 9B wrote every call this way;
+  // read as empty, the path was missing, and the model went on to guess
+  // other tool names (8 failed calls, 2026-11-13)
+  if (Object.keys(args).length === 0) {
+    const after = body.slice(fn.index! + fn[0].length);
+    const json = after.replace(/<\/function>[\s\S]*$/, "").trim();
+    const parsed = json.startsWith("{") ? parseJson(json) : null;
+    if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+      Object.assign(args, parsed);
+    }
+  }
   const named = normalizeToolNameAndServer(fn[1]);
   return {
     serverName: named.serverName,
@@ -1204,6 +1227,7 @@ export function streamingToolCallPreview(content: string): {
     unfinished.match(/invoke\s+name\s*=\s*"([^"]+)"/)?.[1] ??
     unfinished.match(/<tool_call\s+name\s*=\s*"([^"]+)"/)?.[1] ??
     unfinished.match(/"name"\s*:\s*"([^"]+)"/)?.[1] ??
+    unfinished.match(/<function="?([\w.-]+)"?>/)?.[1] ??
     "";
 
   // A value holding markup is not a path: the Team panel once read
@@ -1222,6 +1246,33 @@ export function streamingToolCallPreview(content: string): {
     pendingTool: name.includes(".") ? name.split(".").pop()! : name,
     ...(target ? { pendingTarget: target } : {}),
   };
+}
+
+/**
+ * A finished reply whose last call ends right after its arguments' JSON,
+ * with no `</arguments>` or `</tool_call>`: the call is closed. Ornith 1.5
+ * 9B (a Qwen3.5 fine-tune) stopped after the JSON three times in a row
+ * while writing a file; the call was whole but read as cut off at the
+ * length limit, at 723 of its tokens, and the task failed (2026-11-13).
+ * Only JSON that parses as a whole object counts, so a reply that really
+ * stopped mid-arguments is still a cut-off call.
+ */
+export function closeFinishedCall(content: string): string {
+  const open = content.lastIndexOf("<arguments>");
+  if (open === -1 || content.lastIndexOf("<tool_call>") > open) return content;
+  const body = content.slice(open + "<arguments>".length);
+  if (/<\/arguments>|<\/tool_call>/.test(body)) return content;
+  const json = body.trim();
+  if (!json.startsWith("{") || !json.endsWith("}")) return content;
+  try {
+    const parsed: unknown = JSON.parse(json);
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+      return content;
+    }
+  } catch {
+    return content;
+  }
+  return `${content.trimEnd()}</arguments>\n</tool_call>`;
 }
 
 /**
@@ -1247,7 +1298,12 @@ export function cutOffToolCall(content: string): ToolCallRequest | null {
   const CLOSE = "</tool_call>";
   const lastClose = content.lastIndexOf(CLOSE);
   const tail = content.slice(lastClose === -1 ? 0 : lastClose + CLOSE.length);
-  if (!/<arguments>|"arguments"\s*:|parameter\s+name\s*=/.test(tail)) {
+  // `<function=write_file>{"path": ...` too: MiMo V2.6 9B's calls (2026-11-13)
+  if (
+    !/<arguments>|"arguments"\s*:|parameter\s+name\s*=|<function="?[\w.-]+"?>\s*\{/.test(
+      tail
+    )
+  ) {
     return null;
   }
 

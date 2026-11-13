@@ -84,6 +84,11 @@ describe("LlamaServerProvider restoring a summarised chat", () => {
     live.provider.setChatHistory(chat);
     await live.provider.chat("add paging");
     expect(live.sent.map((r) => r.stream === true)).toEqual([false, true]);
+    // The note is asked without thinking: Bonsai 2 spent its tokens
+    // thinking and the note stopped mid-sentence (g14, 2026-11-10)
+    expect(
+      (live.sent[0] as { chat_template_kwargs?: unknown }).chat_template_kwargs
+    ).toEqual({ enable_thinking: false });
 
     const capsule = live.provider.getLastCapsule();
     expect(capsule?.modelHistory).toEqual([
@@ -772,6 +777,48 @@ describe("LlamaServerProvider SHIELD_SERVER_LOG", () => {
     vi.stubEnv("SHIELD_SERVER_LOG", "");
     await provider.chat("again");
     expect(fs.readFileSync(file, "utf8").split("\n")).toHaveLength(2);
+    fs.rmSync(dir, { recursive: true, force: true });
+  });
+
+  it("keeps each request's thinking and reply in SHIELD_THOUGHT_LOG, and nothing without it", async () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "shield-log-"));
+    const file = path.join(dir, "thoughts.jsonl");
+    vi.stubEnv("SHIELD_THOUGHT_LOG", file);
+    const provider = new LlamaServerProvider();
+    Object.assign(provider, {
+      process: { exitCode: null },
+      baseUrl: "http://server",
+      contextSize: 32768,
+    });
+    const events = [
+      { choices: [{ delta: { reasoning_content: "They want a " } }] },
+      { choices: [{ delta: { reasoning_content: "greeting." } }] },
+      { choices: [{ delta: { content: "Hi!" } }] },
+    ];
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(
+        async () =>
+          new Response(
+            [...events.map((e) => `data: ${JSON.stringify(e)}`), "data: [DONE]"]
+              .map((line) => `${line}\n\n`)
+              .join("")
+          )
+      )
+    );
+    provider.applySystemPrompt("You are SHIELD.");
+    await provider.chat("hello");
+    const lines = fs.readFileSync(file, "utf8").trim().split("\n");
+    expect(lines).toHaveLength(1);
+    expect(JSON.parse(lines[0] ?? "{}")).toMatchObject({
+      session: "You are SHIELD.",
+      message: "hello",
+      thinking: "They want a greeting.",
+      reply: "Hi!",
+    });
+    vi.stubEnv("SHIELD_THOUGHT_LOG", "");
+    await provider.chat("again");
+    expect(fs.readFileSync(file, "utf8").trim().split("\n")).toHaveLength(1);
     fs.rmSync(dir, { recursive: true, force: true });
   });
 

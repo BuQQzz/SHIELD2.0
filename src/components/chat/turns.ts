@@ -12,6 +12,7 @@
 import type { Message } from "@/types/conversation";
 import { stripToolCallMarkup } from "@/handlers/toolCallParsing";
 import { trashName } from "@/utils/platform";
+import { splitConnectorTool } from "@/config/connectors";
 
 /** One step of a stretch of work */
 export type WorkItem =
@@ -262,6 +263,9 @@ export function stepLabel(
   state: "done" | "running"
 ): string {
   const verb = VERBS[tool];
+  // A connector's tool: "context7 · resolve-library-id"
+  const connector = splitConnectorTool(tool);
+  if (connector) return `${connector.id} · ${connector.tool}`;
   if (!verb) return `${serverName}.${tool}`;
   const word = state === "running" ? verb.running : verb.done;
   if (!target) return word;

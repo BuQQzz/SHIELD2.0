@@ -177,9 +177,9 @@ export function ToolStep({
             transition={{ duration: 0.15, ease: "easeOut" }}
             className="overflow-hidden"
           >
-            <div className="mt-1 mb-2 overflow-hidden rounded-md border border-border/60 bg-muted/30">
+            <div className="mt-1 mb-2 overflow-hidden rounded-lg bg-soft">
               {target && (
-                <div className="truncate border-b border-border/60 px-3 py-1.5 font-mono text-[11px] text-muted-foreground/70">
+                <div className="truncate px-3 pt-2 pb-0.5 font-mono text-[11px] text-muted-foreground/70">
                   {target}
                 </div>
               )}
@@ -252,8 +252,8 @@ export function SummaryStep({ id, summary }: { id: string; summary: string }) {
             transition={{ duration: 0.15, ease: "easeOut" }}
             className="overflow-hidden"
           >
-            <div className="mt-1 mb-2 overflow-hidden rounded-md border border-border/60 bg-muted/30">
-              <div className="border-b border-border/60 px-3 py-1.5 text-[11px] text-muted-foreground/70">
+            <div className="mt-1 mb-2 overflow-hidden rounded-lg bg-soft">
+              <div className="px-3 pt-2 pb-0.5 text-[11px] text-muted-foreground/70">
                 The model sees this instead of the older messages. The chat
                 itself keeps everything.
               </div>

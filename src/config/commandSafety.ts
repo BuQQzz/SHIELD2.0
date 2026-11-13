@@ -244,7 +244,11 @@ function shCommands(command: string): string[][] | null {
  * (and was refused in an unattended run) though it only read the project
  * (2026-11-06).
  */
-function leavesFolder(word: string, folder?: string, posix = false): boolean {
+export function leavesFolder(
+  word: string,
+  folder?: string,
+  posix = false
+): boolean {
   // In sh only "/" separates folders: "\*" in a grep pattern is no path
   const climb = posix ? /(^|[/=])\.\.(\/|$)/ : /(^|[\\/=])\.\.([\\/]|$)/;
   const rooted = posix ? /^(?:-[^=]*=)?([/~].*)$/ : /^(?:-[^=]*=)?([\\/~].*)$/;
@@ -368,6 +372,38 @@ function isReadOnlyPosixStage(words: string[], folder?: string): boolean {
   );
 }
 
+/** Commands that read, search, list or copy a script file without running it */
+const SCRIPT_READERS = new Set([
+  "cat",
+  "head",
+  "tail",
+  "grep",
+  "egrep",
+  "rg",
+  "sed",
+  "awk",
+  "wc",
+  "less",
+  "more",
+  "diff",
+  "ls",
+  "stat",
+  "file",
+  "git",
+  "cp",
+  "mv",
+  "nl",
+  "sort",
+  "get-content",
+  "gc",
+  "type",
+  "select-string",
+  "sls",
+  "get-item",
+  "test-path",
+  "findstr",
+]);
+
 const SCRIPT_FILE = /\.(ps1|psm1|bat|cmd|py|js|mjs|cjs|ts|sh|rb|pl)$/i;
 
 /**
@@ -378,7 +414,21 @@ const SCRIPT_FILE = /\.(ps1|psm1|bat|cmd|py|js|mjs|cjs|ts|sh|rb|pl)$/i;
  * script that switches the Wi-Fi radio (2026-09-28).
  */
 export function scriptsInCommand(command: string): string[] {
-  const words = command
+  // A command that only reads or searches the script runs nothing: g5's
+  // `grep -n date spend.py` and `sed -n '431,560p' spend.py` were shown as
+  // "Runs spend.py" (2026-11-09)
+  const running = command
+    .split(/&&|\|\||[;|\n]/)
+    .filter((part) => {
+      const first =
+        part
+          .trim()
+          .split(/\s+/)[0]
+          ?.replace(/^["'&(]+/, "") ?? "";
+      return !SCRIPT_READERS.has(first.toLowerCase());
+    })
+    .join(" ");
+  const words = running
     .split(/\s+/)
     .map((word) => word.replace(/^["'&(]+/, "").replace(/["');|]+$/, ""))
     .filter(

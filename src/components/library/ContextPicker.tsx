@@ -77,7 +77,7 @@ export function ContextPicker({
       <DropdownMenuTrigger asChild>
         <button
           disabled={disabled}
-          className="flex items-center gap-1 rounded-md border border-border/60 px-1.5 py-0.5 font-instrument text-[11px] text-muted-foreground transition-colors hover:border-border hover:text-foreground disabled:opacity-50"
+          className="flex items-center gap-1 rounded-md bg-soft px-1.5 py-0.5 font-instrument text-[11px] text-muted-foreground transition-colors hover:bg-foreground/10 hover:text-foreground disabled:opacity-50"
           title="Context window: how much of the conversation the model sees"
         >
           {formatTokens(chosen ?? plan.recommended)} ctx

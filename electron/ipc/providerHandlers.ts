@@ -9,7 +9,7 @@ import type {
 import { ProviderStore, type KeyCipher } from "../services/ProviderStore.js";
 
 /** The operating system's credential store, as the provider store needs it */
-const systemCipher: KeyCipher = {
+export const systemCipher: KeyCipher = {
   isAvailable: () =>
     safeStorage.isEncryptionAvailable() &&
     // Linux without a keyring falls back to a fixed password: not encryption

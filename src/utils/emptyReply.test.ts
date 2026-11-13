@@ -5,7 +5,7 @@ describe("emptyReplyMessage", () => {
   it("names the limit and where to raise it", () => {
     const message = emptyReplyMessage(2048);
     expect(message).toContain("2,048 tokens");
-    expect(message).toContain("Max Tokens in Settings > Model");
+    expect(message).toContain("Max tokens in Settings > Model");
   });
   it("still reads well when the limit is not known", () => {
     expect(emptyReplyMessage(undefined)).toContain(

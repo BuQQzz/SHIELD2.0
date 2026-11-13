@@ -505,6 +505,9 @@ describe("check-your-work rule", () => {
     expect(generateNativeToolPrompt([runCommand])).toContain(
       "run its tests or the script with run_command"
     );
+    expect(generateMCPToolPrompt([runCommand])).toContain(
+      "Test with throwaway data, such as a temporary file or folder, never the user's own data files."
+    );
   });
 
   it("is left out without the terminal", () => {

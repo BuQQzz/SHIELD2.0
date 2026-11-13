@@ -145,6 +145,16 @@ describe("failureLines", () => {
     "PASS src/app.test.ts",
     "0 errors, 0 warnings",
     "Error handling improved",
+    // Source code printed by sed or grep -n (g30 step 17)
+    "except ValueError:",
+    "except (OSError, ValueError) as e:",
+    "612:        except EOFError:",
+    "19\t    except ValueError:",
+    "'        raise SystemExit(f\"error: no expense with id {args.id}\")'",
+    "} catch (error) {",
+    'raise SystemExit(f"error: {path} not found")',
+    'throw new TypeError("bad input");',
+    "# Error: handled below",
   ])("leaves %s", (line) => {
     expect(failureLines(line)).toEqual([]);
   });
@@ -407,3 +417,11 @@ describe.runIf(process.platform !== "win32")(
     }
   }
 );
+
+describe("runCommandTool description", () => {
+  it("says each call starts a new shell (g13 step 20)", () => {
+    expect(runCommandTool().description).toContain(
+      "Each call starts a new shell in the project folder: a cd, export or variable from one call is gone in the next"
+    );
+  });
+});

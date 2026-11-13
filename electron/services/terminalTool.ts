@@ -64,6 +64,10 @@ export function findPosixShell(
  * its own UTF-8 test script with `powershell -File` (2026-09-28): Windows
  * PowerShell 5.1 read the file as ANSI and every ✓ came out as "âœ“".
  */
+// "Each call starts a new shell": Bonsai 2 exported SPEND_PROFILE to a
+// throwaway profile in one call and ran its test in the next, which fell
+// back to the user's real profile and wrote a budget into it (g13 step 20,
+// 2026-11-09).
 function shellGuidance(powershell: string): string {
   if (process.platform !== "win32") {
     return `with ${path.basename(findPosixShell())}. Run a script as ./name.sh or with its interpreter (python3 name.py, node name.js), never by piping a download into a shell.`;
@@ -83,7 +87,7 @@ const WINDOWS_RULES =
 export function runCommandTool(powershell = findPowerShell()) {
   return {
     name: RUN_COMMAND_TOOL_NAME,
-    description: `Run a command in the project folder and get its output and exit code. Commands run ${shellGuidance(powershell)} Use it to run the project's tests, a script you wrote or changed, a build or a linter, and to look around with git (git status, git diff, git log) or search the files (${process.platform === "win32" ? "Select-String" : "grep -rn"}). Commands that only read, like those, run at once; any other command waits for the user to allow it, showing them your reason. The command must finish on its own: no servers, watch modes or prompts for input. Output is cut to its first ${OUTPUT_HEAD_CHARS.toLocaleString("en-US")} and last ${OUTPUT_TAIL_CHARS.toLocaleString("en-US")} characters.${process.platform === "win32" ? WINDOWS_RULES : ""}`,
+    description: `Run a command in the project folder and get its output and exit code. Commands run ${shellGuidance(powershell)} Use it to run the project's tests, a script you wrote or changed, a build or a linter, and to look around with git (git status, git diff, git log) or search the files (${process.platform === "win32" ? "Select-String" : "grep -rn"}). Commands that only read, like those, run at once; any other command waits for the user to allow it, showing them your reason. Each call starts a new shell in the project folder: a cd, export or variable from one call is gone in the next, so set what a command needs in that same call. The command must finish on its own: no servers, watch modes or prompts for input. Output is cut to its first ${OUTPUT_HEAD_CHARS.toLocaleString("en-US")} and last ${OUTPUT_TAIL_CHARS.toLocaleString("en-US")} characters.${process.platform === "win32" ? WINDOWS_RULES : ""}`,
     inputSchema: {
       type: "object",
       properties: {
@@ -248,6 +252,16 @@ const FAILURE_PATTERNS = [
 /** A line that says it passed, even if it names an error ("✓ handles errors") */
 const PASS_LINE = /^\s*(✓|✔|√|PASS\b|ok\b)/i;
 
+/**
+ * Source code, not something that went wrong: a printed `except
+ * ValueError:` matched "error:". Bonsai 2 read spend.py with sed and was
+ * told three times in one step that its handlers looked like failures
+ * ("false positives from the heuristic", g30 step 17, 2026-11-11). A
+ * grep -n or awk line number in front is allowed.
+ */
+const CODE_LINE =
+  /^(\d+[:|\t-]\s*)?['"]?\s*(except\b|}?\s*catch\b|raise\b|throw\b|rescue\b|class\s+\w+|def\s|(async\s+)?function\b|from\s+\S+\s+import\b|import\b|if\b|elif\b|return\b|print\(|console\.\w+\(|logger?\.\w+\(|#|\/\/)/;
+
 export const MAX_FAILURE_LINES = 8;
 
 /** Lines of the output that look like failures, first ones first */
@@ -259,6 +273,7 @@ export function failureLines(output: string): string[] {
       (line) =>
         line &&
         !PASS_LINE.test(line) &&
+        !CODE_LINE.test(line) &&
         FAILURE_PATTERNS.some((pattern) => pattern.test(line))
     );
 }

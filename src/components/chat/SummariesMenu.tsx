@@ -95,8 +95,8 @@ export function SummariesMenu({
                 animate={announce ? { scale: [1, 1.12, 1] } : { scale: 1 }}
                 transition={{ duration: 0.45, ease: "easeOut" }}
                 className={cn(
-                  "flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs text-muted-foreground transition-colors hover:bg-accent hover:text-foreground",
-                  announce && "border-signal/60 bg-signal-soft text-foreground"
+                  "flex items-center gap-1.5 rounded-full bg-soft px-2.5 py-1 text-xs text-muted-foreground transition-colors hover:bg-foreground/10 hover:text-foreground",
+                  announce && "bg-signal-soft text-foreground"
                 )}
                 title="Earlier turns of this chat, summarised for the model"
                 aria-label={`${summaries.length} summaries of earlier turns`}

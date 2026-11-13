@@ -166,7 +166,7 @@ export function ModelSettings({ settings, currentModel }: ModelSettingsProps) {
 
       <div>
         <div className="flex justify-between items-center mb-2">
-          <Label htmlFor="max-tokens">Max Tokens</Label>
+          <Label htmlFor="max-tokens">Max tokens</Label>
           <span className="text-sm text-muted-foreground">
             {settings.maxTokens}
           </span>
@@ -192,7 +192,7 @@ export function ModelSettings({ settings, currentModel }: ModelSettingsProps) {
           onClick={() => setShowAdvanced(!showAdvanced)}
           className="w-full justify-between"
         >
-          <span className="text-sm">Advanced Settings</span>
+          <span className="text-sm">Advanced settings</span>
           {showAdvanced ? (
             <ChevronUp className="h-4 w-4" />
           ) : (
@@ -203,7 +203,7 @@ export function ModelSettings({ settings, currentModel }: ModelSettingsProps) {
 
       {/* Advanced Settings (Collapsible) */}
       {showAdvanced && (
-        <div className="space-y-6 border-t pt-4">
+        <div className="space-y-6 pt-5">
           <div>
             <div className="flex justify-between items-center mb-2">
               <Label htmlFor="top-p">Top P</Label>

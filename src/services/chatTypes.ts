@@ -6,6 +6,11 @@
 export interface ChatMessage {
   role: "user" | "assistant" | "system";
   content: string;
+  /**
+   * An assistant reply's thinking. Sent back while its request is under way
+   * (LlamaServerProvider.messages), then left out like the template does.
+   */
+  reasoning?: string;
 }
 
 /** How one reply was generated - shown under the message */

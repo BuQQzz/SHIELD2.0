@@ -71,6 +71,18 @@ nsis:
   runAfterFinish: true
   menuCategory: SHIELD 2.0
 
+# Linux: one AppImage that runs on most distributions without installing.
+# llama-server comes from Settings › Runtime, as on Windows.
+linux:
+  target:
+    - target: AppImage
+      arch:
+        - x64
+  icon: build/icon.png
+  category: Development
+  artifactName: ${productName}-${version}-${arch}.${ext}
+  synopsis: Private AI agent that runs on your own PC
+
 # Portable configuration
 portable:
   artifactName: ${productName}-${version}-portable.${ext}

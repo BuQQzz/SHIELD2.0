@@ -8,7 +8,7 @@ import {
   forwardRef,
   useImperativeHandle,
 } from "react";
-import { ListPlus, Send, Square, X } from "lucide-react";
+import { ArrowUp, ListPlus, Send, Square, X } from "lucide-react";
 import { useGenerationStore } from "@/store/generationStore";
 import { motion } from "framer-motion";
 import { PermissionModeSelector } from "./PermissionModeSelector";
@@ -153,7 +153,7 @@ export const ChatInput = forwardRef<ChatInputRef, ChatInputProps>(
     };
 
     return (
-      <div className="bg-background p-4">
+      <div className="bg-background px-4 pb-4 pt-2">
         <div className="mx-auto max-w-3xl">
           {queue.length > 0 && (
             <div
@@ -163,7 +163,7 @@ export const ChatInput = forwardRef<ChatInputRef, ChatInputProps>(
               {queue.map((text, index) => (
                 <div
                   key={`${index}-${text}`}
-                  className="flex min-w-0 items-center gap-2 rounded-md bg-muted/40 px-2.5 py-1 text-xs"
+                  className="flex min-w-0 items-center gap-2 rounded-lg bg-soft px-2.5 py-1 text-xs"
                 >
                   <ListPlus className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
                   <button
@@ -189,97 +189,104 @@ export const ChatInput = forwardRef<ChatInputRef, ChatInputProps>(
               ))}
             </div>
           )}
-          <div className="relative flex items-end gap-2 rounded-xl bg-muted/50 p-2 shadow-sm ring-1 ring-black/5 transition-shadow focus-within:shadow-md dark:bg-muted/30 dark:ring-white/5">
-            <textarea
-              ref={textareaRef}
-              value={input}
-              onChange={handleInput}
-              onKeyDown={handleKeyDown}
-              placeholder={
-                isGenerating
-                  ? "Enter: add to this task · Ctrl+Enter: queue for after"
-                  : "Type your message... (Shift+Enter for new line)"
-              }
-              rows={1}
-              className="max-h-32 min-h-[40px] flex-1 resize-none bg-transparent px-2 py-2 text-sm outline-none placeholder:text-muted-foreground"
-              disabled={disabled}
-            />
+          {/* A tray holding the composer card: the card has the message, the
+              model and send; the tray under it the mode, folder and team.
+              Depth from the card's shadow, no borders */}
+          <div className="rounded-[20px] bg-soft p-1">
+            <div className="rounded-2xl bg-panel px-3 pb-2 pt-2.5 shadow-card transition-shadow duration-200 focus-within:shadow-pop">
+              <textarea
+                ref={textareaRef}
+                value={input}
+                onChange={handleInput}
+                onKeyDown={handleKeyDown}
+                placeholder={
+                  isGenerating
+                    ? "Add to this task, or Ctrl+Enter to queue it"
+                    : "Ask anything"
+                }
+                rows={1}
+                className="max-h-40 min-h-[44px] w-full resize-none bg-transparent px-1 py-1.5 text-[15px] outline-none placeholder:text-muted-foreground/80"
+                disabled={disabled}
+              />
+              <div className="mt-1 flex min-w-0 items-center gap-1">
+                {models && onSelectModel && onOpenLibrary && (
+                  <ComposerModelPicker
+                    models={models}
+                    currentModelId={modelId}
+                    isLoading={isModelLoading}
+                    isModelLoaded={isModelLoaded}
+                    onSelect={onSelectModel}
+                    onOpenLibrary={onOpenLibrary}
+                    onOpenSettings={onOpenSettings}
+                  />
+                )}
+                <span className="flex-1" />
+                <ContextRing />
+                {isGenerating && input.trim() && onQueue && (
+                  <motion.button
+                    whileTap={{ scale: 0.92 }}
+                    onClick={handleQueue}
+                    disabled={disabled}
+                    className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full transition-colors duration-150 text-muted-foreground hover:bg-foreground/5 hover:text-foreground"
+                    aria-label="Queue for after"
+                    title="Queue for after (Ctrl+Enter): sent as its own message when this one finishes"
+                  >
+                    <ListPlus className="h-4 w-4" />
+                  </motion.button>
+                )}
+                {isGenerating && input.trim() && (
+                  <motion.button
+                    whileTap={{ scale: 0.92 }}
+                    onClick={handleSubmit}
+                    disabled={disabled}
+                    className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full transition-colors duration-150 text-signal hover:bg-signal-soft"
+                    aria-label="Send while it works"
+                    title="Send while it works: it reads this after its next step"
+                  >
+                    <Send className="h-4 w-4" />
+                  </motion.button>
+                )}
+                {isGenerating ? (
+                  <motion.button
+                    whileTap={{ scale: 0.92 }}
+                    onClick={onStop}
+                    aria-label="Stop"
+                    title="Stop"
+                    className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full transition-colors duration-150 bg-foreground text-background hover:bg-foreground/85"
+                  >
+                    <Square className="h-3 w-3 fill-current" />
+                  </motion.button>
+                ) : (
+                  <motion.button
+                    whileTap={{ scale: 0.92 }}
+                    onClick={handleSubmit}
+                    disabled={!input.trim() || disabled}
+                    aria-label="Send"
+                    className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full transition-colors duration-150 disabled:cursor-not-allowed ${
+                      !input.trim() || disabled
+                        ? "bg-foreground/10 text-muted-foreground"
+                        : "bg-foreground text-background hover:bg-foreground/85"
+                    }`}
+                  >
+                    <ArrowUp className="h-4 w-4" />
+                  </motion.button>
+                )}
+              </div>
+            </div>
 
-            {isGenerating && input.trim() && onQueue && (
-              <motion.button
-                whileTap={{ scale: 0.92 }}
-                onClick={handleQueue}
-                disabled={disabled}
-                className="shrink-0 rounded-md p-2 transition-colors"
-                aria-label="Queue for after"
-                title="Queue for after (Ctrl+Enter): sent as its own message when this one finishes"
-              >
-                <ListPlus className="h-5 w-5 text-muted-foreground transition-colors hover:text-foreground" />
-              </motion.button>
-            )}
-            {isGenerating && input.trim() && (
-              <motion.button
-                whileTap={{ scale: 0.92 }}
-                onClick={handleSubmit}
-                disabled={disabled}
-                className="shrink-0 rounded-md p-2 transition-colors"
-                aria-label="Send while it works"
-                title="Send while it works: it reads this after its next step"
-              >
-                <Send className="h-5 w-5 text-primary transition-colors" />
-              </motion.button>
-            )}
-            {isGenerating ? (
-              <motion.button
-                whileTap={{ scale: 0.92 }}
-                onClick={onStop}
-                className="shrink-0 rounded-md p-2 transition-colors"
-              >
-                <Square className="h-5 w-5 text-destructive transition-colors" />
-              </motion.button>
-            ) : (
-              <motion.button
-                whileTap={{ scale: 0.92 }}
-                whileHover={{ scale: 1.08 }}
-                onClick={handleSubmit}
-                disabled={!input.trim() || disabled}
-                className="shrink-0 rounded-md p-2 transition-colors disabled:cursor-not-allowed"
-              >
-                <Send
-                  className={`h-5 w-5 transition-colors ${
-                    !input.trim() || disabled
-                      ? "text-muted-foreground/40"
-                      : "text-primary"
-                  }`}
+            {/* Permission mode, folder and team: in the tray, visible while
+                typing, out of the way of the send action */}
+            <div className="flex min-w-0 items-center gap-1 px-1.5 pb-0.5 pt-1">
+              <PermissionModeSelector />
+              {showFolder && <WorkspaceSelector />}
+              {showFolder && (
+                <TeamToggle
+                  availability={teamAvailability}
+                  modelId={modelId}
+                  modelName={modelName}
                 />
-              </motion.button>
-            )}
-          </div>
-
-          {/* Permission mode and folder sit under the composer: visible while
-              typing, out of the way of the send action. */}
-          <div className="mt-1 flex min-w-0 items-center gap-1 px-1">
-            <PermissionModeSelector />
-            {showFolder && <WorkspaceSelector />}
-            {showFolder && (
-              <TeamToggle
-                availability={teamAvailability}
-                modelId={modelId}
-                modelName={modelName}
-              />
-            )}
-            {models && onSelectModel && onOpenLibrary && (
-              <ComposerModelPicker
-                models={models}
-                currentModelId={modelId}
-                isLoading={isModelLoading}
-                isModelLoaded={isModelLoaded}
-                onSelect={onSelectModel}
-                onOpenLibrary={onOpenLibrary}
-                onOpenSettings={onOpenSettings}
-              />
-            )}
-            <ContextRing />
+              )}
+            </div>
           </div>
         </div>
       </div>

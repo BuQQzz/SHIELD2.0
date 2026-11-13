@@ -329,3 +329,297 @@ _Measured, Bonsai 2, same team task, 3 runs._ Change (uncommitted): a `report` t
 **Reading:** the tool fixes reliability of the format, not cost. The remaining lever is thinking on the report turn, which SHIELD can't target in advance because the agent decides when it is done. Options: a lower thinking cap for agents generally, or keep the tool but drop `required` and measure again.
 
 **Decision (user, 2026-11-08):** reverted. The report tool and the required tool call are not kept; the thinking cap stays as it is. The committed fields-only prompt (`20af3ae`) remains. Compressed agent reports go back to the drawing board: what we learned is that the report's format costs little once it is fields-only, and the real cost on a final turn is the model's thinking, not its writing.
+
+### 2026-11-08 · Opus · Growing-project test: design
+
+_Plan agreed with the user; first run (Bonsai 2, chat mode) under way._ The question: as a project grows over a long session, where does the model lose focus or sight of it, and what should SHIELD add (a project map, decision notes, better compaction, a regression guard)?
+
+- **The user is scripted but talks like a real one.** 20 short, vague turns: "I want something to keep track of my spending. can you make it?", "what would make this more useful?", "sure, do the first one", "I tried adding something with a date like 3/4 and it got confused", "can you do the other thing you suggested earlier that we never got to?". Nothing says how to build it or what files to use: the model decides and recommends, as in vibe coding.
+- **Memory probes point at the model's own choices:** "the spreadsheet should show dates the same way the monthly view does", "remind me, how do I see the monthly thing and set the limits again?".
+- **The project is pushed to grow.** If code is under about 40 lines per step at steps 4, 8 and 12, the user says "nice. keep going, add more of the stuff you suggested" (at most 3 times). If the model asks instead of acting, the user answers once: "you decide, go with what you think is best".
+- **What is kept per step:** a copy of the project; every tool call and failure; compactions and summaries; checks that need no knowledge of what it built (Python compiles and starts, web pages load in a hidden Electron window with their script errors and visible text, its own tests run); and its full thinking for every request, through a new opt-in `SHIELD_THOUGHT_LOG`.
+- **One session, Auto mode, every prompt approved.** Harness: `tmp/ui-check/grow.mjs` (git-ignored), branch `test/growing-project`.
+
+First observation from a 2-step smoke run: asked for a spending tracker, Bonsai 2 built a single-file web page (`index.html`, 343 lines). Its first write ended with a duplicate `</script></body></html>`, and 5 of the step's 7.5 minutes went to repairing that: three failed `edit_file` calls (the tail did not match exactly), a refused whole-file rewrite, then `head -n 341` that cut one line too many, then `append_file`.
+
+_Seen by the user while g1 ran (to check after the run, no change during it):_ the model makes a plan with `update_plan` but never marks steps done as it works; the checklist sat at "0 of 4 done" mid-step. Also on screen: SHIELD's record flagged 4 failed `edit_file` calls on `index.html` whose changes were never made, while the model's reply said it had "fixed a couple of things". To check: whether its replies claim work the record shows failed.
+
+_Seen in a screenshot of g1 (step 8-9, about 23:45):_ one step ended "Stopped: the model kept sending a edit_file call that could not be read", after 3 failed edits; the next step's reply opens "Done. Here's what I added and verified" while the plan still read "0 of 4 done".
+
+_g1, step 10 (about 23:53):_ SHIELD's record: 8 `edit_file` calls on `index.html` failed and "the file still does not have the change", while the reply said "both edits are confirmed in the file". The model then wrote a Python script (`_polish.py`) to patch `index.html` instead of editing it. Run paused about 5 minutes at a "Move to Trash" prompt (deleting that script) that the harness did not click; clicked by hand, harness fixed for later runs.
+
+### 2026-11-09 · Opus · Growing-project test, run g1: results
+
+_Measured, Bonsai 2, chat mode, one session, 23 steps (20 scripted + 3 nudges), 122 minutes._ It built a single-file web spending tracker (`index.html`, 269 lines at step 1, 454 at the end) and worked well through step 9. The second half collapsed, for a reason in SHIELD, not the model's grasp of the project.
+
+|                                    |                               |
+| ---------------------------------- | ----------------------------- |
+| Tool calls / failed                | 188 / 51                      |
+| Failures: SHIELD's note copied     | 33                            |
+| Failures: edit_file text not found | 14 (of 43 edit_file calls)    |
+| Summaries / compactions            | 11 / 54                       |
+| Largest prompt                     | 19,516 tokens of a 32K window |
+| Plan steps ever marked done        | 0 (7 plans made)              |
+
+- **The main failure: the model learned to write SHIELD's removal note.** Shortened old calls in its history are followed by "[SHIELD removed from your context to save space: N characters of the call above…]" inside its own turns. From request 81 of 210 it wrote that note itself (43 replies, sometimes spelled "SHILD"). In 33 of them a clean call followed, and SHIELD refused it because the reply contained the note (`mcpMessageHandler.ts` checks the whole reply, not the call's arguments). Its thinking: "the command I'm sending is clean text … Perhaps there's some caching issue." In the other 10 the note took the place of the call, so the turn ended. Steps 13-22 mostly end "Let me add X:" followed by the note: 10 steps with almost no change.
+- **Edits on a 400-line file miss.** 14 of 43 `edit_file` calls didn't match; the model switched to writing Python patch scripts (`_polish.py`, `_fix_csv.py`, `_fix.py`). One of those (step 11) left a regex syntax error that broke the whole page for steps 11-22. Nobody noticed until "is everything still working?" at step 23.
+- **Claims outran the record.** SHIELD's record showed 8 failed edits while the reply said "both edits are confirmed in the file".
+- **Memory answers were partly wrong.** Asked "how do I see the monthly thing", it described a "month dropdown at the top-left"; the code has Previous/Next buttons. It announced a trends chart, search and a profile switcher several times; at the end the profile buttons exist in HTML with no code behind them, and there is no trends chart and no search.
+- **The plan never moved.** 7 `update_plan` calls, all creating a plan; no step was ever marked done.
+- **Context was not the limit.** The largest prompt was 19.5K of 32K, yet 11 summaries ran.
+
+**Proposed fixes, in order:** (1) keep removal notes out of the model's own turns (put them in the tool result), refuse a call only when its own arguments carry a note, and strip a note from the reply's prose; (2) check syntax after every edit to `.html`/`.js`/`.py` and report errors in the tool result; (3) on an `edit_file` miss, show the closest matching lines with line numbers; (4) before the final reply, tell the model which of its calls failed; (5) remind it to update the plan, or advance the plan from the calls that succeeded; (6) a project notes file (features built, suggestions pending) kept by SHIELD across summaries. Then run g2 the same way.
+
+### 2026-11-09 · Opus · Growing-project test, run g2 (after the note fix): first 10 steps
+
+_Measured, Bonsai 2, chat mode, same script as g1; stopped by the user after step 10 (62 minutes), to continue later._ This time the same first prompt produced a Python command-line tool (`spend.py`, 278 lines at step 1, 775 at step 10), so the comparison with g1's web page is about how it worked, not what it built.
+
+|                                                | g1, steps 1-10 | g2, steps 1-10 |
+| ---------------------------------------------- | -------------- | -------------- |
+| Requests / copied notes                        | 136 / 20       | 145 / 0        |
+| Failed calls                                   | 35             | 5              |
+| Steps that changed nothing when asked to build | 2 (7, 8)       | 0              |
+| Plan calls marking steps done                  | 0              | 1 of 3         |
+| Largest prompt                                 | 19.5K          | 19.5K          |
+
+- **The note fix held:** no copied note in 145 requests (g1's first came at request 81 and it had 20 by step 10). The 5 failures were 4 `edit_file` misses and 1 refused rewrite; each time it re-read the file and the change landed.
+- **It followed its own suggestions.** Step 3 ranked budgets, month comparison, recurring spending; "the first one" built budgets, "the second one" built `compare`. Step 8 ranked edit, a yearly view and recurring detection; steps 9-10 built `edit`, `recurring` and a `status` dashboard.
+- **The tool works when checked by hand** (a copy of step 10): add, list, summary with budget status, budget set, status, edit, export, the interactive shell, and the 3/4 date complaint answered with a clear error suggesting 3/4/2026. Two bugs it didn't catch: `recurring` divides the monthly average by the number of months again (9.99/month shown as "EST. TOTAL ~5.00/mo"), and the help's example `add 12.50 groceries weekly shop` fails (the note needs quotes).
+- **SHIELD's record raised a false alarm.** After step 4 it said "These 2 edits failed, and the file still does not have the change, whatever the reply says", but both changes (the budget warning in `cmd_add`, the `budget` command) are in the file: the model's retries succeeded. The record should not flag a failed edit that a later edit to the same file made good.
+- **Clearing still runs often** (8-12 times in the long steps, plus 1-2 summaries) with prompts never past 19.5K of 32K; each clearing has the server re-read the prompt.
+
+**To pick up:** finish g2 (steps 11-20); then the fixes from g1 still open: syntax check after each edit, closest lines on an `edit_file` miss, failed-call reminder before the final reply, the plan, project notes; plus the record's false alarm and the clearing frequency.
+
+### 2026-11-09 · Opus · Stop-on-struggle: g3, step 11 (spreadsheet export)
+
+_The harness now stops at the first sign of struggle and can resume from any saved step (`RESUME=<tag>:<step>`), so each problem is fixed where it shows up._ g3 resumed g2 after step 10 and stopped at step 11, "I want to get my stuff out into a spreadsheet": timed out at 25 minutes, 46 requests.
+
+- **Cause in the model's work:** it wrote a standard-library `.xlsx` writer, and its `append_file` put the helper below `if __name__ == "__main__": main()`, so run as a script `main()` ran before the helper existed. It then spent 11 minutes (12:16-12:28, up to 6,000 characters of thinking per request) on stale `.pyc` files, shadowing and import differences before reading the end of the file and moving the guard. It was still verifying when time ran out.
+- **Fixed in SHIELD:** after a successful `append_file` on a `.py` file whose `__main__` block sits above the new text, the result says so and says to move the block to the end.
+- **Found on the way: a long turn is never saved until it ends.** The conversation is written at the end of a turn (or on error or Stop). When the app closed 25 minutes in, the whole turn, including the user's message, was gone. **Fixed:** saved after the first tool round and then at most every 15 seconds.
+- **Found on the way: the Stop button has no name** (an icon only), so neither a screen reader nor the harness could find it. **Fixed:** `aria-label` and `title` "Stop".
+- **Not changed yet: clearing churn.** About 7 clearing passes in 46 requests; one request waited 59 s for its first token to re-read 9,261 tokens. Clearing starts at 60% of the window and goes to 40%, and one file read refills the gap. Raising the start to 70% would leave Qwen3.8's 12K window only 3.7K for a reply, so it needs a window-aware rule and its own test.
+
+### 2026-11-09 · Opus · g4 (resumed g3 at step 10): steps 11-15, and what the model did outside the project
+
+_Measured, Bonsai 2, stop-on-struggle, with the `__main__` hint and mid-turn saves from g3._
+
+| Step | Prompt (short)                                | Time              | Result                                                                                     |
+| ---- | --------------------------------------------- | ----------------- | ------------------------------------------------------------------------------------------ |
+| 11   | get my stuff into a spreadsheet               | 554 s             | `.xlsx` export works (g3: timed out at 25 min)                                             |
+| 12   | a friend wants to use it too                  | 367 s             | profiles                                                                                   |
+| 13   | the other thing you suggested                 | 1,144 s, 48 calls | done                                                                                       |
+| 14   | I added something yesterday and can't find it | 726 s             | diagnosed it: data was saved in whatever folder it was run from; moved data to `~/.spend`  |
+| 15   | can it tell me when I'm overspending          | 237 s             | budgets existed; set food to $200, proved the warning with a test entry, deleted the entry |
+
+- **Step 15 stopped the run by mistake.** The harness rule "asked to build, changed nothing" looked only at project files, and the change was in `~/.spend`. Narrowed: a step with a successful command or write is not "changed nothing".
+- **Step 14 reached well outside the project, and every prompt looked ordinary.** To find the missing entry it ran `find` over the whole home folder, listed `.json`/`.py` files changed in the last 48 hours, ran `grep -r 2026-11-08` over every project in `~/Desktop/Projects`, read another test run's data, then wrote and ran a migration script that created `~/.spend/spending.json`. Each one prompted (11 prompts), and the harness allowed them all. The reason was legitimate, but the prompt only showed the command and the model's own reason, nothing from SHIELD.
+- **Fixed in SHIELD (cf081a4):** the permission bar now carries SHIELD's own warning lines: "Reaches outside the project folder: <paths>" (amber), and in red when a command touches keys, passwords or browser data, sends data over the network, runs fetched or decoded code, takes admin rights, can erase a disk or folder tree, sets something to run later, or stops other programs. These help the reader; they do not filter.
+- **Harness, decided with the user:** the test user allows a prompt with a legitimate reason and denies one SHIELD flags red; a denial stops the run for review. Every prompt's text is kept per step. The app now runs with `HOME` set to the run's own folder, so `~/.spend` lives in the run (saved per step as `home-NN`); the real `~/.spend` g4 created was moved into `grow-g4/home-15` and deleted.
+
+### 2026-11-09 · Opus · g5 and g6: steps 16-20, the end of the script
+
+_Measured, Bonsai 2, stop-on-struggle, with SHIELD's prompt warnings (cf081a4) and the run's own HOME. g5 resumed g4 at 15; it stopped at 17 and g6 resumed g5 at 16 after a fix._
+
+| Step | Prompt (short)                                        | Run | Time    | Calls (failed) | Result                                                                             |
+| ---- | ----------------------------------------------------- | --- | ------- | -------------- | ---------------------------------------------------------------------------------- |
+| 16   | spreadsheet dates like the monthly view               | g5  | 398 s   | 11 (0)         | done                                                                               |
+| 17   | what else would make this better? add it              | g5  | 1,502 s | 48 (2)         | **timed out**; income, weekly view, net savings all built and working, cleaning up |
+| 17   | (same)                                                | g6  | 292 s   | 11 (0)         | month-over-month line in `status`                                                  |
+| 18   | it's getting messy, clean up the code                 | g6  | 811 s   | 26 (1)         | every command still works (checked by hand in a scratch HOME)                      |
+| 19   | remind me how to see the monthly thing and set limits | g6  | 29 s    | 0              | answered from memory, every command and detail correct                             |
+| 20   | is everything still working?                          | g6  | 118 s   | 6 (0)          | tested every command on seeded throwaway data                                      |
+
+- **Why g5 step 17 timed out: re-reading one big file.** `spend.py` (1,069 lines) was read 11 times in the turn, in chunks up to 760 lines; each time clearing removed a read, it read again "to see the full picture" (said four times). Requests 17-41, about 15 of the 25 minutes, were reading and planning; 3 summaries and 16 clearings ran in the one step. Once it used `grep -n` and short `sed` ranges, each look took 4-8 s. After one summary it rediscovered its own unregistered income commands.
+- **Fixed (e110554):** a cleared read of code keeps the definitions it showed (up to 60), with "grep -n for one to find its lines, then read just that range". In g6 it appeared once (step 18). g6's step 17 picked a smaller feature, so the fix is not yet measured on a big-read turn.
+- **Testing on the user's data.** In g5 step 17 the model cleaned up its test entries with `delete --id 1` and deleted an existing entry instead; it noticed at once. In g6 it seeded throwaway data in `/tmp` or with `--file` every time and said "your real data was never touched". Not fixed in SHIELD; Added to the check-your-work rule (user approved): "Test with throwaway data, such as a temporary file or folder, never the user's own data files."
+- **Memory held at the end.** Step 19's answer was right in every detail (g1's equivalent invented a dropdown). One slip: g6 step 17 called month-over-month "the single most useful number that was missing" though `compare` was built at step 10.
+- **Prompt warnings:** 0 red in steps 16-20; every amber prompt had a plain reason (temp files in `/tmp`, checking installed packages). Noise to fix: a grep pattern (`/^def`) and fragments like `P=/tmp/x` read as paths. Also fixed on the way: `/dev/null` was "outside", and `grep`/`sed` on a script was shown as "Runs spend.py".
+- **Left in the project:** a stray `out.csv` test export (step 18).
+
+### 2026-11-09 · Opus · g7: steps 17-20 again, with the test-data rule
+
+_Measured, Bonsai 2, resumed g5 at 16, with the definitions fix (e110554) and "Test with throwaway data … never the user's own data files" (0c86f34)._ No struggle; 0 failed calls in four steps.
+
+| Step                                | Time  | Calls | Result                                                                                                                                                                                           |
+| ----------------------------------- | ----- | ----- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| 17 what else would make this better | 475 s | 12    | budget pace ("on track for the month") in `status`                                                                                                                                               |
+| 18 clean up the code                | 878 s | 25    | every command still works (checked by hand)                                                                                                                                                      |
+| 19 remind me how...                 | 35 s  | 0     | correct from memory                                                                                                                                                                              |
+| 20 is everything still working      | 396 s | 15    | installed openpyxl in a project `.venv` (system pip is apt-managed; it chose not to use sudo), which exposed and fixed a real bug in the XLSX writer (`datetime.date` with `datetime` the class) |
+
+- **The test-data rule held:** every check ran on a `mktemp` file or `--file`; the user's data file is byte-identical from step 16 to 20. It still leaves throwaway files behind sometimes (`_t.json` in the project, like g6's `out.csv`).
+- **It navigated by grep from the start** (a `grep -n` of every definition, then short ranges), so no big re-reads happened and the definitions list was never needed. The fix is still unmeasured on a turn that does read big.
+- **Slips:** step 17 listed budget commands as "set/list/clear" (it is `remove`; step 19 got it right). Prompt-warning noise again: an awk pattern `/def cmd_status/` shown as a path.
+
+### 2026-11-09 · Opus · Where g5's timed-out step went: clearing is not the main cost
+
+_Measured from the server log of g5 step 17 (52 requests, 25 minutes, Bonsai 2 at 32K)._
+
+|                                                                                                                                     | Time     |
+| ----------------------------------------------------------------------------------------------------------------------------------- | -------- |
+| Generating (37,200 tokens, thinking included, ~715 a request)                                                                       | ~1,027 s |
+| Reading prompts                                                                                                                     | ~412 s   |
+| ...of which re-reading what the cache lost after a clearing or summary (11 requests, ~82K tokens, f_keep 0.31-0.43 on the big ones) | ~215 s   |
+
+- Clearing and summaries cost about 3.5 of the 25 minutes: real, but not what made the step run out. Most of the rest of the reading is new content (file reads of 4-9K tokens), which is processed once either way.
+- Thinking is the larger lever: planning requests ran 50-113 s with 5,000-6,000 characters of thinking each, several of them re-planning after a read was cleared ("I now have the full picture" four times).
+- So the window-aware clearing rule drops in priority. Going deeper per clearing (CLEAR_TO 0.4 → 0.3 at 32K) might halve the 11 cache losses (~1.5 min) but clears more of what the model is working from. Not changed.
+
+### 2026-11-09 · Opus · Big-read outline and stale-read clearing (6dc919b): step 17 three times
+
+_Measured, Bonsai 2, each run resumed g5 at 16 and ran only step 17 ("what else would make this better? go ahead and add it")._
+
+| Run         | Time               | Calls (failed) | Built                            | Clearing / summaries |
+| ----------- | ------------------ | -------------- | -------------------------------- | -------------------- |
+| g5 (before) | 1,502 s, timed out | 48 (2)         | income, weekly view, net savings | 16 / 3               |
+| g8          | 519 s              | 21 (1)         | free-text `search`               | 9 / 0                |
+| g9          | 371 s              | 13 (0)         | "By week" section in `status`    | 6 / 0                |
+| g10         | 760 s              | 22 (0)         | `list --from/--to` date range    | 14 / 1               |
+
+- **No big reads in any run.** g8 and g10 found their way with `grep -n`, `sed -n 'A,Bp'` and `awk '/def x/,/def y/'` from the start. g9 asked for `head: 458` once, got the outline and 200 lines, and went on with `sed` ranges as the result suggested. The outline fired once; it worked as intended that once.
+- **The stale-read clearing never fired**: it covers `read_text_file`, and the reading moved to `run_command` (`sed`, `awk`). g10 re-read overlapping ranges (640-760 then 700-835; `cmd_list` twice). Extending "stale" to overlapping `sed -n` ranges of the same file is the next step if this pattern holds.
+- All three tested on throwaway data; the user's data file was byte-identical after each.
+- The features were one each, smaller than g5's three, so the time drop is not all the fixes'. The useful signal: across g6-g10 (five runs of this step) no run read big again, and none came near the limit.
+
+### 2026-11-09 · Opus · Stale reads in commands
+
+_Unit-tested and replayed on saved histories; not yet seen firing in a live run._ Stale-read clearing now reads `run_command` too: a command that only shows parts of files (`sed -n 'A,Bp;C,Dp'`, `awk '/x/,/y/'`, `cat`, `head -n`, after a `cd` and between `echo`s) is a read, and its result is stale when later reads show every part again; a later `tail` at least as long covers a `tail`. A command that also ran something, piped or printed other output is never cleared this way. Replayed on step 17's histories: g5 would clear ~41K characters (~13K tokens) of out-of-date copies before anything else (its four `tail` reads of 370-374 lines and the `head` reads before them); g8 and g9 had nothing to clear; g10 ~1.9K (a repeated awk span). Partial overlaps (640-760, then 700-835) are left whole.
+
+### 2026-11-09/10 · Opus · Full run from scratch with every fix (g11 → g12 → g13)
+
+_Measured, Bonsai 2 27B at 32K, fresh empty folder, the same 20 prompts, stop-on-struggle. Two stops, each fixed and resumed from the step before._ All 20 steps pass in the end; `spend.py` grew to 989 lines (add/list/summary/breakdown/trend/report/budgets/subscriptions/profiles/export/search/log/who). Final per-step record (the passing attempt): 1-4 and 6-11 under 6 minutes each except step 10 (1,103 s); 12: 998 s, 2 failed; 13: 797 s, 0; 14: 1,700 s, 1; 15: 146 s; 16: 1,003 s, 1; 17: 1,190 s, 2; 18: 840 s, 1; 19: 42 s; 20: 579 s, 0. No step timed out. Every test the model ran used throwaway data except where noted below.
+
+**Stops and fixes**
+
+- **g11 step 5 (3 failed calls): an 11-edit call lost to one blank line** (the file had two between functions, the oldText one); the model fixed that edit, then rewrote the whole file. _Fixed (c159372):_ an oldText that misses only in blank-line runs or trailing spaces and matches one place is sent with the file's text. Replayed: all 11 apply. Also: file tools aimed outside the Code session's folder are refused before the prompt (step 1 asked to trash `/tmp/spendtest`, which then failed), and `/tmp/x/` and `/tmp/x` are one path in warnings.
+- **g12 step 12 (9 failed calls): `"""` copied as `""`**, five times in a row on one docstring, with SHIELD's closest-lines hint showing the right text each time; steps 9-10 missed on help-text alignment spaces. _Fixed (345cb84):_ the relaxed match also takes two or three quotes for two or three and any run of spaces inside a line (indentation exact), still only at one place; it ends where oldText ends. 6 of step 12's 8 distinct misses now apply. Rerun (g13): 2 failed calls.
+
+**Found in passing steps, fixed (in the build after g13)**
+
+- **The same quote quirk in new code (step 14):** a new docstring closed with `"`; Python pointed 60 lines further down, and about 10 requests (~8 min) went on hexdumps and the tokenizer. _Fixed (b11c17c):_ after a change to a `.py` file, an odd number of triple quotes in what was added gets a note naming the line and the opening text.
+- **`rm -rf .profiles` in the project (step 16):** to seed a test, the model deleted the folder where the tracker keeps every person's data (nothing real in it yet); the prompt showed only the command. _Fixed (01ac4c8):_ red warning "Deletes folders and everything in them: ..." for `rm -r`, `Remove-Item -Recurse`, `find -delete`, `shutil.rmtree` outside temp folders (after any `cd`) and not on build/cache folders. Replayed on 741 commands from g5-g13: only that command and its cleanup turn red. The test user denies red prompts, so this now stops the run for review.
+- **A variable expected to survive between calls (step 20):** `export SPEND_PROFILE=<throwaway>` in one call, the test in the next, which fell back to the real profile and wrote a budget into it. The model noticed, reverted it and said so plainly; the profile had only that line, created by the same mistake. _Fixed:_ the run_command description now says each call starts a new shell.
+
+**Not fixed, the strongest open signal: memory of the project itself**
+
+- **Step 13 ("the other thing you suggested earlier"):** the model said its memory had been trimmed and it had no reliable record; it built something new (`who`). Its step-3 list had `edit`, month-over-month and budget hints, never built. Summaries keep what was done, not what was suggested.
+- **Steps 14, 16, 17:** each rediscovered where its own data lives (`.profiles/<name>/data.json`) and the key (`expenses`) by trial, several prompts each time.
+- Proposed: a project notes file SHIELD keeps across summaries (features and command names, data layout, suggestions not yet built), offered back to the model at the start of each turn.
+
+**Other observations:** reading moved to `awk '/def x/,/def y/'` and `sed -n` spans, which the big-read outline does not cap (step 17 made 13 reads before its edits). Step 16's own fix is doubtful: it prefixed CSV dates with `'` to keep them as text, which a spreadsheet shows literally. Stale-read clearing fired live for the first time (step 7).
+
+### 2026-11-10 · Opus · LFM3 Coder Claude Distill 1.7B: first test
+
+_Measured in the app, the user's find: `mradermacher/LFM-3-Coder-Claude-Distill-GGUF` Q8_0 (1.85 GB), a community fine-tune of LiquidAI/LFM3-1.7B on 9 Claude-trace datasets (card: no benchmarks). Architecture `lfm3`: the Prism b12128 build cannot load it, so the test ran on stock llama.cpp b12238 (Vulkan, 36 MB) through SHIELD_LLAMA_SERVER. Added to the library as an experimental "LFM" family entry (local). Same short tasks as Bonsai 2's sweeps, `DENY=1`, 5 minutes each._
+
+| Task                                                          | Result                            | Time    |
+| ------------------------------------------------------------- | --------------------------------- | ------- |
+| edit (add a section)                                          | 2 of 2                            | 34-48 s |
+| write (new 72-hour kit file)                                  | 2 of 2                            | 24-26 s |
+| xwater (fact from one file into the right list of another)    | 2 of 2                            | 22-28 s |
+| code (new counting script)                                    | 1 of 2 (one counted 1 of 3 right) | 20 s    |
+| dedupe (remove the second of two identical blocks)            | 1 of 2                            | 20-30 s |
+| mid (add one item to the right one of three look-alike lists) | 0 of 2                            | 26-32 s |
+| fix (two seeded bugs in a script)                             | 0 of 2                            | 30-34 s |
+| split (move a function to a module, add --total)              | 0 of 1                            | 22 s    |
+
+**10 of 15**, against Bonsai 2 27B's 100% on the same tasks; 4 s to load, ~80-110 tok/s, every run under a minute.
+
+- **Good at:** single-shot writing and appending, and lookups that copy a fact into a clearly named place. Fast enough to feel instant.
+- **Weak at:** anything that needs checking its own work. Code and fix tasks ended in 1 round without running the script (Bonsai 2 runs it and fixes what fails); fix1 replaced the buggy script with a new one of its own. In mid it sent the same ambiguous edit until SHIELD stopped the loop.
+- **Claims outrun the file:** mid2 grew the file by 1,431 characters and replied it "changed nothing else"; dedupe1 removed 34 characters, not the block, and replied done. That is the riskiest trait for an agent.
+- **Where it could fit:** fast helper jobs where SHIELD checks the result itself (capsule notes, summaries, first drafts), not the main coding model. Liquid's own card says the base is not for agentic coding; the distill does not change that.
+
+### 2026-11-10 · Opus · LFM3 1.7B on a complex coding task: build, then review and fix
+
+_Measured in the app. New compare.mjs task `complex`: build `kitplan.py` (summary with --json, search with exit 1 on no match, missing A B with a normalised comparison, exit 2 on bad input) plus unittest tests; second prompt: review, run the tests, try every command on the real file, fix what is wrong. Commands allowed, 10 minutes a prompt. Scored by `tmp/ui-check/kitcheck.py`, 11 checks against an independent reading of the spec, after each prompt._
+
+- **Build: 0 of 11.** 264 lines of tool and 275 of tests, written in about a minute, but the tool registers the `summary` subcommand twice, so argparse raises `ValueError: conflicting subparser` before any command runs; all 11 of its own tests error.
+- **Review and fix: 0 of 11, nothing changed.** It ran the tool about 20 times (four first refused for a missing `reason`), got the same traceback every time, and never edited either file. SHIELD paused it after 20 rounds with no new results. 157 s in all, 30 rounds, ~129 tok/s.
+- So on a task that needs reading an error and acting on it, the 1.7B distill does not close the loop at all; on the short tasks it never ran its code, and here running it did not help. It fits fast drafting where something else checks the result, not coding on its own.
+
+### 2026-11-10 · Opus · LFM3 1.7B with SHIELD tuned for it: complex task again
+
+_Measured. Changes for this model (library entry, local): native tool calls (its trained format, held to the schema by a grammar; checked directly on b12238), a 1,024-token thinking budget (uncapped, its thinking repeated and SHIELD turned thinking off for the review), and for every model (committed): when a command ends with the same error as an earlier one in the turn with no file edited since, the result says so and names the project line that raised it. Sampling was already Liquid's (the GGUF carries it)._
+
+- **2 of 11** (was 0), the same after build and after review. The tool now starts, but it misread the spec: no FILE argument, and `summary --json` registered as a subcommand name, so every real command fails on the file name; only the two exit-code checks pass. Its 13 tests: 12 errors.
+- **The review changed nothing in kitplan.py.** 53 rounds, 351 s, 43K tokens: failed edits to its test file, `list_directory` and `search_files` on a file path, one ambiguous edit. The same-error note fired once. No refused calls for a missing reason this time.
+- **Conclusion:** the tuning fixed the mechanics (calls well-formed, thinking kept), not the outcome. At 1.7B it cannot hold a ten-requirement spec or turn a failing run into a code fix. Next comparison worth making: the official LiquidAI/LFM3-1.7B on the same tasks, to see whether the Claude distill helped or hurt.
+
+### 2026-11-10 · Opus · LFM3 1.7B base vs the Claude distill, same SHIELD settings
+
+_Measured in the app on llama.cpp b12238 (Vulkan): Liquid's own `LFM3-1.7B-Q8_0` against `LFM-3-Coder-Claude-Distill.Q8_0`, both with native tool calls, a 1,024-token thinking budget and Liquid's sampling. Short tasks 5 minutes each (`DENY=1`), the complex task 10 minutes a prompt with commands allowed. A power cut stopped the first run after the base's complex task and its edit and write runs; the rest resumed from there. `compare.mjs` now answers Move to Trash prompts (it had stalled on one for 8 minutes)._
+
+| Task                                      | Base                                  | Distill (tuned) | Distill (before tuning) |
+| ----------------------------------------- | ------------------------------------- | --------------- | ----------------------- |
+| edit                                      | 2/2                                   | 2/2             | 2/2                     |
+| write                                     | 2/2                                   | 2/2             | 2/2                     |
+| code                                      | 0/2                                   | 0/2             | 1/2                     |
+| fix                                       | 1/2                                   | 0/2             | 0/2                     |
+| mid (right one of three look-alike lists) | 2/2                                   | 0/2             | 0/2                     |
+| dedupe                                    | 2/2                                   | 1/2             | 1/2                     |
+| xwater                                    | 1/2                                   | 1/2             | 2/2                     |
+| split                                     | 1/1                                   | 1/1             | 0/1                     |
+| **Short tasks**                           | **11 of 15**                          | **7 of 15**     | **10 of 15**            |
+| complex (11 checks)                       | 1 of 11 (timed out twice, 165 rounds) | 2 of 11         | 0 of 11                 |
+
+- **The base is the better coder of the two.** It edits precisely where the distill does not: mid 2 of 2 against 0 of 2, dedupe 2 of 2 against 1 of 2; the distill again removed a fragment instead of the duplicate block (dedupe1, 110 lines off). The base takes more rounds (6-14 on fix and dedupe) and uses them: it reads, edits and checks. The distill answers in 1-4 rounds at 20-36 s.
+- **On the complex task it works the problem and still fails:** it ran its tool, saw 0 kits, printed the file's raw lines to find out why and rewrote both files, for 165 rounds and 107K tokens; its tests pass, but the tool prints nothing for any command. The distill wrote a tool that starts and misreads the spec.
+- **With n=2 a task, the distill's 10 to 7 is noise, not the tuning;** the base-vs-distill gap on precise edits is the consistent signal across both distill sweeps.
+- **Verdict:** neither is a coding model for SHIELD. If a small LFM3 ever takes helper jobs (notes, summaries, single edits SHIELD checks), use Liquid's base: the Claude distill made it faster to answer and worse at exact edits.
+- **Seen in passing:** while the model is thinking, the session's step summary disappears from the chat and only "Thinking" shows, so a 40-step run looks stuck; it returns when the next step starts.
+
+### 2026-11-10 · Opus · Project memory in summaries, and delete warnings that cried wolf (g14 → g20)
+
+_Measured, Bonsai 2 27B at 32K. g14 resumed g11 at step 3 (before any summary), so every summary from step 4 on used the new code; g16-g20 resumed g14/g16 after each fix._ With the fixes, steps 4-21 all pass (step 17 is a harness nudge, so the script's step 20 is 21 here). LFM3 1.7B kept in the library as a small chat model; the Claude distill dropped (6c81c6d).
+
+**Memory of the project (the open signal from g13)**
+
+- **Bug (38b44df):** since removal notes head the results message (beae93f), `isToolResultTurn` missed those turns. Each summary listed tool results as the user's requests and pushed the real ones out of its 12 slots (g13 by step 12: raw command output and the latest message only), and asked for a note every time. Fixed: it looks past leading SHIELD notes.
+- **Note lines Offered and Facts (38b44df):** suggestions not built yet, and data layout, file, key and command names, each carried from the earlier note. Note budget 180 → 360.
+- **Thinking off for the note (bddb906):** with thinking on, Bonsai 2 spent the tokens thinking; g14's notes stopped mid-sentence (101 chars once) and never reached the new lines. After: every note had both, e.g. "Facts: Data at profiles/<user>/spending.json, budgets.json, subs.json … Commands: add, list, summary, delete, edit, compare…".
+- **Result:** step 13 ("the other thing you suggested earlier") built month-over-month comparison, an unbuilt item from step 3's list, and said edit was already built (g13: "my memory was trimmed", built something new). Step 20's "remind me" answer was right. Steps 14-19 did not rediscover the data layout by trial as in g13.
+
+**Red delete warnings on the model's own test files (01d185c, f25b9c9, 62cbb6d)**
+
+- g14 step 16 timed out: `rm -rf spending.xlsx …` and `profiles/testuser9` turned red, the test user denied them, the model reworded its test until 25 min. Now skipped: names with a file extension, test/tmp/scratch-named folders (not `test`/`tests`).
+- g16 step 21: `rm -rf profiles/chk && mkdir -p profiles/chk`, a folder that did not exist. g17-g19: `profiles/smoke`, made earlier in the same request. Names alone never end (chk, smoke, smk, tst), so before the prompt SHIELD asks the file server (`get_file_info`) about each folder: missing, or created after the user's latest message, is left out; one it cannot see keeps the warning. Two bugs on the way, found only in the app: a tool error comes back as success with `isError` (g18), and tool results are stored as user messages, so "latest message" was a tool result (g19).
+- g20 step 21: 18 prompts, 0 red, 0 failed calls; the model tested every command on a throwaway profile and removed it. g13's `rm -rf .profiles` (a folder from step 12) would still be red.
+
+**Open:** a full run from scratch on this build (planned for the morning); the model left `profiles/tst` behind in g14 (leftover files, item 3 of the open list); the step summary hiding while the model thinks.
+
+### 2026-11-11 · Opus · Full run g21 → g25, and thinking kept within a request
+
+_Measured, Bonsai 2 27B at 32K, from an empty folder on the build after 719c714; resumed after each fix._
+
+- **g21 step 1:** the model built `spend.html`; its `new Function` syntax check passed a page that threw `(d.getMonth(...) + 1).padStart is not a function` on load. _New (bf2330f):_ after a write or edit of an `.html` file SHIELD loads it in a hidden, sandboxed window (own in-memory session, no network, no new windows or navigation away) and adds its errors to the result, or says it loaded clean; addresses it tried to reach are listed. ~1.7 s a check. Load errors only, not clicks.
+- **g22 step 11:** `which apt-get sudo` turned red as taking admin rights (dc735e7: only where sudo runs). Replayed on 735 commands: no admin warning left.
+- **g23 step 15: a real catch.** The model's budget test began and ended with `rm -rf users`, the folder holding each person's data since step 12 (3 entries). Red, denied; the model then tested on a copy in /tmp on its own, data byte-identical. A denial now carries the warning text the user saw (ec4d451).
+- **g24 step 16 timed out** ("the spreadsheet should show dates the same way the monthly view does"): ~10 rounds of re-deciding what the user meant, each thought cut at the 1,536-token budget, and not sent back, so each round started over. It ended by cutting export dates to the month.
+- **Thinking kept within a request (this commit):** each reply's thinking is stored with it and sent back as `reasoning_content` for replies since the user's latest message (Bonsai 2's template renders it as `<think>` before the call, checked with /apply-template). Up to 12,000 characters, oldest first, so what was sent never changes and the prompt cache holds; the budget note is dropped; a thought behind a failed call is left out.
+  - g25 step 16: thinking cut 7 times (10), settled the meaning early, then chose real Excel date cells written as hand-made XML (no openpyxl), broke the workbook and timed out mid-revert. One run each: inconclusive on that step.
+  - Short-task sweep: edit 2/2, write 2/2, code 2/2, fix 2/3, split 2/2, mid 2/2, dedupe 2/2, xwater 2/2. The fix miss read a misspelled `GlobaPreparedness_Research.md` and sent the same read three more times after "already failed": the first round's thought, with the typo, kept in view. After leaving out thoughts behind failed calls: fix 4/4. 20 of 21, as Bonsai 2's earlier record on these tasks; the typo case did not come up again (unit-tested).
+- **Open:** steps 16-20 of this run; step 16 is a vague request that a 1-bit 27B solves slowly; test leftovers (`profiles/tt`, `/tmp/dt-test`).
+
+### 2026-11-11 · Opus · Steps 16-20 (g26 → g28), and a lighter design
+
+_Measured, Bonsai 2 27B at 32K. These tunings are for Bonsai 2 and models like it (small or 1-bit local models with native tool calls, a 32K window, thinking kept in the template); other models may need different rules and code (user, 2026-11-11)._
+
+- **g26 step 16 timed out again.** Two SHIELD causes found:
+  - The model read with `{head: 346, tail: 80}` meaning lines 346-425; the server read the whole file and SHIELD's capped read said "You asked for 833 of them (lines 1-833)". The model concluded the tool ignored it and read again. Now the result says head and tail are not a range and gives the `sed -n '346,425p'` it meant.
+  - Kept thinking held the oldest thoughts: the first six (12,000 characters) stayed for the last 27 rounds, including a first reading of "the monthly view" the model had moved past ("going back and forth"). Now thoughts are kept in sets: when the next one does not fit, a new set starts from it, so the server re-reads the prompt once per set and not every round.
+- **g27 step 16 timed out a third time**, with both fixes: the monthly view shows no per-expense dates, so the request has no clear answer; the model spent ~10 min on what it meant, then chose hand-written Excel date styles. 4 of 5 failed calls were edits whose text did not match, one from code it recalled that never existed. Read as this model's limit on a vague request, not SHIELD losing track; step 16 skipped (g23s: step 15's state with step 16 out of the queue).
+- **g28:** step 17 ("what else would make this better?") 4.5 min, added CSV import; step 18 ("clean up the code") 12 min, 0 failed calls; step 19 ("remind me…") 1.5 min, answer right; step 20 ("is everything still working?") timed out at 48 calls while fixing real bugs in step 17's import (missing `import os`, ids compared as strings). The cost is step 17 shipping untested code.
+- 939 of g26 step 16's 1,452 s went to thoughts cut at the 1,536-token budget.
+- **Design:** depth from surfaces and shadows instead of lines, after Ollama's and Antigravity's desktop apps. White, greys and black, the logo blue as the one accent (focus, active nav, model dot). The main area floats as one panel on the page; sidebar without dividers or uppercase labels; no avatar or name on messages (your message a bubble, copy and retry on hover); the composer a card with the model and a round send, mode/folder/team in a tray under it; menus and dialogs on shadows; settings, library, plugins and team panel without borders.
+- **Open:** a reminder when a turn changes code and never runs it; a larger thinking budget for Bonsai 2 only; test leftovers in /tmp (`fulltest`, `imp-test`, `dt-test`, `xtest`).
+
+### 2026-11-11 · Opus · Run reminder, a larger thinking budget, false failure flags (g29 → g31)
+
+_Measured, Bonsai 2 27B at 32K; settings marked per model are for Bonsai 2 and models like it._
+
+- **Thinking budget 1,536 → 2,560 (Bonsai 2 27B only), kept thinking 12,000 → 20,000 characters** (two thoughts at the new budget). Thoughts cut at the budget: g29 1 of 24, g31 2 of 38 (g26: 15 of 34). g29 step 16 still timed out (fourth time): thinking was 856 s of it (1,452 in g26), so the step's limit is elsewhere.
+- **Run reminder (`remindToRun`, Bonsai 2 27B only):** before a Code turn ends, a code file changed in it and not run since (a syntax check, grep or sed does not count) gets one message asking to run it on throwaway data, or to say why not. Not fired in g30 or g31: at step 17 the model tested on its own both times (`/tmp/trend-test`, `/tmp/dup-test`, the second cleaned up). Unit- and loop-tested only.
+- **False failure flags:** the terminal tool's "lines of the output look like failures" matched source the model printed (`except ValueError:`, `raise SystemExit("error: …")`), three times in g30 step 17 ("false positives from the heuristic"). Source lines are skipped now, with a grep/awk/`cat -n` line number or a `repr()` quote in front. Replayed on g20-g30: 46 of 81 distinct flagged lines dropped, all source; every traceback, `error:` and exception still flagged. g31 step 17: none.
+- **g30 step 17 timed out** (bigger feature, an edit that wrote `\"\"\"` into the file, a test that read the real data folder); **g31 step 17 passed** in 10 min (duplicate warning, tested and cleaned up); **g31 step 18 timed out** with 8 failed calls: 7 edits whose oldText dropped one `)` from `int(r["id"]) for` though the closest-text hint showed it and its thinking had it right ("I typed `r["id"])` but the error shows…"). It finished the cleanup with a Python script instead, compiled and smoke-tested, then ran out of time. A 1-bit model writing a line it can read: open (a near-miss that differs by one bracket could be pointed out, not applied, as its newText may carry the same slip).

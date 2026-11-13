@@ -2,8 +2,6 @@ import { cn } from "@/lib/utils";
 import { formatTokens } from "@/lib/format";
 import { ServedBadge } from "./ServedBadge";
 import {
-  Bot,
-  User,
   Copy,
   Check,
   ArrowRight,
@@ -16,7 +14,6 @@ import {
   ChevronUp,
   Loader2,
   ShieldAlert,
-  Zap,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { LazyMessageContent } from "../lazy";
@@ -376,90 +373,90 @@ export const ChatMessage = memo(function ChatMessage({
     );
   }
 
-  return (
-    <motion.div
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.3, ease: "easeOut" }}
-      className={cn(
-        "flex gap-2 p-3 rounded-lg group",
-        isUser ? "bg-muted/50" : "bg-background"
-      )}
+  const actionClass =
+    "rounded-md p-1.5 text-muted-foreground opacity-0 transition-opacity duration-150 hover:bg-foreground/5 focus-visible:opacity-100 group-hover:opacity-100";
+  const copyButton = (
+    <button
+      onClick={handleCopy}
+      className={actionClass}
+      aria-label="Copy message"
     >
-      <div
-        className={cn(
-          "flex h-7 w-7 shrink-0 select-none items-center justify-center rounded-md",
-          isUser
-            ? "bg-primary text-primary-foreground"
-            : "bg-muted text-muted-foreground"
-        )}
+      {copied ? (
+        <Check className="h-3.5 w-3.5 text-signal" />
+      ) : (
+        <Copy className="h-3.5 w-3.5" />
+      )}
+    </button>
+  );
+
+  // Your message: a soft bubble on the right, no avatar or name
+  if (isUser) {
+    return (
+      <motion.div
+        initial={{ opacity: 0, y: 8 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.2, ease: "easeOut" }}
+        className="group flex flex-col items-end"
       >
-        {isUser ? (
-          <User className="h-3.5 w-3.5" />
-        ) : (
-          <Bot className="h-3.5 w-3.5" />
-        )}
-      </div>
-      <div className="flex-1 space-y-2 overflow-hidden">
-        <div className="flex items-center justify-between">
-          <p className="text-sm font-medium">
-            {isUser ? "You" : "SHIELD Assistant"}
-          </p>
-          <div className="flex gap-1">
-            {isUser && !isEditing && onEdit && (
-              <motion.button
-                whileHover={{ scale: 1.05 }}
-                whileTap={{ scale: 0.95 }}
+        <div
+          className={cn(
+            "rounded-2xl bg-soft px-4 py-2.5 [&_.prose]:text-foreground",
+            isEditing ? "w-full" : "max-w-[80%]"
+          )}
+        >
+          {body}
+        </div>
+        {!isEditing && (
+          <div className="flex gap-0.5 pt-1">
+            {onEdit && (
+              <button
                 onClick={handleStartEdit}
-                className="opacity-0 group-hover:opacity-100 transition-opacity p-1.5 rounded-md hover:bg-muted"
+                className={actionClass}
                 aria-label="Edit message"
               >
-                <Edit2 className="h-4 w-4 text-muted-foreground" />
-              </motion.button>
+                <Edit2 className="h-3.5 w-3.5" />
+              </button>
             )}
-            {!isUser && !isStreaming && onRegenerate && (
-              <motion.button
-                whileHover={{ scale: 1.05 }}
-                whileTap={{ scale: 0.95 }}
-                onClick={onRegenerate}
-                className="opacity-0 group-hover:opacity-100 transition-opacity p-1.5 rounded-md hover:bg-muted"
-                aria-label="Regenerate response"
-              >
-                <RefreshCw className="h-4 w-4 text-muted-foreground" />
-              </motion.button>
-            )}
-            <motion.button
-              whileHover={{ scale: 1.05 }}
-              whileTap={{ scale: 0.95 }}
-              onClick={handleCopy}
-              className="opacity-0 group-hover:opacity-100 transition-opacity p-1.5 rounded-md hover:bg-muted"
-              aria-label="Copy message"
-            >
-              {copied ? (
-                <Check className="h-4 w-4 text-green-500" />
-              ) : (
-                <Copy className="h-4 w-4 text-muted-foreground" />
-              )}
-            </motion.button>
-          </div>
-        </div>
-        {body}
-        {stats && !isStreaming && stats.outputTokens > 0 && (
-          <div
-            className="flex items-center justify-end gap-1 text-[11px] text-muted-foreground/60"
-            title={`${stats.outputTokens} tokens in ${(stats.durationMs / 1000).toFixed(1)}s, generated at ${stats.tokensPerSecond.toFixed(1)} tokens per second`}
-          >
-            {stats.servedBy && <ServedBadge servedBy={stats.servedBy} />}
-            <Zap className="h-3 w-3" />
-            <span>
-              {stats.tokensPerSecond.toFixed(1)} tok/s ·{" "}
-              {formatTokens(stats.outputTokens)} tok ·{" "}
-              {(stats.durationMs / 1000).toFixed(1)}s
-            </span>
+            {copyButton}
           </div>
         )}
         {extras}
+      </motion.div>
+    );
+  }
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 8 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.2, ease: "easeOut" }}
+      className="group space-y-2 overflow-hidden"
+    >
+      {body}
+      <div className="flex items-center gap-0.5 text-[11px] text-muted-foreground/70">
+        {copyButton}
+        {!isStreaming && onRegenerate && (
+          <button
+            onClick={onRegenerate}
+            className={actionClass}
+            aria-label="Regenerate response"
+          >
+            <RefreshCw className="h-3.5 w-3.5" />
+          </button>
+        )}
+        {stats && !isStreaming && stats.outputTokens > 0 && (
+          <span
+            className="ml-1 flex items-center gap-1"
+            title={`${stats.outputTokens} tokens in ${(stats.durationMs / 1000).toFixed(1)}s, generated at ${stats.tokensPerSecond.toFixed(1)} tokens per second`}
+          >
+            {stats.servedBy && <ServedBadge servedBy={stats.servedBy} />}
+            {stats.tokensPerSecond.toFixed(1)} tok/s ·{" "}
+            {formatTokens(stats.outputTokens)} tok ·{" "}
+            {(stats.durationMs / 1000).toFixed(1)}s
+          </span>
+        )}
       </div>
+      {extras}
     </motion.div>
   );
 });

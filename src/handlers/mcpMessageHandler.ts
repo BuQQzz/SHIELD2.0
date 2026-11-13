@@ -15,6 +15,7 @@ import {
   COPIED_NOTE_ERROR_PREFIX,
   CUT_OFF_ERROR_PREFIX,
   UNREADABLE_ERROR_PREFIX,
+  closeFinishedCall,
   cutOffToolCall,
   unreadableToolCall,
 } from "./toolCallParsing";
@@ -24,7 +25,9 @@ import { RUN_COMMAND_TOOL_NAME } from "../config/commandSafety";
 import { hostOs, type HostOs } from "../utils/platform";
 import { isRemovalNote } from "../services/historyCompaction";
 import { closestLines } from "../utils/closestLines";
+import { CODE_FILE, outline } from "../utils/codeOutline";
 import { buildActNowPrompt, endsByAnnouncing } from "./mcpRetryPolicy";
+import { changedCodeFile, filesRun, runReminder } from "./runReminder";
 
 export interface MCPMessageHandlerProps {
   onToolCallDetected: (toolCall: ToolCallRequest) => Promise<MCPToolResult>;
@@ -63,6 +66,11 @@ export interface MCPMessageHandlerProps {
    * one cut off at the length limit (2026-09-24).
    */
   isStopped?: () => boolean;
+  /**
+   * Before the turn ends, ask once to run code it changed and never ran
+   * (runReminder.ts). Per model: ModelMetadata.remindToRun
+   */
+  remindToRun?: boolean;
   /**
    * Reads a file as it is now, or null. When an edit_file finds no exact
    * match, the file's closest lines go into the error (closestLines.ts).
@@ -108,7 +116,7 @@ function repeatNote(
     return `You already gave the ${callTarget(toolCall) ?? "agent"} exactly this task in this turn, and nothing has changed since, so it was not run again: it would end the same way. If that run did not finish the work, delegate again with what the agent lacked (the exact file name, the error it hit, what to do differently), or tell the user what was not done.`;
   }
   if (!result.success) {
-    if (result.error === "User denied permission") {
+    if (result.error?.startsWith("User denied permission")) {
       return `The user already declined this exact call (${toolCall.tool}) in this turn, so it was not asked again. Do not try it again; tell the user it was not done.`;
     }
     const error = (result.error ?? formatted).slice(0, REPEAT_ERROR_CHARS);
@@ -118,6 +126,52 @@ function repeatNote(
     ? `You already made this exact call (${toolCall.tool}) in this turn, so it was not run again and its result is not repeated. Use the result you already have, or answer the user now.`
     : `You already made this exact call in this turn, so it was not run again. Its result is repeated below; use it instead of calling again.\n${formatted}`;
 }
+
+/**
+ * The failure a command's output ends with - its last lines, timings
+ * dropped - when it exited with an error; null when it succeeded
+ */
+export function failureSignature(output: string): string | null {
+  const exit = output.match(/^Exit code (\d+)/m);
+  if (!exit || exit[1] === "0") return null;
+  const lines = output
+    .replace(/\d+(\.\d+)? ?(ms|s)\b/g, "")
+    .split("\n")
+    .map((line) => line.trim())
+    .filter(Boolean);
+  return lines.slice(-3).join("\n") || null;
+}
+
+/** Where a Python traceback points in the project's own code, if it does */
+export function tracebackPlace(output: string): string | null {
+  const places = [...output.matchAll(/File "([^"]+)", line (\d+)/g)].filter(
+    (m) => !/[/\\](lib|site-packages|dist-packages)[/\\]|^<frozen/.test(m[1]!)
+  );
+  const last = places.at(-1);
+  if (!last) return null;
+  return `line ${last[2]} of ${last[1]!.split(/[\\/]/).pop()}`;
+}
+
+/**
+ * The note for a command that ended with the same error as an earlier one
+ * in this turn, with no file edited in between. LFM3 1.7B ran its crashing
+ * kitplan.py about 20 times in a review, each command slightly different,
+ * never editing it; SHIELD's repeat guard only knew identical calls, and a
+ * command that exits with an error is not a failed call (2026-11-10).
+ */
+export function sameErrorNote(output: string, times: number): string {
+  const last = output.trim().split("\n").filter(Boolean).at(-1) ?? "";
+  const place = tracebackPlace(output);
+  return `Note: this is the same error as ${times === 1 ? "an earlier command" : `${times} earlier commands`} in this turn ended with, and no file has been edited since, so running it again will end the same way. The error: ${last.trim().slice(0, 200)}${place ? `, raised at ${place}` : ""}. Read that part of the code and fix it before running anything else.`;
+}
+
+const FILE_EDIT_TOOLS = new Set([
+  "write_file",
+  "edit_file",
+  "append_file",
+  "move_file",
+  "delete_file",
+]);
 
 const PATH_KEYS = ["path", "source", "destination"];
 
@@ -264,6 +318,249 @@ async function withEditHint(
   return result;
 }
 
+/**
+ * After append_file on a Python script: a note when the added text lands
+ * below the script's `if __name__ == "__main__":` block, where it is only
+ * defined after main() has run. Bonsai 2 appended an export helper there and
+ * spent 11 minutes on stale caches and shadowed modules before looking at
+ * the end of the file (2026-11-09)
+ */
+async function withAppendHint(
+  toolCall: ToolCallRequest,
+  result: MCPToolResult,
+  readFile?: (path: string) => Promise<string | null>
+): Promise<MCPToolResult> {
+  const { path, content } = toolCall.arguments;
+  if (
+    toolCall.tool !== "append_file" ||
+    !result.success ||
+    !readFile ||
+    typeof path !== "string" ||
+    !/\.pyw?$/i.test(path) ||
+    typeof content !== "string" ||
+    !content.trim()
+  ) {
+    return result;
+  }
+  const file = await readFile(path).catch(() => null);
+  if (!file) return result;
+  const added = file.lastIndexOf(content.trim().slice(0, 200));
+  const guard = /^if\s+__name__\s*==\s*["']__main__["']\s*:/gm;
+  let line = 0;
+  for (const match of file.matchAll(guard)) {
+    if (added >= 0 && match.index < added) {
+      line = file.slice(0, match.index).split("\n").length;
+    }
+  }
+  if (!line) return result;
+  const name = path.split(/[\\/]/).pop();
+  return {
+    ...result,
+    data: `${resultPayload(result.data)}\n\nNote: the text was added after the \`if __name__ == "__main__":\` block at line ${line} of ${name}. Run as a script, that block runs before anything below it is defined, so what you added does not exist yet when main() runs. Move the block to the end of the file.`,
+  };
+}
+
+/** Where each \"\"\" or \'\'\' in `text` starts that is left open, in order */
+function unclosedTripleQuotes(text: string): number[] {
+  const open: number[] = [];
+  let inside: { quote: string; at: number } | null = null;
+  const re = /"""|'''/g;
+  for (const match of text.matchAll(re)) {
+    if (!inside) inside = { quote: match[0], at: match.index };
+    else if (match[0] === inside.quote) inside = null;
+  }
+  if (inside) open.push(inside.at);
+  return open;
+}
+
+const tripleQuotes = (text: string) => (text.match(/"""|'''/g) ?? []).length;
+
+/**
+ * After a change to a Python file: a note when the new text opens a
+ * triple-quoted string it never closes. Bonsai 2 closed a new docstring
+ * with " instead of """; Python reported an unterminated string 60 lines
+ * further down, and the model spent about 10 requests on hexdumps and the
+ * tokenizer before finding it (g13 step 14, 2026-11-09). The same model
+ * copied """ as "" in edits five times in g12. An odd count of triple
+ * quotes in what an edit adds (against what it replaces) is that mistake.
+ */
+async function withQuoteHint(
+  toolCall: ToolCallRequest,
+  result: MCPToolResult,
+  readFile?: (path: string) => Promise<string | null>
+): Promise<MCPToolResult> {
+  const { path } = toolCall.arguments;
+  if (!result.success || typeof path !== "string" || !/\.pyw?$/i.test(path)) {
+    return result;
+  }
+  const added: string[] = [];
+  if (
+    toolCall.tool === "edit_file" &&
+    Array.isArray(toolCall.arguments.edits)
+  ) {
+    for (const raw of toolCall.arguments.edits) {
+      const edit = raw as { oldText?: unknown; newText?: unknown };
+      if (typeof edit?.newText !== "string") continue;
+      const before =
+        typeof edit.oldText === "string" ? tripleQuotes(edit.oldText) : 0;
+      if ((tripleQuotes(edit.newText) - before) % 2 !== 0)
+        added.push(edit.newText);
+    }
+  } else if (
+    ["write_file", "append_file"].includes(toolCall.tool) &&
+    typeof toolCall.arguments.content === "string" &&
+    tripleQuotes(toolCall.arguments.content) % 2 !== 0
+  ) {
+    added.push(toolCall.arguments.content);
+  }
+  if (added.length === 0) return result;
+  const file = readFile ? await readFile(path).catch(() => null) : null;
+  const name = path.split(/[\\/]/).pop();
+  const notes = added.map((text) => {
+    const at = unclosedTripleQuotes(text)[0];
+    const opener = at === undefined ? text : text.slice(at);
+    const first = opener.split("\n")[0]!.trim().slice(0, 80);
+    const where = file?.indexOf(text) ?? -1;
+    const line =
+      where >= 0 && at !== undefined
+        ? ` at line ${file!.slice(0, where + at).split("\n").length}`
+        : "";
+    return `Note: the text you added to ${name} opens a triple-quoted string${line} ("${first}") that it does not close - a docstring ending in " or "" instead of """, for example. Python will report an unterminated string further down, where it is not. Close it in that text.`;
+  });
+  return {
+    ...result,
+    data: `${resultPayload(result.data)}\n\n${notes.join("\n")}`,
+  };
+}
+
+const PAGE_TOOLS = ["write_file", "edit_file", "append_file"];
+
+/**
+ * After a change to an .html file, what the page reports as it loads in a
+ * hidden window (electron/services/pageCheck.ts). A syntax check passed a
+ * page that threw on load in g21 step 1, and the model could not see it
+ * from the terminal (2026-11-11).
+ */
+export async function withPageCheck(
+  toolCall: ToolCallRequest,
+  result: MCPToolResult,
+  checkPage:
+    | ((file: string) => Promise<{ errors: string[]; blocked: string[] }>)
+    | undefined = typeof window !== "undefined"
+    ? window.conversations?.checkPage
+    : undefined
+): Promise<MCPToolResult> {
+  const { path } = toolCall.arguments;
+  if (
+    !checkPage ||
+    !result.success ||
+    !PAGE_TOOLS.includes(toolCall.tool) ||
+    typeof path !== "string" ||
+    !/\.html?$/i.test(path) ||
+    !/^([/\\]|[A-Za-z]:)/.test(path)
+  ) {
+    return result;
+  }
+  const found = await checkPage(path).catch(() => null);
+  if (!found) return result;
+  const name = path.split(/[\\/]/).pop();
+  const lines = [
+    found.errors.length > 0
+      ? `SHIELD opened ${name} in a hidden browser window (fresh storage, no network) and the page reported:\n${found.errors.map((e) => `- ${e}`).join("\n")}\nFix these before you tell the user it works.`
+      : `SHIELD opened ${name} in a hidden browser window (fresh storage, no network): it loaded with no errors. Clicks and typing were not tried.`,
+  ];
+  if (found.blocked.length > 0) {
+    lines.push(
+      `It tried to reach addresses outside the computer, which this check blocks, so an error above may come from that rather than your code:\n${found.blocked.map((u) => `- ${u}`).join("\n")}`
+    );
+  }
+  return {
+    ...result,
+    data: `${resultPayload(result.data)}\n\n${lines.join("\n")}`,
+  };
+}
+
+/** A read of more lines than this, of a code file, is shown in part */
+export const READ_LINES_MAX = 300;
+/** How many of the lines asked for a big read shows */
+const READ_LINES_SHOWN = 200;
+const MAX_OUTLINE = 80;
+
+/**
+ * A big read of a code file: part of what was asked, an outline of the
+ * whole file with line numbers, and how to read a range. In g5 step 17
+ * Bonsai 2 read a 1,069-line spend.py 11 times in one turn, in chunks of up
+ * to 760 lines; clearing removed each and it read again "to see the full
+ * picture", and the step ran out of time. In g7, finding its way by grep -n
+ * and short ranges, each look took 4-8 s (2026-11-09).
+ */
+async function withReadOutline(
+  toolCall: ToolCallRequest,
+  result: MCPToolResult,
+  readFile?: (path: string) => Promise<string | null>
+): Promise<MCPToolResult> {
+  const { path, head, tail } = toolCall.arguments;
+  if (
+    !["read_text_file", "read_file"].includes(toolCall.tool) ||
+    !result.success ||
+    !readFile ||
+    typeof path !== "string" ||
+    !CODE_FILE.test(path)
+  ) {
+    return result;
+  }
+  const shown = resultPayload(result.data);
+  const shownLines = shown.replace(/\n$/, "").split("\n");
+  if (shownLines.length <= READ_LINES_MAX) return result;
+  const file = await readFile(path).catch(() => null);
+  if (!file) return result;
+  const total = file.replace(/\n$/, "").split("\n").length;
+  const fromEnd = typeof tail === "number" && typeof head !== "number";
+  // The lines asked for, numbered as in the file
+  const askedFirst = fromEnd ? total - shownLines.length + 1 : 1;
+  const keep = fromEnd
+    ? shownLines.slice(-READ_LINES_SHOWN)
+    : shownLines.slice(0, READ_LINES_SHOWN);
+  const keptFirst = fromEnd
+    ? askedFirst + shownLines.length - keep.length
+    : askedFirst;
+  const keptLast = keptFirst + keep.length - 1;
+  const definitions = outline(file);
+  const listed = definitions
+    .slice(0, MAX_OUTLINE)
+    .map((d) => `${d.line}: ${d.text}`)
+    .join("\n");
+  const more =
+    definitions.length > MAX_OUTLINE
+      ? `\n... and ${definitions.length - MAX_OUTLINE} more`
+      : "";
+  const name = path.split(/[\\/]/).pop();
+  // head and tail together are not a range: the server read the whole file.
+  // In g26 step 16 Bonsai 2 sent {head: 346, tail: 80} for lines 346-425,
+  // was told it "asked for 833 of them (lines 1-833)", decided the tool
+  // ignored it and read the file twice more (2026-11-11)
+  const both = typeof head === "number" && typeof tail === "number";
+  const meant =
+    both && head >= 1 && tail >= 1
+      ? ` For lines ${head}-${head + tail - 1}: sed -n '${head},${head + tail - 1}p' ${path}`
+      : "";
+  const asked = both
+    ? `You sent head ${head} and tail ${tail}. read_text_file takes one of them (head: the first N lines, tail: the last N), not a range, so it read the whole file; that fills your context and is cleared soon after, so it is shown in part.${meant}`
+    : `You asked for ${shownLines.length} of them (lines ${askedFirst}-${askedFirst + shownLines.length - 1}); a read that size fills your context and is cleared soon after, so it is shown in part.`;
+  return {
+    ...result,
+    data: `${name} has ${total} lines. ${asked}
+
+Lines ${keptFirst}-${keptLast}:
+${keep.join("\n")}
+
+Outline of the whole file (line: definition):
+${listed}${more}
+
+To see another part, read that range: run_command with sed -n 'START,ENDp' ${path} (it runs without asking), or grep -n for a name first.`,
+  };
+}
+
 async function runToolCall(
   toolCall: ToolCallRequest,
   onToolCallDetected: MCPMessageHandlerProps["onToolCallDetected"],
@@ -288,7 +585,22 @@ async function runToolCall(
         readFile
       );
     }
-    return await withEditHint(toolCall, result, readFile);
+    return await withPageCheck(
+      toolCall,
+      await withQuoteHint(
+        toolCall,
+        await withReadOutline(
+          toolCall,
+          await withAppendHint(
+            toolCall,
+            await withEditHint(toolCall, result, readFile),
+            readFile
+          ),
+          readFile
+        ),
+        readFile
+      )
+    );
   } catch (error) {
     console.error("[MCP] Error processing tool call:", error);
     return {
@@ -318,6 +630,7 @@ export async function processMCPToolCalls(
     maxResultChars,
     isStopped,
     readFile,
+    remindToRun = false,
   } = props;
 
   // A single request usually needs several tool calls in sequence: list a
@@ -345,10 +658,13 @@ export async function processMCPToolCalls(
   // and how many new ones since the last check
   const succeeded = new Set<string>();
   let newSteps = 0;
+  // Errors commands ended with since the last file edit, and how often
+  const failures = new Map<string, number>();
 
   // Complete calls, plus a stand-in for one the reply stopped in the middle
   // of, so a reply that hits the token limit mid-call does not end the turn
   const callsIn = (text: string): ToolCallRequest[] => {
+    text = closeFinishedCall(text);
     const calls = extractToolCalls(text, {
       enableOpenAIToolCalls: enableHybridParser,
       enableXmlToolCalls: true,
@@ -359,18 +675,35 @@ export async function processMCPToolCalls(
     if (unreadable) return [unreadable];
     // Old calls in the model's history are shortened to their path and a
     // removal note; Bonsai 27B wrote one of those as its next write_file,
-    // with no content (2026-10-28). Never run a call from such a reply.
-    if (isRemovalNote(text)) {
-      return calls.map((call) => ({
-        ...call,
-        argumentsError: `${COPIED_NOTE_ERROR_PREFIX} ("[SHIELD removed from your context ...]"), so it was not run and nothing changed. That note only marks old calls in your history whose text was removed; it is not part of a call. Send ${call.tool} again with all of its arguments written out in full${call.tool === "write_file" ? " (path and the whole content)" : ""}.`,
-      }));
-    }
-    return calls;
+    // with no content (2026-10-28). Never run a call that carries one. A
+    // note in the reply's text is not refused: Bonsai 2 copied the note
+    // into its prose before clean calls, and refusing those 33 calls left
+    // it thinking SHIELD was broken (2026-11-09)
+    // A write with no content next to a note is still the copy, though
+    const noted = isRemovalNote(text);
+    const lacksBulk = (call: ToolCallRequest) => {
+      const args = (call.arguments ?? {}) as Record<string, unknown>;
+      if (["write_file", "append_file"].includes(call.tool)) {
+        return typeof args.content !== "string";
+      }
+      return call.tool === "edit_file" && !Array.isArray(args.edits);
+    };
+    return calls.map((call) =>
+      isRemovalNote(JSON.stringify(call.arguments ?? {})) ||
+      (noted && lacksBulk(call))
+        ? {
+            ...call,
+            argumentsError: `${COPIED_NOTE_ERROR_PREFIX} ("[SHIELD removed from your context ...]"), so it was not run and nothing changed. That note only marks old calls in your history whose text was removed; it is not part of a call. Send ${call.tool} again with all of its arguments written out in full${call.tool === "write_file" ? " (path and the whole content)" : ""}.`,
+          }
+        : call
+    );
   };
 
   // Asked once per turn to make the call it announced (endsByAnnouncing)
   let toldToAct = false;
+  // Code files changed in this turn and not run since (runReminder.ts)
+  const notRun = new Set<string>();
+  let toldToRun = false;
 
   for (let round = 1; round <= maxToolRounds; round++) {
     if (isStopped?.()) {
@@ -385,6 +718,18 @@ export async function processMCPToolCalls(
         toldToAct = true;
         console.warn("[MCP] Reply announced a step with no call; asked once");
         const again = await continueConversation(buildActNowPrompt());
+        if (typeof again === "string" && again.trim() !== "") {
+          content = again;
+          round--; // No call ran: the asking takes no round
+          continue;
+        }
+      }
+      if (remindToRun && round > 1 && !toldToRun && notRun.size > 0) {
+        toldToRun = true;
+        console.warn(
+          `[MCP] Changed code never ran (${[...notRun].join(", ")}); asked once`
+        );
+        const again = await continueConversation(runReminder([...notRun]));
         if (typeof again === "string" && again.trim() !== "") {
           content = again;
           round--; // No call ran: the asking takes no round
@@ -447,6 +792,38 @@ export async function processMCPToolCalls(
         if (count >= MAX_REPEATS) stuckOn = toolCall;
       } else {
         result = await runToolCall(toolCall, onToolCallDetected, readFile);
+        const args = (toolCall.arguments ?? {}) as Record<string, unknown>;
+        const changedFile = changedCodeFile(
+          toolCall.tool,
+          args,
+          result.success
+        );
+        if (changedFile) notRun.add(changedFile);
+        if (
+          toolCall.tool === RUN_COMMAND_TOOL_NAME &&
+          typeof args.command === "string" &&
+          !result.blocked &&
+          !/^Not run: /.test(result.error ?? "")
+        ) {
+          for (const file of filesRun(args.command, notRun))
+            notRun.delete(file);
+        }
+        if (FILE_EDIT_TOOLS.has(toolCall.tool) && result.success)
+          failures.clear();
+        if (toolCall.tool === RUN_COMMAND_TOOL_NAME && result.success) {
+          const output = resultPayload(result.data);
+          const failure = failureSignature(output);
+          if (failure) {
+            const times = failures.get(failure) ?? 0;
+            failures.set(failure, times + 1);
+            if (times > 0) {
+              result = {
+                ...result,
+                data: `${output}\n\n${sameErrorNote(output, times)}`,
+              };
+            }
+          }
+        }
         // delegate counts as read-only, but its agent may have changed files:
         // a tester sent the same task after a fix must run again. The run
         // itself is kept, so the same task right after it is not redone.

@@ -100,7 +100,7 @@ export interface ModelFile {
   caution?: string;
 }
 
-export type LibraryFamilyId = "qwen" | "gemma" | "bonsai";
+export type LibraryFamilyId = "qwen" | "gemma" | "bonsai" | "lfm";
 
 /**
  * Model metadata for catalog and UI display - one variant of a family
@@ -171,7 +171,7 @@ export interface ModelMetadata {
   /** Release date (YYYY-MM) */
   releaseDate?: string;
   /** Model family/provider */
-  provider: "Alibaba" | "Google" | "PrismML";
+  provider: "Alibaba" | "Google" | "PrismML" | "Liquid AI";
   /** Chat template format (qwen, gemma, ...) */
   chatTemplate: string;
   roles: ModelRole[];
@@ -191,6 +191,12 @@ export interface ModelMetadata {
    * of a GGUF's general.sampling, so it applies alongside the file's values
    */
   presencePenalty?: number;
+  /**
+   * Before a Code turn ends, ask the model once to run code it changed and
+   * never ran (handlers/runReminder.ts). Bonsai 2 27B shipped untested
+   * features (g28 step 17); a model that tests on its own leaves it off
+   */
+  remindToRun?: boolean;
   /**
    * llama-server only: tools go to the server as native function
    * definitions, and it holds each call to its schema with a grammar
@@ -452,60 +458,6 @@ export const MODEL_FAMILIES: ModelFamilyEntry[] = [
           recommendedRAM: 32,
         },
       },
-      {
-        id: "qwen3.5-9b",
-        name: "Qwen3.5-9B",
-        displayName: "Qwen3.5 9B",
-        description:
-          "Small Qwen for agent work on an 8 GB GPU: the usual pick at this size for tool calling. Q6_K on a 12 GB GPU.",
-        contextSize: 32768,
-        provider: "Alibaba",
-        releaseDate: "2026-03",
-        chatTemplate: "qwen",
-        roles: ["agent", "coding", "chat"],
-        runtime: "llama-server",
-        team: {
-          fit: "untested",
-          note: "Added 2026-10-28 for a comparison with Bonsai; not run as a team yet.",
-        },
-        // Qwen's model card: thinking mode for precise coding tasks
-        sampling: {
-          temperature: 0.6,
-          topP: 0.95,
-          topK: 20,
-          repeatPenalty: 1.0,
-        },
-        files: [
-          {
-            name: "Qwen3.5-9B-Q6_K.gguf",
-            hfRepo: "unsloth/Qwen3.5-9B-GGUF",
-            sizeBytes: 7_460_000_000,
-            minVRAM: 12,
-          },
-          {
-            name: "Qwen3.5-9B-Q4_K_M.gguf",
-            hfRepo: "unsloth/Qwen3.5-9B-GGUF",
-            sizeBytes: 5_680_000_000,
-            minVRAM: 0,
-          },
-        ],
-        capabilities: {
-          toolCalling: true,
-          complexReasoning: true,
-          webSearch: true,
-          structuredOutput: true,
-          longContext: true,
-          codeGeneration: true,
-          multilingual: "good",
-          temperatureRange: { min: 0.1, max: 1.0, default: 0.6 },
-        },
-        hardware: {
-          minVRAM: 8,
-          recommendedVRAM: 12,
-          minRAM: 16,
-          recommendedRAM: 16,
-        },
-      },
     ]),
   },
   {
@@ -619,6 +571,7 @@ export const MODEL_FAMILIES: ModelFamilyEntry[] = [
         // s), medium 1,899-2,439 (46-59 s) with fuller answers (2026-10-29)
         reasoningEffort: "medium",
         nativeToolCalls: true,
+        remindToRun: true,
         // Its own value is unset; write task at 32k, native history: one of
         // two runs listed batteries by type until the 8,192-token reply
         // limit, a 20 KB file with 3 of 6 sections (2026-11-06). 1.5 is
@@ -641,8 +594,10 @@ export const MODEL_FAMILIES: ModelFamilyEntry[] = [
             // Bug-fix task, 2026-11-06: uncapped, medium thinking looped
             // twice in one run, reworded each time, so the repetition guard
             // took 60-110 s to stop it (188-279 s a run). Capped: fix 3 of 3
-            // at 66-148 s, split, code 1 of 1 each, ~70 s
-            reasoningBudget: 1536,
+            // at 66-148 s, split, code 1 of 1 each, ~70 s. g26 step 16
+            // (2026-11-11): 939 of 1,452 s in thoughts cut at 1,536, each
+            // cut followed by re-reading and re-deciding; trying 2,560
+            reasoningBudget: 2560,
           },
         ],
         capabilities: {
@@ -739,6 +694,67 @@ export const MODEL_FAMILIES: ModelFamilyEntry[] = [
           minVRAM: 2,
           recommendedVRAM: 4,
           minRAM: 4,
+          recommendedRAM: 8,
+        },
+      },
+    ]),
+  },
+  {
+    id: "lfm",
+    name: "LFM",
+    provider: "Liquid AI",
+    description:
+      "Liquid's small hybrid models: fast and light, made for tool calling on small machines.",
+    variants: variants("lfm", [
+      {
+        // Liquid's own LFM3 1.7B, kept as a chat model (2026-11-10): 11 of 15
+        // short coding tasks and 1 of 11 on the complex task, so not a coding
+        // model. It beat the Claude distill of it (7 of 15), which was
+        // dropped. Needs llama.cpp b12238 or newer (architecture lfm3)
+        id: "lfm3-1.7b",
+        name: "LFM3-1.7B",
+        displayName: "LFM3 1.7B",
+        description:
+          "Liquid's small 1.7B model for quick chat: light and fast. Too weak for coding work. Needs a llama.cpp newer than the bundled one.",
+        contextSize: 32768,
+        provider: "Liquid AI",
+        releaseDate: "2026-11",
+        chatTemplate: "auto",
+        roles: ["small", "chat"],
+        runtime: "llama-server",
+        team: {
+          fit: "poor",
+          note: "Not run as a team: 1 of 11 checks on the build-then-review task (2026-11-10), too weak for multi-step tool work.",
+        },
+        nativeToolCalls: true,
+        sampling: {
+          temperature: 0.1,
+          topK: 50,
+          repeatPenalty: 1.1,
+        },
+        files: [
+          {
+            name: "LFM3-1.7B-Q8_0.gguf",
+            hfRepo: "LiquidAI/LFM3-1.7B-GGUF",
+            sizeBytes: 1_846_238_496,
+            minVRAM: 0,
+            reasoningBudget: 1024,
+          },
+        ],
+        capabilities: {
+          toolCalling: true,
+          complexReasoning: false,
+          webSearch: true,
+          structuredOutput: true,
+          longContext: true,
+          codeGeneration: false,
+          multilingual: "good",
+          temperatureRange: { min: 0.1, max: 1.0, default: 0.1 },
+        },
+        hardware: {
+          minVRAM: 4,
+          recommendedVRAM: 4,
+          minRAM: 8,
           recommendedRAM: 8,
         },
       },
