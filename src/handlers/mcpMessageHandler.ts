@@ -15,6 +15,7 @@ import {
   COPIED_NOTE_ERROR_PREFIX,
   CUT_OFF_ERROR_PREFIX,
   UNREADABLE_ERROR_PREFIX,
+  closeFinishedCall,
   cutOffToolCall,
   unreadableToolCall,
 } from "./toolCallParsing";
@@ -661,6 +662,7 @@ export async function processMCPToolCalls(
   // Complete calls, plus a stand-in for one the reply stopped in the middle
   // of, so a reply that hits the token limit mid-call does not end the turn
   const callsIn = (text: string): ToolCallRequest[] => {
+    text = closeFinishedCall(text);
     const calls = extractToolCalls(text, {
       enableOpenAIToolCalls: enableHybridParser,
       enableXmlToolCalls: true,

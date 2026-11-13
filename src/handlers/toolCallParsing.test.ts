@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { LOOP_NOTE } from "../utils/loopGuard";
 import {
+  closeFinishedCall,
   cutOffToolCall,
   closeOpenBrackets,
   dropTrailingClosers,
@@ -919,5 +920,58 @@ describe("Qwen 3.8 calls swallowed into one value (2026-11-05)", () => {
       path: "/a.md",
       content: "plain text",
     });
+  });
+});
+
+describe("a reply that stops right after its call's arguments", () => {
+  const start =
+    'I\'ll write it.\n\n<tool_call>\n<server>filesystem</server>\n<tool>write_file</tool>\n<arguments>';
+  const whole = '{"content": "# Kit\\n- [ ] Water", "path": "/p/72_Hour_Kit.md"}';
+
+  it("is closed and runs (Ornith 1.5 9B, 2026-11-13)", () => {
+    const text = closeFinishedCall(start + whole);
+    expect(cutOffToolCall(text)).toBeNull();
+    const calls = extractToolCalls(text, { enableXmlToolCalls: true });
+    expect(calls).toHaveLength(1);
+    expect(calls[0]).toMatchObject({
+      tool: "write_file",
+      arguments: { path: "/p/72_Hour_Kit.md", content: "# Kit\n- [ ] Water" },
+    });
+  });
+
+  it("still counts as cut off when the JSON stops partway", () => {
+    const text = start + '{"content": "# Kit\\n- [ ] Wat';
+    expect(closeFinishedCall(text)).toBe(text);
+    expect(cutOffToolCall(text)?.argumentsError).toMatch(/length limit/);
+  });
+
+  it("leaves closed calls and plain replies alone", () => {
+    const closed = start + whole + "</arguments>\n</tool_call>";
+    expect(closeFinishedCall(closed)).toBe(closed);
+    expect(closeFinishedCall("All done.")).toBe("All done.");
+  });
+});
+
+describe("a function tag holding JSON instead of parameters", () => {
+  it("reads the JSON as the arguments (MiMo V2.6 9B, 2026-11-13)", () => {
+    const calls = extractToolCalls(
+      '<tool_call><function=read_text_file>{"path": "/p/Preparedness_Checklists.md"}</function></tool_call>',
+      { enableXmlToolCalls: true }
+    );
+    expect(calls).toHaveLength(1);
+    expect(calls[0]).toMatchObject({
+      tool: "read_text_file",
+      arguments: { path: "/p/Preparedness_Checklists.md" },
+    });
+  });
+});
+
+describe("a function-tag call with JSON that stops partway", () => {
+  it("counts as cut off, so the model is told (MiMo V2.6 9B, 2026-11-13)", () => {
+    const text =
+      'I\'ll write it.<tool_call><function=write_file>{"path": "/p/k.md", "content": "# Kit\\n- [ ] 1 box of gloves (nitrile,\n\n*SHIELD stopped this reply: the model kept repeating itself.*';
+    const cut = cutOffToolCall(text);
+    expect(cut?.tool).toBe("write_file");
+    expect(cut?.argumentsError).toBeTruthy();
   });
 });
