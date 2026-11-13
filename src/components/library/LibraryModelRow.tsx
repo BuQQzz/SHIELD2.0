@@ -235,6 +235,14 @@ export function LibraryModelRow({
                 Recommended
               </span>
             )}
+            {file?.caution && fit !== "too-large" && (
+              <span
+                title={file.caution}
+                className="rounded-full bg-amber-500/10 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wider text-amber-600 dark:text-amber-400"
+              >
+                Caution
+              </span>
+            )}
             {fit === "too-large" && (
               <span className="rounded-full bg-destructive/10 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wider text-destructive">
                 Too large for this PC
@@ -244,6 +252,11 @@ export function LibraryModelRow({
           <p className="mt-1 line-clamp-2 text-[13px] leading-snug text-muted-foreground">
             {model.description}
           </p>
+          {file?.caution && fit !== "too-large" && (
+            <p className="mt-1 text-[12px] leading-snug text-amber-600 dark:text-amber-400">
+              {file.caution}
+            </p>
+          )}
           <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-muted-foreground/80">
             <span>{model.roles.map((r) => ROLE_LABELS[r]).join(" · ")}</span>
             <TeamFitLabel model={model} />

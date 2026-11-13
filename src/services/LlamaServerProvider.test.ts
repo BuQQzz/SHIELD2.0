@@ -1387,3 +1387,49 @@ describe("a reply that repeats the last one", () => {
     expect(sent.filter((b) => b.stream)).toHaveLength(2);
   });
 });
+
+describe("the history with native calls", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.restoreAllMocks();
+  });
+
+  const call =
+    '<tool_call>\n<server>filesystem</server>\n<tool>read_text_file</tool>\n<arguments>{"path":"/p/a.md"}</arguments>\n</tool_call>';
+  const result =
+    'You executed 1 tool call(s). Here are the results:\n\n<tool_result trusted="false">\n<tool>read_text_file</tool>\n<result>\n# Kit\n</result>\n</tool_result>';
+
+  it("is sent as tool_calls and tool messages, and kept as text", async () => {
+    const { provider, sent } = connected(8000);
+    provider.applySystemPrompt("You are SHIELD.", [
+      { name: "read_text_file", description: "Read", inputSchema: {} },
+    ]);
+    provider.setChatHistory([user("read a.md"), assistant(call)]);
+
+    await provider.chat(result);
+
+    const messages = sent[0]!.messages as unknown as Record<string, unknown>[];
+    expect(messages.map((m) => m.role)).toEqual([
+      "system",
+      "user",
+      "assistant",
+      "tool",
+    ]);
+    expect(messages[2]!.tool_calls).toHaveLength(1);
+    expect(provider["history"][1]!.content).toBe(call);
+  });
+
+  it("stays text for a model without native calls", async () => {
+    const { provider, sent } = connected(8000);
+    provider.setChatHistory([user("read a.md"), assistant(call)]);
+
+    await provider.chat(result);
+
+    expect(sent[0]!.messages.map((m) => m.role)).toEqual([
+      "system",
+      "user",
+      "assistant",
+      "user",
+    ]);
+  });
+});

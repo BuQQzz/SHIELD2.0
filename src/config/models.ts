@@ -93,6 +93,11 @@ export interface ModelFile {
    * Past it the thought is closed and the model answers
    */
   reasoningBudget?: number;
+  /**
+   * Shown in the library when this file is the one picked for the user's
+   * GPU: what to expect from a quantization squeezed past where it holds up
+   */
+  caution?: string;
 }
 
 export type LibraryFamilyId = "qwen" | "gemma" | "bonsai";
@@ -400,6 +405,10 @@ export const MODEL_FAMILIES: ModelFamilyEntry[] = [
             hfRepo: "unsloth/Qwen3.8-27B-GGUF",
             sizeBytes: 6_730_000_000,
             minVRAM: 0,
+            // Code task, 2026-11-06: 1 of 3 with thinking off, 3 of 3 with
+            // capped thinking at up to 281 s; Bonsai 2 27B 2 of 2 at ~1 min
+            caution:
+              "Below 10 GB of GPU memory this is a 1-bit version: slower (often 1-4 minutes a step) and less steady on longer coding tasks. Bonsai 2 27B is the steadier choice on this card.",
             // 12k with an 8-bit cache and 256-token batches: 7.39 GB peak
             // in a bare server with a 13k-character-deep recall, ~7.54 in
             // the app, whose own window takes ~145 MB of the GPU. 16k with
@@ -416,8 +425,14 @@ export const MODEL_FAMILIES: ModelFamilyEntry[] = [
             // 8k context: thinking at medium used the whole 8,192-token
             // reply limit on an edit and wrote nothing. Edit task, 2026-11-05:
             // thinking off passed 4 of 5 in 50-130 s; medium capped at 1,536
-            // thinking tokens passed 2 of 3, slower and with more bad calls
-            reasoningEffort: "none",
+            // thinking tokens passed 2 of 3, slower and with more bad calls.
+            // At 12K, 2026-11-06, a code task (write a Python script):
+            // thinking off passed 1 of 3, rewriting the script in the visible
+            // reply up to six times; low uncapped 2 of 3 at 200-293 s; low
+            // capped at 1,024 passed 3 of 3 code, 3 of 3 edits (76-168 s)
+            // and 2 of 2 writes (192-214 s). Off was faster on edits (~53 s)
+            reasoningEffort: "low",
+            reasoningBudget: 1024,
           },
         ],
         capabilities: {
@@ -585,16 +600,30 @@ export const MODEL_FAMILIES: ModelFamilyEntry[] = [
         name: "Ternary-Bonsai-2-27B",
         displayName: "Bonsai 2 27B",
         description:
-          "27B model at 1.58 bits per weight. Runs fully on an 8 GB GPU with a 24k context window, about 43 tok/s on an RTX 2070 SUPER.",
-        // 32k ran out of memory on 8 GB; 24k used 7.5 GB (2026-10-28)
-        contextSize: 24576,
-        serverPlacement: { allLayersOnGpu: true, ubatchSize: 512 },
+          "27B model at 1.58 bits per weight. Runs fully on an 8 GB GPU with a 32k context window, about 40 tok/s on an RTX 2070 SUPER.",
+        // 32k with an 8-bit cache: 7.34 GB peak with a 16,391-token prompt
+        // whose middle it recalled exactly, ~7.49 in the app. At 16 bits
+        // 24k used 7.5 GB on 2026-10-28, and by 2026-11-06 no longer loaded
+        // on either build: its 1,536 MB cache did not fit beside the desktop
+        // (ServerPlacement)
+        contextSize: 32768,
+        serverPlacement: {
+          allLayersOnGpu: true,
+          ubatchSize: 512,
+          kvCacheType: "q8_0",
+          cudaGraphs: false,
+        },
         // Prism's KNOWN_ISSUES: it loops on some prompts at the default
         // xhigh, and medium thinks less at about the same accuracy. Same
         // prompt, two runs each: default thought 2,518-7,333 tokens (62-179
         // s), medium 1,899-2,439 (46-59 s) with fuller answers (2026-10-29)
         reasoningEffort: "medium",
         nativeToolCalls: true,
+        // Its own value is unset; write task at 32k, native history: one of
+        // two runs listed batteries by type until the 8,192-token reply
+        // limit, a 20 KB file with 3 of 6 sections (2026-11-06). 1.5 is
+        // Qwen's non-thinking value, as for Qwen3.8 27B
+        presencePenalty: 1.5,
         provider: "PrismML",
         chatTemplate: "generic",
         roles: ["agent", "coding", "long-context", "chat"],
@@ -609,6 +638,11 @@ export const MODEL_FAMILIES: ModelFamilyEntry[] = [
             hfRepo: "prism-ml/Ternary-Bonsai-2-27B-gguf",
             sizeBytes: 5_950_000_000,
             minVRAM: 0,
+            // Bug-fix task, 2026-11-06: uncapped, medium thinking looped
+            // twice in one run, reworded each time, so the repetition guard
+            // took 60-110 s to stop it (188-279 s a run). Capped: fix 3 of 3
+            // at 66-148 s, split, code 1 of 1 each, ~70 s
+            reasoningBudget: 1536,
           },
         ],
         capabilities: {

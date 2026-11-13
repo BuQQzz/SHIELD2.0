@@ -188,9 +188,13 @@ export interface ConversationAPI {
     projectId: string
   ) => Promise<{ success: boolean; moved?: number; error?: string }>;
   /** A project folder's AGENTS.md, from the repository root down to it */
-  projectInstructions: (
-    folder: string
-  ) => Promise<{ files: string[]; text: string; truncated: boolean }>;
+  projectInstructions: (folder: string) => Promise<{
+    files: string[];
+    text: string;
+    truncated: boolean;
+    /** Its file tree, for the prompt */
+    listing?: string[];
+  }>;
   /** What SHIELD sees of a project, for drafting AGENTS.md */
   projectFacts: (folder: string) => Promise<string>;
 }

@@ -28,6 +28,13 @@ export interface ProjectInstructions {
   truncated: boolean;
 }
 
+/**
+ * Lines of the file tree that go in a code session's prompt (~300-400
+ * tokens). Bonsai 2 27B, asked to fix kit_tool.py in the project folder,
+ * ran search_files and list_directory for it first (2026-11-06)
+ */
+export const PROMPT_TREE_LINES = 40;
+
 const exists = (p: string) =>
   fs.stat(p).then(
     () => true,
@@ -93,12 +100,18 @@ const MAX_WALK_FILES = 3000;
 const README_CHARS = 1500;
 
 /** Top-level entries, and one level into each folder */
-async function tree(folder: string): Promise<string[]> {
+export async function tree(
+  folder: string,
+  maxLines = MAX_TREE_LINES
+): Promise<string[]> {
   const lines: string[] = [];
   const entries = await fs.readdir(folder, { withFileTypes: true });
   entries.sort((a, b) => Number(b.isDirectory()) - Number(a.isDirectory()));
   for (const entry of entries) {
-    if (lines.length >= MAX_TREE_LINES) break;
+    if (lines.length >= maxLines) {
+      lines.push("... more not shown");
+      break;
+    }
     if (SKIP.has(entry.name)) continue;
     if (!entry.isDirectory()) {
       lines.push(entry.name);

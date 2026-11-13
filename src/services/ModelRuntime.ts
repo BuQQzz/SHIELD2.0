@@ -326,7 +326,9 @@ export class ModelRuntime {
           modelPath,
           llama,
           total,
-          installed.file.contextSize ?? model.contextSize
+          installed.file.contextSize ?? model.contextSize,
+          (installed.file.serverPlacement ?? model.serverPlacement)
+            ?.allLayersOnGpu === true
         );
       });
       plan.catch(() => this.serverPlans.delete(modelPath));

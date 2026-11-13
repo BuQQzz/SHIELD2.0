@@ -14,7 +14,7 @@ import {
   usesNativeToolCalling,
 } from "@/config/systemPrompts";
 import { isMutatingTool } from "@/config/toolClassification";
-import { instructionsSection } from "@/config/agentsMd";
+import { instructionsSection, listingSection } from "@/config/agentsMd";
 import type { SystemPromptConfig, ToolDefinition } from "@/types/prompts";
 
 interface UseMCPSystemPromptProps {
@@ -44,6 +44,8 @@ interface UseMCPSystemPromptProps {
   planOnly?: boolean;
   /** The code session's project instructions (AGENTS.md), if any */
   projectInstructions?: string;
+  /** The code session folder's file tree as it opened */
+  projectListing?: string[];
 }
 
 export function useMCPSystemPrompt({
@@ -59,6 +61,7 @@ export function useMCPSystemPrompt({
   allowedPaths,
   planOnly = false,
   projectInstructions = "",
+  projectListing,
 }: UseMCPSystemPromptProps) {
   // Detect model family from name
   const modelFamily = useMemo(
@@ -135,8 +138,11 @@ export function useMCPSystemPrompt({
       console.log("[MCP] - Tool count:", offeredTools.length);
       console.log("[MCP] - Full prompt length:", builtPrompt.length);
 
+      const folder = allowedPaths?.length === 1 ? allowedPaths[0] : undefined;
       setSystemPrompt(
-        builtPrompt + instructionsSection(projectInstructions),
+        builtPrompt +
+          (folder ? listingSection(folder, projectListing ?? []) : "") +
+          instructionsSection(projectInstructions),
         nativeTools ? offeredTools : []
       );
     } else {
@@ -178,5 +184,6 @@ export function useMCPSystemPrompt({
     allowedPaths,
     planOnly,
     projectInstructions,
+    projectListing,
   ]);
 }

@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { announcesWithoutActing, buildMCPRetryPrompt } from "./mcpRetryPolicy";
+import {
+  announcesWithoutActing,
+  buildMCPRetryPrompt,
+  endsByAnnouncing,
+} from "./mcpRetryPolicy";
 
 describe("buildMCPRetryPrompt", () => {
   it("defers call syntax to the model's instructions so native and XML models can retry", () => {
@@ -35,5 +39,34 @@ describe("announcesWithoutActing", () => {
     expect(announcesWithoutActing("I'll explain. " + "x".repeat(700))).toBe(
       false
     );
+  });
+});
+
+describe("endsByAnnouncing", () => {
+  it("takes a reply whose last sentence names the next step", () => {
+    expect(
+      endsByAnnouncing(
+        "I'll append the new section at the end of the file, matching its existing heading style."
+      )
+    ).toBe(true);
+    expect(
+      endsByAnnouncing(
+        "I see the file ends with the Pet Supplies section.\n\nI need to append a new section. Let me now create the content"
+      )
+    ).toBe(true);
+    expect(endsByAnnouncing("Let me read it first.")).toBe(true);
+  });
+
+  it("leaves answers, questions and earlier announcements alone", () => {
+    expect(endsByAnnouncing("Let me know if you want changes.")).toBe(false);
+    expect(
+      endsByAnnouncing(
+        "The write was denied. I'll let the user know it was not completed."
+      )
+    ).toBe(false);
+    expect(endsByAnnouncing("Should I add it at the end?")).toBe(false);
+    expect(
+      endsByAnnouncing("Let me read the file. Done: the section is added.")
+    ).toBe(false);
   });
 });

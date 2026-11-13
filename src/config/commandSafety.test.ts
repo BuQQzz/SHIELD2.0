@@ -135,7 +135,6 @@ describe("isReadOnlyCommand in sh (Linux and macOS)", () => {
     ["a line break", "ls\nrm x"],
     // the splitter reads the quote as open, so a pipe to rm hid inside it
     ["a backslash-escaped quote hiding a pipe", 'echo \\" | rm x \\"'],
-    ["any backslash", "ls src\\app"],
     ["history negation", "! rm x"],
     ["sort writing its output", "sort -o out.txt in.txt"],
     ["sort writing, long form", "sort --output=out.txt in.txt"],
@@ -161,6 +160,112 @@ describe("isReadOnlyCommand in sh (Linux and macOS)", () => {
     ["a trailing pipe", "ls |"],
   ])("asks for %s", (_label, command) => {
     expect(isReadOnlyCommand(command, "linux")).toBe(false);
+  });
+
+  it("allows full paths inside the project folder, and nothing outside it", () => {
+    const folder = "/home/me/proj";
+    const read = (command: string) =>
+      isReadOnlyCommand(command, "linux", folder);
+    expect(read('grep -n "Tools" /home/me/proj/Checklists.md')).toBe(true);
+    expect(read("wc -l /home/me/proj/a.md /home/me/proj/src/b.md")).toBe(true);
+    expect(read("ls /home/me/proj")).toBe(true);
+    expect(read("grep --file=/home/me/proj/pats.txt x")).toBe(true);
+    expect(read("cat /home/me/proj/../secret.txt")).toBe(false);
+    expect(read("cat /home/me/proj2/a.md")).toBe(false);
+    expect(read("cat /etc/passwd")).toBe(false);
+    expect(read("cat ~/proj/a.md")).toBe(false);
+    expect(read("grep --file=/etc/passwd x")).toBe(false);
+    expect(read("cat /home/me/proj/a=/etc/passwd")).toBe(false);
+    expect(read("git diff --output=/home/me/proj/x.txt")).toBe(false);
+    expect(read("rm /home/me/proj/a.md")).toBe(false);
+    // Without the folder, every full path still asks
+    expect(isReadOnlyCommand("cat /home/me/proj/a.md", "linux")).toBe(false);
+  });
+
+  it("reads backslashes as sh does", () => {
+    const read = (command: string) =>
+      isReadOnlyCommand(command, "linux", "/home/me/proj");
+    // Escaped grep patterns only read
+    expect(read('grep -n "^\\*\\*Tools\\*\\*" /home/me/proj/a.md')).toBe(true);
+    expect(read("grep -n '\\*\\*Tools\\*\\*\\|Additional Tools' a.md")).toBe(
+      true
+    );
+    expect(read('grep -c "^- " a.md')).toBe(true);
+    expect(read("ls src\\app")).toBe(true);
+    // An escaped pipe is a plain argument; an escaped quote stays in its string
+    expect(read("grep x a.md \\| rm y")).toBe(true);
+    expect(read('grep "a\\"|rm x" a.md')).toBe(true);
+    // A quote escaped outside a string opens none: the pipe is real
+    expect(read('echo \\" | rm x \\"')).toBe(false);
+    // Escaped options and paths are the options and paths sh passes on
+    expect(read("sort \\-o out.txt in.txt")).toBe(false);
+    expect(read("tail \\-f server.log")).toBe(false);
+    expect(read("git diff \\--output=x.txt")).toBe(false);
+    expect(read("cat \\/etc/passwd")).toBe(false);
+    expect(read("cat \\~/.ssh/id_rsa")).toBe(false);
+    expect(read("cat .\\./secret.txt")).toBe(false);
+    expect(read("cat /home/me/proj/\\.\\./x")).toBe(false);
+    expect(read("r\\m a.md")).toBe(false);
+    // An escaped "$" or "!" is the character itself, as in sh
+    expect(read('ls "\\$HOME"')).toBe(true);
+    expect(read("grep \\!x a.md")).toBe(true);
+    // Still asking: a trailing backslash, a variable, history
+    expect(read("ls \\")).toBe(false);
+    expect(read('ls "$HOME"')).toBe(false);
+    expect(read("grep !x a.md")).toBe(false);
+  });
+
+  it("reads single quotes, double quotes and joined commands as sh does", () => {
+    const read = (command: string) =>
+      isReadOnlyCommand(command, "linux", "/home/me/proj");
+    // In single quotes nothing is special
+    expect(read("grep -n '^---$' a.md")).toBe(true);
+    expect(read("grep -n '^\\*\\*Tools\\*\\*$' a.md")).toBe(true);
+    expect(read("grep -c '$(rm a.md); `rm a.md` > b' a.md")).toBe(true);
+    // In double quotes $ ` ! still expand; other characters are themselves
+    expect(read('grep -n "a (b) [c] {d} <e>; f" a.md')).toBe(true);
+    expect(read('grep "$(rm a.md)" a.md')).toBe(false);
+    expect(read('grep "`rm a.md`" a.md')).toBe(false);
+    expect(read('grep "$HOME" a.md')).toBe(false);
+    // Read-only commands joined by ; && || run; any other part asks
+    expect(read('grep -n x a.md; echo "==="; grep -c y a.md')).toBe(true);
+    expect(read('grep -n x a.md || echo "none"')).toBe(true);
+    expect(read("ls && cat a.md")).toBe(true);
+    expect(read("grep x a.md; rm a.md")).toBe(false);
+    expect(read("ls && rm a.md")).toBe(false);
+    expect(read("ls || rm a.md")).toBe(false);
+    expect(read("ls; sort -o out.txt a.md")).toBe(false);
+    expect(read("ls; cat /etc/passwd")).toBe(false);
+    // In the background, redirected, or with nothing between separators
+    expect(read("rm a.md & ls")).toBe(false);
+    expect(read("ls & ls")).toBe(false);
+    expect(read("ls |& cat")).toBe(false);
+    expect(read("ls ;; ls")).toBe(false);
+    expect(read("ls;")).toBe(false);
+    expect(read("cat a.md > b.md")).toBe(false);
+    expect(read("cat a.md >> b.md")).toBe(false);
+    expect(read("cat < a.md")).toBe(false);
+    // A quote opened in one command and closed in the next is one word
+    expect(read("echo 'x; rm a.md'")).toBe(true);
+    expect(read("echo 'x; rm a.md")).toBe(false);
+    // Line breaks still ask
+    expect(read("ls\nrm a.md")).toBe(false);
+  });
+
+  it("allows sed only to print lines", () => {
+    const read = (command: string) => isReadOnlyCommand(command, "linux");
+    expect(read("sed -n '58,82p' a.md")).toBe(true);
+    expect(read("sed -n 12p a.md b.md")).toBe(true);
+    expect(read("sed -n '150,$p' a.md | cat -A")).toBe(true);
+    expect(read("sed -n '1,5p' a.md; sed -n '9,12p' a.md")).toBe(true);
+    expect(read("sed -i 's/a/b/' a.md")).toBe(false);
+    expect(read("sed -n '1,5w out.txt' a.md")).toBe(false);
+    expect(read("sed -n '1e rm a.md' a.md")).toBe(false);
+    expect(read("sed -n '1,5p' -i a.md")).toBe(false);
+    expect(read("sed '1,5p' a.md")).toBe(false);
+    expect(read("sed -n 's/a/b/p' a.md")).toBe(false);
+    expect(read("sed -n '1,5p;w x' a.md")).toBe(false);
+    expect(read("sed -n '1,5p' /etc/passwd")).toBe(false);
   });
 
   it("keeps PowerShell cmdlets for Windows only", () => {
