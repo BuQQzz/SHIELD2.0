@@ -121,6 +121,13 @@ export type ConnectorConfig = {
   disabledTools: string[];
   /** The catalog entry it came from; manual connectors have none */
   catalogId?: string;
+  /**
+   * Which tools are on was decided, by SHIELD (fitTools, on the first
+   * connect) or by the user's switches, so a reconnect leaves it alone
+   */
+  toolsChosen?: boolean;
+  /** SHIELD switched tools off on the first connect so the rest fit */
+  toolsLimited?: { kept: number; total: number };
 } & (
   | { kind: "remote"; url: string; auth: ConnectorAuth }
   | {
@@ -248,6 +255,42 @@ export function toolTokens(tool: {
     (tool.description?.length ?? 0) +
     JSON.stringify(tool.inputSchema ?? {}).length;
   return Math.ceil(size / 4) + 10;
+}
+
+/**
+ * Most tokens one service's tools may take when it first connects: about a
+ * fifth of a 32K window. Every request carries the tools; Notion's 77 tools
+ * were ~60K tokens, so the first chat request after connecting it was
+ * 65,281 tokens for a 32,768-token window and failed (2026-11-14).
+ */
+export const SERVICE_TOOL_TOKENS = 6000;
+
+/**
+ * The tools to switch off so a service's tools fit `budget`: read-only
+ * tools are kept first (searching and reading are what a chat needs most,
+ * and they run without asking), then the rest, in the server's order, while
+ * they fit. Empty when everything fits.
+ */
+export function fitTools(
+  tools: Array<{ name: string; description?: string; inputSchema?: unknown }>,
+  isReadOnly: (tool: { name: string }) => boolean,
+  budget = SERVICE_TOOL_TOKENS
+): string[] {
+  const total = tools.reduce((sum, tool) => sum + toolTokens(tool), 0);
+  if (total <= budget) return [];
+  const ordered = [
+    ...tools.filter((tool) => isReadOnly(tool)),
+    ...tools.filter((tool) => !isReadOnly(tool)),
+  ];
+  const kept = new Set<string>();
+  let used = 0;
+  for (const tool of ordered) {
+    const cost = toolTokens(tool);
+    if (used + cost > budget) continue;
+    kept.add(tool.name);
+    used += cost;
+  }
+  return tools.map((tool) => tool.name).filter((name) => !kept.has(name));
 }
 
 /** Splits a command line on spaces, keeping "quoted parts" together */

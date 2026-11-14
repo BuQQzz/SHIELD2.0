@@ -1394,20 +1394,21 @@ describe("a prompt over the window", () => {
   });
 
   it("counts the native tool definitions in the window", async () => {
-    // 2,400 characters of tools in a 1,000-token window: with the history
-    // below, over the trigger only when they are counted
+    // 1,200 characters of tools in a 1,000-token window: under half of it
+    // (more is refused, toolsTooLargeMessage), and with the history below
+    // over the trigger only when they are counted
     const { provider, sent } = connected(WINDOW);
     provider.applySystemPrompt("You are SHIELD.", [
       {
         name: "web_search",
         serverName: "web",
-        description: "d".repeat(2400),
+        description: "d".repeat(1200),
         inputSchema: { type: "object" },
       },
     ]);
     provider.setChatHistory([
       user("read the file"),
-      assistant(`Here it is. ${"x".repeat(600)}`),
+      assistant(`Here it is. ${"x".repeat(900)}`),
       user("thanks"),
       assistant("Done."),
     ]);
@@ -1416,6 +1417,27 @@ describe("a prompt over the window", () => {
 
     // Room was made: a note was asked for before the reply
     expect(sent[0]!.stream).toBeFalsy();
+  });
+});
+
+describe("tools that leave no room", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.restoreAllMocks();
+  });
+
+  it("are refused with a message that says what to do (Notion, 77 tools)", async () => {
+    const { provider, sent } = connected(1000);
+    provider.applySystemPrompt("You are SHIELD.", [
+      {
+        name: "notion__search",
+        serverName: "ext:notion",
+        description: "d".repeat(2400),
+        inputSchema: { type: "object" },
+      },
+    ]);
+    await expect(provider.chat("hi")).rejects.toThrow(/Plugins page/);
+    expect(sent).toHaveLength(0);
   });
 });
 

@@ -274,6 +274,14 @@ function ConnectorCard({ connector }: { connector: ConnectorSummary }) {
           <p className="truncate text-xs text-muted-foreground">
             <StateLine connector={connector} />
           </p>
+          {connector.toolsLimited && connector.state === "connected" && (
+            <p className="text-xs text-muted-foreground" data-tools-limited>
+              SHIELD switched on {connector.toolsLimited.kept} of its{" "}
+              {connector.toolsLimited.total} tools, reading tools first, so they
+              fit the model&apos;s context window. Change which in the tool
+              list.
+            </p>
+          )}
         </div>
         {canConnect && (
           <Button
