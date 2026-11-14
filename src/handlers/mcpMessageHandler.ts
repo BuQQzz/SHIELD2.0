@@ -242,8 +242,8 @@ export function callTarget(toolCall: ToolCallRequest): string | undefined {
     const { role } = toolCall.arguments;
     return typeof role === "string" ? role.trim().toLowerCase() : undefined;
   }
-  const { path, source, query, url, command } = toolCall.arguments;
-  return [path, source, query, url, command].find(
+  const { path, source, query, url, command, note } = toolCall.arguments;
+  return [path, source, query, url, command, note].find(
     (value): value is string => typeof value === "string"
   );
 }

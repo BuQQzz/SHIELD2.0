@@ -36,6 +36,7 @@ import type {
 } from "../src/types/electron";
 import type { RuntimeProgress } from "../src/types/runtime";
 import type { RecommendedSampling } from "../src/services/modelSampling";
+import type { MemoryNote, NoteKind } from "../src/config/memoryNotes";
 
 export interface ModelConfig {
   /** Library model id (src/config/models.ts) */
@@ -419,6 +420,44 @@ interface MCPAPI {
   ) => Promise<{ success: boolean; folder?: string | null; error?: string }>;
   /** Ends any command run_command is running, and what it started */
   stopCommands: () => Promise<{ success: boolean; stopped?: number }>;
+  /** SHIELD's memory notes (src/config/memoryNotes.ts) */
+  notes: {
+    /** Whose notes the open conversation uses: its folder, or the user's */
+    setScope: (folder: string | null) => Promise<{ success: boolean }>;
+    list: () => Promise<{
+      success: boolean;
+      notes?: MemoryNote[];
+      error?: string;
+    }>;
+    add: (input: {
+      folder?: string | null;
+      kind: NoteKind;
+      text: string;
+    }) => Promise<{ success: boolean; note?: MemoryNote; error?: string }>;
+    edit: (
+      id: string,
+      change: { text?: string; kind?: NoteKind }
+    ) => Promise<{ success: boolean; note?: MemoryNote; error?: string }>;
+    setStatus: (
+      id: string,
+      status: "active" | "stale"
+    ) => Promise<{ success: boolean }>;
+    trash: (id: string) => Promise<{ success: boolean }>;
+    restore: (id: string) => Promise<{ success: boolean }>;
+    emptyTrash: () => Promise<{ success: boolean; removed?: number }>;
+    /** Notes about the user from a message they sent, as saved */
+    fromUser: (message: string) => Promise<{
+      success: boolean;
+      saved?: { id: string; text: string; replaces?: string }[];
+    }>;
+    /** The prompt section for a session in `folder` (null: a chat) */
+    section: (folder: string | null) => Promise<{
+      success: boolean;
+      section?: string;
+      count?: number;
+      toCheck?: MemoryNote[];
+    }>;
+  };
   /** SHIELD's memory of past conversations: the best matches for a message */
   searchMemory: (
     query: string,
@@ -507,6 +546,20 @@ const mcpAPI: MCPAPI = {
   stopCommands: () => ipcRenderer.invoke("mcp:stop-commands"),
   searchMemory: (query, options) =>
     ipcRenderer.invoke("memory:search", query, options),
+  notes: {
+    setScope: (folder) => ipcRenderer.invoke("memory:set-scope", folder),
+    list: () => ipcRenderer.invoke("memory:notes-list"),
+    add: (input) => ipcRenderer.invoke("memory:notes-add", input),
+    edit: (id, change) => ipcRenderer.invoke("memory:notes-edit", id, change),
+    setStatus: (id, status) =>
+      ipcRenderer.invoke("memory:notes-status", id, status),
+    trash: (id) => ipcRenderer.invoke("memory:notes-trash", id),
+    restore: (id) => ipcRenderer.invoke("memory:notes-restore", id),
+    emptyTrash: () => ipcRenderer.invoke("memory:notes-empty-trash"),
+    section: (folder) => ipcRenderer.invoke("memory:notes-section", folder),
+    fromUser: (message) =>
+      ipcRenderer.invoke("memory:notes-from-user", message),
+  },
   audit: {
     query: (options) => ipcRenderer.invoke("mcp:audit-query", options),
     stats: () => ipcRenderer.invoke("mcp:audit-stats"),

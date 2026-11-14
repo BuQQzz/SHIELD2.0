@@ -30,7 +30,11 @@ import {
   MEMORY_TOOLS,
   runMemoryTool,
 } from "../services/memory/memoryTools.js";
-import { getMemoryIndex } from "./memoryHandlers.js";
+import {
+  getMemoryIndex,
+  getMemoryNotes,
+  getMemoryScope,
+} from "./memoryHandlers.js";
 import {
   isPlanTool,
   PLAN_SERVER_NAME,
@@ -142,7 +146,8 @@ export async function registerMcpHandlers() {
               ? await runMemoryTool(
                   request.tool,
                   request.arguments ?? {},
-                  getMemoryIndex()
+                  getMemoryIndex(),
+                  { store: getMemoryNotes(), scope: getMemoryScope() }
                 )
               : isPlanTool(request.tool)
                 ? runPlanTool(request.arguments ?? {})

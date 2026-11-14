@@ -16,6 +16,10 @@ import { MessageList } from "./components/chat/MessageList";
 import { ChatInput, type ChatInputRef } from "./components/chat/ChatInput";
 import { LazySettingsDialog } from "./components/lazy";
 import { ToolPermissionBar } from "./components/chat/ToolPermissionBar";
+import {
+  MemoryCheckCard,
+  RememberedNotice,
+} from "./components/chat/MemoryCheckCard";
 import { StuckBar } from "./components/chat/StuckBar";
 import { ThemeProvider } from "./components/theme/ThemeProvider";
 import { toast } from "sonner";
@@ -60,6 +64,7 @@ import {
 } from "./handlers/handoff";
 import { editPlan } from "./handlers/sessionPlan";
 import { useInstructionsStore } from "./stores/instructions-store";
+import { useMemoryNotesStore } from "./stores/memory-notes-store";
 import { DRAFT_REQUEST, draftNote } from "./config/agentsMd";
 import { useChatStore } from "./stores/chat-store";
 import { ModelLibraryPage } from "./components/library/ModelLibraryPage";
@@ -244,6 +249,8 @@ function App() {
   // The open code session's AGENTS.md, read into its prompt
   const projectInstructions = useInstructionsStore((state) => state.text);
   const projectListing = useInstructionsStore((state) => state.listing);
+  // What SHIELD remembers about the user and this folder
+  const memoryNotes = useMemoryNotesStore((state) => state.section);
   // Real tool list from the connected MCP servers
   useMCPSystemPrompt({
     isModelLoaded,
@@ -262,6 +269,7 @@ function App() {
     toolsLoading: !mcpToolsSettled,
     projectInstructions: isCodeSession ? projectInstructions : "",
     projectListing: isCodeSession ? projectListing : undefined,
+    memoryNotes: teamMode ? "" : memoryNotes,
   });
 
   // Initialize a new conversation if none exists
@@ -321,6 +329,17 @@ function App() {
       .getState()
       .load(folderReady ? sessionFolder : undefined, currentConversation?.id);
   }, [sessionFolder, folderReady, messageCount, currentConversation?.id]);
+
+  // Its memory notes: once per conversation, from its folder or the user's
+  useEffect(() => {
+    if (isCodeSession && !folderReady) return;
+    void useMemoryNotesStore
+      .getState()
+      .load(
+        currentConversation?.id,
+        isCodeSession ? (sessionFolder ?? null) : null
+      );
+  }, [isCodeSession, sessionFolder, folderReady, currentConversation?.id]);
 
   // Sync messages and restore chat history
   useConversationSync({
@@ -559,6 +578,8 @@ function App() {
   const handleSendMessage = useCallback(
     async (...args: Parameters<typeof sendMessage>) => {
       const [content] = args;
+      // What the user says about themselves is kept (memory notes)
+      if (!teamMode) void useMemoryNotesStore.getState().fromMessage(content);
       // A turn is running: the message steers it, taken with the next tool
       // result (handlers/steer.ts)
       if (isGeneratingRef.current) {
@@ -578,7 +599,14 @@ function App() {
       await sendRef.current(...args);
       await afterTurn(currentConversation?.id);
     },
-    [currentConversation, setMessages, addMessage, beginTurn, afterTurn]
+    [
+      currentConversation,
+      setMessages,
+      addMessage,
+      beginTurn,
+      afterTurn,
+      teamMode,
+    ]
   );
 
   // The Continue button on a paused turn: the same as replying "continue"
@@ -792,6 +820,8 @@ function App() {
             onDeny={handleDeny}
           />
           <StuckBar isGenerating={isGenerating} />
+          {!isGenerating && !pendingRequest && <MemoryCheckCard />}
+          <RememberedNotice />
           {isCodeSession &&
             isModelLoaded &&
             folderReady &&

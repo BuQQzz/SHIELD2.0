@@ -65,6 +65,7 @@ const SERVER_OF: Record<string, string> = {
   fetch_page: "web",
   search_memory: "memory",
   open_memory: "memory",
+  remember: "memory",
   delegate: "agents",
 };
 

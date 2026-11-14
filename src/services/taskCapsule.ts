@@ -107,7 +107,10 @@ const NOTE_PROSE_CHARS = 1000;
  * wrote "my web search didn't return clear results" - untrue, and then in
  * front of it for the rest of the turn (2026-09-25).
  */
-export function noteRequest(nextMessage: string): string {
+export function noteRequest(
+  nextMessage: string,
+  remembered: string[] = []
+): string {
   const next = isToolResultTurn(nextMessage)
     ? "The results of your latest tool calls come right after this note. You have not seen them yet, so do not say what they contain."
     : "The user's next message comes right after this note.";
@@ -115,12 +118,25 @@ export function noteRequest(nextMessage: string): string {
     "Pause the task: do not answer the user and do not continue the work.",
     "SHIELD is about to remove the messages above from your context to make room. Your most recent messages stay, and SHIELD keeps a list of the user's requests and of your tool calls.",
     next,
-    "Write a note to yourself for carrying on afterwards, as five short lines:",
+    `Write a note to yourself for carrying on afterwards, as ${remembered.length > 0 ? "six" : "five"} short lines:`,
     "State: where the work stands.",
     'Decisions: what you decided and why, or "none".',
     'Next: what is still to do, or "nothing".',
     'Offered: ideas or options you suggested to the user that are not built yet, or "none". Keep the ones from your earlier note unless they are built now.',
     'Facts: what you would otherwise have to look up again, such as where the project keeps its data, file and key names, and command names, or "none". Keep the ones from your earlier note that still hold.',
+    // SHIELD's memory notes on this project (src/config/memoryNotes.ts):
+    // asked here, where the model has the session's work in view and the
+    // request reuses the chat's prompt cache, instead of in a request of
+    // its own that would push the chat out of the server's one slot
+    ...(remembered.length > 0
+      ? [
+          'Outdated: the numbers of the notes below that what you saw in this work shows are no longer true, or "none". Only ones you saw to be wrong, not ones you did not check.',
+          "",
+          "SHIELD's notes on this project from earlier sessions:",
+          ...remembered.map((text, i) => `${i + 1}. ${text}`),
+          "",
+        ]
+      : []),
     "Plain text only. No headings, no code, no tool calls.",
   ].join("\n");
 }

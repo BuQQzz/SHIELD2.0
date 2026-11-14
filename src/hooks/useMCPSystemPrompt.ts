@@ -46,6 +46,8 @@ interface UseMCPSystemPromptProps {
   projectInstructions?: string;
   /** The code session folder's file tree as it opened */
   projectListing?: string[];
+  /** SHIELD's memory notes for this conversation, read as it opened */
+  memoryNotes?: string;
 }
 
 export function useMCPSystemPrompt({
@@ -62,6 +64,7 @@ export function useMCPSystemPrompt({
   planOnly = false,
   projectInstructions = "",
   projectListing,
+  memoryNotes = "",
 }: UseMCPSystemPromptProps) {
   // Detect model family from name
   const modelFamily = useMemo(
@@ -142,7 +145,8 @@ export function useMCPSystemPrompt({
       setSystemPrompt(
         builtPrompt +
           (folder ? listingSection(folder, projectListing ?? []) : "") +
-          instructionsSection(projectInstructions),
+          instructionsSection(projectInstructions) +
+          memoryNotes,
         nativeTools ? offeredTools : []
       );
     } else {
@@ -166,7 +170,7 @@ export function useMCPSystemPrompt({
       console.log("[MCP] - Estimated tokens:", estimatedTokens);
 
       setSystemPrompt(
-        builtPrompt + instructionsSection(projectInstructions),
+        builtPrompt + instructionsSection(projectInstructions) + memoryNotes,
         []
       );
     }
@@ -185,5 +189,6 @@ export function useMCPSystemPrompt({
     planOnly,
     projectInstructions,
     projectListing,
+    memoryNotes,
   ]);
 }
