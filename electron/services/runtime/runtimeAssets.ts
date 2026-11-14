@@ -7,8 +7,12 @@ import type { RuntimeVariant } from "../../../src/types/runtime.js";
 
 export const PRISM_REPO = "PrismML-Eng/llama.cpp";
 
-/** The release SHIELD was last run with (the Bonsai demo's pinned build) */
-export const TESTED_TAG = "prism-b10685-7dffb15";
+/**
+ * The release SHIELD was last tested with: the growing-project, connector
+ * and model comparison runs of 2026-11 (Bonsai 2 27B, Qwen3.8 27B, LFM3
+ * 1.7B). Every installer asset is there with a sha256 digest
+ */
+export const TESTED_TAG = "prism-b12128-d7b2896";
 
 export interface ReleaseAsset {
   name: string;
