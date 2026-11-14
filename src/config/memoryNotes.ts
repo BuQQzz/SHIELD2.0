@@ -403,7 +403,9 @@ export function userNotesFrom(message: string): NoteCandidate[] {
   for (const raw of sentences) {
     const s = raw.trim().replace(/[.!]+$/, "");
     let m: RegExpMatchArray | null;
-    if ((m = s.match(/\b[Mm]y name is ([A-Z][\p{L}'-]+(?: [A-Z][\p{L}'-]+)?)/u))) {
+    if (
+      (m = s.match(/\b[Mm]y name is ([A-Z][\p{L}'-]+(?: [A-Z][\p{L}'-]+)?)/u))
+    ) {
       add("fact", `The user's name is ${m[1]}`);
     }
     if ((m = s.match(/\b(?:[Pp]lease )?[Cc]all me ([A-Z][\p{L}'-]+)/u))) {
