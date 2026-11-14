@@ -4,6 +4,10 @@ import {
   compactStaleReads,
   isRemovalNote,
   shouldCompact,
+  clearingWorthIt,
+  mustCompactAt,
+  MUST_COMPACT_AT,
+  COMPACT_AT,
   stripRemovalNotes,
 } from "./historyCompaction";
 
@@ -377,5 +381,30 @@ describe("shouldCompact", () => {
   it("fires once the prompt would pass 60% of the window", () => {
     expect(shouldCompact(10_000, 300, 32_768)).toBe(false);
     expect(shouldCompact(20_000, 300, 32_768)).toBe(true);
+  });
+});
+
+describe("optional clearing between COMPACT_AT and the must-clear share", () => {
+  it("leaves room for a full reply, never below COMPACT_AT", () => {
+    expect(mustCompactAt(32768, 8192)).toBe(MUST_COMPACT_AT);
+    expect(mustCompactAt(40000, 8192)).toBe(MUST_COMPACT_AT);
+    // 12K window: a full reply leaves no optional zone
+    expect(mustCompactAt(12288, 8192)).toBe(COMPACT_AT);
+    expect(mustCompactAt(0, 8192)).toBe(COMPACT_AT);
+  });
+
+  it("skips a clearing that frees a few hundred characters (g40, 2026-11-13)", () => {
+    // 20K of 32K used: past COMPACT_AT, still under 0.7
+    expect(clearingWorthIt(20000, 600, 32768, 0.7, 105)).toBe(false);
+    expect(clearingWorthIt(20000, 600, 32768, 0.7, -48)).toBe(false);
+  });
+
+  it("keeps a clearing that frees at least 5% of the window", () => {
+    // 5% of 32K is ~1,640 tokens, ~4,900 characters
+    expect(clearingWorthIt(20000, 600, 32768, 0.7, 5000)).toBe(true);
+  });
+
+  it("always clears past the must-clear share", () => {
+    expect(clearingWorthIt(23500, 600, 32768, 0.7, 50)).toBe(true);
   });
 });
