@@ -1,0 +1,44 @@
+name: Build Windows
+
+# Run by hand (Actions › Build Windows › Run workflow): builds the Windows
+# installer and portable .exe on a Windows machine, where the native modules
+# (sqlite3, node-llama-cpp) get their Windows binaries. The files are kept
+# with the run as an artifact; nothing is published.
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    name: Windows installer and portable
+    runs-on: windows-latest
+    timeout-minutes: 45
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build installer and portable
+        run: npm run build:win -- --publish never
+        env:
+          # No code signing certificate: electron-builder skips signing
+          CSC_IDENTITY_AUTO_DISCOVERY: "false"
+
+      - name: Upload the Windows build
+        uses: actions/upload-artifact@v4
+        with:
+          name: shield-windows
+          path: |
+            release/*/*.exe
+            release/*/*.blockmap
+            release/*/latest.yml
+          if-no-files-found: error
+          retention-days: 14

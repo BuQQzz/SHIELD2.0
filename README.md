@@ -32,13 +32,14 @@ SHIELD started as a local chatbot. It is now an **agent harness**, built to be a
 - 💬 **Chat** with local GGUF models, with live token counts and collapsible reasoning.
 - 🛠️ **Code** in a project folder. SHIELD reads, edits and writes files, runs terminal commands and searches the web, and asks you first when a step can change something.
 - 👥 **Teams** let an orchestrator delegate parts of a task to sub-agents, for example a coder and a reviewer.
-- 🧠 **Recall and projects**: SHIELD brings back what matters from past chats, and a project remembers its folder and its `AGENTS.md` instructions.
+- 🧠 **Memory, recall and projects**: SHIELD remembers you and each project from one session to the next, brings back what matters from past chats, and a project remembers its folder and its `AGENTS.md` instructions.
 - 🔌 **Connectors** link SHIELD to Notion, Linear, GitHub and other services with one click, or to any MCP server you add.
 
 ## What makes SHIELD different
 
 - **👥 Teams on one GPU.** An orchestrator splits a task across sub-agents, such as a coder and a reviewer, and they take turns on the same local model. Agents report back with a short handoff, and one that runs out of room hands over so the next carries on instead of starting over. Team agents use native tool calls too.
 - **🧠 Recall.** Before each message, SHIELD searches its memory of your other conversations (full-text, no extra model, nothing leaves your PC) and passes the one or two best matches along. A match from a session whose record shows changes that were never made says so, so an old "fix" that failed doesn't come back as a fact.
+- **🗂️ Memory that checks itself.** SHIELD keeps short notes about you and each project, and every new session starts with them. It saves what you say about yourself (with an Undo), what you ask it to remember, and the lasting facts from long sessions. A note that names a missing file, or that a later session found had changed, gets a one-line "still true?" check, and only you remove notes. Everything stays on your PC; see and edit it in **Settings › Memory**.
 - **📒 A record of what really happened.** SHIELD keeps its own log of what each session changed and ran, separately from what the model says it did. Recall, summaries and handoffs build on that record.
 - **🛡️ Safety that explains itself.** Permission prompts say when a call leaves your project or is risky, and a red warning appears before a real folder is deleted. Tool results are treated as untrusted data. SHIELD checks its work with throwaway data rather than your files, and opens pages it built to catch their errors.
 - **⚡ Big models on small GPUs.** Bonsai 2 27B runs with a 32K context, fully on an 8 GB card.
@@ -104,6 +105,7 @@ Bring your own API key in **Settings › Providers** to run the same harness on 
 | Runtime installer (Vulkan build tested end to end)      | Re-reading what a summary replaced                                |
 | Hosted models through Experiential with zero retention  | Policy: always ask before a change that follows an untrusted read |
 | Recall, memory, projects, `AGENTS.md`, Plan mode        | Sign-in services (Notion, Linear, ...): tested up to the browser  |
+| Memory notes and the memory check (new in 0.4)          |                                                                   |
 | Native tool calls on Bonsai 2 27B, team agents included | Linux AppImage (new in 0.3; the app itself is developed on Linux) |
 | Connectors: Context7 and your own MCP servers           | Grammar-constrained calls for more model families                 |
 
@@ -117,7 +119,6 @@ Measured on consumer GPUs (RTX 2070 SUPER 8 GB, RTX 4070 12 GB):
 | Qwen3.8 27B IQ1_M       | Fits on 8 GB with a shorter window; marked with a caution label                                   |
 | LFM3 1.7B               | A small, fast chat model                                                                          |
 | Gemma 4 12B Q4_K_M      | ~42 tok/s on 12 GB, 8/8 on the GPU smoke test                                                     |
-| Qwen3.5 9B Q4_K_M       | ~39-62 tok/s, good on 8 GB cards                                                                  |
 | Qwen3-Coder 30B         | Works, spills into system RAM on 12 GB                                                            |
 
 ## 🧪 Research and experimental work

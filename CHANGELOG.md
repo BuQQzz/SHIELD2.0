@@ -7,6 +7,34 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-11-14
+
+### Added
+
+- **Memory notes** (`src/config/memoryNotes.ts`, `electron/services/memory/memoryNotesStore.ts`): SHIELD keeps short notes about the user and about each project folder, and a new chat or code session starts with them.
+  - Kept in SHIELD's data folder, never in the project. In the prompt they're framed as information, not instructions, and the section is read once per session, so the prompt cache holds.
+  - The `remember` tool saves what the user asks to be kept; `search_memory` finds notes too.
+  - What the user says about themselves (their name, "I prefer short answers", "from now on…", "always/never…") is saved with no model call, with an **Undo** above the input.
+  - A long session's summary adds its lasting facts and decisions as project notes. Line numbers, the session's own folder and cut-off items are left out.
+  - A new note that repeats an old one confirms it; a newer version replaces it, and the old one goes to the memory trash.
+  - **Memory check:** notes that name a missing file, or that a summary says changed, are flagged. A line above the input asks about at most two per session, with Remove, Keep and Edit, and says why. Only the user removes notes.
+  - **Settings › Memory** to see, add, edit and remove notes, and to restore them from the memory trash.
+
+### Changed
+
+- **Fewer slow re-reads in long sessions:**
+  - Between 60% and 70% of the window, clearing runs only when it frees at least 5% of it.
+  - Thinking sent back within a request stays as it was sent until the history is cleared or summarised.
+  - In the growing-project test, reading per request fell from 9.4–11.8 s to 6.9 s.
+- **Settings › Runtime** names `prism-b12128` as the tested llama-server build.
+- **Qwen3.5 9B removed from the model list.** With native calls it made no bad calls, but it failed the script and bug-fix tasks that Bonsai 2 27B passes.
+
+### Fixed
+
+- A tool call that ends right after its arguments, with no closing tags, is closed and run instead of read as cut off.
+- `<function=NAME>{json}</function>` calls are read, and count as cut off when the JSON stops partway.
+- The Settings dialog no longer scrolls sideways.
+
 ## [0.3.0] - 2026-11-12
 
 ### Added
