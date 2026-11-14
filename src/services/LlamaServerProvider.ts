@@ -60,6 +60,8 @@ import {
 } from "./llamaServer/rescue.js";
 import {
   CLEAR_TO,
+  clearingWorthIt,
+  mustCompactAt,
   COMPACT_AT,
   compactHistory,
   compactStaleReads,
@@ -164,14 +166,37 @@ export function keptThinking(thinking: string): string {
 
 /**
  * The turns with thinking kept only on replies since the user's latest
- * message (tool results do not count as one). Within a request the model
- * sees what it already worked out; Bonsai 2's template keeps it there
- * ("supports preserving reasoning"). Without it, in g24 step 16 the model
- * started over on what the user meant in each of ~10 rounds, each cut at
- * its 1,536-token budget, and the step timed out (2026-11-11). Older
- * requests' thinking is left out, as the template itself would.
+ * message (tool results do not count as one), and from `floor` on. Within
+ * a request the model sees what it already worked out; Bonsai 2's template
+ * keeps it there ("supports preserving reasoning"). Without it, in g24 step
+ * 16 the model started over on what the user meant in each of ~10 rounds,
+ * each cut at its 1,536-token budget, and the step timed out (2026-11-11).
+ * Older requests' thinking is left out, as the template itself would.
+ *
+ * What was sent stays as it was until `floor` moves, so the server's prompt
+ * cache holds: the provider moves it (thoughtFloor) only when it clears or
+ * summarises the history, which makes the server read again from there
+ * anyway. Dropping thoughts on their own, a set at a time once 20,000
+ * characters filled, broke the cache by itself: in g44 step 17 a 7.6K-token
+ * re-read followed a request that cleared nothing (2026-11-14). Keeping the
+ * oldest only (7be91de) held the first six thoughts of g26 step 16 for its
+ * last 27 rounds, including a first reading the model had moved past; it
+ * went "back and forth" and timed out (2026-11-11)
  */
-export function withRequestThinking(turns: ChatMessage[]): ChatMessage[] {
+export function withRequestThinking(
+  turns: ChatMessage[],
+  floor = 0
+): ChatMessage[] {
+  const keep = keptThoughts(turns, floor);
+  return turns.map((turn, i) => {
+    if (!turn.reasoning || keep.has(i)) return turn;
+    const { reasoning: _dropped, ...rest } = turn;
+    return rest;
+  });
+}
+
+/** The indexes of the replies whose thinking is sent (withRequestThinking) */
+function keptThoughts(turns: ChatMessage[], floor: number): Set<number> {
   let start = turns.length;
   for (let i = turns.length - 1; i >= 0; i--) {
     const turn = turns[i]!;
@@ -181,38 +206,33 @@ export function withRequestThinking(turns: ChatMessage[]): ChatMessage[] {
     }
   }
   if (start === turns.length) start = 0;
-  // Up to THINKING_CHARS, kept in sets: the thoughts so far while they fit,
-  // and when the next one does not, a new set from it. Ten rounds of ~1.5K
-  // tokens would take half of a 32K window. Within a set what was sent stays
-  // as it was, so the server's prompt cache holds; dropping the oldest each
-  // round would make the server read the prompt again every round, so it
-  // happens once a set fills. Keeping the oldest only (7be91de) held the
-  // first six thoughts of g26 step 16 for its last 27 rounds, including a
-  // first reading of "the monthly view" the model had moved past; it went
-  // "back and forth" and timed out (2026-11-11)
-  let keep = new Set<number>();
-  let total = 0;
-  for (let i = start + 1; i < turns.length; i++) {
+  const keep = new Set<number>();
+  for (let i = Math.max(start + 1, floor); i < turns.length; i++) {
     const thought = turns[i]!.reasoning;
-    if (!thought) continue;
+    if (!thought || thought.length > THINKING_CHARS) continue;
     // Nor the thought behind a call that failed: kept, its plan outweighed
     // the error. In kt-fix2 Bonsai 2 read a misspelled file name and sent
     // the same read three more times (2026-11-11)
     if (/<error>|already failed in this turn/.test(turns[i + 1]?.content ?? ""))
       continue;
-    if (thought.length > THINKING_CHARS) continue;
-    if (total + thought.length > THINKING_CHARS) {
-      keep = new Set();
-      total = 0;
-    }
-    total += thought.length;
     keep.add(i);
   }
-  return turns.map((turn, i) => {
-    if (!turn.reasoning || keep.has(i)) return turn;
-    const { reasoning: _dropped, ...rest } = turn;
-    return rest;
-  });
+  return keep;
+}
+
+/**
+ * Where thinking starts being sent once the history is cleared or
+ * summarised: the newest thoughts that fit in THINKING_CHARS (~6K tokens
+ * of a 32K window, two thoughts at Bonsai 2's 2,560-token budget).
+ */
+export function thoughtFloorFor(turns: ChatMessage[], floor = 0): number {
+  const keep = [...keptThoughts(turns, floor)].sort((a, b) => b - a);
+  let total = 0;
+  for (const i of keep) {
+    total += turns[i]!.reasoning!.length;
+    if (total > THINKING_CHARS) return i + 1;
+  }
+  return floor;
 }
 
 /**
@@ -235,9 +255,10 @@ export function noteBody(
   system: string,
   turns: ChatMessage[],
   nextMessage: string,
-  tools: unknown[]
+  tools: unknown[],
+  thoughtFloor = 0
 ): { messages: unknown[]; tools?: unknown[]; tool_choice?: "none" } {
-  const kept = withRequestThinking(turns);
+  const kept = withRequestThinking(turns, thoughtFloor);
   const wire = tools.length > 0 ? nativeHistory(kept) : kept;
   return {
     messages: [
@@ -466,6 +487,11 @@ export class LlamaServerProvider {
    * window fills (src/agents).
    */
   private keepWholeHistory = false;
+  /**
+   * Replies before this index of the history send no thinking: moved only
+   * when the history is cleared or summarised (withRequestThinking)
+   */
+  private thoughtFloor = 0;
 
   isRunning(): boolean {
     if (this.parent) return this.parent.isRunning();
@@ -540,6 +566,7 @@ export class LlamaServerProvider {
     this.reasoningEffort = options.reasoningEffort;
     this.presencePenalty = options.presencePenalty;
     this.history = [];
+    this.thoughtFloor = 0;
     this.capsule = null;
     this.capsuleReplacedEntries = 0;
     this.savedCapsule = null;
@@ -562,6 +589,7 @@ export class LlamaServerProvider {
     this.trainContextSize = endpoint.contextSize;
     this.systemPrompt = systemPrompt;
     this.history = [];
+    this.thoughtFloor = 0;
     this.capsule = null;
     this.capsuleReplacedEntries = 0;
     this.savedCapsule = null;
@@ -861,10 +889,10 @@ export class LlamaServerProvider {
    * `reasoning_content` (withRequestThinking).
    */
   private messages(extra?: ChatMessage) {
-    const turns = withRequestThinking([
-      ...this.history,
-      ...(extra ? [extra] : []),
-    ]);
+    const turns = withRequestThinking(
+      [...this.history, ...(extra ? [extra] : [])],
+      this.thoughtFloor
+    );
     const wire = this.nativeTools.length > 0 ? nativeHistory(turns) : turns;
     return [
       { role: "system", content: this.systemContent() },
@@ -877,7 +905,7 @@ export class LlamaServerProvider {
     return (
       (this.systemContent().length +
         this.nativeToolChars +
-        withRequestThinking(this.history).reduce(
+        withRequestThinking(this.history, this.thoughtFloor).reduce(
           (n, m) => n + m.content.length + (m.reasoning?.length ?? 0),
           0
         )) /
@@ -1318,6 +1346,7 @@ export class LlamaServerProvider {
     // and tool metadata, which went to the server with every request
     const { history, saved } = restoreHistory(messages);
     this.history = history;
+    this.thoughtFloor = 0;
     this.capsule = null;
     this.capsuleReplacedEntries = 0;
     this.savedCapsule = saved;
@@ -1330,6 +1359,7 @@ export class LlamaServerProvider {
 
   clearHistory(): void {
     this.history = [];
+    this.thoughtFloor = 0;
     this.capsule = null;
     this.capsuleReplacedEntries = 0;
     this.savedCapsule = null;
@@ -1358,6 +1388,7 @@ export class LlamaServerProvider {
   ): Promise<void> {
     // As the last request sent it: the note goes on from there (noteBody)
     const sent = this.history;
+    const sentFloor = this.thoughtFloor;
     if (this.makeRoomCheaply(nextMessage.length)) return;
 
     onProgress?.({ phase: "summarising" });
@@ -1369,12 +1400,16 @@ export class LlamaServerProvider {
         this.systemPrompt.length + this.nativeToolChars,
         CLEAR_TO
       ),
-      () => this.writeNote(sent, nextMessage, signal)
+      () => this.writeNote(sent, sentFloor, nextMessage, signal)
     );
     if (!summarised) return;
 
     const removed = this.history.length - summarised.history.length;
     this.history = summarised.history;
+    this.thoughtFloor = thoughtFloorFor(
+      this.history,
+      Math.max(0, this.thoughtFloor - removed)
+    );
     this.capsule = summarised.capsule;
     this.capsuleReplacedEntries += removed;
     this.lastSummary = this.capsuleText();
@@ -1407,6 +1442,21 @@ export class LlamaServerProvider {
       );
     if (under(COMPACT_AT)) return true;
 
+    // Below mustAt the request still fits: clear only if it frees enough
+    // to be worth the re-read, else send it as it is (clearingWorthIt)
+    const mustAt = mustCompactAt(this.contextSize, MIN_REPLY_TOKENS);
+    const before = {
+      history: this.history,
+      tokens: this.lastContextTokens,
+      floor: this.thoughtFloor,
+      chars: this.historyChars(),
+    };
+    const optional = under(mustAt);
+
+    // Older thinking of this request goes first: it is the cheapest to
+    // lose, and the clearing makes the server read again from here anyway
+    this.dropOldThoughts();
+
     // Old copies of files read again since go first: they are out of date
     this.clearStaleReads();
     if (under(CLEAR_TO)) return true;
@@ -1419,6 +1469,26 @@ export class LlamaServerProvider {
     for (let keep = Math.max(6, latest); ; keep = Math.max(keep - 2, latest)) {
       this.clearPayloads(keep);
       if (under(CLEAR_TO) || keep === latest) break;
+    }
+    if (optional) {
+      const freed = before.chars - this.historyChars();
+      if (
+        !clearingWorthIt(
+          before.tokens,
+          nextMessageChars,
+          this.contextSize,
+          mustAt,
+          freed
+        )
+      ) {
+        this.history = before.history;
+        this.lastContextTokens = before.tokens;
+        this.thoughtFloor = before.floor;
+        console.log(
+          `[LlamaServer] Left history as it is: clearing would free only ${freed} characters`
+        );
+      }
+      return true;
     }
     if (under(COMPACT_AT)) return true;
     return this.useSavedCapsule() && under(COMPACT_AT);
@@ -1434,6 +1504,7 @@ export class LlamaServerProvider {
     if (!saved) return false;
     this.savedCapsule = null;
     this.history = [...saved.modelHistory, ...this.history.slice(saved.start)];
+    this.thoughtFloor = thoughtFloorFor(this.history);
     this.capsule = saved.capsule;
     this.capsuleReplacedEntries = saved.replacedEntries;
     this.lastContextTokens = this.estimateTokens();
@@ -1441,6 +1512,28 @@ export class LlamaServerProvider {
       `[LlamaServer] Went back to the chat's saved summary of ${saved.replacedEntries} older model messages`
     );
     return true;
+  }
+
+  /** Characters in the history, to measure what a clearing freed */
+  private historyChars(): number {
+    return withRequestThinking(this.history, this.thoughtFloor).reduce(
+      (sum, entry) =>
+        sum + entry.content.length + (entry.reasoning?.length ?? 0),
+      0
+    );
+  }
+
+  /** Send only the newest thinking that fits THINKING_CHARS from here on */
+  private dropOldThoughts(): void {
+    const floor = thoughtFloorFor(this.history, this.thoughtFloor);
+    if (floor === this.thoughtFloor) return;
+    const before = this.historyChars();
+    this.thoughtFloor = floor;
+    const saved = before - this.historyChars();
+    this.lastContextTokens = Math.max(0, this.lastContextTokens - saved / 3);
+    console.log(
+      `[LlamaServer] Compacted history: left out ${saved} characters of older thinking`
+    );
   }
 
   /** Clear the results of reads the model has since read again */
@@ -1479,12 +1572,19 @@ export class LlamaServerProvider {
    */
   private async writeNote(
     turns: ChatMessage[],
+    floor: number,
     nextMessage: string,
     signal: AbortSignal
   ): Promise<string> {
     const result = await this.completion(
       {
-        ...noteBody(this.systemContent(), turns, nextMessage, this.nativeTools),
+        ...noteBody(
+          this.systemContent(),
+          turns,
+          nextMessage,
+          this.nativeTools,
+          floor
+        ),
         cache_prompt: true,
         temperature: 0.2,
         max_tokens: NOTE_MAX_TOKENS,

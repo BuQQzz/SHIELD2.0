@@ -514,6 +514,51 @@ export const COMPACT_AT = 0.6;
 export const CLEAR_TO = 0.4;
 
 /**
+ * Between COMPACT_AT and this share a request still fits beside a full
+ * reply, so clearing there is optional: it runs only when it frees at
+ * least MIN_CLEAR_SHARE of the window. Each clearing makes the server
+ * re-read everything after the first message it changed, and near
+ * COMPACT_AT it had freed a few hundred characters at a time, request
+ * after request: in growing-project g40 (Bonsai 2 27B, 32K) 18 clearings
+ * re-read 174K tokens, ~470 s, some of them freeing 46-105 characters
+ * (2026-11-13).
+ */
+export const MUST_COMPACT_AT = 0.7;
+/** Least a clearing between COMPACT_AT and MUST_COMPACT_AT must free */
+export const MIN_CLEAR_SHARE = 0.05;
+
+/**
+ * The share of the window past which making room is required: the most
+ * that still leaves `replyTokens` and a margin, at most MUST_COMPACT_AT.
+ * At or below COMPACT_AT (small windows) there is no optional zone.
+ */
+export function mustCompactAt(
+  contextSize: number,
+  replyTokens: number
+): number {
+  if (contextSize <= 0) return COMPACT_AT;
+  const fits = (contextSize - replyTokens - 1024) / contextSize;
+  return Math.max(COMPACT_AT, Math.min(MUST_COMPACT_AT, fits));
+}
+
+/**
+ * Whether a clearing that frees `freedChars` is worth its re-read: always
+ * past `mustAt`, and below it only when it frees MIN_CLEAR_SHARE.
+ */
+export function clearingWorthIt(
+  lastContextTokens: number,
+  nextMessageChars: number,
+  contextSize: number,
+  mustAt: number,
+  freedChars: number
+): boolean {
+  if (shouldCompact(lastContextTokens, nextMessageChars, contextSize, mustAt)) {
+    return true;
+  }
+  return freedChars / 3 >= contextSize * MIN_CLEAR_SHARE;
+}
+
+/**
  * Whether the next request should compact first: the prompt is estimated
  * to pass `limit` of the window, leaving the rest for the reply.
  */

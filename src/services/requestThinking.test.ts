@@ -3,6 +3,7 @@ import {
   keptThinking,
   noteBody,
   THINKING_CHARS,
+  thoughtFloorFor,
   withRequestThinking,
 } from "./LlamaServerProvider";
 import { nativeHistory } from "./llamaServer/nativeHistory";
@@ -55,26 +56,39 @@ describe("thinking within a request (g24 step 16)", () => {
     ]);
   });
 
-  it("keeps sets up to the cap: a new set when the next thought does not fit (g26)", () => {
+  it("sends every thought of the request until the floor moves (g44)", () => {
     const big = "x".repeat(THINKING_CHARS / 2 - 10);
     const turns: ChatMessage[] = [{ role: "user", content: "go" }];
-    const kept = () =>
-      (thoughts(withRequestThinking(turns)).filter(Boolean) as string[]).map(
-        (t) => t[0]
-      );
+    const kept = (floor = 0) =>
+      (
+        thoughts(withRequestThinking(turns, floor)).filter(Boolean) as string[]
+      ).map((t) => t[0]);
     for (let i = 0; i < 5; i++) {
       turns.push({ role: "assistant", content: call, reasoning: `${i}${big}` });
       turns.push({ role: "user", content: result });
     }
-    // 0 and 1 filled a set; 2 and 3 the next; 4 starts a third
-    expect(kept()).toEqual(["4"]);
-    turns.pop();
-    turns.pop();
-    expect(kept()).toEqual(["2", "3"]);
-    turns.pop();
-    turns.pop();
-    // Within a set what was sent stays the same
-    expect(kept()).toEqual(["2"]);
+    // Past THINKING_CHARS nothing is dropped on its own: what was sent stays
+    // as it was, so the server's cache holds
+    expect(kept()).toEqual(["0", "1", "2", "3", "4"]);
+    // On clearing, the floor keeps the newest that fit
+    const floor = thoughtFloorFor(turns);
+    expect(kept(floor)).toEqual(["3", "4"]);
+    // and only moves on from there
+    expect(thoughtFloorFor(turns, floor)).toBe(floor);
+    turns.push({ role: "assistant", content: call, reasoning: `5${big}` });
+    turns.push({ role: "user", content: result });
+    expect(kept(floor)).toEqual(["3", "4", "5"]);
+    expect(kept(thoughtFloorFor(turns, floor))).toEqual(["4", "5"]);
+  });
+
+  it("moves no floor while the thoughts fit", () => {
+    const turns: ChatMessage[] = [
+      { role: "user", content: "go" },
+      { role: "assistant", content: call, reasoning: "short" },
+      { role: "user", content: result },
+    ];
+    expect(thoughtFloorFor(turns)).toBe(0);
+    expect(thoughtFloorFor(turns, 2)).toBe(2);
   });
 
   it("leaves out the thought behind a call that failed (kt-fix2)", () => {
