@@ -148,6 +148,22 @@ export const STALL_MS = 5 * 60 * 1000;
  */
 export const MIN_REPLY_TOKENS = 8192;
 
+/**
+ * SHIELD's memory notes (src/config/memoryNotes.ts), set by the main
+ * process: the project's notes the summary note request asks about, and
+ * what is done with the note once written (electron/ipc/memoryHandlers.ts)
+ */
+export interface MemoryHooks {
+  notesToCheck: () => Promise<{ id: string; text: string }[]>;
+  onNote: (note: string, checked: { id: string; text: string }[]) => void;
+}
+
+let memoryHooks: MemoryHooks | null = null;
+
+export function setMemoryHooks(hooks: MemoryHooks | null): void {
+  memoryHooks = hooks;
+}
+
 /** What launch.ts adds to a thought cut at the budget, not the model's own */
 const BUDGET_NOTE =
   /\s*Thinking budget reached\. Act now on what I have worked out\.\s*$/;
@@ -256,7 +272,8 @@ export function noteBody(
   turns: ChatMessage[],
   nextMessage: string,
   tools: unknown[],
-  thoughtFloor = 0
+  thoughtFloor = 0,
+  remembered: string[] = []
 ): { messages: unknown[]; tools?: unknown[]; tool_choice?: "none" } {
   const kept = withRequestThinking(turns, thoughtFloor);
   const wire = tools.length > 0 ? nativeHistory(kept) : kept;
@@ -264,7 +281,7 @@ export function noteBody(
     messages: [
       { role: "system", content: system },
       ...wire.map(asWire),
-      { role: "user", content: noteRequest(nextMessage) },
+      { role: "user", content: noteRequest(nextMessage, remembered) },
     ],
     ...(tools.length > 0 ? { tools, tool_choice: "none" as const } : {}),
   };
@@ -1392,6 +1409,13 @@ export class LlamaServerProvider {
     if (this.makeRoomCheaply(nextMessage.length)) return;
 
     onProgress?.({ phase: "summarising" });
+    // Hosted models get no memory check: the notes would leave the PC
+    const checked = this.endpoint
+      ? []
+      : await (memoryHooks?.notesToCheck() ?? Promise.resolve([])).catch(
+          () => []
+        );
+    let written = "";
     const summarised = await summariseOldest(
       this.history,
       this.capsule,
@@ -1400,9 +1424,17 @@ export class LlamaServerProvider {
         this.systemPrompt.length + this.nativeToolChars,
         CLEAR_TO
       ),
-      () => this.writeNote(sent, sentFloor, nextMessage, signal)
+      async () =>
+        (written = await this.writeNote(
+          sent,
+          sentFloor,
+          nextMessage,
+          signal,
+          checked.map((note) => note.text)
+        ))
     );
     if (!summarised) return;
+    if (written && !this.endpoint) memoryHooks?.onNote(written, checked);
 
     const removed = this.history.length - summarised.history.length;
     this.history = summarised.history;
@@ -1574,7 +1606,8 @@ export class LlamaServerProvider {
     turns: ChatMessage[],
     floor: number,
     nextMessage: string,
-    signal: AbortSignal
+    signal: AbortSignal,
+    remembered: string[] = []
   ): Promise<string> {
     const result = await this.completion(
       {
@@ -1583,7 +1616,8 @@ export class LlamaServerProvider {
           turns,
           nextMessage,
           this.nativeTools,
-          floor
+          floor,
+          remembered
         ),
         cache_prompt: true,
         temperature: 0.2,

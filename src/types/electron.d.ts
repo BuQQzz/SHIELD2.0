@@ -2,6 +2,7 @@ import type { SavedCapsule } from "../services/taskCapsule";
 import type { RecommendedSampling } from "../services/modelSampling";
 import type { ToolDefinition } from "./prompts";
 import type { Plan } from "../config/plan";
+import type { MemoryNote, NoteKind } from "../config/memoryNotes";
 import type {
   InstalledRuntime,
   RuntimeProgress,
@@ -636,6 +637,39 @@ export interface MCPAPI {
   ) => Promise<{ success: boolean; folder?: string | null; error?: string }>;
   /** Ends any command run_command is running, and what it started */
   stopCommands: () => Promise<{ success: boolean; stopped?: number }>;
+  /** SHIELD's memory notes (src/config/memoryNotes.ts) */
+  notes: {
+    /** Whose notes the open conversation uses: its folder, or the user's */
+    setScope: (folder: string | null) => Promise<{ success: boolean }>;
+    list: () => Promise<{
+      success: boolean;
+      notes?: MemoryNote[];
+      error?: string;
+    }>;
+    add: (input: {
+      folder?: string | null;
+      kind: NoteKind;
+      text: string;
+    }) => Promise<{ success: boolean; note?: MemoryNote; error?: string }>;
+    edit: (
+      id: string,
+      change: { text?: string; kind?: NoteKind }
+    ) => Promise<{ success: boolean; note?: MemoryNote; error?: string }>;
+    setStatus: (
+      id: string,
+      status: "active" | "stale"
+    ) => Promise<{ success: boolean }>;
+    trash: (id: string) => Promise<{ success: boolean }>;
+    restore: (id: string) => Promise<{ success: boolean }>;
+    emptyTrash: () => Promise<{ success: boolean; removed?: number }>;
+    /** The prompt section for a session in `folder` (null: a chat) */
+    section: (folder: string | null) => Promise<{
+      success: boolean;
+      section?: string;
+      count?: number;
+      toCheck?: MemoryNote[];
+    }>;
+  };
   /** SHIELD's memory of past conversations: the best matches for a message */
   searchMemory: (
     query: string,

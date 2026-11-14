@@ -15,6 +15,7 @@ import { RuntimeSettings } from "./RuntimeSettings";
 import { WebSearchSettings } from "./WebSearchSettings";
 import { MCPSettings } from "./MCPSettings";
 import { HelpSettings } from "./HelpSettings";
+import { MemorySettings } from "./MemorySettings";
 import { useSettingsStore } from "@/store/settingsStore";
 import type { ModelOption } from "@/config/models";
 
@@ -36,7 +37,7 @@ export function SettingsDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+      <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto overflow-x-hidden">
         <DialogHeader>
           <DialogTitle>Settings</DialogTitle>
           <DialogDescription>
@@ -80,6 +81,10 @@ export function SettingsDialog({
                   />
                 </div>
               </div>
+            </div>
+            <div className="space-y-3 pt-5">
+              <h3 className="text-sm font-semibold">Memory</h3>
+              <MemorySettings />
             </div>
             <div className="space-y-3 pt-5">
               <h3 className="text-sm font-semibold">Providers</h3>

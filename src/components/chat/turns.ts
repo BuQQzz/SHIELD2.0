@@ -231,6 +231,12 @@ const VERBS: Record<string, Verb> = {
     running: "Opening a memory",
     noun: ["memory", "memories"],
   },
+  remember: {
+    done: "Remembered",
+    running: "Remembering",
+    noun: ["note", "notes"],
+    target: (note) => `"${note}"`,
+  },
   update_plan: {
     done: "Updated the plan",
     running: "Updating the plan",

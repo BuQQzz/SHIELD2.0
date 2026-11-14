@@ -143,6 +143,9 @@ export function resolveToolPolicy({
     // The session's checklist changes nothing on the computer: it runs in
     // every mode, Ask included, and a plan is what Plan mode is for
     if (call.name === UPDATE_PLAN_TOOL_NAME) return "run";
+    // A memory note the user asked for: SHIELD's own store, not a file, and
+    // the user sees and removes notes in Settings › Memory
+    if (call.name === "remember") return "run";
     // Handing work over changes nothing itself: the agent's own calls are
     // decided by the policy it works under
     if (call.name === DELEGATE_TOOL_NAME) return "run";

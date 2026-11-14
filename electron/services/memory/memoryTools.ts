@@ -5,15 +5,29 @@
  * asking. Each call returns a little - a few one-line matches, or one
  * message - so a model with a small context can still find its way back
  * to earlier work, one step at a time.
+ *
+ * remember saves a memory note (src/config/memoryNotes.ts) when the user
+ * asks for something to be kept. It writes only SHIELD's own memory, never
+ * a file, so like update_plan it runs without asking; the user sees and
+ * removes notes in Settings › Memory.
  */
 
 import type { MCPToolResult } from "../MCPServerConfig.js";
 import { formatSearchResults, hitLine } from "./memoryEntries.js";
 import type { MemoryIndex, MemoryRecord } from "./memoryIndex.js";
+import type { MemoryNotesStore } from "./memoryNotesStore.js";
+import {
+  checkNoteText,
+  isNoteKind,
+  NOTE_KINDS,
+  type MemoryNote,
+  type NoteScope,
+} from "../../../src/config/memoryNotes.js";
 
 export const MEMORY_SERVER_NAME = "memory";
 export const SEARCH_MEMORY_TOOL_NAME = "search_memory";
 export const OPEN_MEMORY_TOOL_NAME = "open_memory";
+export const REMEMBER_TOOL_NAME = "remember";
 
 const MAX_RESULTS = 8;
 const DEFAULT_RESULTS = 5;
@@ -66,10 +80,68 @@ export const MEMORY_TOOLS = [
     },
     annotations: READ_ONLY,
   },
+  {
+    name: REMEMBER_TOOL_NAME,
+    description:
+      'Save a note to SHIELD\'s memory so later sessions know it from the start. Use it when the user asks you to remember something ("remember that...", "keep in mind...", "from now on..."). One short fact per call, in your own words, without secrets. "about": "user" for the user\'s preferences and situation, "project" for this project (its commands, structure, decisions).',
+    inputSchema: {
+      type: "object",
+      properties: {
+        note: {
+          type: "string",
+          description:
+            'The fact, one or two lines, e.g. "Tests run with `npx vitest run`."',
+        },
+        about: {
+          type: "string",
+          enum: ["user", "project"],
+          description: '"user" or "project"',
+        },
+        kind: {
+          type: "string",
+          enum: [...NOTE_KINDS],
+          description:
+            "preference, fact, howto (a command or procedure), decision, pitfall (what went wrong before) or open (work left to do)",
+        },
+      },
+      required: ["note", "about"],
+      additionalProperties: false,
+    },
+    annotations: {
+      readOnlyHint: false,
+      destructiveHint: false,
+      idempotentHint: true,
+      openWorldHint: false,
+    },
+  },
 ];
 
 export function isMemoryTool(name: string): boolean {
-  return name === SEARCH_MEMORY_TOOL_NAME || name === OPEN_MEMORY_TOOL_NAME;
+  return (
+    name === SEARCH_MEMORY_TOOL_NAME ||
+    name === OPEN_MEMORY_TOOL_NAME ||
+    name === REMEMBER_TOOL_NAME
+  );
+}
+
+/** What remember and search_memory need from the notes */
+export interface NotesAccess {
+  store: MemoryNotesStore;
+  /** The open conversation's: its folder, or the user's in a chat */
+  scope: NoteScope;
+}
+
+/** Notes found by search_memory, before the conversation matches */
+export function formatNoteHits(notes: MemoryNote[]): string {
+  if (notes.length === 0) return "";
+  return [
+    "Memory notes (kept facts, newest knowledge):",
+    ...notes.map(
+      (note) =>
+        `- ${note.text}${note.status === "stale" ? " (may be out of date)" : ""}`
+    ),
+    "",
+  ].join("\n");
 }
 
 const text = (message: string): MCPToolResult => ({
@@ -112,9 +184,35 @@ export function formatRecord(record: MemoryRecord): string {
 export async function runMemoryTool(
   tool: string,
   args: Record<string, unknown>,
-  index: MemoryIndex
+  index: MemoryIndex,
+  notes?: NotesAccess
 ): Promise<MCPToolResult> {
   try {
+    if (tool === REMEMBER_TOOL_NAME) {
+      if (!notes) return fail("Memory notes are not available right now");
+      const about = args.about === "user" ? "user" : "project";
+      if (about === "project" && notes.scope === "user") {
+        return fail(
+          'There is no project folder in this conversation: save it with "about": "user", or ask the user to open a code session for the project'
+        );
+      }
+      const kind = isNoteKind(args.kind)
+        ? args.kind
+        : about === "user"
+          ? "preference"
+          : "fact";
+      const checked = checkNoteText(args.note);
+      if (!checked.ok) return fail(`Not saved: ${checked.reason}`);
+      const saved = await notes.store.merge(
+        about === "user" ? "user" : notes.scope,
+        { kind, text: checked.text }
+      );
+      if (!saved) return fail("Not saved");
+      const where = about === "user" ? "about the user" : "this project";
+      return text(
+        `${saved.action === "confirmed" ? "Already in memory" : saved.action === "replaced" ? "Updated in memory (the older note is in the memory trash)" : "Saved to memory"} (${where}): ${saved.note?.text ?? checked.text}\nIt is in the prompt of new sessions from now on; the user can see and remove it in Settings › Memory.`
+      );
+    }
     if (tool === SEARCH_MEMORY_TOOL_NAME) {
       const query = typeof args.query === "string" ? args.query.trim() : "";
       if (!query) return fail('search_memory needs a "query"');
@@ -128,7 +226,12 @@ export async function runMemoryTool(
       const notDone = await index.notDoneFor(
         hits.map((hit) => hit.conversationId)
       );
-      return text(formatSearchResults(query, hits, notDone));
+      const found = notes
+        ? await notes.store.search(query, notes.scope, 3).catch(() => [])
+        : [];
+      return text(
+        formatNoteHits(found) + formatSearchResults(query, hits, notDone)
+      );
     }
     if (tool === OPEN_MEMORY_TOOL_NAME) {
       const id =
