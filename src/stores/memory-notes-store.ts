@@ -22,6 +22,12 @@ interface MemoryNotesState {
   toCheck: MemoryNote[];
   /** The user answered about this note */
   checked: (id: string) => void;
+  /** Notes just saved from the user's own words, shown with an Undo */
+  remembered: { id: string; text: string; replaces?: string }[];
+  fromMessage: (message: string) => Promise<void>;
+  /** Undo a note saved from a message, bringing back any it replaced */
+  undo: (id: string) => Promise<void>;
+  dismiss: () => void;
   load: (
     conversation: string | undefined,
     folder: string | null
@@ -34,6 +40,28 @@ export const useMemoryNotesStore = create<MemoryNotesState>((set, get) => ({
   section: "",
   count: 0,
   toCheck: [],
+  remembered: [],
+
+  fromMessage: async (message) => {
+    const result = await window.electronAPI?.mcp?.notes
+      ?.fromUser(message)
+      .catch(() => null);
+    const saved = result?.saved ?? [];
+    if (saved.length > 0) set({ remembered: saved });
+  },
+
+  undo: async (id) => {
+    const notes = window.electronAPI?.mcp?.notes;
+    const note = get().remembered.find((n) => n.id === id);
+    await notes?.trash(id).catch(() => undefined);
+    if (note?.replaces)
+      await notes?.restore(note.replaces).catch(() => undefined);
+    set((state) => ({
+      remembered: state.remembered.filter((n) => n.id !== id),
+    }));
+  },
+
+  dismiss: () => set({ remembered: [] }),
 
   checked: (id) =>
     set((state) => ({

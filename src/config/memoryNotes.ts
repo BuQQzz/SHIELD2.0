@@ -55,6 +55,8 @@ export interface MemoryNote {
   status: NoteStatus;
   /** The note this one replaced, so the change can be undone */
   replaces?: string;
+  /** Why SHIELD thinks a stale note may be out of date */
+  staleReason?: string;
 }
 
 /** Longest note: one or two lines */
@@ -374,3 +376,65 @@ export function fileAnchors(anchors: string[]): string[] {
 
 /** At most this many possibly out-of-date notes are asked about per session */
 export const CHECKS_PER_SESSION = 2;
+
+/**
+ * Notes about the user from what they say about themselves, without a
+ * model: only clear statements (their name, how they want answers, "from
+ * now on…", what they use), so a request about the task is not mistaken
+ * for one about them. Each is shown with an Undo as it is saved.
+ */
+export function userNotesFrom(message: string): NoteCandidate[] {
+  // The user's own words only: not a pasted file, log or code block
+  const text = message
+    .replace(/```[\s\S]*?```/g, " ")
+    .replace(/<[^>]+>[\s\S]*?<\/[^>]+>/g, " ");
+  if (text.length > 2000) return [];
+  const out: NoteCandidate[] = [];
+  const add = (kind: NoteKind, note: string) => {
+    const clean = note
+      .replace(/\s+/g, " ")
+      .replace(/[\s,;:]+$/, "")
+      .trim();
+    if (clean.length < 6 || clean.length > MAX_AUTO_NOTE_CHARS) return;
+    if (!checkNoteText(clean).ok) return;
+    if (!out.some((o) => o.text === clean)) out.push({ kind, text: clean });
+  };
+  const sentences = text.split(/(?<=[.!?])\s+|\n+/);
+  for (const raw of sentences) {
+    const s = raw.trim().replace(/[.!]+$/, "");
+    let m: RegExpMatchArray | null;
+    if ((m = s.match(/\b[Mm]y name is ([A-Z][\p{L}'-]+(?: [A-Z][\p{L}'-]+)?)/u))) {
+      add("fact", `The user's name is ${m[1]}`);
+    }
+    if ((m = s.match(/\b(?:[Pp]lease )?[Cc]all me ([A-Z][\p{L}'-]+)/u))) {
+      add("preference", `Wants to be called ${m[1]}`);
+    }
+    if ((m = s.match(/\bfrom now on,?\s+(.+)/i))) {
+      add("preference", `Asked, from now on: ${m[1]}`);
+      continue;
+    }
+    if (
+      (m = s.match(
+        /\b(?:please\s+)?(always|never)\s+((?:use|write|answer|reply|respond|explain|give|show|add|ask|run|include|keep|put|format|make)\b.+)/i
+      ))
+    ) {
+      add("preference", `Asked: ${m[1]!.toLowerCase()} ${m[2]}`);
+      continue;
+    }
+    if (
+      (m = s.match(
+        /\bI (?:really )?(prefer|like|want)\s+((?:short|shorter|long|longer|brief|concise|detailed|simple|plain|step[- ]by[- ]step)\b.*\b(?:answers?|replies|responses|explanations?|summar(?:y|ies)|code|comments)\b.*)/i
+      ))
+    ) {
+      add("preference", `Prefers ${m[2]}`);
+    }
+    if (
+      (m = s.match(
+        /\bI(?:'m| am) (?:on|using|running)\s+((?:Windows|Linux|Ubuntu|Fedora|Arch|macOS|a Mac|Mac)\b[\w .-]*)/i
+      ))
+    ) {
+      add("fact", `Uses ${m[1]}`);
+    }
+  }
+  return out;
+}

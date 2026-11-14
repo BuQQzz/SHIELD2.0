@@ -14,6 +14,7 @@ import {
   notesFromSummary,
   notesSection,
   outdatedNumbers,
+  userNotesFrom,
   type NoteKind,
   type NoteScope,
 } from "../../src/config/memoryNotes.js";
@@ -142,13 +143,15 @@ export async function flagMissingFiles(
   if (files.size === 0) return 0;
   let flagged = 0;
   for (const note of withFiles) {
-    const missing = fileAnchors(note.anchors).some((anchor) => {
+    const missing = fileAnchors(note.anchors).find((anchor) => {
       const name = anchor.split("/").pop()!;
       return anchor.includes("<")
         ? !files.has(name)
         : !files.has(anchor.replace(/^\.\//, "")) && !files.has(name);
     });
-    if (missing && (await store.setStatus(note.id, "stale"))) flagged++;
+    if (!missing) continue;
+    const reason = `${missing.split("/").pop()} is not in the project`;
+    if (await store.setStatus(note.id, "stale", reason)) flagged++;
   }
   return flagged;
 }
@@ -172,7 +175,8 @@ export async function noteFromSummary(
   if (sessionScope === "user") return { stale: 0, saved: [] };
   let stale = 0;
   for (const i of outdatedNumbers(note, checked.length)) {
-    if (await store.setStatus(checked[i]!.id, "stale")) stale++;
+    const reason = "the last session's work suggested it changed";
+    if (await store.setStatus(checked[i]!.id, "stale", reason)) stale++;
   }
   const saved: string[] = [];
   for (const candidate of notesFromSummary(
@@ -331,6 +335,28 @@ export function registerMemoryHandlers(): void {
       return failure(error);
     }
   });
+  // What the user said about themselves in a message they sent: saved as
+  // their notes, each shown with an Undo (MemoryCheckCard)
+  ipcMain.handle("memory:notes-from-user", async (_event, message: string) => {
+    try {
+      const store = getMemoryNotes();
+      const saved = [];
+      for (const candidate of userNotesFrom(String(message ?? ""))) {
+        const result = await store.merge("user", candidate);
+        if (result?.note && result.action !== "confirmed") {
+          saved.push({
+            id: result.note.id,
+            text: result.note.text,
+            replaces: result.note.replaces,
+          });
+        }
+      }
+      return { success: true, saved };
+    } catch (error) {
+      return failure(error);
+    }
+  });
+
   // The section a session's prompt starts with; read once per session, so
   // a note saved mid-session changes no prompt the server has cached
   ipcMain.handle(

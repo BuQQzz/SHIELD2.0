@@ -16,7 +16,10 @@ import { MessageList } from "./components/chat/MessageList";
 import { ChatInput, type ChatInputRef } from "./components/chat/ChatInput";
 import { LazySettingsDialog } from "./components/lazy";
 import { ToolPermissionBar } from "./components/chat/ToolPermissionBar";
-import { MemoryCheckCard } from "./components/chat/MemoryCheckCard";
+import {
+  MemoryCheckCard,
+  RememberedNotice,
+} from "./components/chat/MemoryCheckCard";
 import { StuckBar } from "./components/chat/StuckBar";
 import { ThemeProvider } from "./components/theme/ThemeProvider";
 import { toast } from "sonner";
@@ -575,6 +578,8 @@ function App() {
   const handleSendMessage = useCallback(
     async (...args: Parameters<typeof sendMessage>) => {
       const [content] = args;
+      // What the user says about themselves is kept (memory notes)
+      if (!teamMode) void useMemoryNotesStore.getState().fromMessage(content);
       // A turn is running: the message steers it, taken with the next tool
       // result (handlers/steer.ts)
       if (isGeneratingRef.current) {
@@ -594,7 +599,14 @@ function App() {
       await sendRef.current(...args);
       await afterTurn(currentConversation?.id);
     },
-    [currentConversation, setMessages, addMessage, beginTurn, afterTurn]
+    [
+      currentConversation,
+      setMessages,
+      addMessage,
+      beginTurn,
+      afterTurn,
+      teamMode,
+    ]
   );
 
   // The Continue button on a paused turn: the same as replying "continue"
@@ -809,6 +821,7 @@ function App() {
           />
           <StuckBar isGenerating={isGenerating} />
           {!isGenerating && !pendingRequest && <MemoryCheckCard />}
+          <RememberedNotice />
           {isCodeSession &&
             isModelLoaded &&
             folderReady &&

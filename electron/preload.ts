@@ -445,6 +445,11 @@ interface MCPAPI {
     trash: (id: string) => Promise<{ success: boolean }>;
     restore: (id: string) => Promise<{ success: boolean }>;
     emptyTrash: () => Promise<{ success: boolean; removed?: number }>;
+    /** Notes about the user from a message they sent, as saved */
+    fromUser: (message: string) => Promise<{
+      success: boolean;
+      saved?: { id: string; text: string; replaces?: string }[];
+    }>;
     /** The prompt section for a session in `folder` (null: a chat) */
     section: (folder: string | null) => Promise<{
       success: boolean;
@@ -552,6 +557,8 @@ const mcpAPI: MCPAPI = {
     restore: (id) => ipcRenderer.invoke("memory:notes-restore", id),
     emptyTrash: () => ipcRenderer.invoke("memory:notes-empty-trash"),
     section: (folder) => ipcRenderer.invoke("memory:notes-section", folder),
+    fromUser: (message) =>
+      ipcRenderer.invoke("memory:notes-from-user", message),
   },
   audit: {
     query: (options) => ipcRenderer.invoke("mcp:audit-query", options),

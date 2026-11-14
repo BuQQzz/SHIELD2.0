@@ -61,7 +61,8 @@ export function MemoryCheckCard() {
       ) : (
         <>
           <span className="min-w-0 flex-1 truncate" title={note.text}>
-            Memory check: is this still true? &ldquo;{note.text}&rdquo;
+            Memory check{note.staleReason ? ` (${note.staleReason})` : ""}: is
+            this still true? &ldquo;{note.text}&rdquo;
           </span>
           <button
             className={`${button} text-foreground`}
@@ -92,6 +93,44 @@ export function MemoryCheckCard() {
           </button>
         </>
       )}
+    </div>
+  );
+}
+
+/**
+ * What SHIELD just saved from the user's own words ("my name is…", "from
+ * now on…"), with an Undo: saved without a model, so a wrong guess is one
+ * click to take back.
+ */
+export function RememberedNotice() {
+  const remembered = useMemoryNotesStore((state) => state.remembered);
+  const undo = useMemoryNotesStore((state) => state.undo);
+  const dismiss = useMemoryNotesStore((state) => state.dismiss);
+  if (remembered.length === 0) return null;
+  const button =
+    "shrink-0 rounded px-1.5 py-0.5 underline-offset-2 hover:underline";
+  return (
+    <div
+      className="mx-auto flex w-full max-w-3xl flex-col gap-0.5 px-5 text-xs text-muted-foreground"
+      data-remembered
+    >
+      {remembered.map((note) => (
+        <div key={note.id} className="flex items-center gap-2">
+          <Brain className="h-3.5 w-3.5 shrink-0" />
+          <span className="min-w-0 flex-1 truncate" title={note.text}>
+            Remembered about you: {note.text}
+          </span>
+          <button
+            className={`${button} text-foreground`}
+            onClick={() => void undo(note.id)}
+          >
+            Undo
+          </button>
+          <button className={button} onClick={dismiss}>
+            OK
+          </button>
+        </div>
+      ))}
     </div>
   );
 }

@@ -305,6 +305,10 @@ describe("notes naming files the project no longer has", () => {
         text: "Amounts are kept in cents",
       });
       expect(await flagMissingFiles(store, dir)).toBe(1);
+      const flagged = (await store.forScope(folderScope(dir))).find(
+        (n) => n.status === "stale"
+      );
+      expect(flagged?.staleReason).toBe("budgets.json is not in the project");
       const status = Object.fromEntries(
         (await store.forScope(scope)).map((n) => [n.text, n.status])
       );

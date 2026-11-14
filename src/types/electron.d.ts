@@ -662,6 +662,11 @@ export interface MCPAPI {
     trash: (id: string) => Promise<{ success: boolean }>;
     restore: (id: string) => Promise<{ success: boolean }>;
     emptyTrash: () => Promise<{ success: boolean; removed?: number }>;
+    /** Notes about the user from a message they sent, as saved */
+    fromUser: (message: string) => Promise<{
+      success: boolean;
+      saved?: { id: string; text: string; replaces?: string }[];
+    }>;
     /** The prompt section for a session in `folder` (null: a chat) */
     section: (folder: string | null) => Promise<{
       success: boolean;

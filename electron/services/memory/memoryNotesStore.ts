@@ -51,7 +51,8 @@ const SCHEMA = [
     confirmed_at TEXT NOT NULL,
     used_at TEXT,
     status TEXT NOT NULL,
-    replaces TEXT
+    replaces TEXT,
+    stale_reason TEXT
   )`,
   "CREATE INDEX IF NOT EXISTS notes_scope ON notes (scope, status)",
   `CREATE VIRTUAL TABLE IF NOT EXISTS notes_fts USING fts5(
@@ -71,6 +72,7 @@ interface Row {
   used_at: string | null;
   status: string;
   replaces: string | null;
+  stale_reason: string | null;
 }
 
 function toNote(row: Row): MemoryNote {
@@ -86,6 +88,9 @@ function toNote(row: Row): MemoryNote {
     ...(row.used_at ? { usedAt: row.used_at } : {}),
     status: row.status as NoteStatus,
     ...(row.replaces ? { replaces: row.replaces } : {}),
+    ...(row.status === "stale" && row.stale_reason
+      ? { staleReason: row.stale_reason }
+      : {}),
   };
 }
 
@@ -144,6 +149,10 @@ export class MemoryNotesStore {
       );
     });
     for (const sql of SCHEMA) await this.run(sql);
+    // A notes file made before stale_reason (2026-11-15) gets the column
+    await this.run("ALTER TABLE notes ADD COLUMN stale_reason TEXT").catch(
+      () => undefined
+    );
   }
 
   async close(): Promise<void> {
@@ -255,18 +264,28 @@ export class MemoryNotesStore {
     });
   }
 
-  /** Mark notes as still holding (Keep), or as possibly out of date */
-  setStatus(id: string, status: "active" | "stale"): Promise<boolean> {
+  /**
+   * Mark notes as still holding (Keep), or as possibly out of date, with
+   * why, for the memory check
+   */
+  setStatus(
+    id: string,
+    status: "active" | "stale",
+    reason?: string
+  ): Promise<boolean> {
     return this.serial(async () => {
       const note = await this.get(id);
       if (!note || note.status === "trashed") return false;
       if (status === "active") {
         await this.run(
-          "UPDATE notes SET status = 'active', confirmed_at = ? WHERE id = ?",
+          "UPDATE notes SET status = 'active', stale_reason = NULL, confirmed_at = ? WHERE id = ?",
           [this.now().toISOString(), id]
         );
       } else {
-        await this.run("UPDATE notes SET status = 'stale' WHERE id = ?", [id]);
+        await this.run(
+          "UPDATE notes SET status = 'stale', stale_reason = ? WHERE id = ?",
+          [reason ?? null, id]
+        );
       }
       return true;
     });

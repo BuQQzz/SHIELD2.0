@@ -9,6 +9,7 @@ import {
   notesFromSummary,
   noteRelation,
   outdatedNumbers,
+  userNotesFrom,
   type MemoryNote,
 } from "./memoryNotes";
 import { noteRequest, cleanNote } from "../services/taskCapsule";
@@ -260,5 +261,42 @@ describe("facts that would not hold next session (g46)", () => {
         text: "menu keys a/s/i/b/c/h/d/e/x/w/q",
       })
     ).toBe("same");
+  });
+});
+
+describe("notes from what the user says about themselves", () => {
+  it("picks up clear statements", () => {
+    expect(
+      userNotesFrom(
+        "My name is Sam Lee. Please call me Sam. I prefer short answers with code examples. From now on, reply in English only! I'm on Linux Mint 22."
+      )
+    ).toEqual([
+      { kind: "fact", text: "The user's name is Sam Lee" },
+      { kind: "preference", text: "Wants to be called Sam" },
+      { kind: "preference", text: "Prefers short answers with code examples" },
+      { kind: "preference", text: "Asked, from now on: reply in English only" },
+      { kind: "fact", text: "Uses Linux Mint 22" },
+    ]);
+    expect(
+      userNotesFrom("Please always use type hints in Python code.")
+    ).toEqual([
+      {
+        kind: "preference",
+        text: "Asked: always use type hints in Python code",
+      },
+    ]);
+  });
+
+  it("leaves task requests and pasted text alone", () => {
+    for (const message of [
+      "I prefer the second option, go ahead",
+      "fix the bug where the name is wrong",
+      "I want the export to be faster",
+      "why does it never save the file?",
+      "```\nmy name is Bob\n```",
+      "add a summary command",
+    ]) {
+      expect(userNotesFrom(message)).toEqual([]);
+    }
   });
 });
