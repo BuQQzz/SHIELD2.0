@@ -1,6 +1,6 @@
 {
   "name": "shield2.0",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "description": "Privacy-first local AI chatbot for Windows with tool integration",
   "main": "dist-electron/main.js",
   "type": "module",
