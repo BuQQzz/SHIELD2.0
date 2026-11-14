@@ -15,7 +15,6 @@ import path from "path";
 import {
   checkNoteText,
   isNoteKind,
-  noteRelation,
   type NoteCandidate,
   noteAnchors,
   type MemoryNote,
@@ -23,6 +22,7 @@ import {
   type NoteScope,
   type NoteStatus,
 } from "../../../src/config/memoryNotes.js";
+import { noteRelation } from "../../../src/config/memoryNoteSources.js";
 import { ftsQuery, queryTerms } from "./memoryEntries.js";
 
 const require = createRequire(import.meta.url);

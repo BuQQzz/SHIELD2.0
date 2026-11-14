@@ -6,12 +6,14 @@ import {
   noteAnchors,
   notesForPrompt,
   notesSection,
+  type MemoryNote,
+} from "./memoryNotes";
+import {
   notesFromSummary,
   noteRelation,
   outdatedNumbers,
   userNotesFrom,
-  type MemoryNote,
-} from "./memoryNotes";
+} from "./memoryNoteSources";
 import { noteRequest, cleanNote } from "../services/taskCapsule";
 
 const note = (over: Partial<MemoryNote>): MemoryNote => ({

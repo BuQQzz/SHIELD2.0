@@ -11,13 +11,15 @@ import {
   fileAnchors,
   folderScope,
   notesForPrompt,
-  notesFromSummary,
   notesSection,
-  outdatedNumbers,
-  userNotesFrom,
   type NoteKind,
   type NoteScope,
 } from "../../src/config/memoryNotes.js";
+import {
+  notesFromSummary,
+  outdatedNumbers,
+  userNotesFrom,
+} from "../../src/config/memoryNoteSources.js";
 
 let index: MemoryIndex | null = null;
 
