@@ -32,7 +32,7 @@ export interface InstalledRuntime {
 }
 
 /** Where the llama-server SHIELD would use comes from, in lookup order */
-export type RuntimeSource = "env" | "managed" | "bonsai-demo" | "none";
+export type RuntimeSource = "env" | "managed" | "none";
 
 export interface RuntimeStatus {
   source: RuntimeSource;

@@ -129,7 +129,7 @@ describe("findLlamaServer", () => {
     expect(findLlamaServer({}, () => false)).toBeUndefined();
   });
 
-  it("takes SHIELD's installed build before the Bonsai demo", () => {
+  it("takes SHIELD's installed build", () => {
     expect(
       locateLlamaServer({}, () => true, "C:/shield/runtime/llama-server.exe")
     ).toEqual({
@@ -148,11 +148,15 @@ describe("findLlamaServer", () => {
     ).toBe("env");
   });
 
-  it("skips an installed build whose file is gone", () => {
+  it("finds none when the installed build's file is gone", () => {
     expect(
       locateLlamaServer({}, (file) => !file.includes("shield"), "C:/shield/x")
-        ?.source
-    ).toBe("bonsai-demo");
+    ).toBeUndefined();
+  });
+
+  it("never picks up the Bonsai demo's own older build (2026-11-14)", () => {
+    // Every file exists, but nothing is set or installed
+    expect(locateLlamaServer({}, () => true, undefined)).toBeUndefined();
   });
 });
 
