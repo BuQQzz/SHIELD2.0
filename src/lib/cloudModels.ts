@@ -37,6 +37,21 @@ const HOSTED_CAPABILITIES: ModelCapabilities = {
   temperatureRange: { min: 0, max: 1, default: 0.7 },
 };
 
+/**
+ * Whether the user's memory goes with requests to this model: the memory
+ * notes in its prompt, the earlier conversations recalled with a message,
+ * and the memory search tools. Local models always; a hosted one only when
+ * its requests are held to zero retention, or the user chose to share with
+ * it. Without either, a provider may keep what it is sent.
+ */
+export function sharesMemory(
+  option?: Pick<ModelOption, "cloud"> | null
+): boolean {
+  const cloud = option?.cloud;
+  if (!cloud) return true;
+  return !!cloud.zdrHeld || !!cloud.memoryShared;
+}
+
 /** The line under a hosted model's name */
 export function cloudLine(option: Pick<ModelOption, "cloud">): string {
   const cloud = option.cloud;
@@ -76,6 +91,8 @@ function optionFor(provider: ProviderSummary, model: RemoteModel): ModelOption {
       zdr: model.zdr,
       noZdrRoute,
       zdrAllowed,
+      zdrHeld: provider.requireZdr && !zdrAllowed,
+      memoryShared: (provider.shareMemory ?? []).includes(model.id),
       blocked: blocked
         ? `No zero-retention route. Turn on the switch to use it anyway, or pick another model.`
         : undefined,

@@ -278,6 +278,8 @@ const providersAPI: ProvidersAPI = {
   models: (id) => ipcRenderer.invoke("providers:models", id),
   allowModel: (id, modelId, allowed) =>
     ipcRenderer.invoke("providers:allow-model", id, modelId, allowed),
+  shareMemory: (id, modelId, shared) =>
+    ipcRenderer.invoke("providers:share-memory", id, modelId, shared),
 };
 
 contextBridge.exposeInMainWorld("providers", providersAPI);

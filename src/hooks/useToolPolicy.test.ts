@@ -287,6 +287,30 @@ describe("chat sessions", () => {
     }
   });
 
+  it("keep the memory search from a model the memory is not shared with", () => {
+    const tool = (name: string): ToolDefinition => ({
+      name,
+      description: name,
+      serverName: "memory",
+      parameters: [],
+      annotations: { readOnlyHint: true },
+    });
+    const p = resolveToolPolicy({
+      mode: "auto",
+      allowedTools: [],
+      serverTools: [
+        tool("search_memory"),
+        tool("open_memory"),
+        tool("remember"),
+      ],
+      fileTools: false,
+      memoryTools: false,
+    });
+    // remember only adds a note, so it stays
+    expect(names(p.advertisedTools)).toEqual(["remember"]);
+    expect(p.allows("open_memory")).toBe(false);
+  });
+
   it("offer the plan in code sessions only, running in every mode", () => {
     const plan: ToolDefinition = {
       name: "update_plan",

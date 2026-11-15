@@ -23,8 +23,18 @@ const BARS = "[｜|]+";
 /** `<`, optional `/`, the DSML marker, then the tag's name and its attributes */
 const TAG_START = `<\\s*(\\/?)\\s*${BARS}\\s*DSML\\s*${BARS}\\s*`;
 
+/**
+ * A call ends at its `</invoke>`, or where the model left that out: at the
+ * set's `</calls>` or the next call. Not at the end of the reply, which may
+ * be a call the length limit cut off (cutOffToolCall). Without the
+ * closer, a whole edit_file was taken for one cut off by the length limit,
+ * five times in one session (deepseek-v4.1-flash, 2026-11-15).
+ */
 const INVOKE = new RegExp(
-  `<\\s*${BARS}\\s*DSML\\s*${BARS}\\s*invoke\\s+name\\s*=\\s*"([^"]+)"\\s*>([\\s\\S]*?)<\\s*\\/\\s*${BARS}\\s*DSML\\s*${BARS}\\s*invoke\\s*>`,
+  `<\\s*${BARS}\\s*DSML\\s*${BARS}\\s*invoke\\s+name\\s*=\\s*"([^"]+)"\\s*>([\\s\\S]*?)` +
+    `(?:<\\s*\\/\\s*${BARS}\\s*DSML\\s*${BARS}\\s*invoke\\s*>|` +
+    `(?=<\\s*\\/\\s*${BARS}\\s*DSML\\s*${BARS}\\s*(?:function_)?calls\\s*>|` +
+    `<\\s*${BARS}\\s*DSML\\s*${BARS}\\s*invoke\\s))`,
   "g"
 );
 const PARAMETER = new RegExp(

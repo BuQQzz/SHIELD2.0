@@ -42,6 +42,7 @@ import {
   type WireMessage,
 } from "./llamaServer/nativeHistory.js";
 import { isToolResultTurn } from "./contextBreakdown.js";
+import { requestCost, type Usage } from "./remote/cost.js";
 import type { ToolDefinition } from "../types/prompts.js";
 import {
   adaptRequestBody,
@@ -147,6 +148,9 @@ export const STALL_MS = 5 * 60 * 1000;
  * A ceiling, not a target: a short answer still ends when it is done.
  */
 export const MIN_REPLY_TOKENS = 8192;
+
+/** Where a hosted model's history is tidied, whatever its window (tidySize) */
+export const HOSTED_TIDY_TOKENS = 128_000;
 
 /**
  * SHIELD's memory notes (src/config/memoryNotes.ts), set by the main
@@ -434,6 +438,11 @@ export class LlamaServerProvider {
   }
   /** How the provider said the last request was served (hosted models only) */
   private lastServedBy: GatewayPosture | null = null;
+  /**
+   * What hosted requests outside the chat's own (summaries, titles) cost
+   * since the last reply's stats: added to the next one's
+   */
+  private unreportedCost = { charged: 0, listed: 0 };
   private ownBaseUrl = "";
   /** A forked session follows its parent's server, also across a restart */
   private get baseUrl(): string {
@@ -886,9 +895,18 @@ export class LlamaServerProvider {
     }
     const endpoint = this.endpoint;
     if (endpoint) checkPosture(endpoint, response.headers);
-    return (await response.json()) as {
+    const result = (await response.json()) as {
       choices?: { message?: { content?: string } }[];
+      usage?: Usage;
     };
+    const cost = endpoint
+      ? requestCost(result.usage, endpoint.pricing)
+      : undefined;
+    if (cost) {
+      this.unreportedCost.charged += cost.charged;
+      this.unreportedCost.listed += cost.listed ?? 0;
+    }
+    return result;
   }
 
   /** How the provider said the last request was served; null for a local server */
@@ -1038,7 +1056,10 @@ export class LlamaServerProvider {
       const thinks =
         options.thinking !== false && this.reasoningEffort !== "none";
       appendServerLog(
-        `[SHIELD] chat request, thinking ${thinks ? "on" : "off"}`
+        `[SHIELD] chat request, thinking ${thinks ? "on" : "off"}` +
+          (this.nativeTools.length > 0
+            ? `, ${this.nativeTools.length} native tools`
+            : "")
       );
       requestBody = this.shape({
         messages: this.messages(userMessage),
@@ -1050,10 +1071,10 @@ export class LlamaServerProvider {
         timings_per_token: true,
         cache_prompt: true,
         temperature: options.temperature ?? 0.7,
-        // The local minimum only: a hosted model is billed per token
-        max_tokens: this.endpoint
-          ? (options.maxTokens ?? 512)
-          : replyTokenLimit(options.maxTokens),
+        // A ceiling, so a short reply costs no more. Hosted models need it
+        // too: deepseek-v4.1-flash's thinking and a test file's write_file
+        // went past the 2,048 setting and the call was cut off (2026-11-15)
+        max_tokens: replyTokenLimit(options.maxTokens),
         top_p: options.topP ?? 0.9,
         top_k: options.topK ?? 40,
         repeat_penalty: options.repeatPenalty ?? 1.1,
@@ -1105,6 +1126,8 @@ export class LlamaServerProvider {
       const reader = response.body.getReader();
       /** The reply's own text (not its calls), for the result-framing check */
       let written = "";
+      let structuredDeltas = 0;
+      let finishReason = "";
       const calls = new NativeCallWriter(
         (tool) => this.toolServers.get(tool) ?? "filesystem"
       );
@@ -1167,7 +1190,21 @@ export class LlamaServerProvider {
           if (progress) options.onProgress?.(progress);
           if (chunk.timings || chunk.usage)
             final = { ...(final ?? {}), ...chunk };
+          if (deltas) structuredDeltas++;
+          const ended = (
+            chunk.choices?.[0] as { finish_reason?: string | null } | undefined
+          )?.finish_reason;
+          if (ended) finishReason = ended;
         }
+      }
+      if (this.endpoint) {
+        // What the provider sent back: structured calls, or calls written
+        // into the text (a gateway that does not parse the model's markup)
+        appendServerLog(
+          `[SHIELD] hosted reply: ${structuredDeltas} tool-call chunks, ` +
+            `DSML in text: ${reply.includes("DSML") ? "yes" : "no"}, ` +
+            `finish: ${finishReason || "none"}, usage ${JSON.stringify(final?.usage ?? null)}`
+        );
       }
       const closing = calls.finish();
       if (closing) {
@@ -1274,9 +1311,8 @@ export class LlamaServerProvider {
     if (retryWithoutThinking) {
       return this.chat(message, { ...options, thinking: false }, restarts);
     }
-    // Once, on SHIELD's own server: nothing at all came back
+    // Once: nothing at all came back (a hosted model too)
     if (
-      !this.endpoint &&
       reply.trim() === "" &&
       !signal.aborted &&
       !message.endsWith(EMPTY_REPLY_NOTE)
@@ -1301,7 +1337,6 @@ export class LlamaServerProvider {
       .reverse()
       .find((m) => m.role === "assistant");
     if (
-      !this.endpoint &&
       !this.varying &&
       !signal.aborted &&
       content.includes("<tool_call>") &&
@@ -1340,6 +1375,16 @@ export class LlamaServerProvider {
     const outputTokens =
       final?.timings?.predicted_n ?? final?.usage?.completion_tokens ?? 0;
     const hostedBy = this.endpoint ? this.lastServedBy : null;
+    const spent = this.endpoint
+      ? requestCost(final?.usage as Usage | undefined, this.endpoint.pricing)
+      : undefined;
+    const cost = spent && {
+      cost: spent.charged + this.unreportedCost.charged,
+      ...(spent.listed !== undefined
+        ? { listedCost: spent.listed + this.unreportedCost.listed }
+        : {}),
+    };
+    if (cost) this.unreportedCost = { charged: 0, listed: 0 };
     this.lastStats = {
       outputTokens,
       tokensPerSecond:
@@ -1358,6 +1403,7 @@ export class LlamaServerProvider {
       ...(hostedBy
         ? { servedBy: { provider: hostedBy.provider, zdr: hostedBy.zdr } }
         : {}),
+      ...(cost ?? {}),
     };
     const readingSeconds = ((firstTokenAt ?? endedAt) - startedAt) / 1000;
     console.log(
@@ -1493,19 +1539,37 @@ export class LlamaServerProvider {
    * leaves room for a message of `nextMessageChars`.
    */
   private makeRoomCheaply(nextMessageChars: number): boolean {
+    const chars = this.historyChars();
+    const tokens = this.lastContextTokens;
+    const done = this.clearForRoom(nextMessageChars);
+    const freed = chars - this.historyChars();
+    if (freed > 0) {
+      appendServerLog(
+        `[SHIELD] made room: cleared ${freed} characters at ~${tokens} tokens ` +
+          `(tidying from ${this.tidySize()}, window ${this.contextSize})`
+      );
+    }
+    return done;
+  }
+
+  private clearForRoom(nextMessageChars: number): boolean {
     if (this.keepWholeHistory) return true;
+    // Clearing works to the tidying size; a summary waits for the window
+    const size = this.tidySize();
     const under = (limit: number) =>
+      !shouldCompact(this.lastContextTokens, nextMessageChars, size, limit);
+    const underWindow = () =>
       !shouldCompact(
         this.lastContextTokens,
         nextMessageChars,
         this.contextSize,
-        limit
+        COMPACT_AT
       );
     if (under(COMPACT_AT)) return true;
 
     // Below mustAt the request still fits: clear only if it frees enough
     // to be worth the re-read, else send it as it is (clearingWorthIt)
-    const mustAt = mustCompactAt(this.contextSize, MIN_REPLY_TOKENS);
+    const mustAt = mustCompactAt(size, MIN_REPLY_TOKENS);
     const before = {
       history: this.history,
       tokens: this.lastContextTokens,
@@ -1534,13 +1598,7 @@ export class LlamaServerProvider {
     if (optional) {
       const freed = before.chars - this.historyChars();
       if (
-        !clearingWorthIt(
-          before.tokens,
-          nextMessageChars,
-          this.contextSize,
-          mustAt,
-          freed
-        )
+        !clearingWorthIt(before.tokens, nextMessageChars, size, mustAt, freed)
       ) {
         this.history = before.history;
         this.lastContextTokens = before.tokens;
@@ -1551,8 +1609,26 @@ export class LlamaServerProvider {
       }
       return true;
     }
-    if (under(COMPACT_AT)) return true;
-    return this.useSavedCapsule() && under(COMPACT_AT);
+    // A hosted model past the tidying size but well inside its window: what
+    // clearing could not free stays, and no summary is written yet
+    if (under(COMPACT_AT) || (size < this.contextSize && underWindow())) {
+      return true;
+    }
+    return this.useSavedCapsule() && underWindow();
+  }
+
+  /**
+   * Where making room starts. A local model's window. A hosted model's up to
+   * HOSTED_TIDY_TOKENS: past it the cheap steps run as for a local model
+   * (older thinking, outdated file copies, old tool output), though the
+   * window may be far larger (deepseek-v4.1-flash: 655,360 input tokens),
+   * since every request sends the whole history and is billed for it. The
+   * summary, which loses detail, still waits for the window itself.
+   */
+  private tidySize(): number {
+    return this.endpoint
+      ? Math.min(this.contextSize, HOSTED_TIDY_TOKENS)
+      : this.contextSize;
   }
 
   /**

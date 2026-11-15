@@ -22,6 +22,8 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { SummariesMenu, type ChatSummary } from "./SummariesMenu";
+import { conversationCost } from "./turns";
+import { costTitle, formatCost } from "@/services/remote/cost";
 
 interface ChatHeaderProps {
   /** Named in the loading line; the composer's picker shows the model */
@@ -51,6 +53,12 @@ export function ChatHeader({
           ? [{ id: m.id, summary: m.summary, timestamp: m.timestamp }]
           : []
       ),
+    [currentConversation?.messages]
+  );
+
+  // What this chat's hosted requests cost so far, as OpenCode shows it
+  const spent = useMemo(
+    () => conversationCost(currentConversation?.messages ?? []),
     [currentConversation?.messages]
   );
 
@@ -124,6 +132,15 @@ export function ChatHeader({
 
       {/* Right Section */}
       <div className="flex items-center gap-2">
+        {spent !== undefined && (
+          <span
+            className="font-instrument text-xs text-muted-foreground"
+            title={`${costTitle("This chat", spent.cost, spent.listedCost)} (replies, summaries and titles)`}
+            data-chat-cost
+          >
+            {formatCost(spent.cost)}
+          </span>
+        )}
         <SummariesMenu
           conversationId={currentConversation?.id}
           summaries={summaries}

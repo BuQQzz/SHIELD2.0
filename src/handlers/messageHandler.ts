@@ -15,6 +15,7 @@ import { CLEAR_TO, COMPACT_AT } from "../services/historyCompaction";
 import { recallFor } from "./memoryRecall";
 import { checkPlan, planRemarks, takePlanNote } from "./sessionPlan";
 import { useConversationStore } from "@/stores/conversation-store";
+import { useMemoryNotesStore } from "@/stores/memory-notes-store";
 import { useTeamStore } from "@/stores/team-store";
 import { unbackedRoleNote } from "../agents/teamClaims";
 import {
@@ -288,7 +289,8 @@ export function createMessageHandler({
 
       // Earlier conversations that may bear on this message, found by
       // SHIELD rather than left for the model to think of searching
-      if (currentConversation) {
+      // Not to a hosted model that may keep it (sharesMemory)
+      if (currentConversation && useMemoryNotesStore.getState().shared) {
         const recall = await recallFor(content, currentConversation.id);
         if (recall) messageWithContext += `\n\n${recall}`;
       }

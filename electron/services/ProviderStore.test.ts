@@ -185,6 +185,21 @@ describe("ProviderStore", () => {
     expect(() => store.setAllowedModel(id, "   ", true)).toThrow(/model id/);
   });
 
+  it("keeps the models the memory is shared with, per model", () => {
+    const store = new ProviderStore(file, fakeCipher());
+    const { id } = store.save(experiential, "xpl_abcdef123456");
+    expect(store.setSharedMemory(id, "deepseek-v4", true).shareMemory).toEqual([
+      "deepseek-v4",
+    ]);
+    // Kept apart from the zero-retention opt-outs, and across an edit
+    expect(store.list()[0]?.allowNoZdr).toEqual([]);
+    const edited = store.save({ ...experiential, id, requireZdr: false });
+    expect(edited.shareMemory).toEqual(["deepseek-v4"]);
+    expect(store.setSharedMemory(id, "deepseek-v4", false).shareMemory).toEqual(
+      []
+    );
+  });
+
   it("gives two providers of one name different ids, and removes by id", () => {
     const store = new ProviderStore(file, fakeCipher());
     const a = store.save(experiential, "xpl_aaaaaaaaaaaa");

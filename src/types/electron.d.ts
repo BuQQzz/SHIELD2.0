@@ -123,6 +123,10 @@ export interface GenerationStats {
   durationMs: number;
   /** For a hosted model: who answered, and whether it reported zero retention */
   servedBy?: { provider?: string; zdr?: boolean };
+  /** For a hosted model with known prices: what it cost, in US dollars */
+  cost?: number;
+  /** The same at the provider's listed prices */
+  listedCost?: number;
 }
 
 /** How full the model's context window is */
@@ -218,6 +222,16 @@ export interface ProvidersAPI {
     id: string,
     modelId: string,
     allowed: boolean
+  ) => Promise<{
+    success: boolean;
+    provider?: ProviderSummary;
+    error?: string;
+  }>;
+  /** Share the user's memory with one model that is not held to zero retention */
+  shareMemory: (
+    id: string,
+    modelId: string,
+    shared: boolean
   ) => Promise<{
     success: boolean;
     provider?: ProviderSummary;

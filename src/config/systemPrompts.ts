@@ -643,9 +643,15 @@ export function detectModelFamily(modelName: string): ModelFamily {
   return "generic";
 }
 
-/** Native tool transport is supported only for the Gemma 4 model family. */
+/**
+ * Tools go as native function definitions for Gemma 4, catalog models that
+ * set nativeToolCalls, and every hosted model. A hosted API returns structured
+ * calls; asked for SHIELD's text form instead, deepseek-v4.1-flash mixed in its
+ * own DSML markup and 5 of its calls failed in two short sessions
+ * (Experiential, 2026-11-15).
+ */
 export function usesNativeToolCalling(modelName: string): boolean {
-  if (modelName.toLowerCase().startsWith("remote:")) return false;
+  if (modelName.toLowerCase().startsWith("remote:")) return true;
   return (
     /(?:^|[^a-z0-9])gemma[-_ ]?4(?=$|[^a-z0-9])/i.test(modelName) ||
     MODEL_CATALOG.some(
