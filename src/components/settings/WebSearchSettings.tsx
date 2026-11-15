@@ -148,7 +148,13 @@ export function WebSearchSettings({ settings }: WebSearchSettingsProps) {
             <div className="text-xs text-muted-foreground space-y-1">
               <p className="font-medium text-foreground">Privacy Protected</p>
               <ul className="list-disc list-inside space-y-0.5 ml-1">
-                <li>All searches go through DuckDuckGo (no tracking)</li>
+                <li>Searches go through DuckDuckGo (no tracking)</li>
+                <li>
+                  If DuckDuckGo doesn&apos;t answer, SHIELD asks Exa&apos;s free
+                  search instead, and reads a page through Exa when the site
+                  won&apos;t load. The search words or page address then go to
+                  Exa.
+                </li>
                 <li>
                   The model writes the search words and is told never to include
                   private details from your files
