@@ -106,7 +106,8 @@ describe("LlamaServerProvider on a hosted model", () => {
       model: "deepseek-v4",
       stream: true,
       temperature: 0.2,
-      max_tokens: 100,
+      // Raised to the floor every reply gets (MIN_REPLY_TOKENS)
+      max_tokens: 8192,
       provider: { zdr: true },
     });
     expect(request?.body.messages).toEqual([
@@ -280,6 +281,40 @@ describe("LlamaServerProvider on a hosted model", () => {
     const breakdown = await provider.getContextBreakdown();
     expect(breakdown?.size).toBe(32768);
     expect(breakdown?.used).toBeGreaterThan(150);
+  });
+
+  it("tidies a long chat at 128K though the window is larger, and writes no summary", async () => {
+    const sent = fakeProvider(zdrHeaders);
+    const provider = new LlamaServerProvider();
+    await provider.attach(
+      { ...endpoint, contextSize: 655360 },
+      "You are SHIELD."
+    );
+    const call = (file: string) =>
+      `<tool_call>\n<server>filesystem</server>\n<tool>read_text_file</tool>\n<arguments>{"path":"C:/p/${file}"}</arguments>\n</tool_call>`;
+    const result = (body: string) =>
+      `<tool_result trusted="false">\n<tool>read_text_file</tool>\n<result>\n${body}\n</result>\n</tool_result>`;
+    // ~120K tokens: past 60% of 128K, far inside 60% of the window
+    const history: { role: "user" | "assistant"; content: string }[] = [
+      { role: "user", content: "read the files" },
+    ];
+    for (const file of ["a", "b", "c", "d", "e", "f"]) {
+      history.push(
+        { role: "assistant", content: call(`${file}.js`) },
+        { role: "user", content: result(file.repeat(60000)) }
+      );
+    }
+    history.push({ role: "assistant", content: "Read them all." });
+    provider.setChatHistory(
+      history as Parameters<typeof provider.setChatHistory>[0]
+    );
+    await provider.chat("thanks");
+
+    // One streamed request: no summary was asked for
+    expect(sent).toHaveLength(1);
+    const turns = sent[0]!.body.messages.slice(1).map((m) => m.content);
+    expect(turns[2]).toContain("removed from your context to save space");
+    expect(turns.at(-3)).toContain("f".repeat(60000));
   });
 
   it("has no server to restart: a restart leaves the chat as it is", async () => {

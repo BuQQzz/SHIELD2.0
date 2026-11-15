@@ -255,6 +255,14 @@ export interface CloudModelInfo {
   zdrAllowed?: boolean;
   /** Why this model cannot be used under the provider's settings */
   blocked?: string;
+  /**
+   * Its requests ask for zero retention and the provider refuses any route
+   * that keeps a copy: the provider requires it, and the user did not allow
+   * this model without it (ModelRuntime sends the same)
+   */
+  zdrHeld?: boolean;
+  /** The user shares their memory with this model although it is not held */
+  memoryShared?: boolean;
 }
 
 /** The host's GPU memory and system RAM, in GB. null when unknown. */

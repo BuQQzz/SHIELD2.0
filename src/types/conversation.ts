@@ -18,6 +18,10 @@ export interface Message {
     durationMs: number;
     /** For a hosted model: who answered, and whether it reported zero retention */
     servedBy?: { provider?: string; zdr?: boolean };
+    /** For a hosted model with known prices: what it cost, in US dollars */
+    cost?: number;
+    /** The same at the provider's listed prices */
+    listedCost?: number;
   };
   /**
    * The model's history was too full before this reply, and its oldest

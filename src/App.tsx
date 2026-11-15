@@ -20,6 +20,7 @@ import {
   MemoryCheckCard,
   RememberedNotice,
 } from "./components/chat/MemoryCheckCard";
+import { MemoryWithheldNotice } from "./components/chat/MemoryWithheldNotice";
 import { StuckBar } from "./components/chat/StuckBar";
 import { ThemeProvider } from "./components/theme/ThemeProvider";
 import { toast } from "sonner";
@@ -48,7 +49,7 @@ import { ORCHESTRATOR_PROMPT } from "./agents/roles";
 import { teamFor } from "./agents/team";
 import { useInstalledModels } from "./hooks/useInstalledModels";
 import { useCloudStore } from "./stores/cloud-store";
-import { cloudModelOptions } from "./lib/cloudModels";
+import { cloudModelOptions, sharesMemory } from "./lib/cloudModels";
 import { useRecommendedSampling } from "./hooks/useRecommendedSampling";
 import { effectiveSampling } from "./services/modelSampling";
 import { sameFolder, useApplyWorkspace } from "./hooks/useApplyWorkspace";
@@ -189,7 +190,16 @@ function App() {
       "Team turned off: this model is not suited to leading a team. You can turn it on anyway from the Team button."
     );
   }, [teamMustGoOff, updateConversation]);
+  // The user's memory goes to this model (sharesMemory): local models, and
+  // hosted ones held to zero retention or that the user shared it with
+  const memoryShared = sharesMemory(
+    modelOptions.find((m) => m.id === currentModelId)
+  );
+  useEffect(() => {
+    useMemoryNotesStore.getState().setShared(memoryShared);
+  }, [memoryShared]);
   const policyInput = {
+    memoryTools: memoryShared,
     mode: settings.mcp?.mode ?? "ask",
     allowedTools: settings.mcp?.allowedTools ?? [],
     serverTools: mcpServerTools,
@@ -269,7 +279,7 @@ function App() {
     toolsLoading: !mcpToolsSettled,
     projectInstructions: isCodeSession ? projectInstructions : "",
     projectListing: isCodeSession ? projectListing : undefined,
-    memoryNotes: teamMode ? "" : memoryNotes,
+    memoryNotes: teamMode || !memoryShared ? "" : memoryNotes,
   });
 
   // Initialize a new conversation if none exists
@@ -822,6 +832,7 @@ function App() {
           <StuckBar isGenerating={isGenerating} />
           {!isGenerating && !pendingRequest && <MemoryCheckCard />}
           <RememberedNotice />
+          <MemoryWithheldNotice model={currentModelConfig} />
           {isCodeSession &&
             isModelLoaded &&
             folderReady &&

@@ -249,6 +249,7 @@ export class ModelRuntime {
         model: parsed.model,
         contextSize,
         requireZdr,
+        ...(catalog?.pricing ? { pricing: catalog.pricing } : {}),
       },
       this.systemPrompt
     );
@@ -512,7 +513,7 @@ export class ModelRuntime {
   ): Promise<void> {
     this.systemPrompt = prompt;
     this.server.applySystemPrompt(prompt, tools);
-    this.remote.applySystemPrompt(prompt);
+    this.remote.applySystemPrompt(prompt, tools);
   }
 
   getSystemPrompt(): string {

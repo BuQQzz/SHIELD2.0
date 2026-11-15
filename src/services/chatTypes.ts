@@ -25,6 +25,13 @@ export interface GenerationStats {
    * data retention. Absent for a model that runs on this machine.
    */
   servedBy?: { provider?: string; zdr?: boolean };
+  /**
+   * For a hosted model with known prices: what this request cost in US
+   * dollars, with any summary or title request made since the last one
+   */
+  cost?: number;
+  /** The same at the provider's listed prices */
+  listedCost?: number;
 }
 
 /** How full the model's context window is */

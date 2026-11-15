@@ -80,6 +80,20 @@ export function registerProviderHandlers(runtime: ModelRuntime): ProviderStore {
     }
   );
 
+  ipcMain.handle(
+    "providers:share-memory",
+    (_event, id: string, modelId: string, shared: boolean) => {
+      try {
+        return {
+          success: true,
+          provider: store.setSharedMemory(id, modelId, shared),
+        };
+      } catch (error) {
+        return failure(error);
+      }
+    }
+  );
+
   // Also the check that a saved key works
   ipcMain.handle(
     "providers:models",

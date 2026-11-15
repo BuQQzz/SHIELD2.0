@@ -143,6 +143,7 @@ export class ProviderStore implements RemoteProviderSource {
       requireZdr: preset.supportsZdr && input.requireZdr,
       // The per-model opt-outs survive an edit of the provider's other fields
       allowNoZdr: existing?.allowNoZdr ?? [],
+      shareMemory: existing?.shareMemory ?? [],
       defaultContext: Math.min(
         MAX_CONTEXT,
         Math.max(MIN_CONTEXT, input.defaultContext ?? DEFAULT_CONTEXT)
@@ -191,6 +192,24 @@ export class ProviderStore implements RemoteProviderSource {
     modelId: string,
     allowed: boolean
   ): ProviderSummary {
+    return this.setModelListed(id, modelId, allowed, "allowNoZdr");
+  }
+
+  /** Share the user's memory with one model of the provider, or stop */
+  setSharedMemory(
+    id: string,
+    modelId: string,
+    shared: boolean
+  ): ProviderSummary {
+    return this.setModelListed(id, modelId, shared, "shareMemory");
+  }
+
+  private setModelListed(
+    id: string,
+    modelId: string,
+    listed: boolean,
+    list: "allowNoZdr" | "shareMemory"
+  ): ProviderSummary {
     const model = typeof modelId === "string" ? modelId.trim() : "";
     if (!model || model.length > 200) {
       throw new Error("That is not a model id.");
@@ -199,13 +218,10 @@ export class ProviderStore implements RemoteProviderSource {
     const index = providers.findIndex((p) => p.id === id);
     if (index < 0) throw new Error("That provider is gone.");
     const current = providers[index]!;
-    const models = new Set(current.allowNoZdr ?? []);
-    if (allowed) models.add(model);
+    const models = new Set(current[list] ?? []);
+    if (listed) models.add(model);
     else models.delete(model);
-    const updated: StoredProvider = {
-      ...current,
-      allowNoZdr: [...models].sort(),
-    };
+    const updated: StoredProvider = { ...current, [list]: [...models].sort() };
     this.write(providers.map((p, i) => (i === index ? updated : p)));
     return ProviderStore.summary(updated);
   }

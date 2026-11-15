@@ -12,6 +12,14 @@ import { create } from "zustand";
 import type { MemoryNote } from "@/config/memoryNotes";
 
 interface MemoryNotesState {
+  /**
+   * The user's memory goes to the current model (sharesMemory in
+   * lib/cloudModels): its notes, the recall sent with a message, and the
+   * memory search tools. Off for a hosted model not held to zero retention
+   * that the user has not shared it with.
+   */
+  shared: boolean;
+  setShared: (shared: boolean) => void;
   /** The conversation the section was read for */
   conversation: string | null;
   /** Its folder, or null in a chat */
@@ -35,6 +43,8 @@ interface MemoryNotesState {
 }
 
 export const useMemoryNotesStore = create<MemoryNotesState>((set, get) => ({
+  shared: true,
+  setShared: (shared) => set({ shared }),
   conversation: null,
   folder: null,
   section: "",

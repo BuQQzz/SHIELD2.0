@@ -35,6 +35,12 @@ interface CloudStore {
     modelId: string,
     allowed: boolean
   ) => Promise<void>;
+  /** Share the user's memory with one model not held to zero retention */
+  shareMemory: (
+    providerId: string,
+    modelId: string,
+    shared: boolean
+  ) => Promise<void>;
 }
 
 const REFRESH_AFTER_MS = 60_000;
@@ -110,6 +116,23 @@ export const useCloudStore = create<CloudStore>((set, get) => ({
         console.error(`[cloud] Could not change the model: ${result.error}`);
     } catch (error) {
       console.error("[cloud] Could not change the model:", error);
+    }
+  },
+
+  shareMemory: async (providerId, modelId, shared) => {
+    try {
+      const result = await window.providers.shareMemory(
+        providerId,
+        modelId,
+        shared
+      );
+      if (result.success) await get().loadProviders();
+      else if (result.error)
+        console.error(
+          `[cloud] Could not change memory sharing: ${result.error}`
+        );
+    } catch (error) {
+      console.error("[cloud] Could not change memory sharing:", error);
     }
   },
 }));
