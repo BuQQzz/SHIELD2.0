@@ -25,6 +25,7 @@ import {
   connectorToolName,
   isValidToolName,
   toolTokens,
+  fitTools,
   type ConnectorConfig,
   type ConnectorState,
   type ConnectorSummary,
@@ -343,7 +344,7 @@ export class ConnectorService {
     const off = new Set(config.disabledTools);
     if (enabled) off.delete(tool);
     else off.add(tool);
-    this.store.put({ ...config, disabledTools: [...off] });
+    this.store.put({ ...config, disabledTools: [...off], toolsChosen: true });
     this.hooks.onChange();
   }
 
@@ -409,10 +410,40 @@ export class ConnectorService {
         await client.close().catch(() => {});
         return;
       }
+      const tools = listed.tools as RawTool[];
+      // First connect: a service with more tools than fit gets only those
+      // that do (fitTools); the user's own choice is never overridden
+      const latest = this.store.get(id);
+      if (latest && !latest.toolsChosen) {
+        const off = fitTools(tools, (tool) =>
+          this.readOnly(
+            latest,
+            tools.find((t) => t.name === tool.name)!
+          )
+        );
+        this.store.put({
+          ...latest,
+          disabledTools: off,
+          toolsChosen: true,
+          ...(off.length > 0
+            ? {
+                toolsLimited: {
+                  kept: tools.length - off.length,
+                  total: tools.length,
+                },
+              }
+            : {}),
+        });
+        if (off.length > 0) {
+          console.log(
+            `[Connectors] ${id}: ${off.length} of ${tools.length} tools switched off to fit the context window`
+          );
+        }
+      }
       this.runtimes.set(id, {
         state: "connected",
         client,
-        tools: listed.tools as RawTool[],
+        tools,
         attempt,
       });
       console.log(

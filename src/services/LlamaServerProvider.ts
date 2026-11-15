@@ -164,6 +164,20 @@ export function setMemoryHooks(hooks: MemoryHooks | null): void {
   memoryHooks = hooks;
 }
 
+/**
+ * Most of the window the system prompt and tools may take, leaving the
+ * rest for the conversation and a reply
+ */
+export const FIXED_PART_SHARE = 0.5;
+
+/** The error when the tools alone leave too little room */
+export function toolsTooLargeMessage(
+  fixedTokens: number,
+  contextSize: number
+): string {
+  return `The tools of your connected services leave too little room: with SHIELD's instructions they take about ${fixedTokens.toLocaleString()} of the model's ${contextSize.toLocaleString()}-token window. Switch some tools or services off on the Plugins page, then send the message again.`;
+}
+
 /** What launch.ts adds to a thought cut at the budget, not the model's own */
 const BUDGET_NOTE =
   /\s*Thinking budget reached\. Act now on what I have worked out\.\s*$/;
@@ -990,6 +1004,21 @@ export class LlamaServerProvider {
     let rescue: RescueAction | null = null;
     /** What was sent, kept for the server log when it stalls */
     let requestBody: Record<string, unknown> = {};
+
+    // The fixed part of every request: the system prompt and the tools.
+    // Notion's 77 tools alone made a 65,281-token first request for a
+    // 32,768-token window, and the user saw llama-server's raw error
+    // (2026-11-14). Said plainly instead, with what to do about it
+    const fixedTokens = Math.round(
+      (this.systemContent().length + this.nativeToolChars) / 3
+    );
+    if (
+      !this.endpoint &&
+      this.contextSize > 0 &&
+      fixedTokens > this.contextSize * FIXED_PART_SHARE
+    ) {
+      throw new Error(toolsTooLargeMessage(fixedTokens, this.contextSize));
+    }
 
     try {
       // Inside the try: Stop while summarising ends the turn like Stop

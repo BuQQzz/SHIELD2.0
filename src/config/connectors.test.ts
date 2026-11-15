@@ -9,6 +9,7 @@ import {
   isValidToolName,
   splitArgs,
   splitConnectorTool,
+  fitTools,
 } from "./connectors";
 import { extractToolCalls } from "@/handlers/toolCallParsing";
 import { stepLabel } from "@/components/chat/turns";
@@ -162,5 +163,50 @@ describe("a connector call in the chat's activity line", () => {
         "done"
       )
     ).toBe("context7 · resolve-library-id");
+  });
+});
+
+describe("fitting a service's tools into the window (Notion, 77 tools)", () => {
+  const tool = (name: string, size: number) => ({
+    name,
+    description: "x".repeat(size * 4),
+    inputSchema: {},
+  });
+
+  it("switches nothing off when everything fits", () => {
+    expect(fitTools([tool("a", 100), tool("b", 100)], () => false)).toEqual([]);
+  });
+
+  it("keeps read-only tools first, then others while they fit", () => {
+    const tools = [
+      tool("create_page", 2000),
+      tool("search", 2000),
+      tool("update_page", 2000),
+      tool("fetch", 2000),
+      tool("delete_page", 2000),
+    ];
+    const readOnly = (t: { name: string }) =>
+      ["search", "fetch"].includes(t.name);
+    const off = fitTools(tools, readOnly, 6100);
+    expect(off).toEqual(["update_page", "delete_page"]);
+  });
+
+  it("skips one tool too big to fit but keeps smaller ones after it", () => {
+    const off = fitTools(
+      [tool("huge", 9000), tool("small", 100)],
+      () => true,
+      6000
+    );
+    expect(off).toEqual(["huge"]);
+  });
+});
+
+describe("tools too large for the window", () => {
+  it("says what happened and what to do", async () => {
+    const { toolsTooLargeMessage } =
+      await import("../services/LlamaServerProvider");
+    const message = toolsTooLargeMessage(61234, 32768);
+    expect(message).toContain("61,234");
+    expect(message).toContain("Plugins page");
   });
 });
