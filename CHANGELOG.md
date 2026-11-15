@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.1] - 2026-11-15
+
+### Fixed
+
+- **Web search keeps working when DuckDuckGo blocks.** DuckDuckGo had started answering repeat searches with a bot check, so searches after the first failed. SHIELD now asks Exa's free keyless search instead, and reads a page through Exa when a site won't load it. Addresses on your PC or local network are never sent to Exa, and Settings › Web Search says when Exa is used.
+- **Services with many tools fit the context window.** Notion offers 77 tools, about 60K tokens, which overflowed a 32K window on the first message. On a service's first connect, SHIELD now switches on only the tools that fit, reading tools first, and says so on the Plugins page. A request whose tools still take more than half the window gets a clear message instead of llama-server's raw error.
+- **SHIELD never picks up an untested llama-server build on its own.** It uses `SHIELD_LLAMA_SERVER` or the runtime installed in Settings › Runtime; otherwise it asks you to install the runtime.
+
 ## [0.4.0] - 2026-11-14
 
 ### Added
