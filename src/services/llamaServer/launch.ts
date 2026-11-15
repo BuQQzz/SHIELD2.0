@@ -8,7 +8,6 @@
 
 import fs from "fs";
 import os from "os";
-import path from "path";
 import type { ServerPlacement } from "../../config/models.js";
 
 export interface LaunchOptions {
@@ -135,29 +134,23 @@ export function setManagedServerLookup(lookup: () => string | undefined) {
 }
 
 /**
- * Where llama-server comes from, in order: `SHIELD_LLAMA_SERVER`, the build
- * SHIELD installed (Settings › Runtime), then the Bonsai demo's CUDA build
- * (a llama.cpp fork that is a superset of upstream and also runs Bonsai).
+ * Where llama-server comes from: `SHIELD_LLAMA_SERVER`, else the build
+ * SHIELD installed and checked (Settings › Runtime). With neither, none:
+ * the app asks for the runtime to be installed. It used to fall back to the
+ * Bonsai demo's own build, older than the one SHIELD is tested with; an
+ * old build forced through SHIELD_LLAMA_SERVER aborted on the first message
+ * on an RTX 2070 SUPER ("flash_attn_ext_f16 has no device code compatible
+ * with CUDA arch 750", 2026-11-14), so an untested build is never picked
+ * up on its own.
  */
 export function locateLlamaServer(
   env: NodeJS.ProcessEnv = process.env,
   exists: (file: string) => boolean = fs.existsSync,
   managed: string | undefined = managedServer()
-): { binary: string; source: "env" | "managed" | "bonsai-demo" } | undefined {
+): { binary: string; source: "env" | "managed" } | undefined {
   const candidates = [
     { binary: env.SHIELD_LLAMA_SERVER, source: "env" as const },
     { binary: managed, source: "managed" as const },
-    {
-      binary: path.join(
-        os.homedir(),
-        "Bonsai",
-        "Bonsai-demo",
-        "bin",
-        "cuda",
-        "llama-server.exe"
-      ),
-      source: "bonsai-demo" as const,
-    },
   ];
   const found = candidates.find((c) => !!c.binary && exists(c.binary));
   return found ? { binary: found.binary!, source: found.source } : undefined;

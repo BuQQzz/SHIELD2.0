@@ -24,7 +24,6 @@ const VARIANT_LABELS: Record<RuntimeVariant, string> = {
 const SOURCE_LABELS: Record<RuntimeStatus["source"], string> = {
   env: "from SHIELD_LLAMA_SERVER",
   managed: "installed by SHIELD",
-  "bonsai-demo": "from the Bonsai demo folder",
   none: "not found",
 };
 
