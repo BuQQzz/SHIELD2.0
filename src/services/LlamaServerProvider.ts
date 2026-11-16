@@ -42,7 +42,7 @@ import {
   type WireMessage,
 } from "./llamaServer/nativeHistory.js";
 import { isToolResultTurn } from "./contextBreakdown.js";
-import { requestCost, type Usage } from "./remote/cost.js";
+import { requestCost, type RequestCost, type Usage } from "./remote/cost.js";
 import type { ToolDefinition } from "../types/prompts.js";
 import {
   adaptRequestBody,
@@ -902,11 +902,18 @@ export class LlamaServerProvider {
     const cost = endpoint
       ? requestCost(result.usage, endpoint.pricing)
       : undefined;
-    if (cost) {
-      this.unreportedCost.charged += cost.charged;
-      this.unreportedCost.listed += cost.listed ?? 0;
-    }
+    if (cost) (this.parent ? this.root() : this).addUnreportedCost(cost);
     return result;
+  }
+
+  /** The main session a forked one (an agent's) belongs to */
+  private root(): LlamaServerProvider {
+    return this.parent ? this.parent.root() : this;
+  }
+
+  private addUnreportedCost(cost: RequestCost): void {
+    this.unreportedCost.charged += cost.charged;
+    this.unreportedCost.listed += cost.listed ?? 0;
   }
 
   /** How the provider said the last request was served; null for a local server */
@@ -1375,9 +1382,15 @@ export class LlamaServerProvider {
     const outputTokens =
       final?.timings?.predicted_n ?? final?.usage?.completion_tokens ?? 0;
     const hostedBy = this.endpoint ? this.lastServedBy : null;
-    const spent = this.endpoint
+    let spent = this.endpoint
       ? requestCost(final?.usage as Usage | undefined, this.endpoint.pricing)
       : undefined;
+    // An agent's requests are not chat messages: their cost goes on the
+    // main session's next reply, so the chat's total counts the team
+    if (spent && this.parent) {
+      this.root().addUnreportedCost(spent);
+      spent = undefined;
+    }
     const cost = spent && {
       cost: spent.charged + this.unreportedCost.charged,
       ...(spent.listed !== undefined

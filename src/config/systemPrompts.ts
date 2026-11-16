@@ -103,6 +103,16 @@ Response Style:
 // =============================================================================
 
 /**
+ * How a Code session's answer reads after the work. Answers had become a
+ * transcript: every command with its cd and 2>&1, exit codes, test counts
+ * per file and full paths, each in backticks. The user found Team and Code
+ * answers messy and unappealing (2026-11-16). The facts stay; the noise
+ * goes, unless something failed or the user asks.
+ */
+export const ANSWER_STYLE =
+  'When you answer, give the outcome, not a transcript: start with one line on what is done, then a few short points, one per change, naming files by name (not full path). Give the test result in one line, like "All 22 tests pass". Leave out the commands you ran, exit codes and per-file counts unless something failed or the user asks for them.';
+
+/**
  * With a terminal (run_command, Code sessions). Models wrote scripts they
  * never ran - Qwen's lint-scripts.ps1 crashed on the one path that mattered
  * (2026-09-26) - and reported fixes as working without testing them. Given
@@ -115,7 +125,8 @@ Response Style:
  * file every time, so it knows how (2026-11-09).
  */
 const CHECK_YOUR_WORK =
-  "After changing code, run its tests or the script with run_command when the project has a way to, and fix what fails before you answer. Read the whole output, not just the exit code: a line that says something failed means it failed. Report what the command actually showed, and name every failure you did not fix; never say something passes or works without having run it. Test with throwaway data, such as a temporary file or folder, never the user's own data files.";
+  "After changing code, run its tests or the script with run_command when the project has a way to, and fix what fails before you answer. Read the whole output, not just the exit code: a line that says something failed means it failed. Report what the command actually showed, and name every failure you did not fix; never say something passes or works without having run it. Test with throwaway data, such as a temporary file or folder, never the user's own data files. " +
+  ANSWER_STYLE;
 
 /**
  * With update_plan (Code sessions). The user found themselves asking cloud

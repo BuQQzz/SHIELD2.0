@@ -26,7 +26,7 @@ export async function handleDelegate(
 ): Promise<MCPToolResult> {
   const parsed = parseDelegateArgs(args);
   if (!parsed.ok) return { success: false, error: parsed.error };
-  const { role, task, continueFrom } = parsed.value;
+  const { role, task, title, continueFrom } = parsed.value;
 
   let earlier;
   let attached = false;
@@ -52,11 +52,13 @@ export async function handleDelegate(
     };
   }
 
+  // Taken before the run: another agent started alongside it (parallel.ts)
+  // must not pick up the same hand-off
+  if (earlier) team.markContinued(earlier.id);
   const report = await runAgent(
-    { role, task, continueFrom: earlier, team },
+    { role, task, title, continueFrom: earlier, team },
     deps
   );
-  if (earlier) team.markContinued(earlier.id);
   if (attached && earlier && report.status !== "FAILED") {
     report.reason = [
       report.reason,

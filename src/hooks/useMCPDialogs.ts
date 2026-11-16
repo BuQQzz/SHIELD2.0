@@ -10,6 +10,7 @@
  * open is rejected explicitly rather than silently dropped.
  */
 
+import { useGenerationStore } from "@/store/generationStore";
 import {
   argumentsForSchema,
   cleanPaths,
@@ -276,6 +277,8 @@ export function useMCPDialogs({
     target?: string;
   } | null>(null);
   const resolverRef = useRef<((result: MCPToolResult) => void) | null>(null);
+  /** Requests waiting for the open one to be answered, oldest first */
+  const waitingRef = useRef<(() => void)[]>([]);
   /** An approved call is running; further clicks do nothing */
   const approvalInFlight = useRef(false);
   /**
@@ -484,6 +487,8 @@ export function useMCPDialogs({
     resolverRef.current = null;
     setPendingRequest(null);
     resolve?.(result);
+    // The next request waiting to be shown
+    waitingRef.current.shift()?.();
   }, []);
 
   /**
@@ -634,12 +639,14 @@ export function useMCPDialogs({
         policy.folder
       );
 
-      // Only one request can be open at a time. Refuse rather than clobber.
-      if (resolverRef.current) {
-        return {
-          success: false,
-          error: "Another tool call is already awaiting permission",
-        };
+      // One request is shown at a time. Agents working at the same time
+      // (agents/parallel.ts) wait their turn rather than being refused
+      while (resolverRef.current) {
+        await new Promise<void>((free) => waitingRef.current.push(free));
+      }
+      // Stopped while it waited: not put to the user at all
+      if (useGenerationStore.getState().stopRequested) {
+        return { success: false, error: "Not run: the user stopped the work" };
       }
 
       return new Promise<MCPToolResult>((resolve) => {

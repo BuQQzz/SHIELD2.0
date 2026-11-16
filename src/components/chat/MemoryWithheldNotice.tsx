@@ -5,14 +5,21 @@
  * Once shared, the line says so and offers to stop.
  */
 
+import { useState } from "react";
 import { Brain } from "lucide-react";
 import type { ModelOption } from "@/config/models";
 import { useCloudStore } from "@/stores/cloud-store";
 
+/** Models the user said "Not now" for, until SHIELD restarts */
+const dismissed = new Set<string>();
+
 export function MemoryWithheldNotice({ model }: { model?: ModelOption }) {
   const shareMemory = useCloudStore((state) => state.shareMemory);
+  const [, setHidden] = useState(0);
   const cloud = model?.cloud;
-  if (!model || !cloud || cloud.zdrHeld) return null;
+  if (!model || !cloud || cloud.zdrHeld || dismissed.has(model.id)) {
+    return null;
+  }
   const shared = !!cloud.memoryShared;
   const button =
     "shrink-0 rounded px-1.5 py-0.5 text-foreground underline-offset-2 hover:underline";
@@ -35,6 +42,17 @@ export function MemoryWithheldNotice({ model }: { model?: ModelOption }) {
       >
         {shared ? "Stop sharing" : "Share with this model"}
       </button>
+      {!shared && (
+        <button
+          className="shrink-0 rounded px-1.5 py-0.5 underline-offset-2 hover:underline"
+          onClick={() => {
+            dismissed.add(model.id);
+            setHidden((n) => n + 1);
+          }}
+        >
+          Not now
+        </button>
+      )}
     </div>
   );
 }

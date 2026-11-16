@@ -13,6 +13,7 @@ import {
 import { readProjectFile } from "./projectFile";
 import { CLEAR_TO, COMPACT_AT } from "../services/historyCompaction";
 import { recallFor } from "./memoryRecall";
+import { parallelAgentsFor } from "../agents/parallel";
 import { checkPlan, planRemarks, takePlanNote } from "./sessionPlan";
 import { useConversationStore } from "@/stores/conversation-store";
 import { useMemoryNotesStore } from "@/stores/memory-notes-store";
@@ -147,6 +148,13 @@ interface MessageHandlerProps {
   modelSettings: ModelSettings;
   handleToolCallRequest?: (request: ToolCallRequest) => Promise<MCPToolResult>;
   isMCPReady?: boolean;
+  /**
+   * The model that is loaded now. The conversation's own modelId is the one
+   * it was created with and is not updated when the user switches: a Code
+   * session made on Bonsai and run on a hosted model still said Bonsai, so
+   * its team ran one agent at a time (2026-11-16)
+   */
+  currentModelId?: string;
 }
 
 export function createMessageHandler({
@@ -164,6 +172,7 @@ export function createMessageHandler({
   modelSettings,
   handleToolCallRequest,
   isMCPReady = false,
+  currentModelId,
 }: MessageHandlerProps) {
   // Web search is a tool the model calls (web_search, fetch_page) rather
   // than a search run before the message
@@ -436,6 +445,8 @@ export function createMessageHandler({
           addMessage,
           enableHybridParser: true,
           maxToolCallsPerTurn: settings.mcp.maxToolCallsPerTurn,
+          // A hosted model's agents can work at the same time
+          parallelDelegations: teamMode ? parallelAgentsFor(currentModelId) : 1,
           // Alone, no fixed cap: a research turn ran past 20 rounds while
           // still finding new pages, and stopped (2026-10-27). It is
           // checked for progress every 10 instead.
@@ -448,7 +459,9 @@ export function createMessageHandler({
           readFile: readProjectFile,
           remindToRun: Boolean(
             getModelById(
-              useConversationStore.getState().currentConversation?.modelId ?? ""
+              currentModelId ??
+                useConversationStore.getState().currentConversation?.modelId ??
+                ""
             )?.remindToRun
           ),
           // One result at most the gap between CLEAR_TO and COMPACT_AT (~3

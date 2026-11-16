@@ -265,6 +265,22 @@ describe("LlamaServerProvider on a hosted model", () => {
     expect(sent[0]?.body.provider).toEqual({ zdr: true });
   });
 
+  it("puts an agent's cost on the main session's next reply", async () => {
+    const sent = fakeProvider(zdrHeaders);
+    const provider = new LlamaServerProvider();
+    await provider.attach(
+      { ...endpoint, pricing: { input: 1, output: 1 } },
+      "orchestrator"
+    );
+    const agent = provider.fork("coder", { keepWholeHistory: true });
+    await agent.chat("write it");
+    // 120 + 6 tokens at $1 per million each
+    expect(agent.getLastStats()?.cost).toBeUndefined();
+    await provider.chat("go on");
+    expect(provider.getLastStats()?.cost).toBeCloseTo(2 * 126e-6, 12);
+    expect(sent).toHaveLength(2);
+  });
+
   it("sizes the context from estimates, asking the provider for no tokenizer", async () => {
     vi.stubGlobal(
       "fetch",

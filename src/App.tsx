@@ -45,7 +45,8 @@ import { useGenerationStore } from "./store/generationStore";
 import { sendWhatWaits } from "./handlers/steer";
 import { generateMessageId } from "./handlers/messageHandler";
 import { restoreRuns } from "./agents/runView";
-import { ORCHESTRATOR_PROMPT } from "./agents/roles";
+import { orchestratorPrompt } from "./agents/roles";
+import { parallelAgentsFor } from "./agents/parallel";
 import { teamFor } from "./agents/team";
 import { useInstalledModels } from "./hooks/useInstalledModels";
 import { useCloudStore } from "./stores/cloud-store";
@@ -268,7 +269,7 @@ function App() {
     // A chat without web search has no tools at all
     mcpEnabled: isCodeSession || toolPolicy.advertisedTools.length > 0,
     baseSystemPrompt: teamMode
-      ? ORCHESTRATOR_PROMPT
+      ? orchestratorPrompt(parallelAgentsFor(currentModelId))
       : settings.system.systemPrompt,
     setSystemPrompt,
     modelName: currentModelConfig?.name,

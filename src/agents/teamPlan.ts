@@ -16,15 +16,25 @@ import type { AgentRunView } from "./runView";
 import { ROLE_LABELS } from "./roles";
 
 /** An absolute path as its last two segments: "/home/me/app/src/a.js" is "src/a.js" */
-const shortenPaths = (text: string) =>
+export const shortenPaths = (text: string) =>
   text.replace(
     /[A-Za-z]:[\\/](?:[^\s'"\\/]+[\\/])+([^\s'"\\/]+)|(?:\/[^\s'"/]+){3,}/g,
     (path) => path.split(/[\\/]/).filter(Boolean).slice(-2).join("/")
   );
 
+/**
+ * What an orchestrator puts before the point: "Goal:", "In the project
+ * folder /home/…/app," and the like. Every card in the Team panel began
+ * "Goal: in the project folder /home/buqqz…" (2026-11-16)
+ */
+const PREAMBLE =
+  /^(?:(?:goal|task|objective|context)\s*:\s*|(?:in|within|inside|for) (?:the |this )?(?:project|folder|project folder|repo|repository)\b[^,:]{0,80}[,:]\s*)+/i;
+
 /** The task's first sentence, short enough for a checklist line */
 export function stepTask(task: string): string {
-  const line = shortenPaths(task.replace(/\s+/g, " ").trim());
+  let line = shortenPaths(task.replace(/\s+/g, " ").trim());
+  line = line.replace(PREAMBLE, "").trim() || line;
+  line = line.charAt(0).toUpperCase() + line.slice(1);
   const sentence = /^(.+?[.!?])(\s|$)/.exec(line)?.[1] ?? line;
   return sentence.length > 90
     ? `${sentence.slice(0, 87).trimEnd()}...`
@@ -36,12 +46,14 @@ export function stepTask(task: string): string {
  * that ended PARTIAL, BLOCKED or FAILED is not finished, so it is pending
  * (the orchestrator then delegates it again as a new step).
  */
+/** What the user sees for a run: the orchestrator's title, else the task's point */
+export function runTitle(run: Pick<AgentRunView, "title" | "task">): string {
+  return run.title?.trim() || stepTask(run.task);
+}
+
 export function planStepsFromRuns(runs: AgentRunView[]): PlanStep[] {
   return runs.slice(-MAX_STEPS).map((run) => ({
-    step: `${ROLE_LABELS[run.role]}: ${stepTask(run.task)}`.slice(
-      0,
-      MAX_STEP_CHARS
-    ),
+    step: `${ROLE_LABELS[run.role]}: ${runTitle(run)}`.slice(0, MAX_STEP_CHARS),
     status:
       run.status === "running"
         ? "in_progress"
