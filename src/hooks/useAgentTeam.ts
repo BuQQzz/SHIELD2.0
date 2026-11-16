@@ -119,6 +119,8 @@ export function useAgentTeam({
     async (request: ToolCallRequest): Promise<MCPToolResult> => {
       if (!isDelegateTool(request.tool)) return handleToolCallRequest(request);
       const team = teamFor(conversationId ?? "no-conversation");
+      // The turn this delegation belongs to: a newer message ends it too
+      const turn = useGenerationStore.getState().turn;
       // Agents call tools natively when the model does, as the main session
       const native = usesNativeToolCalling(modelName ?? "");
       const roleTools = (spec: {
@@ -187,7 +189,7 @@ export function useAgentTeam({
         nativeToolsFor: (spec) => (native ? roleTools(spec) : []),
         workspaceFolder,
         readFile: readProjectFile,
-        isStopped: () => useGenerationStore.getState().stopRequested,
+        isStopped: () => useGenerationStore.getState().turnOver(turn),
         isSkipped: () => useGenerationStore.getState().skipRequested,
         takeSteer: () => useGenerationStore.getState().takeSteer(),
         onProgress: setActivity,

@@ -356,6 +356,10 @@ export interface LlamaAPI {
     prompt: string,
     tools?: ToolDefinition[]
   ) => Promise<{ success: boolean; error?: string }>;
+  /** How long the model thinks: a level from src/config/thinking.ts */
+  setThinkingLevel: (
+    level: string
+  ) => Promise<{ success: boolean; error?: string }>;
   getSystemPrompt: () => Promise<{
     success: boolean;
     prompt?: string;

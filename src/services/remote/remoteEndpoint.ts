@@ -33,6 +33,13 @@ export interface RemoteEndpoint {
   requireZdr: boolean;
   /** What a request costs, when the provider's catalog says (cost.ts) */
   pricing?: ModelPricing;
+  /** The most a reply may be, from the provider's catalog */
+  maxOutputTokens?: number;
+  /**
+   * The provider refused a request for its reasoning setting: later
+   * requests leave the setting out and the model thinks as it does
+   */
+  reasoningRejected?: boolean;
 }
 
 /** Finds a saved provider and its key; the ProviderStore in the main process */
@@ -147,6 +154,17 @@ export function adaptRequestBody(
         return rest;
       }
     );
+  }
+  // How much to think, in the OpenRouter-compatible form the gateway takes:
+  // llama-server's "no thinking" switch, else an effort (config/thinking.ts)
+  if (!endpoint.reasoningRejected) {
+    const kwargs = body.chat_template_kwargs as
+      { enable_thinking?: boolean } | undefined;
+    if (kwargs?.enable_thinking === false) {
+      adapted.reasoning = { effort: "none" };
+    } else if (typeof body.reasoning_effort === "string") {
+      adapted.reasoning = { effort: body.reasoning_effort };
+    }
   }
   // The OpenRouter-compatible field the gateway reads: serve this request
   // only through providers that keep no copy of it

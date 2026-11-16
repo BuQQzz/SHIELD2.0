@@ -67,6 +67,7 @@ import {
 import { editPlan } from "./handlers/sessionPlan";
 import { useInstructionsStore } from "./stores/instructions-store";
 import { useMemoryNotesStore } from "./stores/memory-notes-store";
+import { levelFor, useThinkingStore } from "./stores/thinking-store";
 import { DRAFT_REQUEST, draftNote } from "./config/agentsMd";
 import { useChatStore } from "./stores/chat-store";
 import { ModelLibraryPage } from "./components/library/ModelLibraryPage";
@@ -254,6 +255,14 @@ function App() {
 
     autoInitializeMCP();
   }, [isMCPReady, isMCPInitializing, initializeMCP]);
+
+  // The thinking level picked for this model goes to every request
+  const thinkingLevel = useThinkingStore((state) =>
+    levelFor(state.levels, currentModelId)
+  );
+  useEffect(() => {
+    void window.llama?.setThinkingLevel?.(thinkingLevel);
+  }, [thinkingLevel, currentModelId]);
 
   // MCP system prompt management - builds model-specific prompts
   const currentModelConfig = modelOptions.find((m) => m.id === currentModelId);

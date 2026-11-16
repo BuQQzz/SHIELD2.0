@@ -116,7 +116,22 @@ describe("adaptRequestBody", () => {
       temperature: 0.7,
       max_tokens: 512,
       top_p: 0.9,
+      // llama-server's "no thinking" switch, as the gateway takes it
+      reasoning: { effort: "none" },
     });
+  });
+
+  it("sends a thinking effort as the gateway's reasoning setting", () => {
+    expect(
+      adaptRequestBody({ messages: [], reasoning_effort: "high" }, endpoint)
+        .reasoning
+    ).toEqual({ effort: "high" });
+  });
+
+  it("leaves the reasoning setting out once the provider refused it", () => {
+    expect(
+      adaptRequestBody(llamaBody, { ...endpoint, reasoningRejected: true })
+    ).not.toHaveProperty("reasoning");
   });
 
   it("asks for zero data retention when it is required", () => {

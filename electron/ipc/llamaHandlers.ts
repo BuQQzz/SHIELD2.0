@@ -1,4 +1,5 @@
 import { ipcMain, BrowserWindow } from "electron";
+import { isThinkingLevel } from "../../src/config/thinking.js";
 import { getModelRuntime } from "../../src/services/ModelRuntime.js";
 import type { ToolDefinition } from "../../src/types/prompts.js";
 import type { RescueAction } from "../../src/services/llamaServer/rescue.js";
@@ -311,6 +312,15 @@ export function registerLlamaHandlers(
     } catch (error) {
       return failure(error);
     }
+  });
+
+  // How long the model thinks (config/thinking.ts)
+  ipcMain.handle("llama:setThinkingLevel", (_event, level: unknown) => {
+    if (!isThinkingLevel(level)) {
+      return { success: false, error: "Unknown thinking level" };
+    }
+    llamaService.setThinkingLevel(level);
+    return { success: true };
   });
 
   // Set system prompt

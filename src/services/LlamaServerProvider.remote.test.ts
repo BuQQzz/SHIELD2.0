@@ -106,8 +106,8 @@ describe("LlamaServerProvider on a hosted model", () => {
       model: "deepseek-v4",
       stream: true,
       temperature: 0.2,
-      // Raised to the floor every reply gets (MIN_REPLY_TOKENS)
-      max_tokens: 8192,
+      // Raised to the hosted floor: its thinking counts against it
+      max_tokens: 32768,
       provider: { zdr: true },
     });
     expect(request?.body.messages).toEqual([
@@ -279,6 +279,34 @@ describe("LlamaServerProvider on a hosted model", () => {
     await provider.chat("go on");
     expect(provider.getLastStats()?.cost).toBeCloseTo(2 * 126e-6, 12);
     expect(sent).toHaveLength(2);
+  });
+
+  it("sends the user's thinking level, and goes on without it when refused", async () => {
+    const sent: Sent["body"][] = [];
+    let refuse = true;
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (_url: string, init: RequestInit) => {
+        const body = JSON.parse(init.body as string) as Sent["body"];
+        sent.push(body);
+        if (refuse) {
+          refuse = false;
+          return new Response('{"error":"reasoning effort not supported"}', {
+            status: 400,
+          });
+        }
+        return new Response(
+          `data: ${JSON.stringify({ choices: [{ delta: { content: "ok" } }] })}\n\ndata: [DONE]\n\n`,
+          { headers: zdrHeaders }
+        );
+      })
+    );
+    const provider = new LlamaServerProvider();
+    await provider.attach({ ...endpoint }, "You are SHIELD.");
+    provider.setThinkingLevel("max");
+    expect(await provider.chat("hi")).toBe("ok");
+    expect(sent[0]?.reasoning).toEqual({ effort: "max" });
+    expect(sent[1]).not.toHaveProperty("reasoning");
   });
 
   it("sizes the context from estimates, asking the provider for no tokenizer", async () => {

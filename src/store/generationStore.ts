@@ -46,6 +46,17 @@ interface GenerationStore {
   stopRequested: boolean;
   setStopRequested: (value: boolean) => void;
   /**
+   * Counts the user's messages. A turn's tool loop and agents stop when it
+   * changes: Stop is cleared by the next message, and a loop of a stopped
+   * Code session, still waiting on its command, went on and sent the
+   * command's output into the new chat (2026-11-16).
+   */
+  turn: number;
+  /** A new message: Stop cleared, and the turn it starts */
+  beginTurn: () => number;
+  /** Whether this turn was stopped, or a newer one has begun */
+  turnOver: (turn: number) => boolean;
+  /**
    * The user skipped the running agent's step in the stuck bar. Ends that
    * agent's run only; cleared when the next agent starts.
    */
@@ -96,6 +107,13 @@ export const useGenerationStore = create<GenerationStore>((set, get) => ({
   setContext: (context) => set({ context: context ?? null }),
   stopRequested: false,
   setStopRequested: (value) => set({ stopRequested: value }),
+  turn: 0,
+  beginTurn: () => {
+    const turn = get().turn + 1;
+    set({ turn, stopRequested: false });
+    return turn;
+  },
+  turnOver: (turn) => get().stopRequested || get().turn !== turn,
   skipRequested: false,
   setSkipRequested: (value) => set({ skipRequested: value }),
   steer: [],

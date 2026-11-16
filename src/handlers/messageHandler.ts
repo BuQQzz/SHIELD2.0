@@ -200,7 +200,7 @@ export function createMessageHandler({
       setMessages((prev) => [...prev, userMessage]);
       addMessage(userMessage);
     }
-    useGenerationStore.getState().setStopRequested(false);
+    const turn = useGenerationStore.getState().beginTurn();
 
     setIsGenerating(true);
     setStreamingContent("");
@@ -455,7 +455,7 @@ export function createMessageHandler({
             : Infinity,
           progressCheckEvery: teamMode ? undefined : PROGRESS_CHECK_ROUNDS,
           workspaceFolder: settings.mcp.workspaceFolder,
-          isStopped: () => useGenerationStore.getState().stopRequested,
+          isStopped: () => useGenerationStore.getState().turnOver(turn),
           readFile: readProjectFile,
           remindToRun: Boolean(
             getModelById(

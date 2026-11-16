@@ -25,9 +25,11 @@ import {
 } from "./llamaServer/launch.js";
 import {
   chunkProgress,
+  deltaThought,
   SseParser,
   type ChatStreamChunk,
 } from "./llamaServer/sse.js";
+import { effortFor, type ThinkingLevel } from "../config/thinking.js";
 import { RepetitionWatch } from "./llamaServer/repetition.js";
 import { unswallowQwenCalls } from "../handlers/toolCallParsing.js";
 import {
@@ -151,6 +153,16 @@ export const MIN_REPLY_TOKENS = 8192;
 
 /** Where a hosted model's history is tidied, whatever its window (tidySize) */
 export const HOSTED_TIDY_TOKENS = 128_000;
+
+/**
+ * The least a hosted reply may be. Its thinking counts against max_tokens:
+ * deepseek-v4.1-flash-1017 thought for all 8,192 tokens, twice, and wrote
+ * nothing (2026-11-16). A ceiling, so a short reply costs no more.
+ */
+export const HOSTED_MIN_REPLY_TOKENS = 32_768;
+
+/** A request sent again without its reasoning setting, which the provider refused */
+const REASONING_REFUSED = new Error("reasoning setting refused");
 
 /**
  * SHIELD's memory notes (src/config/memoryNotes.ts), set by the main
@@ -438,6 +450,8 @@ export class LlamaServerProvider {
   }
   /** How the provider said the last request was served (hosted models only) */
   private lastServedBy: GatewayPosture | null = null;
+  /** The user's thinking level for the loaded model (config/thinking.ts); agents use the main session's */
+  private thinkingLevel: ThinkingLevel = "default";
   /**
    * What hosted requests outside the chat's own (summaries, titles) cost
    * since the last reply's stats: added to the next one's
@@ -906,6 +920,10 @@ export class LlamaServerProvider {
     return result;
   }
 
+  setThinkingLevel(level: ThinkingLevel): void {
+    this.thinkingLevel = level;
+  }
+
   /** The main session a forked one (an agent's) belongs to */
   private root(): LlamaServerProvider {
     return this.parent ? this.parent.root() : this;
@@ -1026,6 +1044,7 @@ export class LlamaServerProvider {
     let restartAfterStall = false;
     /** The prompt's size as the server counted it, when it refused it as too long */
     let refitFrom: number | null = null;
+    let refusedReasoning = false;
     let rescue: RescueAction | null = null;
     /** What was sent, kept for the server log when it stalls */
     let requestBody: Record<string, unknown> = {};
@@ -1059,9 +1078,14 @@ export class LlamaServerProvider {
       flight.phase = "reading";
 
       watchForStall();
-      // "none" in the catalog: never thinks
+      // "none" in the catalog: never thinks. The user's level comes first,
+      // except that SHIELD may still ask for no thinking (a retry, a note)
+      const level = this.root().thinkingLevel;
       const thinks =
-        options.thinking !== false && this.reasoningEffort !== "none";
+        options.thinking !== false &&
+        level !== "instant" &&
+        (level !== "default" || this.reasoningEffort !== "none");
+      const effort = effortFor(level, !!this.endpoint) ?? this.reasoningEffort;
       appendServerLog(
         `[SHIELD] chat request, thinking ${thinks ? "on" : "off"}` +
           (this.nativeTools.length > 0
@@ -1081,7 +1105,15 @@ export class LlamaServerProvider {
         // A ceiling, so a short reply costs no more. Hosted models need it
         // too: deepseek-v4.1-flash's thinking and a test file's write_file
         // went past the 2,048 setting and the call was cut off (2026-11-15)
-        max_tokens: replyTokenLimit(options.maxTokens),
+        max_tokens: this.endpoint
+          ? Math.min(
+              Math.max(
+                replyTokenLimit(options.maxTokens),
+                HOSTED_MIN_REPLY_TOKENS
+              ),
+              this.endpoint.maxOutputTokens ?? Infinity
+            )
+          : replyTokenLimit(options.maxTokens),
         top_p: options.topP ?? 0.9,
         top_k: options.topK ?? 40,
         repeat_penalty: options.repeatPenalty ?? 1.1,
@@ -1091,8 +1123,8 @@ export class LlamaServerProvider {
         ...(this.nativeTools.length > 0 ? { tools: this.nativeTools } : {}),
         ...(!thinks
           ? { chat_template_kwargs: { enable_thinking: false } }
-          : this.reasoningEffort
-            ? { reasoning_effort: this.reasoningEffort }
+          : effort && effort !== "none"
+            ? { reasoning_effort: effort }
             : {}),
       });
       const response = await fetch(this.chatUrl(), {
@@ -1108,6 +1140,23 @@ export class LlamaServerProvider {
       });
       if (!response.ok || !response.body) {
         const text = await response.text();
+        // A model that will not take the reasoning setting (one that must
+        // think, say): once, without it, and not again for this model
+        const hosted = this.endpoint;
+        if (
+          hosted &&
+          !hosted.reasoningRejected &&
+          response.status === 400 &&
+          /reason|effort|thinking/i.test(text) &&
+          // As sent: already in the provider's form (adaptRequestBody)
+          requestBody.reasoning !== undefined
+        ) {
+          hosted.reasoningRejected = true;
+          appendServerLog(
+            `[SHIELD] the provider refused the reasoning setting: sent again without it (${text.slice(0, 160)})`
+          );
+          throw REASONING_REFUSED;
+        }
         const measured = this.endpoint ? null : overflowedPrompt(text);
         if (measured === null || this.refitting) {
           throw new Error(this.httpError(response.status, text));
@@ -1144,7 +1193,7 @@ export class LlamaServerProvider {
         for (const chunk of parser.push(
           decoder.decode(value, { stream: true })
         )) {
-          const thought = chunk.choices?.[0]?.delta?.reasoning_content;
+          const thought = deltaThought(chunk.choices?.[0]?.delta);
           if (thought) thinking += thought;
           if (thought && thoughtWatch.push(thought)) looping.abort();
           const deltas = (
@@ -1210,7 +1259,8 @@ export class LlamaServerProvider {
         appendServerLog(
           `[SHIELD] hosted reply: ${structuredDeltas} tool-call chunks, ` +
             `DSML in text: ${reply.includes("DSML") ? "yes" : "no"}, ` +
-            `finish: ${finishReason || "none"}, usage ${JSON.stringify(final?.usage ?? null)}`
+            `finish: ${finishReason || "none"}, thinking streamed: ${thinking.length} chars, ` +
+            `usage ${JSON.stringify(final?.usage ?? null)}`
         );
       }
       const closing = calls.finish();
@@ -1219,8 +1269,9 @@ export class LlamaServerProvider {
         options.onToken?.(closing);
       }
     } catch (error) {
-      if (error === REFIT) {
-        // Nothing was written; room is made below
+      if (error === REFIT || error === REASONING_REFUSED) {
+        // Nothing was written; room is made, or it goes again, below
+        if (error === REASONING_REFUSED) refusedReasoning = true;
       } else if (rescued.signal.aborted && !signal.aborted) {
         console.log(
           `[LlamaServer] Request cut off by the user: ${this.rescueAction}`
@@ -1281,6 +1332,7 @@ export class LlamaServerProvider {
       }
     }
     // Nothing of a dropped reply is kept: the history is as it was
+    if (refusedReasoning) return this.chat(message, options, restarts);
     if (refitFrom !== null) {
       // Room made from the server's own count, once: a prompt refused
       // again is more than clearing and a summary can bring down. The
