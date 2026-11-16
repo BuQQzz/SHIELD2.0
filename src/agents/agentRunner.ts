@@ -255,7 +255,11 @@ const BRIEF_CHARS = 280;
  */
 export function briefOf(report: AgentReport): string | undefined {
   if (report.parsed.brief) return report.parsed.brief;
-  const first = report.summary.trim().split(/\n\s*\n/)[0]?.trim() ?? "";
+  const first =
+    report.summary
+      .trim()
+      .split(/\n\s*\n/)[0]
+      ?.trim() ?? "";
   if (!first) return undefined;
   if (first.length <= BRIEF_CHARS) return first;
   const cut = first.slice(0, BRIEF_CHARS);
