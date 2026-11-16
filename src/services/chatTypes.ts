@@ -64,6 +64,15 @@ export interface ChatOptions {
 export type ChatProgress =
   /** The history was too full: the model is summarising older turns */
   | { phase: "summarising" }
+  /**
+   * A hosted model has the request and has not written yet. It reports no
+   * reading progress, and may think for minutes without streaming it: shown
+   * as "Reading the conversation…" the whole time, it looked stuck
+   * (2026-11-16). `afterTools`: it is looking at tool results.
+   */
+  | { phase: "waiting"; provider: string; afterTools: boolean; since: number }
+  /** A hosted model's streamed thinking, about `thought` tokens so far */
+  | { phase: "thinking"; thought: number; since: number }
   /** Reading the prompt (llama-server); `done` includes the `cached` part */
   | {
       phase: "reading";

@@ -100,7 +100,7 @@ export const useGenerationStore = create<GenerationStore>((set, get) => ({
     set((state) => ({
       progress,
       context:
-        progress && progress.phase !== "summarising" && state.context
+        progress && "contextUsed" in progress && state.context
           ? { ...state.context, used: progress.contextUsed }
           : state.context,
     })),

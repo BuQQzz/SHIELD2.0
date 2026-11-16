@@ -18,6 +18,7 @@ import { stripToolCallMarkup } from "@/handlers/toolCallParsing";
 import { useGenerationStore } from "@/store/generationStore";
 import { useSummaryFocus } from "@/stores/summary-focus-store";
 import { AnimatedCount } from "./AnimatedCount";
+import { HostedWaitLabel } from "./HostedWaitLabel";
 import { SummaryStep, ToolStep } from "./ToolStep";
 import { stepLabel, workLabel, type WorkItem } from "./turns";
 
@@ -90,6 +91,31 @@ function useLiveLabel(
   if (!live.busy) return null;
   if (progress?.phase === "summarising") {
     return { key: "summarising", text: "Summarising earlier turns…" };
+  }
+  // A hosted model: its streamed thinking, else what it is waiting on
+  if (progress?.phase === "thinking") {
+    return {
+      key: "thinking",
+      text: (
+        <>
+          Thinking · ↓{" "}
+          <AnimatedCount value={progress.thought} format={formatTokens} />{" "}
+          tokens…
+        </>
+      ),
+    };
+  }
+  if (progress?.phase === "waiting") {
+    return {
+      key: "waiting",
+      text: (
+        <HostedWaitLabel
+          provider={progress.provider}
+          afterTools={progress.afterTools}
+          since={progress.since}
+        />
+      ),
+    };
   }
   if (progress?.phase === "writing" && progress.generated > 2) {
     return {

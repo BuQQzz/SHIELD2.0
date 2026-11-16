@@ -833,6 +833,7 @@ export class LlamaServerProvider {
       phase: flight.phase,
       elapsedMs: now - flight.startedAt,
       idleMs: now - flight.lastProgressAt,
+      ...(flight.session.endpoint ? { hosted: true } : {}),
     };
   }
 
@@ -1127,6 +1128,17 @@ export class LlamaServerProvider {
             ? { reasoning_effort: effort }
             : {}),
       });
+      // A hosted model reports no reading progress: say what it is doing
+      if (this.endpoint) {
+        options.onProgress?.({
+          phase: "waiting",
+          provider: this.endpoint.providerName,
+          afterTools: /<tool_result\b|^You executed \d+ tool call/.test(
+            message
+          ),
+          since: Date.now(),
+        });
+      }
       const response = await fetch(this.chatUrl(), {
         method: "POST",
         headers: this.chatHeaders(),
@@ -1182,6 +1194,8 @@ export class LlamaServerProvider {
       const reader = response.body.getReader();
       /** The reply's own text (not its calls), for the result-framing check */
       let written = "";
+      let lastThoughtReport = 0;
+      let thinkingSince = 0;
       let structuredDeltas = 0;
       let finishReason = "";
       const calls = new NativeCallWriter(
@@ -1195,6 +1209,18 @@ export class LlamaServerProvider {
         )) {
           const thought = deltaThought(chunk.choices?.[0]?.delta);
           if (thought) thinking += thought;
+          if (thought && this.endpoint) {
+            const now = Date.now();
+            if (now - lastThoughtReport > 250) {
+              lastThoughtReport = now;
+              options.onProgress?.({
+                phase: "thinking",
+                // ~4 characters a token: the provider counts only at the end
+                thought: Math.round(thinking.length / 4),
+                since: thinkingSince || (thinkingSince = now),
+              });
+            }
+          }
           if (thought && thoughtWatch.push(thought)) looping.abort();
           const deltas = (
             chunk.choices?.[0]?.delta as { tool_calls?: ToolCallDelta[] }
