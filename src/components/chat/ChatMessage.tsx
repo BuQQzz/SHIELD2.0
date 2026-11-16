@@ -1,6 +1,7 @@
 import { cn } from "@/lib/utils";
 import { formatTokens } from "@/lib/format";
 import { ServedBadge } from "./ServedBadge";
+import { costTitle, formatCost } from "@/services/remote/cost";
 import {
   Copy,
   Check,
@@ -453,6 +454,13 @@ export const ChatMessage = memo(function ChatMessage({
             {stats.tokensPerSecond.toFixed(1)} tok/s ·{" "}
             {formatTokens(stats.outputTokens)} tok ·{" "}
             {(stats.durationMs / 1000).toFixed(1)}s
+            {stats.cost !== undefined && (
+              <span
+                title={costTitle("This reply", stats.cost, stats.listedCost)}
+              >
+                · {formatCost(stats.cost)}
+              </span>
+            )}
           </span>
         )}
       </div>

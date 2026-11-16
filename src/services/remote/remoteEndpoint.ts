@@ -9,6 +9,7 @@
  * response is checked against.
  */
 
+import type { ModelPricing } from "./cost.js";
 import type { ProviderConfig } from "../../types/providers.js";
 
 /** Model ids of remote models: `remote:<provider id>:<the provider's model id>` */
@@ -30,6 +31,15 @@ export interface RemoteEndpoint {
    * is thrown away unless the provider says it was served that way.
    */
   requireZdr: boolean;
+  /** What a request costs, when the provider's catalog says (cost.ts) */
+  pricing?: ModelPricing;
+  /** The most a reply may be, from the provider's catalog */
+  maxOutputTokens?: number;
+  /**
+   * The provider refused a request for its reasoning setting: later
+   * requests leave the setting out and the model thinks as it does
+   */
+  reasoningRejected?: boolean;
 }
 
 /** Finds a saved provider and its key; the ProviderStore in the main process */
@@ -111,6 +121,10 @@ const STANDARD_FIELDS = [
   "temperature",
   "max_tokens",
   "top_p",
+  // Native tool calls (usesNativeToolCalling): the API returns them as
+  // structured calls, read back into SHIELD's form as they stream
+  "tools",
+  "tool_choice",
 ] as const;
 
 /** A request written for llama-server, as one a hosted provider takes */
@@ -121,6 +135,36 @@ export function adaptRequestBody(
   const adapted: Record<string, unknown> = { model: endpoint.model };
   for (const field of STANDARD_FIELDS) {
     if (body[field] !== undefined) adapted[field] = body[field];
+  }
+  // The model's earlier thinking goes back to llama-server within a request
+  // (withRequestThinking, 2026-11), but reasoning_content in a sent message
+  // is not standard: DeepSeek's own API refuses it, and a gateway may too.
+  // The same for `reasoning`, which nativeHistory puts beside a reply's calls
+  if (Array.isArray(adapted.messages)) {
+    adapted.messages = (adapted.messages as Record<string, unknown>[]).map(
+      (message) => {
+        if (!("reasoning_content" in message) && !("reasoning" in message)) {
+          return message;
+        }
+        const {
+          reasoning_content: _thinking,
+          reasoning: _reasoning,
+          ...rest
+        } = message;
+        return rest;
+      }
+    );
+  }
+  // How much to think, in the OpenRouter-compatible form the gateway takes:
+  // llama-server's "no thinking" switch, else an effort (config/thinking.ts)
+  if (!endpoint.reasoningRejected) {
+    const kwargs = body.chat_template_kwargs as
+      { enable_thinking?: boolean } | undefined;
+    if (kwargs?.enable_thinking === false) {
+      adapted.reasoning = { effort: "none" };
+    } else if (typeof body.reasoning_effort === "string") {
+      adapted.reasoning = { effort: body.reasoning_effort };
+    }
   }
   // The OpenRouter-compatible field the gateway reads: serve this request
   // only through providers that keep no copy of it

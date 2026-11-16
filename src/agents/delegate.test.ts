@@ -91,8 +91,25 @@ describe("parseDelegateArgs", () => {
   });
 
   it("declares a strict schema the model sees", () => {
-    expect(DELEGATE_TOOL.inputSchema.required).toEqual(["role", "task"]);
+    expect(DELEGATE_TOOL.inputSchema.required).toEqual([
+      "role",
+      "title",
+      "task",
+    ]);
     expect(DELEGATE_TOOL.inputSchema.additionalProperties).toBe(false);
+  });
+
+  it("keeps a short title for the user, and does without one", () => {
+    const withTitle = parseDelegateArgs({
+      role: "coder",
+      title: "  Fix the   Fahrenheit formula ",
+      task: "x",
+    });
+    expect(withTitle.ok && withTitle.value.title).toBe(
+      "Fix the Fahrenheit formula"
+    );
+    const without = parseDelegateArgs({ role: "coder", task: "x" });
+    expect(without.ok && without.value.title).toBe(undefined);
   });
 });
 

@@ -8,15 +8,16 @@
 import { LocateFixed, PanelRightClose, PanelRightOpen } from "lucide-react";
 import type { AgentRunView } from "@/agents/runView";
 import { latestRun } from "@/agents/runView";
+import { runTitle } from "@/agents/teamPlan";
 import { cn } from "@/lib/utils";
+import { ResizeHandle } from "@/components/ui/ResizeHandle";
+import { usePanelWidth } from "@/hooks/usePanelWidth";
 import { selectedRun, useTeamStore } from "@/stores/team-store";
 import { AgentDetail } from "./AgentDetail";
 import { AgentIcon } from "./AgentIcon";
 import { ROLE_LOOKS, STATUS_LOOK } from "./agentLooks";
 
 const NO_RUNS: AgentRunView[] = [];
-
-const oneLine = (text: string) => text.replace(/\s+/g, " ").trim();
 
 function AgentRow({
   run,
@@ -48,15 +49,17 @@ function AgentRow({
           <span className={cn("text-[11px]", status.text)}>{status.label}</span>
         </span>
         <span className="block truncate text-xs text-muted-foreground">
-          {oneLine(run.task)}
+          {runTitle(run)}
         </span>
       </span>
-      <span
-        className="shrink-0 text-[11px] text-muted-foreground"
-        title="Tool calls"
-      >
-        {steps}
-      </span>
+      {steps > 0 && (
+        <span
+          className="shrink-0 text-[11px] text-muted-foreground"
+          title="Tool calls this agent made"
+        >
+          {steps} {steps === 1 ? "step" : "steps"}
+        </span>
+      )}
     </button>
   );
 }
@@ -77,6 +80,14 @@ export function TeamPanel({ conversationId, teamMode }: TeamPanelProps) {
   const followLatest = useTeamStore((state) => state.followLatest);
   const collapsed = useTeamStore((state) => state.collapsed);
   const { select, follow, setCollapsed } = useTeamStore.getState();
+  const panel = usePanelWidth({
+    key: "shield.teamPanel.width",
+    defaultWidth: 320,
+    minWidth: 260,
+    maxShare: 0.6,
+    // The sidebar and a readable chat column
+    reserve: 680,
+  });
 
   if (!teamMode && runs.length === 0) return null;
 
@@ -119,8 +130,15 @@ export function TeamPanel({ conversationId, teamMode }: TeamPanelProps) {
   return (
     <aside
       aria-label="Team"
-      className="flex h-full w-80 max-w-[45%] shrink-0 flex-col bg-soft/60"
+      style={{ width: panel.width }}
+      className="relative flex h-full shrink-0 flex-col bg-soft/60"
     >
+      <ResizeHandle
+        label="Resize the Team panel"
+        width={panel.width}
+        onWidth={panel.setWidth}
+        onReset={panel.reset}
+      />
       <div className="flex items-center gap-1 px-3 py-2">
         <span className="text-sm font-medium">Team</span>
         <span className="text-xs text-muted-foreground">

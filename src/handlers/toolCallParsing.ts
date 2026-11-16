@@ -1159,6 +1159,10 @@ export function stripToolCallMarkup(content: string): string {
       // A stray closer the model appends after its calls (some write one
       // more </tool_call> at the end of every reply)
       .replace(/\s*<\/?tool_call[^>]*>/g, "")
+      // DeepSeek's closers without their DSML marker, left after a call it
+      // wrote half in SHIELD's form: "...look at what exists. </invoke>"
+      // (deepseek-v4.1-flash, 2026-11-15)
+      .replace(/\s*<\/(?:invoke|parameter|function_calls)>/g, "")
       .replace(/\n{3,}/g, "\n\n")
       .trim()
   );

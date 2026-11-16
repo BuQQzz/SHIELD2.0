@@ -14,6 +14,7 @@ import { motion } from "framer-motion";
 import { Check, Copy, RefreshCw, User } from "lucide-react";
 import { formatTokens } from "@/lib/format";
 import { ServedBadge } from "./ServedBadge";
+import { costTitle, formatCost } from "@/services/remote/cost";
 import { stripToolCallMarkup } from "@/handlers/mcpToolHandler";
 import { ChatMessage } from "./ChatMessage";
 import { ReadingIndicator } from "./ReadingIndicator";
@@ -242,6 +243,17 @@ export const AssistantTurn = memo(function AssistantTurn({
                 {stats.tokensPerSecond.toFixed(1)} tok/s ·{" "}
                 {formatTokens(stats.outputTokens)} tok ·{" "}
                 {(stats.durationMs / 1000).toFixed(1)}s
+                {stats.cost !== undefined && (
+                  <span
+                    title={costTitle(
+                      "This reply",
+                      stats.cost,
+                      stats.listedCost
+                    )}
+                  >
+                    · {formatCost(stats.cost)}
+                  </span>
+                )}
               </span>
             )}
           </div>

@@ -25,7 +25,20 @@ export interface RequestStatus {
   elapsedMs: number;
   /** Since the server last reported progress: a token, thought or prompt read */
   idleMs: number;
+  /**
+   * A hosted model's request. It thinks for minutes at a high setting, and
+   * a gateway may hold the thinking back until it is done: the local rules
+   * showed "the server may have frozen" and "Restart and retry" while
+   * deepseek-v4.1-flash-1017 thought on Extra high (2026-11-16)
+   */
+  hosted?: boolean;
 }
+
+/**
+ * A hosted request with nothing at all back for this long: worth asking
+ * again. Shorter waits are thinking, which its status line counts.
+ */
+export const HOSTED_QUIET_MS = 5 * 60 * 1000;
 
 /**
  * No progress for this long: the server has probably frozen. A normal step
@@ -40,10 +53,16 @@ export const SLOW_AFTER_MS = 3 * 60 * 1000;
 const SHOW_AFTER_MS = 30 * 1000;
 
 /** What the stuck bar shows for the request in progress */
-export type StuckState = "hidden" | "timer" | "frozen" | "slow";
+/** "quiet": a hosted request with nothing back for HOSTED_QUIET_MS */
+export type StuckState = "hidden" | "timer" | "frozen" | "slow" | "quiet";
 
 export function stuckState(status: RequestStatus | null): StuckState {
   if (!status) return "hidden";
+  // No timer and no "may be stuck": the status line shows the seconds, and
+  // there is no server of the user's to restart
+  if (status.hosted) {
+    return status.idleMs >= HOSTED_QUIET_MS ? "quiet" : "hidden";
+  }
   // Summarising is one request with no live progress to watch
   if (status.phase !== "summarising" && status.idleMs >= FROZEN_AFTER_MS) {
     return "frozen";

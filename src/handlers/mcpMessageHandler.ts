@@ -4,6 +4,8 @@
  * Extends message handling to detect and process MCP tool calls
  */
 
+import { inPool } from "../agents/parallel";
+import { isDelegateTool } from "../agents/delegate";
 import type { Message } from "../hooks/useLlama";
 import {
   extractToolCalls,
@@ -41,6 +43,12 @@ export interface MCPMessageHandlerProps {
   ) => Promise<string | void> | string | void;
   enableHybridParser?: boolean;
   maxToolCallsPerTurn?: number;
+  /**
+   * Delegations of one round that may run at the same time: above 1 for a
+   * hosted model's team (agents/parallel.ts). Results still come back in
+   * the order the calls were made.
+   */
+  parallelDelegations?: number;
   /** How many tool -> result -> tool cycles to allow in one turn */
   maxToolRounds?: number;
   /**
@@ -624,6 +632,7 @@ export async function processMCPToolCalls(
     continueConversation,
     enableHybridParser = true,
     maxToolCallsPerTurn = 5,
+    parallelDelegations = 1,
     maxToolRounds = 5,
     progressCheckEvery,
     workspaceFolder,
@@ -752,6 +761,33 @@ export async function processMCPToolCalls(
 
     const formattedResults: string[] = [];
 
+    // A hosted model's team: this round's delegations start together, each
+    // new one once a running one finishes; the loop below takes their
+    // results in order
+    const started = new Map<ToolCallRequest, Promise<MCPToolResult>>();
+    if (parallelDelegations > 1) {
+      const seen = new Set<string>();
+      const batch = cappedToolCalls.filter((call) => {
+        const signature = callSignature(call, workspaceFolder);
+        const fresh =
+          isDelegateTool(call.tool) &&
+          !call.argumentsError &&
+          !completedCalls.has(signature) &&
+          !seen.has(signature);
+        seen.add(signature);
+        return fresh;
+      });
+      if (batch.length > 1) {
+        const runs = inPool(
+          batch.map(
+            (call) => () => runToolCall(call, onToolCallDetected, readFile)
+          ),
+          parallelDelegations
+        );
+        batch.forEach((call, i) => started.set(call, runs[i]!));
+      }
+    }
+
     // Process each tool call sequentially
     for (const toolCall of cappedToolCalls) {
       if (isStopped?.()) break;
@@ -791,7 +827,8 @@ export async function processMCPToolCalls(
         repeats.set(signature, count);
         if (count >= MAX_REPEATS) stuckOn = toolCall;
       } else {
-        result = await runToolCall(toolCall, onToolCallDetected, readFile);
+        result = await (started.get(toolCall) ??
+          runToolCall(toolCall, onToolCallDetected, readFile));
         const args = (toolCall.arguments ?? {}) as Record<string, unknown>;
         const changedFile = changedCodeFile(
           toolCall.tool,

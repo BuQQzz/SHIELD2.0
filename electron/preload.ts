@@ -150,6 +150,10 @@ export interface LlamaAPI {
     prompt: string,
     tools?: ToolDefinition[]
   ) => Promise<{ success: boolean; error?: string }>;
+  /** How long the model thinks: a level from src/config/thinking.ts */
+  setThinkingLevel: (
+    level: string
+  ) => Promise<{ success: boolean; error?: string }>;
   getSystemPrompt: () => Promise<{
     success: boolean;
     prompt?: string;
@@ -264,6 +268,8 @@ const llamaAPI: LlamaAPI = {
   rescue: (action) => ipcRenderer.invoke("llama:rescue", action),
   setSystemPrompt: (prompt, tools) =>
     ipcRenderer.invoke("llama:setSystemPrompt", prompt, tools),
+  setThinkingLevel: (level) =>
+    ipcRenderer.invoke("llama:setThinkingLevel", level),
   getSystemPrompt: () => ipcRenderer.invoke("llama:getSystemPrompt"),
   generateTitle: (userMessage) =>
     ipcRenderer.invoke("llama:generateTitle", userMessage),
@@ -278,6 +284,8 @@ const providersAPI: ProvidersAPI = {
   models: (id) => ipcRenderer.invoke("providers:models", id),
   allowModel: (id, modelId, allowed) =>
     ipcRenderer.invoke("providers:allow-model", id, modelId, allowed),
+  shareMemory: (id, modelId, shared) =>
+    ipcRenderer.invoke("providers:share-memory", id, modelId, shared),
 };
 
 contextBridge.exposeInMainWorld("providers", providersAPI);

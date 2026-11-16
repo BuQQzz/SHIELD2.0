@@ -16,6 +16,7 @@ import { Loader2 } from "lucide-react";
 import { useGenerationStore } from "@/store/generationStore";
 import { formatTokens } from "@/lib/format";
 import { AnimatedCount } from "./AnimatedCount";
+import { HostedWaitLabel } from "./HostedWaitLabel";
 
 export function ReadingIndicator() {
   const [seconds, setSeconds] = useState(0);
@@ -38,8 +39,25 @@ export function ReadingIndicator() {
   const thinking = progress?.phase === "writing" && progress.generated > 2;
 
   let label: ReactNode = "Reading the conversation";
+  // A hosted model counts its own time (HostedWaitLabel)
+  const hosted =
+    progress?.phase === "waiting" || progress?.phase === "thinking";
   if (progress?.phase === "summarising") {
     label = "Summarising earlier turns to free space";
+  } else if (progress?.phase === "waiting") {
+    label = (
+      <HostedWaitLabel
+        provider={progress.provider}
+        afterTools={progress.afterTools}
+        since={progress.since}
+      />
+    );
+  } else if (progress?.phase === "thinking") {
+    label = (
+      <>
+        Thinking · ↓ <AnimatedCount value={progress.thought} /> tokens
+      </>
+    );
   } else if (thinking) {
     label = (
       <>
@@ -69,13 +87,16 @@ export function ReadingIndicator() {
         <Loader2 className="h-3.5 w-3.5 animate-spin" />
         <span>
           {label}
-          {seconds >= 3 ? ` · ${seconds}s` : "…"}
+          {hosted ? "" : seconds >= 3 ? ` · ${seconds}s` : "…"}
         </span>
-        {seconds >= 20 && !thinking && progress?.phase !== "summarising" && (
-          <span className="text-muted-foreground/70">
-            Long chats and large files take a while on local models.
-          </span>
-        )}
+        {seconds >= 20 &&
+          !thinking &&
+          !hosted &&
+          progress?.phase !== "summarising" && (
+            <span className="text-muted-foreground/70">
+              Long chats and large files take a while on local models.
+            </span>
+          )}
       </div>
       {reading && toRead > 0 && (
         <div className="mt-1.5 ml-5.5 h-0.5 w-48 overflow-hidden rounded-full bg-muted">

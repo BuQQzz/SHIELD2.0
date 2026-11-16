@@ -11,6 +11,72 @@ import {
 import type { Message } from "../hooks/useLlama";
 
 describe("processMCPToolCalls", () => {
+  it("runs a round's delegations together when allowed, results in order", async () => {
+    const call = (role: string) =>
+      `<tool_call>\n<server>agents</server>\n<tool>delegate</tool>\n<arguments>${JSON.stringify({ role, task: `task for ${role}` })}</arguments>\n</tool_call>`;
+    let running = 0;
+    let most = 0;
+    const addMessage = vi.fn();
+    await processMCPToolCalls(
+      {
+        id: "team",
+        role: "assistant",
+        timestamp: new Date(),
+        content: `${call("coder")}\n${call("reviewer")}`,
+      },
+      {
+        onToolCallDetected: async (request) => {
+          running += 1;
+          most = Math.max(most, running);
+          await new Promise((r) => setTimeout(r, 5));
+          running -= 1;
+          return {
+            success: true,
+            data: `report of ${String(request.arguments.role)}`,
+          };
+        },
+        parallelDelegations: 4,
+        maxToolRounds: 1,
+        addMessage,
+        continueConversation: vi.fn().mockResolvedValue("Done."),
+      }
+    );
+    expect(most).toBe(2);
+    const results = addMessage.mock.calls
+      .map(([m]) => (m as Message).content)
+      .filter((c) => c.includes("report of"));
+    expect(results[0]).toContain("report of coder");
+    expect(results[1]).toContain("report of reviewer");
+  });
+
+  it("keeps delegations one at a time by default", async () => {
+    const call = (role: string) =>
+      `<tool_call>\n<server>agents</server>\n<tool>delegate</tool>\n<arguments>${JSON.stringify({ role, task: `task for ${role}` })}</arguments>\n</tool_call>`;
+    let running = 0;
+    let most = 0;
+    await processMCPToolCalls(
+      {
+        id: "team",
+        role: "assistant",
+        timestamp: new Date(),
+        content: `${call("coder")}\n${call("reviewer")}`,
+      },
+      {
+        onToolCallDetected: async () => {
+          running += 1;
+          most = Math.max(most, running);
+          await new Promise((r) => setTimeout(r, 5));
+          running -= 1;
+          return { success: true, data: "report" };
+        },
+        maxToolRounds: 1,
+        addMessage: vi.fn(),
+        continueConversation: vi.fn().mockResolvedValue("Done."),
+      }
+    );
+    expect(most).toBe(1);
+  });
+
   it("does not resume a native request when stopped during tool execution", async () => {
     let stopped = false;
     const addMessage = vi.fn();

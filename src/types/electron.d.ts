@@ -123,6 +123,10 @@ export interface GenerationStats {
   durationMs: number;
   /** For a hosted model: who answered, and whether it reported zero retention */
   servedBy?: { provider?: string; zdr?: boolean };
+  /** For a hosted model with known prices: what it cost, in US dollars */
+  cost?: number;
+  /** The same at the provider's listed prices */
+  listedCost?: number;
 }
 
 /** How full the model's context window is */
@@ -223,6 +227,16 @@ export interface ProvidersAPI {
     provider?: ProviderSummary;
     error?: string;
   }>;
+  /** Share the user's memory with one model that is not held to zero retention */
+  shareMemory: (
+    id: string,
+    modelId: string,
+    shared: boolean
+  ) => Promise<{
+    success: boolean;
+    provider?: ProviderSummary;
+    error?: string;
+  }>;
 }
 
 /**
@@ -231,6 +245,15 @@ export interface ProvidersAPI {
  */
 export type ChatProgress =
   | { phase: "summarising" }
+  /**
+   * A hosted model has the request and has not written yet. It reports no
+   * reading progress, and may think for minutes without streaming it: shown
+   * as "Reading the conversation…" the whole time, it looked stuck
+   * (2026-11-16). `afterTools`: it is looking at tool results.
+   */
+  | { phase: "waiting"; provider: string; afterTools: boolean; since: number }
+  /** A hosted model's streamed thinking, about `thought` tokens so far */
+  | { phase: "thinking"; thought: number; since: number }
   | {
       phase: "reading";
       done: number;
@@ -341,6 +364,10 @@ export interface LlamaAPI {
   setSystemPrompt: (
     prompt: string,
     tools?: ToolDefinition[]
+  ) => Promise<{ success: boolean; error?: string }>;
+  /** How long the model thinks: a level from src/config/thinking.ts */
+  setThinkingLevel: (
+    level: string
   ) => Promise<{ success: boolean; error?: string }>;
   getSystemPrompt: () => Promise<{
     success: boolean;

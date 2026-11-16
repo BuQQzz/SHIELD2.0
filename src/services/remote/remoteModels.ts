@@ -6,6 +6,7 @@
  * context window, and what it keeps of a request - which is read when there.
  */
 
+import { parseCatalogPricing, type ModelPricing } from "./cost.js";
 import type {
   ProviderPresetId,
   ProviderTestResult,
@@ -84,6 +85,8 @@ export interface CatalogContext {
   /** The most the provider accepts as input */
   maxInputTokens?: number;
   maxOutputTokens?: number;
+  /** What its requests cost, from the catalog's routes (cost.ts) */
+  pricing?: ModelPricing;
   /**
    * What the chat is managed against: the input limit, else the window. A
    * window that counts the reply inside it is not what can be sent.
@@ -103,11 +106,13 @@ export function parseCatalogModel(body: unknown): CatalogContext | undefined {
   const maxInputTokens = positive(entry.max_input_tokens);
   const usable = maxInputTokens ?? contextWindow;
   if (!usable) return undefined;
+  const pricing = parseCatalogPricing(body);
   return {
     contextWindow,
     maxInputTokens,
     maxOutputTokens: positive(entry.max_output_tokens),
     usable,
+    ...(pricing ? { pricing } : {}),
   };
 }
 

@@ -34,6 +34,11 @@ export const DELEGATE_TOOL = {
     type: "object",
     properties: {
       role: { type: "string", enum: [...AGENT_ROLES] },
+      title: {
+        type: "string",
+        description:
+          'What the user sees for this task: 3 to 7 plain words, like "Fix the Fahrenheit formula" or "Test the word counter". No paths.',
+      },
       task: {
         type: "string",
         description: "What to do, with all the context it needs",
@@ -44,7 +49,7 @@ export const DELEGATE_TOOL = {
           'Only to continue a PARTIAL report: its handoff id, like "h2"',
       },
     },
-    required: ["role", "task"],
+    required: ["role", "title", "task"],
     additionalProperties: false,
   },
   annotations: {
@@ -60,10 +65,17 @@ export const TEAM_NOTE_TOOL = {
   name: TEAM_NOTE_TOOL_NAME,
   serverName: AGENTS_SERVER_NAME,
   description:
-    "Leave a one-line note the whole team sees: a decision, a command that works, a gotcha. Changes nothing on the computer.",
+    "Leave a one-line note for the team: a decision, a command that works, a gotcha, a file you changed that a teammate uses. With to, it goes to one teammate working at the same time; without, to all of them and to agents that start later. Changes nothing on the computer.",
   inputSchema: {
     type: "object",
-    properties: { text: { type: "string", description: "One short line" } },
+    properties: {
+      text: { type: "string", description: "One short line" },
+      to: {
+        type: "string",
+        description:
+          'Optional: one teammate working at the same time, by role ("coder") or id ("h2")',
+      },
+    },
     required: ["text"],
     additionalProperties: false,
   },
@@ -82,8 +94,13 @@ export function isDelegateTool(name: string): boolean {
 export interface DelegateArgs {
   role: AgentRole;
   task: string;
+  /** A few words for the user: the Team panel and the plan show it */
+  title?: string;
   continueFrom?: string;
 }
+
+/** Longest title kept for the panel and plan */
+export const MAX_TITLE_CHARS = 60;
 
 const ROLE_ALIASES: Record<string, AgentRole> = {
   coder: "coder",
@@ -152,7 +169,16 @@ export function parseDelegateArgs(
     continueFrom = id;
   }
 
-  return { ok: true, value: { role, task, continueFrom } };
+  const titleText = first(args, ["title", "label", "summary"]);
+  const title =
+    typeof titleText === "string"
+      ? titleText.replace(/\s+/g, " ").trim().slice(0, MAX_TITLE_CHARS)
+      : "";
+
+  return {
+    ok: true,
+    value: { role, task, continueFrom, ...(title ? { title } : {}) },
+  };
 }
 
 const SUMMARY_CHARS = 1500;

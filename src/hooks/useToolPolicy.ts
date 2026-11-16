@@ -83,6 +83,12 @@ export interface ToolPolicyInput {
   teamMode?: boolean;
   /** The Code session's project folder: read-only commands may name it in full */
   folder?: string;
+  /**
+   * The memory search tools (search_memory, open_memory) are offered: off for
+   * a hosted model the user's memory is not shared with (sharesMemory).
+   * remember stays: it only adds a note.
+   */
+  memoryTools?: boolean;
 }
 
 /** SHIELD's own web tools come from this server (electron/services/webTools) */
@@ -104,6 +110,7 @@ export function resolveToolPolicy({
   fileTools = true,
   teamMode = false,
   folder,
+  memoryTools = true,
 }: ToolPolicyInput): ToolPolicy {
   // The allowlist applies in every mode - a mode can narrow what the user
   // permitted, never widen it.
@@ -119,7 +126,7 @@ export function resolveToolPolicy({
           : tool.serverName === WEB_SERVER_NAME
             ? webSearchEnabled
             : tool.serverName === MEMORY_SERVER_NAME
-              ? true
+              ? memoryTools || tool.name === "remember"
               : tool.serverName === TERMINAL_SERVER_NAME ||
                   tool.serverName === PLAN_SERVER_NAME
                 ? fileTools
@@ -225,6 +232,7 @@ export function useToolPolicy(input: ToolPolicyInput): ToolPolicy {
     fileTools,
     teamMode,
     folder,
+    memoryTools,
   } = input;
 
   return useMemo(
@@ -237,6 +245,7 @@ export function useToolPolicy(input: ToolPolicyInput): ToolPolicy {
         fileTools,
         teamMode,
         folder,
+        memoryTools,
       }),
     [
       mode,
@@ -246,6 +255,7 @@ export function useToolPolicy(input: ToolPolicyInput): ToolPolicy {
       fileTools,
       teamMode,
       folder,
+      memoryTools,
     ]
   );
 }

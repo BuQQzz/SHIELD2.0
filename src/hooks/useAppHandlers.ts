@@ -95,6 +95,7 @@ export function useAppHandlers({
     modelSettings,
     handleToolCallRequest,
     isMCPReady,
+    currentModelId,
   });
 
   const handleStopGenerating = useCallback(async () => {

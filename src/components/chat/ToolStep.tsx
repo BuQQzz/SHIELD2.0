@@ -10,6 +10,7 @@
 import { useEffect, useRef, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
+  BookMarked,
   BookOpen,
   Brain,
   ChevronRight,
@@ -57,6 +58,8 @@ const ICONS: Record<string, LucideIcon> = {
   run_command: SquareTerminal,
   search_memory: Brain,
   open_memory: BookOpen,
+  // A note kept, not a tool at work
+  remember: BookMarked,
   update_plan: ListChecks,
   delegate: Users,
 };

@@ -81,11 +81,13 @@ export function StuckBar({ isGenerating }: StuckBarProps) {
   // Short: the bar shares a narrow column with its buttons
   const who = status?.agent ? "Agent step" : "Reply";
   const message =
-    state === "frozen"
-      ? `No output for ${minutesAndSeconds(status?.idleMs ?? 0)}: the server may have frozen.`
-      : state === "slow"
-        ? `${who} running ${minutesAndSeconds(status?.elapsedMs ?? 0)}: it may be stuck.`
-        : `${who}: ${minutesAndSeconds(status?.elapsedMs ?? 0)}`;
+    state === "quiet"
+      ? `Nothing back from the model for ${minutesAndSeconds(status?.idleMs ?? 0)}.`
+      : state === "frozen"
+        ? `No output for ${minutesAndSeconds(status?.idleMs ?? 0)}: the server may have frozen.`
+        : state === "slow"
+          ? `${who} running ${minutesAndSeconds(status?.elapsedMs ?? 0)}: it may be stuck.`
+          : `${who}: ${minutesAndSeconds(status?.elapsedMs ?? 0)}`;
   const doing =
     acting === "restart"
       ? "Restarting the server…"
@@ -132,7 +134,16 @@ export function StuckBar({ isGenerating }: StuckBarProps) {
                     Skip step
                   </Button>
                 )}
-                {state === "frozen" ? (
+                {state === "quiet" ? (
+                  <Button
+                    size="sm"
+                    className="h-7 px-3 text-xs"
+                    onClick={() => void act("nudge")}
+                    title="Drop this request and ask again, without long thinking"
+                  >
+                    Ask again
+                  </Button>
+                ) : state === "frozen" ? (
                   <Button
                     size="sm"
                     className="h-7 px-3 text-xs"

@@ -4,19 +4,16 @@
  */
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import {
-  Ban,
-  Check,
-  ChevronRight,
-  CircleAlert,
-  Loader2,
-  X,
-} from "lucide-react";
+import { Ban, Check, ChevronRight, Loader2, X } from "lucide-react";
 import type { AgentRunView, RunStep } from "@/agents/runView";
 import { cn } from "@/lib/utils";
 import { stepLabel } from "@/components/chat/turns";
 import { streamingToolCallPreview } from "@/handlers/toolCallParsing";
+import { runTitle } from "@/agents/teamPlan";
 import { AgentIcon } from "./AgentIcon";
+import { CompactMarkdown } from "./CompactMarkdown";
+import { AgentResult } from "./AgentResult";
+import { displayText } from "./workView";
 import { ROLE_LOOKS, STATUS_LOOK } from "./agentLooks";
 
 const serverOf = (tool: string) =>
@@ -98,6 +95,11 @@ interface AgentDetailProps {
 
 export function AgentDetail({ run, onBack }: AgentDetailProps) {
   const [taskOpen, setTaskOpen] = useState(false);
+  /** null: follow the run (open while it works, folded once it ends) */
+  const [activityChoice, setActivityChoice] = useState<boolean | null>(null);
+  const activityOpen = activityChoice ?? run.status === "running";
+  const setActivityOpen = (open: boolean) => setActivityChoice(open);
+  const toolSteps = run.steps.filter((step) => step.kind === "tool").length;
   const scroller = useRef<HTMLDivElement>(null);
   /** Follows the bottom while the user is there; lets go when they scroll up */
   const stuck = useRef(true);
@@ -154,97 +156,100 @@ export function AgentDetail({ run, onBack }: AgentDetailProps) {
           const el = event.currentTarget;
           stuck.current = el.scrollHeight - el.scrollTop - el.clientHeight < 24;
         }}
-        className="min-h-0 flex-1 space-y-2 overflow-y-auto px-3 py-2"
+        className="min-h-0 flex-1 space-y-2 overflow-y-auto overflow-x-hidden px-3 py-2"
       >
         <button
           type="button"
           onClick={() => setTaskOpen((v) => !v)}
           className="w-full rounded-md bg-muted/50 p-2 text-left text-xs text-muted-foreground"
         >
-          <span className="font-medium text-foreground/80">Task </span>
-          {run.continuesFrom && <span>(continues {run.continuesFrom}) </span>}
-          <span
-            className={cn("whitespace-pre-wrap", !taskOpen && "line-clamp-3")}
-          >
-            {run.task}
+          <span className="block font-medium text-foreground/85">
+            {runTitle(run)}
+            {run.continuesFrom && (
+              <span className="font-normal text-muted-foreground">
+                {" "}
+                · continues {run.continuesFrom}
+              </span>
+            )}
           </span>
+          {taskOpen ? (
+            <span className="mt-1 block whitespace-pre-wrap [overflow-wrap:anywhere]">
+              {displayText(run.task)}
+            </span>
+          ) : (
+            <span className="mt-0.5 block text-[11px]">Show the full task</span>
+          )}
         </button>
 
-        {run.steps.map((step) =>
-          step.kind === "say" ? (
-            <p
-              key={step.id}
-              className="whitespace-pre-wrap text-[13px] leading-snug"
-            >
-              {step.text}
-            </p>
-          ) : (
-            <ToolRow key={step.id} step={step} />
-          )
-        )}
+        {run.status !== "running" && <AgentResult run={run} />}
 
-        {run.status === "running" &&
-          (live.text || live.pendingTool !== null ? (
-            <>
-              {live.text && (
-                <p className="whitespace-pre-wrap text-[13px] leading-snug">
-                  {live.text}
-                  {live.pendingTool === null && (
-                    <span className="ml-0.5 inline-block h-3 w-1.5 animate-pulse bg-foreground/60 align-middle" />
-                  )}
-                </p>
+        <div>
+          <button
+            type="button"
+            onClick={() => setActivityOpen(!activityOpen)}
+            aria-expanded={activityOpen}
+            className="flex w-full items-center gap-1 py-0.5 text-[11px] font-medium text-muted-foreground hover:text-foreground"
+          >
+            <ChevronRight
+              className={cn(
+                "h-3 w-3 transition-transform",
+                activityOpen && "rotate-90"
               )}
-              {live.pendingTool !== null && (
-                <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                  <Loader2 className="h-3 w-3 animate-spin" aria-hidden />
-                  {pendingLabel(live.pendingTool, live.pendingTarget)}
-                </p>
+              aria-hidden
+            />
+            Activity
+            {toolSteps > 0 && (
+              <span className="font-normal">
+                · {toolSteps} {toolSteps === 1 ? "step" : "steps"}
+              </span>
+            )}
+          </button>
+          {activityOpen && (
+            <div className="mt-1 space-y-1.5 border-l border-border/60 pl-2">
+              {run.steps.map((step) =>
+                step.kind === "say" ? (
+                  <div key={step.id} className="text-foreground/80">
+                    <CompactMarkdown text={step.text} />
+                  </div>
+                ) : (
+                  <ToolRow key={step.id} step={step} />
+                )
               )}
-            </>
-          ) : (
-            <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
-              <Loader2 className="h-3 w-3 animate-spin" aria-hidden />
-              Thinking
-            </p>
-          ))}
 
-        {run.checkpointed && (
-          <p className="rounded-md bg-amber-500/10 p-2 text-xs text-amber-700 dark:text-amber-400">
-            Its context reached the checkpoint, so it was told to stop and hand
-            its work over.
-          </p>
-        )}
-
-        {run.status !== "running" && (
-          <div className="space-y-1.5 pt-2 text-xs">
-            {run.reason && (
-              <p className="flex gap-1.5 text-amber-700 dark:text-amber-400">
-                <CircleAlert
-                  className="mt-0.5 h-3.5 w-3.5 shrink-0"
-                  aria-hidden
-                />
-                {run.reason}
-              </p>
-            )}
-            {run.summary && (
-              <p className="whitespace-pre-wrap text-foreground/90">
-                {run.summary}
-              </p>
-            )}
-            {run.workLines.length > 0 && (
-              <div className="rounded-md bg-muted/50 p-2 text-muted-foreground">
-                <p className="mb-0.5 font-medium text-foreground/80">
-                  Checked by SHIELD
-                </p>
-                {run.workLines.map((line) => (
-                  <p key={line} className="break-words">
-                    {line}
+              {run.status === "running" &&
+                (live.text || live.pendingTool !== null ? (
+                  <>
+                    {live.text && (
+                      <p className="whitespace-pre-wrap text-[13px] leading-snug [overflow-wrap:anywhere]">
+                        {displayText(live.text)}
+                        {live.pendingTool === null && (
+                          <span className="ml-0.5 inline-block h-3 w-1.5 animate-pulse bg-foreground/60 align-middle" />
+                        )}
+                      </p>
+                    )}
+                    {live.pendingTool !== null && (
+                      <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                        <Loader2 className="h-3 w-3 animate-spin" aria-hidden />
+                        {pendingLabel(live.pendingTool, live.pendingTarget)}
+                      </p>
+                    )}
+                  </>
+                ) : (
+                  <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                    <Loader2 className="h-3 w-3 animate-spin" aria-hidden />
+                    Thinking
                   </p>
                 ))}
-              </div>
-            )}
-          </div>
-        )}
+
+              {run.checkpointed && (
+                <p className="rounded-md bg-amber-500/10 p-2 text-xs text-amber-700 dark:text-amber-400">
+                  Its context reached the checkpoint, so it was told to stop and
+                  hand its work over.
+                </p>
+              )}
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );

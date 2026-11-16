@@ -119,6 +119,8 @@ export function useAgentTeam({
     async (request: ToolCallRequest): Promise<MCPToolResult> => {
       if (!isDelegateTool(request.tool)) return handleToolCallRequest(request);
       const team = teamFor(conversationId ?? "no-conversation");
+      // The turn this delegation belongs to: a newer message ends it too
+      const turn = useGenerationStore.getState().turn;
       // Agents call tools natively when the model does, as the main session
       const native = usesNativeToolCalling(modelName ?? "");
       const roleTools = (spec: {
@@ -156,11 +158,23 @@ export function useAgentTeam({
         closeSession: async (sessionId) => {
           await window.llama.agentClose(sessionId);
         },
-        execute: (call, context) =>
-          handleToolCallRequest(call, {
+        execute: async (call, context) => {
+          // Agents at the same time never change one file (parallel.ts)
+          const taken =
+            context?.runId &&
+            team.claims.claim(
+              context.runId,
+              context.role,
+              call.tool,
+              call.arguments ?? {},
+              workspaceFolder
+            );
+          if (taken) return { success: false, error: taken };
+          return handleToolCallRequest(call, {
             policy: workerPolicy,
             agent: context?.role,
-          }),
+          });
+        },
         buildPrompt: (spec) =>
           buildSystemPrompt({
             modelFamily: detectModelFamily(modelName ?? "generic"),
@@ -175,7 +189,7 @@ export function useAgentTeam({
         nativeToolsFor: (spec) => (native ? roleTools(spec) : []),
         workspaceFolder,
         readFile: readProjectFile,
-        isStopped: () => useGenerationStore.getState().stopRequested,
+        isStopped: () => useGenerationStore.getState().turnOver(turn),
         isSkipped: () => useGenerationStore.getState().skipRequested,
         takeSteer: () => useGenerationStore.getState().takeSteer(),
         onProgress: setActivity,
@@ -183,7 +197,10 @@ export function useAgentTeam({
           const id = conversationId ?? "no-conversation";
           useTeamStore.getState().record(id, event);
           if (event.type === "start" || event.type === "end") syncPlan(id);
-          if (event.type === "end") saveRuns(id);
+          if (event.type === "end") {
+            team.claims.release(event.runId);
+            saveRuns(id);
+          }
         },
       };
 

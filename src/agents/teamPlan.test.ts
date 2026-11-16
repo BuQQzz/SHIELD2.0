@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { planStepsFromRuns, stepTask } from "./teamPlan";
+import { planStepsFromRuns, runTitle, stepTask } from "./teamPlan";
 import { applyAgentEvent, type AgentRunView } from "./runView";
 import type { AgentEvent } from "./events";
 
@@ -92,5 +92,27 @@ describe("planStepsFromRuns", () => {
     const steps = planStepsFromRuns(many);
     expect(steps).toHaveLength(12);
     expect(steps[0]?.step).toBe("Coder: Task 3");
+  });
+});
+
+describe("what the user sees for a run", () => {
+  it("drops the orchestrator's preamble and paths", () => {
+    expect(
+      stepTask(
+        "Goal: in the project folder /home/me/Projects/app, rename the function c_to_f to celsius_to_fahrenheit."
+      )
+    ).toBe("Rename the function c_to_f to celsius_to_fahrenheit.");
+    expect(
+      stepTask(
+        "In this project there is a file named words.py that has two bugs. Fix both."
+      )
+    ).toBe("In this project there is a file named words.py that has two bugs.");
+  });
+
+  it("prefers the orchestrator's title", () => {
+    expect(runTitle({ title: "Fix words.py", task: "Goal: long" })).toBe(
+      "Fix words.py"
+    );
+    expect(runTitle({ task: "Goal: fix it." })).toBe("Fix it.");
   });
 });

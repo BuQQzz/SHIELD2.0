@@ -61,6 +61,13 @@ export interface ProviderConfig {
    * (its replies are marked "keeps data" instead of "zero retention").
    */
   allowNoZdr?: string[];
+  /**
+   * Model ids the user shares their memory with although their requests are
+   * not held to zero retention: the memory notes in the prompt, the earlier
+   * conversations SHIELD recalls with a message, and the memory search tools.
+   * A model whose requests are held to it gets them without being listed.
+   */
+  shareMemory?: string[];
   /** Context window to assume for a model that does not report one */
   defaultContext: number;
   /** When the user accepted that their messages leave the device (ISO) */

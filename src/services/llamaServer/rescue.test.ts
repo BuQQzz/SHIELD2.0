@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  HOSTED_QUIET_MS,
   FROZEN_AFTER_MS,
   SLOW_AFTER_MS,
   minutesAndSeconds,
@@ -52,5 +53,24 @@ describe("minutesAndSeconds", () => {
   it("writes m:ss", () => {
     expect(minutesAndSeconds(5_000)).toBe("0:05");
     expect(minutesAndSeconds(192_400)).toBe("3:12");
+  });
+});
+
+describe("a hosted request", () => {
+  const hosted = (elapsedMs: number, idleMs: number) => ({
+    agent: false,
+    phase: "reading" as const,
+    elapsedMs,
+    idleMs,
+    hosted: true,
+  });
+
+  it("shows no timer and no frozen-server warning while it thinks", () => {
+    expect(stuckState(hosted(52_000, 52_000))).toBe("hidden");
+    expect(stuckState(hosted(4 * 60_000, 158_000))).toBe("hidden");
+  });
+
+  it("offers to ask again only after five quiet minutes", () => {
+    expect(stuckState(hosted(6 * 60_000, HOSTED_QUIET_MS))).toBe("quiet");
   });
 });

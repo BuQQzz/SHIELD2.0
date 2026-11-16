@@ -15,6 +15,7 @@ import { PermissionModeSelector } from "./PermissionModeSelector";
 import { WorkspaceSelector } from "./WorkspaceSelector";
 import { TeamToggle } from "./TeamToggle";
 import { ComposerModelPicker } from "./ComposerModelPicker";
+import { ThinkingPicker } from "./ThinkingPicker";
 import type { TeamAvailability } from "@/agents/teamFit";
 import { type ModelOption } from "@/config/models";
 import { ContextRing } from "./ContextRing";
@@ -220,6 +221,7 @@ export const ChatInput = forwardRef<ChatInputRef, ChatInputProps>(
                     onOpenSettings={onOpenSettings}
                   />
                 )}
+                <ThinkingPicker modelId={modelId} />
                 <span className="flex-1" />
                 <ContextRing />
                 {isGenerating && input.trim() && onQueue && (

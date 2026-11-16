@@ -71,7 +71,7 @@ export interface AgentRunDeps {
   /** Runs a call through the app's permission policy and tools */
   execute(
     call: ToolCallRequest,
-    context?: { role: AgentRole }
+    context?: { role: AgentRole; runId?: string }
   ): Promise<MCPToolResult>;
   /** The system prompt for a role: its text plus the tools it may use */
   buildPrompt(spec: RoleSpec): string;
@@ -99,6 +99,8 @@ export interface AgentRunDeps {
 export interface AgentRunInput {
   role: AgentRole;
   task: string;
+  /** What the user sees for the task (delegate's title) */
+  title?: string;
   /** The hand-off of an earlier PARTIAL run to carry on from */
   continueFrom?: StoredHandoff;
   team: TeamRun;
@@ -243,6 +245,28 @@ function recordCall(
 /** How much of a tool's output the Team panel keeps per step */
 const EVENT_TEXT_CHARS = 1200;
 
+/** Longest brief kept when it is cut from the report rather than written */
+const BRIEF_CHARS = 280;
+
+/**
+ * What the Team panel shows first for a finished agent: its own SUMMARY
+ * line, else the first paragraph of its report, cut at a sentence. The full
+ * report was shown at once and read as a wall of text (2026-11-16).
+ */
+export function briefOf(report: AgentReport): string | undefined {
+  if (report.parsed.brief) return report.parsed.brief;
+  const first =
+    report.summary
+      .trim()
+      .split(/\n\s*\n/)[0]
+      ?.trim() ?? "";
+  if (!first) return undefined;
+  if (first.length <= BRIEF_CHARS) return first;
+  const cut = first.slice(0, BRIEF_CHARS);
+  const end = Math.max(cut.lastIndexOf(". "), cut.lastIndexOf(".\n"));
+  return end > 80 ? cut.slice(0, end + 1) : `${cut.trimEnd()}…`;
+}
+
 function endEvent(report: AgentReport): AgentEvent {
   return {
     type: "end",
@@ -252,8 +276,10 @@ function endEvent(report: AgentReport): AgentEvent {
     summary:
       report.summary ||
       [report.parsed.done, report.parsed.notes].filter(Boolean).join("\n"),
+    brief: briefOf(report),
     reason: report.reason,
     workLines: describeWork(report.work),
+    work: report.work,
     steps: report.steps,
     contextPercent: report.contextPercent,
   };
@@ -327,8 +353,11 @@ export async function runAgent(
     runId: handoffId,
     role,
     task: input.task,
+    ...(input.title ? { title: input.title } : {}),
     continuesFrom: input.continueFrom?.id,
   });
+  // Before the seed, so it lists teammates already running; they list it
+  team.join(handoffId, role, input.task);
 
   const seed = [
     `TASK:\n${input.task}`,
@@ -342,6 +371,7 @@ export async function runAgent(
         })
       : "",
     team.notesBlock(),
+    team.teammatesBlock(handoffId),
     "Begin.",
   ]
     .filter(Boolean)
@@ -359,6 +389,7 @@ export async function runAgent(
       handoffId,
       error instanceof Error ? error.message : String(error)
     );
+    team.leave(handoffId);
     emit(endEvent(report));
     return report;
   }
@@ -392,9 +423,18 @@ export async function runAgent(
     deps.onProgress?.(describeCall(role, call));
 
     if (call.tool === TEAM_NOTE_TOOL_NAME) {
-      const kept = team.addNote(String(call.arguments.text ?? ""));
+      const to =
+        typeof call.arguments.to === "string" ? call.arguments.to : undefined;
+      const kept = team.addNote(
+        String(call.arguments.text ?? ""),
+        { runId: handoffId, role },
+        to
+      );
       return kept
-        ? { success: true, data: `Noted for the team: ${kept}` }
+        ? {
+            success: true,
+            data: to ? `Sent to ${to}: ${kept}` : `Noted for the team: ${kept}`,
+          }
         : refuse('add_team_note needs "text".');
     }
     if (checkpointing) {
@@ -421,7 +461,7 @@ export async function runAgent(
       }
       commandsRun += 1;
     }
-    const result = await deps.execute(call, { role });
+    const result = await deps.execute(call, { role, runId: handoffId });
     if (!result.success && result.error?.startsWith(USER_DENIED)) {
       work.refused.push(
         `${role} ${call.tool}${pathOf(call) ? ` ${shortPath(pathOf(call))}` : ""} ${DENIED_BY_USER}`
@@ -486,8 +526,10 @@ export async function runAgent(
           emit({ type: "context", runId: handoffId, percent: lastPercent });
           const notes = deps.takeSteer?.() ?? [];
           steered.push(...notes);
+          // Teammates working at the same time (parallel.ts) wrote to it
+          const inbox = team.takeInbox(handoffId);
           let message = withSteer(
-            `${text}\n[Context: ${lastPercent}% used]`,
+            `${text}${inbox.length ? `\n\nNotes from your teammates:\n${inbox.map((n) => `- ${n}`).join("\n")}` : ""}\n[Context: ${lastPercent}% used]`,
             notes
           );
           if (!checkpointing && fraction >= checkpointAt) {
@@ -619,6 +661,7 @@ export async function runAgent(
     emit(endEvent(report));
     return report;
   } finally {
+    team.leave(handoffId);
     await deps.closeSession(sessionId).catch(() => {});
   }
 }
