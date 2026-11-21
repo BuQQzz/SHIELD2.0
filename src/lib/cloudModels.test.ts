@@ -211,3 +211,21 @@ describe("sharesMemory", () => {
     ).toBe(false);
   });
 });
+
+describe("the hosted list", () => {
+  it("leaves out models that do not chat, unless one is loaded", () => {
+    const fetched = {
+      "exp-1": {
+        models: [{ id: "deepseek-v4" }, { id: "tts-1", chat: false }],
+      },
+    };
+    expect(
+      cloudModelOptions([provider()], fetched).map((o) => o.displayName)
+    ).toEqual(["deepseek-v4"]);
+    expect(
+      cloudModelOptions([provider()], fetched, {
+        id: "remote:exp-1:tts-1",
+      }).map((o) => o.displayName)
+    ).toContain("tts-1");
+  });
+});

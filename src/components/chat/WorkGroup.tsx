@@ -80,6 +80,7 @@ function useLiveLabel(
   live: LiveWork | null | undefined
 ): { key: string; text: ReactNode } | null {
   const progress = useGenerationStore((state) => state.progress);
+  const hosted = useGenerationStore((state) => state.hosted);
   const tool = useHeldTool(live?.runningTool);
   if (!live) return null;
   if (tool) {
@@ -143,6 +144,8 @@ function useLiveLabel(
       ),
     };
   }
+  // Between a hosted model's steps: nothing it reports to name
+  if (hosted) return { key: "working", text: "Working…" };
   return { key: "reading", text: "Reading the conversation…" };
 }
 

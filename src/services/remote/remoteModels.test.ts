@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   catalogBase,
+  chatsInText,
   fetchCatalogContext,
   listRemoteModels,
   parseCatalogModel,
@@ -198,5 +199,46 @@ describe("a model's real window", () => {
         throw new Error("offline");
       })
     ).toBe(undefined);
+  });
+});
+
+describe("models that do not chat", () => {
+  it("are known by what they output, when the list says", () => {
+    expect(chatsInText({ id: "x", output_modalities: ["image"] })).toBe(false);
+    expect(
+      chatsInText({ id: "tts-like", architecture: { modality: "text->text" } })
+    ).toBe(true);
+    expect(
+      chatsInText({ id: "x", architecture: { modality: "text->audio" } })
+    ).toBe(false);
+  });
+
+  it("are known by name otherwise", () => {
+    for (const id of [
+      "tts-1",
+      "whisper-1",
+      "gpt-image-1",
+      "veo-3.1-fast-generate-preview",
+      "text-embedding-3-small",
+      "eleven_v3",
+      "gpt-4o-mini-transcribe",
+      "grok-imagine-video-1.5",
+    ]) {
+      expect(chatsInText({ id })).toBe(false);
+    }
+    for (const id of [
+      "deepseek-v4.1-flash",
+      "gpt-oss-safeguard-20b",
+      "qwen3.8-omni-flash",
+      "codestral-2508",
+      "gemini-3.5-flash",
+    ]) {
+      expect(chatsInText({ id })).toBe(true);
+    }
+  });
+
+  it("are marked in the parsed list", () => {
+    expect(parseModelEntry({ id: "tts-1" })?.chat).toBe(false);
+    expect(parseModelEntry({ id: "gpt-5.5" })).not.toHaveProperty("chat");
   });
 });

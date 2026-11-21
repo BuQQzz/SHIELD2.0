@@ -46,12 +46,45 @@ function readContextLength(entry: Record<string, unknown>): number | undefined {
 }
 
 /** One entry of a model list; null when it has no id */
+/**
+ * Names of models that make speech, text from speech, images, video or
+ * embeddings rather than chat. Experiential lists them with the chat models:
+ * about 300 entries, tts-1 and veo-3.1 among them (2026-11-15).
+ */
+const NOT_CHAT_NAME =
+  /(?:^|[-_.])(?:tts|whisper|transcribe|embed|embedding|embeddings|image|imagine|veo|scribe|moderation|rerank|dall-e)(?:[-_.\d]|$)|^eleven_|^text-embedding/i;
+
+/**
+ * Whether a listed model chats in text: by what it says it outputs when the
+ * entry says so, else by its name.
+ */
+export function chatsInText(record: Record<string, unknown>): boolean {
+  const architecture = record.architecture as
+    { output_modalities?: unknown; modality?: unknown } | undefined;
+  const outputs = record.output_modalities ?? architecture?.output_modalities;
+  if (Array.isArray(outputs) && outputs.length > 0) {
+    return outputs.includes("text");
+  }
+  const modality = architecture?.modality ?? record.modality;
+  if (typeof modality === "string" && modality.includes("->")) {
+    return /->\s*(?:[a-z+]*\+)?text/.test(modality);
+  }
+  if (
+    typeof record.type === "string" &&
+    /embed|audio|image/i.test(record.type)
+  ) {
+    return false;
+  }
+  return !NOT_CHAT_NAME.test(String(record.id ?? ""));
+}
+
 export function parseModelEntry(entry: unknown): RemoteModel | null {
   if (!entry || typeof entry !== "object") return null;
   const record = entry as Record<string, unknown>;
   if (typeof record.id !== "string" || !record.id) return null;
 
   const model: RemoteModel = { id: record.id };
+  if (!chatsInText(record)) model.chat = false;
   const contextLength = readContextLength(record);
   if (contextLength) model.contextLength = contextLength;
 

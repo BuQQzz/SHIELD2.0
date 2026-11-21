@@ -105,6 +105,11 @@ export interface RemoteModel {
   /** Some route does, and a request can ask for it */
   zdrOnRequest?: boolean;
   noTraining?: boolean;
+  /**
+   * false for a model that does not chat (speech, transcription, images,
+   * video, embeddings): the pickers leave it out (remoteModels.chatsInText)
+   */
+  chat?: boolean;
 }
 
 /** Why a request was not served the way it was asked to be */

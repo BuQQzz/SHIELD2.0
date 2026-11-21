@@ -116,6 +116,9 @@ export function cloudModelOptions(
   for (const provider of providers) {
     if (!provider.hasKey) continue;
     for (const model of fetched[provider.id]?.models ?? []) {
+      // Speech, images, embeddings: not something to chat with. The loaded
+      // model is put back below if it is one
+      if (model.chat === false) continue;
       options.push(optionFor(provider, model));
     }
   }

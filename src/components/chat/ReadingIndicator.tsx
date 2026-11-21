@@ -38,7 +38,8 @@ export function ReadingIndicator() {
   // A token or two of the reply can be counted just before its text arrives
   const thinking = progress?.phase === "writing" && progress.generated > 2;
 
-  let label: ReactNode = "Reading the conversation";
+  const hostedModel = useGenerationStore((state) => state.hosted);
+  let label: ReactNode = hostedModel ? "Working" : "Reading the conversation";
   // A hosted model counts its own time (HostedWaitLabel)
   const hosted =
     progress?.phase === "waiting" || progress?.phase === "thinking";
@@ -92,6 +93,7 @@ export function ReadingIndicator() {
         {seconds >= 20 &&
           !thinking &&
           !hosted &&
+          !hostedModel &&
           progress?.phase !== "summarising" && (
             <span className="text-muted-foreground/70">
               Long chats and large files take a while on local models.

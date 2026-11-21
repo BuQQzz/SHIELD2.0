@@ -33,6 +33,13 @@ interface GenerationStore {
   ) => void;
   /** The request in progress: summarising, reading or writing, live */
   progress: ChatProgress | null;
+  /**
+   * The loaded model is hosted. Between its steps, with no progress to show,
+   * the label says "Working…": "Reading the conversation…" flashed as each
+   * hosted reply ended (2026-11-16), and is only true of a local server
+   */
+  hosted: boolean;
+  setHosted: (hosted: boolean) => void;
   /** Also moves the context ring, which otherwise updates after a reply */
   setProgress: (progress: ChatProgress | null) => void;
   setContext: (context: ContextUsage | null | undefined) => void;
@@ -96,6 +103,8 @@ export const useGenerationStore = create<GenerationStore>((set, get) => ({
       lastCapsule: capsule ?? null,
     }),
   progress: null,
+  hosted: false,
+  setHosted: (hosted) => set({ hosted }),
   setProgress: (progress) =>
     set((state) => ({
       progress,

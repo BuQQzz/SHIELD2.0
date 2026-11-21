@@ -105,6 +105,8 @@ export function useAgentTeam({
 }: UseAgentTeamProps) {
   /** What the running sub-agent last did, for the UI */
   const [activity, setActivity] = useState<string | null>(null);
+  /** Agents working now: with several at once, the chat says how many */
+  const [working, setWorking] = useState(0);
 
   // Text a sub-agent's model is writing, for the Team panel
   useEffect(
@@ -196,6 +198,8 @@ export function useAgentTeam({
         onEvent: (event) => {
           const id = conversationId ?? "no-conversation";
           useTeamStore.getState().record(id, event);
+          if (event.type === "start") setWorking((n) => n + 1);
+          if (event.type === "end") setWorking((n) => Math.max(0, n - 1));
           if (event.type === "start" || event.type === "end") syncPlan(id);
           if (event.type === "end") {
             team.claims.release(event.runId);
@@ -222,5 +226,14 @@ export function useAgentTeam({
     ]
   );
 
-  return { handleToolCall, activity };
+  // "Delegating to 4 agents · latest: coder: read_text_file words.py": with
+  // one line per agent overwriting the last, the chat named one of four
+  // agents working at once as if it were the only one (2026-11-21)
+  return {
+    handleToolCall,
+    activity:
+      working > 1
+        ? `${working} agents · latest: ${activity ?? "starting"}`
+        : activity,
+  };
 }

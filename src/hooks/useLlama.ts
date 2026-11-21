@@ -140,6 +140,7 @@ export function useLlama() {
   const hostedRef = useRef(false);
   useEffect(() => {
     hostedRef.current = isRemoteModelId(currentModel?.id);
+    useGenerationStore.getState().setHosted(hostedRef.current);
   }, [currentModel]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);

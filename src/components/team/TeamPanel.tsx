@@ -181,7 +181,9 @@ export function TeamPanel({ conversationId, teamMode }: TeamPanelProps) {
           <div
             className={cn(
               "space-y-0.5 overflow-y-auto p-1.5",
-              open ? "max-h-40 shrink-0" : "flex-1"
+              // Grows with the team, up to near half the panel: at 160 px a
+              // fourth agent working at once was hidden (2026-11-21)
+              open ? "max-h-[45%] shrink-0" : "flex-1"
             )}
           >
             {runs.map((run) => (
