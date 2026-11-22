@@ -40,6 +40,33 @@ export interface RemoteEndpoint {
    * requests leave the setting out and the model thinks as it does
    */
   reasoningRejected?: boolean;
+  /**
+   * The model thinks when asked not to (effort "none"), and "no thinking"
+   * is sent as the least effort instead (thinksAnyway).
+   */
+  thinksAnyway?: boolean;
+}
+
+/**
+ * Models seen to think when asked not to, by provider and model, for the
+ * life of the app: a reload of the model keeps what was learned. GLM 5.3
+ * Flash took effort "none" and thought 2,134 tokens on a small question,
+ * 22 on "low"; asked again without thinking after an empty reply, it
+ * thought 22K tokens before its first step (2026-11-22). DeepSeek V4.1
+ * Flash thinks not at all on "none", and keeps it.
+ */
+const THINKS_ANYWAY = new Set<string>();
+
+export function thinksAnyway(endpoint: RemoteEndpoint): boolean {
+  return (
+    !!endpoint.thinksAnyway ||
+    THINKS_ANYWAY.has(`${endpoint.providerId}:${endpoint.model}`)
+  );
+}
+
+export function markThinksAnyway(endpoint: RemoteEndpoint): void {
+  endpoint.thinksAnyway = true;
+  THINKS_ANYWAY.add(`${endpoint.providerId}:${endpoint.model}`);
 }
 
 /** Finds a saved provider and its key; the ProviderStore in the main process */
@@ -176,7 +203,7 @@ export function adaptRequestBody(
     const kwargs = body.chat_template_kwargs as
       { enable_thinking?: boolean } | undefined;
     if (kwargs?.enable_thinking === false) {
-      adapted.reasoning = { effort: "none" };
+      adapted.reasoning = { effort: thinksAnyway(endpoint) ? "low" : "none" };
     } else if (typeof body.reasoning_effort === "string") {
       adapted.reasoning = { effort: body.reasoning_effort };
     }

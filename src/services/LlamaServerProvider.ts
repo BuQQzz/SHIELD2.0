@@ -30,7 +30,11 @@ import {
   type ChatStreamChunk,
 } from "./llamaServer/sse.js";
 import { effortFor, type ThinkingLevel } from "../config/thinking.js";
-import { RepetitionWatch } from "./llamaServer/repetition.js";
+import {
+  HOSTED_REPEAT_TIMES,
+  HOSTED_REPEAT_WINDOW,
+  RepetitionWatch,
+} from "./llamaServer/repetition.js";
 import { unswallowQwenCalls } from "../handlers/toolCallParsing.js";
 import {
   NativeCallWriter,
@@ -51,7 +55,9 @@ import {
   checkPosture,
   completionsUrl,
   describeHttpError,
+  markThinksAnyway,
   requestHeaders,
+  thinksAnyway,
   type GatewayPosture,
   type RemoteEndpoint,
 } from "./remote/remoteEndpoint.js";
@@ -139,6 +145,20 @@ export interface ServerLoadOptions {
  * the whole team run waiting on it (2026-10-21).
  */
 export const STALL_MS = 5 * 60 * 1000;
+
+/**
+ * The same for a hosted model. One that keeps its thinking to itself sends
+ * nothing while it thinks, and at a high setting may think past 5 minutes:
+ * given up on, that is a model at work called frozen. A dead connection
+ * still ends; the chat offers "Ask again" at 5 minutes (HOSTED_QUIET_MS).
+ */
+/**
+ * Thinking past this in a reply asked for none: the model does not take
+ * "none" (DeepSeek V4.1 Flash streams nothing at all then)
+ */
+const THOUGHT_DESPITE_OFF_CHARS = 1000;
+
+export const HOSTED_STALL_MS = 10 * 60 * 1000;
 
 /**
  * The fewest tokens a chat reply gets, whatever Max Tokens says. Bonsai
@@ -1033,12 +1053,19 @@ export class LlamaServerProvider {
     // Thought going round in circles: dropped, and the message sent again
     // without thinking (repetition.ts)
     const looping = new AbortController();
-    const thoughtWatch = new RepetitionWatch();
+    // Once per message (ChatOptions.afterLoop); a hosted model's long
+    // thinking is held to a stricter test (repetition.ts)
+    const thoughtWatch = options.afterLoop
+      ? null
+      : this.endpoint
+        ? new RepetitionWatch(HOSTED_REPEAT_WINDOW, HOSTED_REPEAT_TIMES)
+        : new RepetitionWatch();
     let stallTimer: ReturnType<typeof setTimeout> | undefined;
+    const stallMs = this.endpoint ? HOSTED_STALL_MS : STALL_MS;
     const watchForStall = () => {
       flight.lastProgressAt = Date.now();
       clearTimeout(stallTimer);
-      stallTimer = setTimeout(() => stalled.abort(), STALL_MS);
+      stallTimer = setTimeout(() => stalled.abort(), stallMs);
     };
     /**
      * The most prompt read and tokens written so far, kept apart: one mark
@@ -1235,7 +1262,7 @@ export class LlamaServerProvider {
               });
             }
           }
-          if (thought && thoughtWatch.push(thought)) looping.abort();
+          if (thought && thoughtWatch?.push(thought)) looping.abort();
           const deltas = (
             chunk.choices?.[0]?.delta as { tool_calls?: ToolCallDelta[] }
           )?.tool_calls;
@@ -1302,6 +1329,18 @@ export class LlamaServerProvider {
             `finish: ${finishReason || "none"}, thinking streamed: ${thinking.length} chars, ` +
             `usage ${JSON.stringify(final?.usage ?? null)}`
         );
+        // Asked not to think, and thought anyway: "no thinking" is the
+        // least effort for this model from now on (remoteEndpoint.ts)
+        if (
+          !thinks &&
+          thinking.length > THOUGHT_DESPITE_OFF_CHARS &&
+          !thinksAnyway(this.endpoint)
+        ) {
+          markThinksAnyway(this.endpoint);
+          appendServerLog(
+            `[SHIELD] ${this.endpoint.model} thought ${thinking.length} chars when asked not to: "no thinking" is sent as effort low from now on`
+          );
+        }
       }
       const closing = calls.finish();
       if (closing) {
@@ -1325,7 +1364,7 @@ export class LlamaServerProvider {
           "[LlamaServer] The model's thinking repeated itself; sending the message again without thinking"
         );
         appendServerLog(
-          "[SHIELD] thinking repeated itself: request aborted, sending it again without thinking"
+          `[SHIELD] thinking repeated itself after ${thinking.length} chars: request aborted, sending it again without thinking. Its end: ${JSON.stringify(thinking.slice(-400))}`
         );
         retryWithoutThinking = true;
       }
@@ -1349,7 +1388,7 @@ export class LlamaServerProvider {
         if (restarts > 0) {
           throw new Error(
             this.endpoint
-              ? `${this.serverName()} made no progress for ${STALL_MS / 60000} minutes, also on a second try, and was given up on.`
+              ? `${this.serverName()} made no progress for ${stallMs / 60000} minutes, also on a second try, and was given up on.`
               : `llama-server made no progress for ${STALL_MS / 60000} minutes, also after a restart, and was given up on. Stop and reload the model.`
           );
         }
@@ -1408,7 +1447,11 @@ export class LlamaServerProvider {
     }
     // "skip" goes on like Stop: what was written is kept
     if (retryWithoutThinking) {
-      return this.chat(message, { ...options, thinking: false }, restarts);
+      return this.chat(
+        message,
+        { ...options, thinking: false, afterLoop: true },
+        restarts
+      );
     }
     // Once: nothing at all came back (a hosted model too)
     if (

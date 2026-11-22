@@ -55,6 +55,13 @@ export interface ChatOptions {
    * orchestrator only routes work, and thought made a greeting take 60 s.
    */
   thinking?: boolean;
+  /**
+   * SHIELD's own resend after the thinking went round in circles: it is
+   * not watched again. A hosted model may think anyway when asked not to,
+   * and each resend was dropped the same way, with no end (GLM 5.3 Flash,
+   * 2026-11-22). A loop now runs to the reply limit instead.
+   */
+  afterLoop?: boolean;
 }
 
 /**

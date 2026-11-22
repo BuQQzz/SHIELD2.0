@@ -7,6 +7,8 @@ import {
   describeHttpError,
   gatewayPosture,
   isRemoteModelId,
+  markThinksAnyway,
+  thinksAnyway,
   memorySharedWith,
   normaliseBaseUrl,
   parseRemoteModelId,
@@ -120,6 +122,22 @@ describe("adaptRequestBody", () => {
       // llama-server's "no thinking" switch, as the gateway takes it
       reasoning: { effort: "none" },
     });
+  });
+
+  it("sends no thinking as the least effort to a model that thinks anyway", () => {
+    const glm = { ...endpoint, providerId: "p-glm", model: "glm-flash" };
+    expect(adaptRequestBody(llamaBody, glm).reasoning).toEqual({
+      effort: "none",
+    });
+    markThinksAnyway(glm);
+    expect(adaptRequestBody(llamaBody, glm).reasoning).toEqual({
+      effort: "low",
+    });
+    // Kept for the model, also on the endpoint a reload makes
+    expect(thinksAnyway({ ...glm, thinksAnyway: undefined })).toBe(true);
+    expect(
+      thinksAnyway({ ...glm, model: "other", thinksAnyway: undefined })
+    ).toBe(false);
   });
 
   it("sends a thinking effort as the gateway's reasoning setting", () => {
