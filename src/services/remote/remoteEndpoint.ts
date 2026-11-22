@@ -49,6 +49,21 @@ export interface RemoteProviderSource {
   ): { config: ProviderConfig; apiKey: string } | undefined;
 }
 
+/**
+ * Whether SHIELD's memory may go to this model of a saved provider: the
+ * same rule the renderer's sharesMemory applies to the picker's options.
+ * Held to zero retention (required and not waived for this model), or the
+ * user chose to share with it. Otherwise a provider may keep what it is sent.
+ */
+export function memorySharedWith(
+  config: Pick<ProviderConfig, "requireZdr" | "allowNoZdr" | "shareMemory">,
+  model: string
+): boolean {
+  const zdrHeld =
+    config.requireZdr && !(config.allowNoZdr ?? []).includes(model);
+  return zdrHeld || (config.shareMemory ?? []).includes(model);
+}
+
 export function remoteModelId(providerId: string, model: string): string {
   return `${REMOTE_PREFIX}${providerId}:${model}`;
 }

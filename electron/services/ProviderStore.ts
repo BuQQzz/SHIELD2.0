@@ -19,6 +19,7 @@ import {
   type ProviderSummary,
 } from "../../src/types/providers.js";
 import {
+  memorySharedWith,
   normaliseBaseUrl,
   type RemoteProviderSource,
 } from "../../src/services/remote/remoteEndpoint.js";
@@ -224,6 +225,12 @@ export class ProviderStore implements RemoteProviderSource {
     const updated: StoredProvider = { ...current, [list]: [...models].sort() };
     this.write(providers.map((p, i) => (i === index ? updated : p)));
     return ProviderStore.summary(updated);
+  }
+
+  /** Whether memory may go to this model of a provider (memorySharedWith) */
+  sharesMemory(id: string, model: string): boolean {
+    const stored = this.read().find((p) => p.id === id);
+    return !!stored && memorySharedWith(stored, model);
   }
 
   /** The provider and its decrypted key; for the main process only */

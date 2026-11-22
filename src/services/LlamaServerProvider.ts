@@ -181,6 +181,20 @@ export function setMemoryHooks(hooks: MemoryHooks | null): void {
 }
 
 /**
+ * Whether memory may go to a hosted model (ProviderStore.sharesMemory),
+ * asked when a summary is written so a change in Settings counts at once.
+ * Unset, no hosted model gets it.
+ */
+let memorySharing: ((providerId: string, model: string) => boolean) | null =
+  null;
+
+export function setMemorySharing(
+  check: ((providerId: string, model: string) => boolean) | null
+): void {
+  memorySharing = check;
+}
+
+/**
  * Most of the window the system prompt and tools may take, leaving the
  * rest for the conversation and a reply
  */
@@ -1564,6 +1578,13 @@ export class LlamaServerProvider {
    * each costs a slower read of the shortened history - which is why none
    * runs until needed.
    */
+  /** Memory may go with this session's requests: local, or shared hosted */
+  private memoryAllowed(): boolean {
+    const endpoint = this.endpoint;
+    if (!endpoint) return true;
+    return memorySharing?.(endpoint.providerId, endpoint.model) ?? false;
+  }
+
   private async makeRoom(
     nextMessage: string,
     signal: AbortSignal,
@@ -1575,8 +1596,10 @@ export class LlamaServerProvider {
     if (this.makeRoomCheaply(nextMessage.length)) return;
 
     onProgress?.({ phase: "summarising" });
-    // Hosted models get no memory check: the notes would leave the PC
-    const checked = this.endpoint
+    // A hosted model gets the memory check only when memory may go to it
+    // (zero retention, or the user shared it): the notes leave the PC
+    const memory = this.memoryAllowed();
+    const checked = !memory
       ? []
       : await (memoryHooks?.notesToCheck() ?? Promise.resolve([])).catch(
           () => []
@@ -1600,7 +1623,7 @@ export class LlamaServerProvider {
         ))
     );
     if (!summarised) return;
-    if (written && !this.endpoint) memoryHooks?.onNote(written, checked);
+    if (written && memory) memoryHooks?.onNote(written, checked);
 
     const removed = this.history.length - summarised.history.length;
     this.history = summarised.history;

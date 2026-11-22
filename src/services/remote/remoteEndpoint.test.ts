@@ -7,6 +7,7 @@ import {
   describeHttpError,
   gatewayPosture,
   isRemoteModelId,
+  memorySharedWith,
   normaliseBaseUrl,
   parseRemoteModelId,
   remoteModelId,
@@ -300,5 +301,25 @@ describe("describeHttpError", () => {
     expect(describeHttpError("X", 400, "a".repeat(2000)).length).toBeLessThan(
       400
     );
+  });
+});
+
+describe("memorySharedWith", () => {
+  it("shares with zero-retention models and the ones the user chose", () => {
+    expect(memorySharedWith({ requireZdr: true }, "m")).toBe(true);
+    // Allowed without a zero-retention route: no longer held to it
+    expect(memorySharedWith({ requireZdr: true, allowNoZdr: ["m"] }, "m")).toBe(
+      false
+    );
+    expect(memorySharedWith({ requireZdr: false }, "m")).toBe(false);
+    expect(
+      memorySharedWith({ requireZdr: false, shareMemory: ["m"] }, "m")
+    ).toBe(true);
+    expect(
+      memorySharedWith(
+        { requireZdr: true, allowNoZdr: ["m"], shareMemory: ["m"] },
+        "m"
+      )
+    ).toBe(true);
   });
 });
