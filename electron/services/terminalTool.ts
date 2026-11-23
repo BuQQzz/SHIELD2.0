@@ -33,7 +33,7 @@ import {
 import {
   leftoverNote,
   newTaskId,
-  noteLeftovers,
+  settledLeftovers,
   TASK_ID_VAR,
 } from "./runningTasks.js";
 
@@ -489,7 +489,7 @@ export function runCommand(
     child.on("error", (error) =>
       finish(fail(`Could not start the command: ${error.message}`))
     );
-    child.on("close", (code) => {
+    child.on("close", async (code) => {
       const elapsed = Date.now() - started;
       const text = output.toString();
       const soFar = text ? `\nOutput so far:\n${text}` : "";
@@ -504,7 +504,12 @@ export function runCommand(
       } else {
         // What it left running (nohup ... &) goes on Tasks running, and
         // the model is told it is still going (runningTasks.ts)
-        const still = noteLeftovers(taskId, child.pid, command, started);
+        const still = await settledLeftovers(
+          taskId,
+          child.pid,
+          command,
+          started
+        );
         finish({
           success: true,
           data: {

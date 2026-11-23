@@ -130,6 +130,29 @@ export function noteLeftovers(
   return still;
 }
 
+/** How long to look again when a command seemed to leave nothing */
+export const SETTLE_MS = 150;
+
+/**
+ * noteLeftovers, looked at twice when the first look finds nothing: a
+ * process started with & as the shell exits can be mid-exec, and its
+ * /proc environment reads empty then. The note of a `nohup sleep &` was
+ * missed that way in about one run in three (2026-11-23).
+ */
+export async function settledLeftovers(
+  taskId: string,
+  pgid: number | undefined,
+  command: string,
+  startedAt: number,
+  find: FindProcesses = defaultFind,
+  settleMs = SETTLE_MS
+): Promise<FoundProcess[]> {
+  const still = noteLeftovers(taskId, pgid, command, startedAt, find);
+  if (still.length > 0 || process.platform === "win32") return still;
+  await new Promise((resolve) => setTimeout(resolve, settleMs));
+  return noteLeftovers(taskId, pgid, command, startedAt, find);
+}
+
 /** Everything still running, oldest first; finished ones drop off */
 export function runningTasks(find: FindProcesses = defaultFind): RunningTask[] {
   const tasks: RunningTask[] = runningJobs().map((job) => ({
