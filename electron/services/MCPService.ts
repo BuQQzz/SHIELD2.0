@@ -29,6 +29,7 @@ import {
   moveToRecycleBin,
 } from "./recycleBin.js";
 import { APPEND_TOOL, APPEND_TOOL_NAME, appendToFile } from "./appendFile.js";
+import { makeParentFolders } from "./parentFolders.js";
 import {
   DECODED_EDIT_NOTE,
   decodeEditArguments,
@@ -223,6 +224,8 @@ class MCPService {
         if (!validated.success) {
           return validated;
         }
+
+        await makeParentFolders(tool, expandedArgs.path, fsPromises.mkdir);
 
         // SHIELD's own, as delete: the server cannot add to a file's end
         if (tool === APPEND_TOOL_NAME) {
