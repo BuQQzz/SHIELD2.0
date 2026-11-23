@@ -24,34 +24,40 @@ const text = (result: { data?: unknown }) =>
   (result.data as { content: { text: string }[] }).content[0]!.text;
 
 describe("leftovers from a fake process list", () => {
-  it("lists a task while it has processes, and only tasks it noted", () => {
-    let alive = true;
-    const find: FindProcesses = (taskId) =>
-      alive && taskId === "t1" ? [{ pid: 501, args: "python3 server.py" }] : [];
-    const still = noteLeftovers(
-      "t1",
-      500,
-      "nohup python3 server.py &",
-      1,
-      find
-    );
-    expect(still).toEqual([{ pid: 501, args: "python3 server.py" }]);
-    expect(runningTasks(find)).toContainEqual(
-      expect.objectContaining({
-        id: "left-t1",
-        kind: "left",
-        processes: ["python3 server.py"],
-      })
-    );
-    // A task SHIELD did not note is never stopped from here
-    const killed: number[] = [];
-    expect(
-      stopTask("left-other", killTree, find, (pid) => killed.push(pid))
-    ).toBe(false);
-    expect(killed).toEqual([]);
-    alive = false;
-    expect(runningTasks(find).some((t) => t.id === "left-t1")).toBe(false);
-  });
+  // Leftovers are not looked for on Windows (noteLeftovers)
+  it.skipIf(process.platform === "win32")(
+    "lists a task while it has processes, and only tasks it noted",
+    () => {
+      let alive = true;
+      const find: FindProcesses = (taskId) =>
+        alive && taskId === "t1"
+          ? [{ pid: 501, args: "python3 server.py" }]
+          : [];
+      const still = noteLeftovers(
+        "t1",
+        500,
+        "nohup python3 server.py &",
+        1,
+        find
+      );
+      expect(still).toEqual([{ pid: 501, args: "python3 server.py" }]);
+      expect(runningTasks(find)).toContainEqual(
+        expect.objectContaining({
+          id: "left-t1",
+          kind: "left",
+          processes: ["python3 server.py"],
+        })
+      );
+      // A task SHIELD did not note is never stopped from here
+      const killed: number[] = [];
+      expect(
+        stopTask("left-other", killTree, find, (pid) => killed.push(pid))
+      ).toBe(false);
+      expect(killed).toEqual([]);
+      alive = false;
+      expect(runningTasks(find).some((t) => t.id === "left-t1")).toBe(false);
+    }
+  );
 
   it("notes nothing for a command that left nothing", () => {
     expect(noteLeftovers("t2", 600, "ls", 1, () => [])).toEqual([]);
