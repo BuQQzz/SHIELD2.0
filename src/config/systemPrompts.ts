@@ -217,10 +217,18 @@ When asked for structured data (JSON, lists, tables):
  * Native function definitions come from the runtime's chat template. Keep
  * behavioral instructions here without teaching a competing call syntax.
  */
+/**
+ * For a long request on a cloud model, which SHIELD does not nudge after
+ * each step (handlers/runRules.ts). The user can still steer or stop it.
+ */
+export const SEE_IT_THROUGH =
+  "For a request with several parts, keep working until every part is done and checked: a failed command or test is a step to fix, not a reason to stop. End your turn only when the whole request is done, or when you need the user to decide something.";
+
 export function generateNativeToolPrompt(
   tools: ToolDefinition[],
   allowedPaths: string[] = [],
-  planOnly = false
+  planOnly = false,
+  seeItThrough = false
 ): string {
   if (tools.length === 0 && !planOnly) return "";
 
@@ -267,7 +275,7 @@ Always use a full path beginning with one of these. Never guess a path such as "
 - Make a native function call, then wait for its real result. Never invent a tool result or claim success before a successful result arrives.
 - After a result arrives, either call the next function needed for the request or answer the user.
 - Do not repeat a call that already succeeded; use its result.
-- Once you can answer, answer without making another call.${editRule}${commandRule}${planRule}`
+- Once you can answer, answer without making another call.${seeItThrough && !planOnly ? `\n- ${SEE_IT_THROUGH}` : ""}${editRule}${commandRule}${planRule}`
       : "\nNo read functions are currently available. Base the plan on the information already provided and identify anything that still needs inspection.";
   const planSection = planOnly
     ? `
@@ -601,7 +609,12 @@ export function buildSystemPrompt(config: SystemPromptConfig): BuiltPrompt {
   ) {
     if (config.nativeTools) {
       parts.push(
-        generateNativeToolPrompt(tools, config.allowedPaths, config.planOnly)
+        generateNativeToolPrompt(
+          tools,
+          config.allowedPaths,
+          config.planOnly,
+          config.seeItThrough
+        )
       );
       includedModules.push(config.planOnly ? "plan-mode" : "tool-calling");
       includedModules.push("native-tools");

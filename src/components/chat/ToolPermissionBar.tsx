@@ -236,7 +236,9 @@ export function ToolPermissionBar({
                   {request.isDestructive
                     ? `Move to ${trashName()}`
                     : request.command !== undefined
-                      ? "Run this command?"
+                      ? request.arguments?.background === true
+                        ? "Run this in the background?"
+                        : "Run this command?"
                       : request.instructionsFile
                         ? request.toolName === "write_file"
                           ? "Write AGENTS.md?"

@@ -18,6 +18,13 @@ import { hostOs, type HostOs } from "../utils/platform";
 
 export const TERMINAL_SERVER_NAME = "terminal";
 export const RUN_COMMAND_TOOL_NAME = "run_command";
+/** Background jobs (electron/services/backgroundJobs.ts): cloud models only */
+export const COMMAND_OUTPUT_TOOL_NAME = "command_output";
+export const STOP_COMMAND_TOOL_NAME = "stop_command";
+export const JOB_TOOL_NAMES = new Set([
+  COMMAND_OUTPUT_TOOL_NAME,
+  STOP_COMMAND_TOOL_NAME,
+]);
 
 /**
  * Anything that could start a second command, redirect output, expand a

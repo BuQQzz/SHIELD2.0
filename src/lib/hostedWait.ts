@@ -23,8 +23,14 @@ const LONG_WAIT_SECONDS = 30;
 export function waitText(
   provider: string,
   afterTools: boolean,
-  seconds: number
+  seconds: number,
+  retry?: { attempt: number; reason: string }
 ): string {
+  // The provider failed and SHIELD waits to send it again
+  // (remote/providerRetry.ts): said, so a long gap is not taken for a hang
+  if (retry) {
+    return `${retry.reason} at ${provider} · trying again (${retry.attempt}) · ${seconds}s`;
+  }
   if (seconds < SENDING_SECONDS) return `Sending to ${provider}…`;
   const doing = afterTools ? "Working on the results" : "Thinking";
   const long =

@@ -69,6 +69,24 @@ export function markThinksAnyway(endpoint: RemoteEndpoint): void {
   THINKS_ANYWAY.add(`${endpoint.providerId}:${endpoint.model}`);
 }
 
+/**
+ * Models seen to think until the reply limit on the Default level, for the
+ * life of the app. GLM 5.3 Flash spent all 32,768 tokens thinking on the
+ * first step of a long task, twice in a row, and wrote nothing (2026-11-23);
+ * on the next run it did not. Default is SHIELD's choice, so for such a
+ * model SHIELD asks for low effort from then on. A level the user chose
+ * is kept.
+ */
+const OVERTHINKS = new Set<string>();
+
+export function overthinks(endpoint: RemoteEndpoint): boolean {
+  return OVERTHINKS.has(`${endpoint.providerId}:${endpoint.model}`);
+}
+
+export function markOverthinks(endpoint: RemoteEndpoint): void {
+  OVERTHINKS.add(`${endpoint.providerId}:${endpoint.model}`);
+}
+
 /** Finds a saved provider and its key; the ProviderStore in the main process */
 export interface RemoteProviderSource {
   resolve(

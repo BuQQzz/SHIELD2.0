@@ -51,6 +51,7 @@ export function ReadingIndicator() {
         provider={progress.provider}
         afterTools={progress.afterTools}
         since={progress.since}
+        retry={progress.retry}
       />
     );
   } else if (progress?.phase === "thinking") {

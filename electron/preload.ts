@@ -33,6 +33,7 @@ import type {
   ProvidersAPI,
   RuntimeAPI,
   ConnectorsAPI,
+  RunningTask,
 } from "../src/types/electron";
 import type { RuntimeProgress } from "../src/types/runtime";
 import type { RecommendedSampling } from "../src/services/modelSampling";
@@ -428,6 +429,10 @@ interface MCPAPI {
   ) => Promise<{ success: boolean; folder?: string | null; error?: string }>;
   /** Ends any command run_command is running, and what it started */
   stopCommands: () => Promise<{ success: boolean; stopped?: number }>;
+  /** What the model started that is still running (Tasks running) */
+  listTasks: () => Promise<{ success: boolean; tasks?: RunningTask[] }>;
+  /** The user stops one of them */
+  stopTask: (id: string) => Promise<{ success: boolean }>;
   /** SHIELD's memory notes (src/config/memoryNotes.ts) */
   notes: {
     /** Whose notes the open conversation uses: its folder, or the user's */
@@ -552,6 +557,8 @@ const mcpAPI: MCPAPI = {
   chooseWorkspace: () => ipcRenderer.invoke("mcp:choose-workspace"),
   setWorkspace: (folder) => ipcRenderer.invoke("mcp:set-workspace", folder),
   stopCommands: () => ipcRenderer.invoke("mcp:stop-commands"),
+  listTasks: () => ipcRenderer.invoke("mcp:list-tasks"),
+  stopTask: (id: string) => ipcRenderer.invoke("mcp:stop-task", id),
   searchMemory: (query, options) =>
     ipcRenderer.invoke("memory:search", query, options),
   notes: {

@@ -1,5 +1,6 @@
 "use client";
 
+import { RunningTasks } from "./RunningTasks";
 import {
   useState,
   useRef,
@@ -156,6 +157,7 @@ export const ChatInput = forwardRef<ChatInputRef, ChatInputProps>(
     return (
       <div className="bg-background px-4 pb-4 pt-2">
         <div className="mx-auto max-w-3xl">
+          <RunningTasks />
           {queue.length > 0 && (
             <div
               className="mb-1.5 flex flex-col gap-1"

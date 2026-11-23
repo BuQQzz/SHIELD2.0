@@ -62,6 +62,17 @@ export interface ChatOptions {
    * 2026-11-22). A loop now runs to the reply limit instead.
    */
   afterLoop?: boolean;
+  /**
+   * SHIELD's own tries again after the provider failed (a rate limit, a
+   * 5xx, a dropped connection): how many so far, and since when
+   * (remote/providerRetry.ts)
+   */
+  providerRetry?: { attempt: number; since: number };
+  /**
+   * SHIELD's own thinking effort for this request, over the user's level:
+   * "low" after a hosted model thought until the reply limit
+   */
+  effort?: "low";
 }
 
 /**
@@ -77,7 +88,14 @@ export type ChatProgress =
    * as "Reading the conversation…" the whole time, it looked stuck
    * (2026-11-16). `afterTools`: it is looking at tool results.
    */
-  | { phase: "waiting"; provider: string; afterTools: boolean; since: number }
+  | {
+      phase: "waiting";
+      provider: string;
+      afterTools: boolean;
+      since: number;
+      /** Waiting to try again after the provider failed */
+      retry?: { attempt: number; reason: string };
+    }
   /** A hosted model's streamed thinking, about `thought` tokens so far */
   | { phase: "thinking"; thought: number; since: number }
   /** Reading the prompt (llama-server); `done` includes the `cached` part */

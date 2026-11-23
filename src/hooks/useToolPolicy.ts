@@ -16,6 +16,7 @@ import { useMemo } from "react";
 import { isDeletionTool, isMutatingTool } from "@/config/toolClassification";
 import {
   isReadOnlyCommand,
+  JOB_TOOL_NAMES,
   RUN_COMMAND_TOOL_NAME,
   TERMINAL_SERVER_NAME,
 } from "@/config/commandSafety";
@@ -89,6 +90,28 @@ export interface ToolPolicyInput {
    * remember stays: it only adds a note.
    */
   memoryTools?: boolean;
+  /**
+   * A cloud model (handlers/runRules.ts): it may run commands in the
+   * background (command_output, stop_command). Local models are offered
+   * run_command as it was, without them.
+   */
+  backgroundJobs?: boolean;
+}
+
+/** run_command as offered to a model with no background jobs */
+export function withoutBackground(tool: ToolDefinition): ToolDefinition {
+  const schema = tool.inputSchema as
+    { properties?: Record<string, unknown> } | undefined;
+  if (!schema?.properties || !("background" in schema.properties)) return tool;
+  const { background: _background, ...properties } = schema.properties;
+  return {
+    ...tool,
+    description: tool.description.replace(
+      /no watch modes or prompts for input\. To keep one running[\s\S]*?when you are done\./,
+      "no servers, watch modes or prompts for input."
+    ),
+    inputSchema: { ...schema, properties },
+  };
 }
 
 /** SHIELD's own web tools come from this server (electron/services/webTools) */
@@ -111,10 +134,18 @@ export function resolveToolPolicy({
   teamMode = false,
   folder,
   memoryTools = true,
+  backgroundJobs = false,
 }: ToolPolicyInput): ToolPolicy {
+  const offered = backgroundJobs
+    ? serverTools
+    : serverTools
+        .filter((tool) => !JOB_TOOL_NAMES.has(tool.name))
+        .map((tool) =>
+          tool.name === RUN_COMMAND_TOOL_NAME ? withoutBackground(tool) : tool
+        );
   // The allowlist applies in every mode - a mode can narrow what the user
   // permitted, never widen it.
-  const allowlisted = serverTools.filter((tool) =>
+  const allowlisted = offered.filter((tool) =>
     tool.serverName === AGENTS_SERVER_NAME
       ? teamMode && fileTools
       : teamMode
@@ -142,7 +173,10 @@ export function resolveToolPolicy({
   const advertisedTools =
     mode === "readonly"
       ? allowlisted.filter(
-          (tool) => !isMutatingTool(tool) || tool.name === RUN_COMMAND_TOOL_NAME
+          (tool) =>
+            !isMutatingTool(tool) ||
+            tool.name === RUN_COMMAND_TOOL_NAME ||
+            JOB_TOOL_NAMES.has(tool.name)
         )
       : allowlisted;
 
@@ -156,6 +190,9 @@ export function resolveToolPolicy({
     // Handing work over changes nothing itself: the agent's own calls are
     // decided by the policy it works under
     if (call.name === DELEGATE_TOOL_NAME) return "run";
+    // A job's output, or stopping it: only what the model itself started,
+    // which was decided on when run_command started it
+    if (JOB_TOOL_NAMES.has(call.name)) return "run";
     if (call.name === RUN_COMMAND_TOOL_NAME) {
       const command =
         "arguments" in call && typeof call.arguments?.command === "string"

@@ -10,8 +10,9 @@
  * Which commands run without asking is decided in the renderer, with every
  * other permission (src/config/commandSafety.ts); this file only runs them.
  * There is no input - stdin is closed, so a command that prompts fails
- * instead of waiting - and no background processes: a command must end on
- * its own within its timeout, and Stop ends it and everything it started.
+ * instead of waiting. A command ends on its own within its timeout, or runs
+ * in the background as a job (backgroundJobs.ts); Stop ends it and
+ * everything it started.
  */
 
 import { spawn, type ChildProcess } from "child_process";
@@ -19,6 +20,22 @@ import fs from "fs";
 import path from "path";
 import { StringDecoder } from "string_decoder";
 import type { MCPToolResult } from "./MCPServerConfig.js";
+import {
+  COMMAND_OUTPUT_TOOL,
+  COMMAND_OUTPUT_TOOL_NAME,
+  jobOutput,
+  startJob,
+  STOP_COMMAND_TOOL,
+  STOP_COMMAND_TOOL_NAME,
+  stopAllJobs,
+  stopJob,
+} from "./backgroundJobs.js";
+import {
+  leftoverNote,
+  newTaskId,
+  noteLeftovers,
+  TASK_ID_VAR,
+} from "./runningTasks.js";
 
 export const TERMINAL_SERVER_NAME = "terminal";
 export const RUN_COMMAND_TOOL_NAME = "run_command";
@@ -35,7 +52,29 @@ export const OUTPUT_HEAD_CHARS = 2000;
 export const OUTPUT_TAIL_CHARS = 6000;
 
 export function isTerminalTool(name: string): boolean {
-  return name === RUN_COMMAND_TOOL_NAME;
+  return (
+    name === RUN_COMMAND_TOOL_NAME ||
+    name === COMMAND_OUTPUT_TOOL_NAME ||
+    name === STOP_COMMAND_TOOL_NAME
+  );
+}
+
+/** The terminal server's tools: run_command and its background jobs */
+export function terminalTools(powershell = findPowerShell()) {
+  return [runCommandTool(powershell), COMMAND_OUTPUT_TOOL, STOP_COMMAND_TOOL];
+}
+
+/** A terminal tool call, by name. Never throws. */
+export function callTerminalTool(
+  tool: string,
+  args: Record<string, unknown>,
+  cwd: string | null
+): Promise<MCPToolResult> {
+  if (tool === COMMAND_OUTPUT_TOOL_NAME) return jobOutput(args);
+  if (tool === STOP_COMMAND_TOOL_NAME) {
+    return Promise.resolve(stopJob(args, killTree));
+  }
+  return runCommand(args, cwd);
 }
 
 /** PowerShell 7 when it is installed, else Windows PowerShell 5.1 */
@@ -87,7 +126,7 @@ const WINDOWS_RULES =
 export function runCommandTool(powershell = findPowerShell()) {
   return {
     name: RUN_COMMAND_TOOL_NAME,
-    description: `Run a command in the project folder and get its output and exit code. Commands run ${shellGuidance(powershell)} Use it to run the project's tests, a script you wrote or changed, a build or a linter, and to look around with git (git status, git diff, git log) or search the files (${process.platform === "win32" ? "Select-String" : "grep -rn"}). Commands that only read, like those, run at once; any other command waits for the user to allow it, showing them your reason. Each call starts a new shell in the project folder: a cd, export or variable from one call is gone in the next, so set what a command needs in that same call. The command must finish on its own: no servers, watch modes or prompts for input. Output is cut to its first ${OUTPUT_HEAD_CHARS.toLocaleString("en-US")} and last ${OUTPUT_TAIL_CHARS.toLocaleString("en-US")} characters.${process.platform === "win32" ? WINDOWS_RULES : ""}`,
+    description: `Run a command in the project folder and get its output and exit code. Commands run ${shellGuidance(powershell)} Use it to run the project's tests, a script you wrote or changed, a build or a linter, and to look around with git (git status, git diff, git log) or search the files (${process.platform === "win32" ? "Select-String" : "grep -rn"}). Commands that only read, like those, run at once; any other command waits for the user to allow it, showing them your reason. Each call starts a new shell in the project folder: a cd, export or variable from one call is gone in the next, so set what a command needs in that same call. The command must finish on its own: no watch modes or prompts for input. To keep one running, such as a server to try with curl, set background: true instead of using & or nohup: SHIELD keeps its output for command_output. It keeps running after your turn: stop it with stop_command when you are done. Output is cut to its first ${OUTPUT_HEAD_CHARS.toLocaleString("en-US")} and last ${OUTPUT_TAIL_CHARS.toLocaleString("en-US")} characters.${process.platform === "win32" ? WINDOWS_RULES : ""}`,
     inputSchema: {
       type: "object",
       properties: {
@@ -103,6 +142,11 @@ export function runCommandTool(powershell = findPowerShell()) {
         timeout_seconds: {
           type: "number",
           description: `Stop the command after this many seconds (default ${DEFAULT_TIMEOUT_SECONDS}, at most ${MAX_TIMEOUT_SECONDS})`,
+        },
+        background: {
+          type: "boolean",
+          description:
+            "Keep it running and return at once with a job number, for a server or watcher. Stop it with stop_command when you are done.",
         },
       },
       required: ["command", "reason"],
@@ -160,9 +204,14 @@ export function shellInvocation(
  * because a repository's own config could otherwise start a program on
  * `git status`.
  */
-export function commandEnv(base: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
+export function commandEnv(
+  base: NodeJS.ProcessEnv,
+  taskId?: string
+): NodeJS.ProcessEnv {
   return {
     ...base,
+    // What the command leaves running is found by this (runningTasks.ts)
+    ...(taskId ? { [TASK_ID_VAR]: taskId } : {}),
     CI: "1",
     GIT_PAGER: "cat",
     PAGER: "cat",
@@ -328,7 +377,7 @@ const running = new Set<ChildProcess>();
 const stoppedByUser = new WeakSet<ChildProcess>();
 
 /** Ends a command and every process it started */
-function killTree(child: ChildProcess): void {
+export function killTree(child: ChildProcess): void {
   if (child.pid === undefined) return;
   if (process.platform === "win32") {
     spawn("taskkill", ["/pid", String(child.pid), "/T", "/F"], {
@@ -354,6 +403,11 @@ export function stopRunningCommands(): number {
   return count;
 }
 
+/** SHIELD is closing: its own background jobs end. Returns how many ran. */
+export function stopBackgroundJobs(): number {
+  return stopAllJobs(killTree);
+}
+
 /** Run a command. Never throws: failures come back as tool errors. */
 export function runCommand(
   args: Record<string, unknown>,
@@ -377,14 +431,24 @@ export function runCommand(
     powershell,
     findPosixShell()
   );
+  if (args.background === true) {
+    return startJob(
+      command,
+      { file, args: shellArgs },
+      cwd,
+      commandEnv(process.env),
+      { spawn, kill: killTree }
+    );
+  }
   const started = Date.now();
+  const taskId = newTaskId();
 
   return new Promise((resolve) => {
     let child: ChildProcess;
     try {
       child = spawn(file, shellArgs, {
         cwd,
-        env: commandEnv(process.env),
+        env: commandEnv(process.env, taskId),
         stdio: ["ignore", "pipe", "pipe"],
         windowsHide: true,
         // Its own process group, so the whole tree can be ended
@@ -438,6 +502,9 @@ export function runCommand(
           )
         );
       } else {
+        // What it left running (nohup ... &) goes on Tasks running, and
+        // the model is told it is still going (runningTasks.ts)
+        const still = noteLeftovers(taskId, child.pid, command, started);
         finish({
           success: true,
           data: {
@@ -446,7 +513,8 @@ export function runCommand(
                 type: "text",
                 text:
                   formatRun(code, elapsed, text) +
-                  windowsPowerShellNote(command, powershell),
+                  windowsPowerShellNote(command, powershell) +
+                  leftoverNote(still),
               },
             ],
           },

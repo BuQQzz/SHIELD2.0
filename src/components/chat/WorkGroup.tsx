@@ -114,6 +114,7 @@ function useLiveLabel(
           provider={progress.provider}
           afterTools={progress.afterTools}
           since={progress.since}
+          retry={progress.retry}
         />
       ),
     };

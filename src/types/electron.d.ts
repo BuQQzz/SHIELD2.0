@@ -29,6 +29,15 @@ import type {
 
 export type { SavedCapsule };
 
+/** Something the model started that is still running (electron/services/runningTasks.ts) */
+export interface RunningTask {
+  id: string;
+  kind: "job" | "left";
+  command: string;
+  startedAt: number;
+  processes: string[];
+}
+
 export interface ModelConfig {
   /** Library model id (src/config/models.ts) */
   id: string;
@@ -251,7 +260,14 @@ export type ChatProgress =
    * as "Reading the conversation…" the whole time, it looked stuck
    * (2026-11-16). `afterTools`: it is looking at tool results.
    */
-  | { phase: "waiting"; provider: string; afterTools: boolean; since: number }
+  | {
+      phase: "waiting";
+      provider: string;
+      afterTools: boolean;
+      since: number;
+      /** Waiting to try again after the provider failed */
+      retry?: { attempt: number; reason: string };
+    }
   /** A hosted model's streamed thinking, about `thought` tokens so far */
   | { phase: "thinking"; thought: number; since: number }
   | {
@@ -664,6 +680,10 @@ export interface MCPAPI {
   ) => Promise<{ success: boolean; folder?: string | null; error?: string }>;
   /** Ends any command run_command is running, and what it started */
   stopCommands: () => Promise<{ success: boolean; stopped?: number }>;
+  /** What the model started that is still running (Tasks running) */
+  listTasks: () => Promise<{ success: boolean; tasks?: RunningTask[] }>;
+  /** The user stops one of them */
+  stopTask: (id: string) => Promise<{ success: boolean }>;
   /** SHIELD's memory notes (src/config/memoryNotes.ts) */
   notes: {
     /** Whose notes the open conversation uses: its folder, or the user's */

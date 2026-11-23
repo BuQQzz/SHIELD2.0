@@ -88,6 +88,10 @@ export const NUDGE_NOTE =
 export const EMPTY_REPLY_NOTE =
   "\n\n[SHIELD: your last reply to this was empty. Make your next tool call now, or, if the work is done, give your answer.]";
 
+/** A hosted model's thinking used the whole reply limit (LlamaServerProvider) */
+export const THOUGHT_OUT_NOTE =
+  "\n\n[SHIELD: your thinking used up the whole reply limit and nothing was written. Think briefly, then make the next tool call. Do the work in small steps.]";
+
 /** Where a skipped agent's reply was cut off */
 export const SKIPPED_BY_USER =
   "the user skipped it because it was taking too long";

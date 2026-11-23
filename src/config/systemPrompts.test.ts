@@ -5,6 +5,7 @@ import {
   generateMCPToolPrompt,
   generatePlanModePrompt,
   generateNativeToolPrompt,
+  SEE_IT_THROUGH,
   usesNativeToolCalling,
 } from "./systemPrompts";
 import type {
@@ -494,6 +495,19 @@ describe("check-your-work rule", () => {
     serverName: "terminal",
     parameters: [],
   };
+
+  it("tells a cloud model to see a long request through, not a local one", () => {
+    expect(generateNativeToolPrompt([runCommand])).not.toContain(
+      SEE_IT_THROUGH
+    );
+    expect(generateNativeToolPrompt([runCommand], [], false, true)).toContain(
+      SEE_IT_THROUGH
+    );
+    // Plan mode only plans
+    expect(
+      generateNativeToolPrompt([runCommand], [], true, true)
+    ).not.toContain(SEE_IT_THROUGH);
+  });
 
   it("comes with the terminal, numbered after the rules before it", () => {
     expect(generateMCPToolPrompt([editFile, runCommand])).toContain(

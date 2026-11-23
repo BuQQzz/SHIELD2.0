@@ -80,6 +80,7 @@ import {
 } from "./config/models";
 import { createAppShortcuts } from "./config/shortcuts";
 import { shouldTurnTeamOff, teamAvailability } from "./agents/teamFit";
+import { runProfileFor } from "./handlers/runRules";
 import "./App.css";
 
 function App() {
@@ -208,6 +209,7 @@ function App() {
     webSearchEnabled: settings.webSearch?.enabled ?? false,
     fileTools: isCodeSession,
     folder: isCodeSession ? currentConversation?.folder : undefined,
+    backgroundJobs: runProfileFor(currentModelId) === "cloud",
   };
   const workerPolicy = useToolPolicy(policyInput);
   const toolPolicy = useToolPolicy({ ...policyInput, teamMode });

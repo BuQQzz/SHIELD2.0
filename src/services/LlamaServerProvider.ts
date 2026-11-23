@@ -49,13 +49,25 @@ import {
 } from "./llamaServer/nativeHistory.js";
 import { isToolResultTurn } from "./contextBreakdown.js";
 import { requestCost, type RequestCost, type Usage } from "./remote/cost.js";
+import {
+  isRetryableStatus,
+  nextRetryDelay,
+  parseRetryAfter,
+  ProviderBusyError,
+  retryKind,
+  retryReason,
+  waitOrAbort,
+  type RetryKind,
+} from "./remote/providerRetry.js";
 import type { ToolDefinition } from "../types/prompts.js";
 import {
   adaptRequestBody,
   checkPosture,
   completionsUrl,
   describeHttpError,
+  markOverthinks,
   markThinksAnyway,
+  overthinks,
   requestHeaders,
   thinksAnyway,
   type GatewayPosture,
@@ -64,6 +76,7 @@ import {
 import {
   NUDGE_NOTE,
   EMPTY_REPLY_NOTE,
+  THOUGHT_OUT_NOTE,
   type RequestStatus,
   type RescueAction,
 } from "./llamaServer/rescue.js";
@@ -1022,6 +1035,68 @@ export class LlamaServerProvider {
     );
   }
 
+  /**
+   * The provider failed before anything was shown (providerRetry.ts): wait
+   * and send the same message again, or give up with the provider's error.
+   * Stop during the wait ends the turn as Stop does.
+   */
+  private async retryAfterProviderFailure(
+    message: string,
+    options: ChatOptions,
+    restarts: number,
+    failure: { kind: RetryKind; error: unknown }
+  ): Promise<string> {
+    const state = options.providerRetry ?? { attempt: 0, since: Date.now() };
+    const retryAfterMs =
+      failure.error instanceof ProviderBusyError
+        ? failure.error.retryAfterMs
+        : undefined;
+    const delay = nextRetryDelay(failure.kind, state, retryAfterMs);
+    const detail =
+      failure.error instanceof Error
+        ? failure.error.message
+        : String(failure.error);
+    if (delay === null) {
+      appendServerLog(
+        `[SHIELD] provider failed ${state.attempt + 1} times (${failure.kind}): giving up. ${detail.slice(0, 200)}`
+      );
+      throw failure.error instanceof ProviderBusyError
+        ? new Error(detail)
+        : new Error(
+            `${this.serverName()} could not be reached, also after ${state.attempt} more tries: ${detail}`
+          );
+    }
+    appendServerLog(
+      `[SHIELD] provider failed (${failure.kind}, try ${state.attempt + 1}): trying again in ${Math.round(delay / 1000)} s. ${detail.slice(0, 200)}`
+    );
+    const waiting = new AbortController();
+    this.abortController = waiting;
+    options.onProgress?.({
+      phase: "waiting",
+      provider: this.serverName(),
+      afterTools: /<tool_result\b|^You executed \d+ tool call/.test(message),
+      since: Date.now(),
+      retry: {
+        attempt: state.attempt + 1,
+        reason: retryReason(failure.kind, failure.error),
+      },
+    });
+    const stop = options.signal
+      ? AbortSignal.any([options.signal, waiting.signal])
+      : waiting.signal;
+    await waitOrAbort(delay, stop);
+    if (this.abortController === waiting) this.abortController = null;
+    if (stop.aborted) return "";
+    return this.chat(
+      message,
+      {
+        ...options,
+        providerRetry: { attempt: state.attempt + 1, since: state.since },
+      },
+      restarts
+    );
+  }
+
   /** `restarts`: times the server was restarted after a stall during this message */
   async chat(
     message: string,
@@ -1087,6 +1162,10 @@ export class LlamaServerProvider {
     /** The prompt's size as the server counted it, when it refused it as too long */
     let refitFrom: number | null = null;
     let refusedReasoning = false;
+    /** How the reply ended, as the server said ("length": at max_tokens) */
+    let finishReason = "";
+    /** The provider failed before anything was shown: tried again below */
+    let providerFailure: { kind: RetryKind; error: unknown } | null = null;
     let rescue: RescueAction | null = null;
     /** What was sent, kept for the server log when it stalls */
     let requestBody: Record<string, unknown> = {};
@@ -1123,11 +1202,20 @@ export class LlamaServerProvider {
       // "none" in the catalog: never thinks. The user's level comes first,
       // except that SHIELD may still ask for no thinking (a retry, a note)
       const level = this.root().thinkingLevel;
+      // A hosted model that thought to the reply limit on Default thinks
+      // low from then on (overthinks); a level the user chose is kept
+      const tamed =
+        options.effort ??
+        (level === "default" && this.endpoint && overthinks(this.endpoint)
+          ? ("low" as const)
+          : undefined);
       const thinks =
-        options.thinking !== false &&
-        level !== "instant" &&
-        (level !== "default" || this.reasoningEffort !== "none");
-      const effort = effortFor(level, !!this.endpoint) ?? this.reasoningEffort;
+        (tamed !== undefined && options.thinking !== false) ||
+        (options.thinking !== false &&
+          level !== "instant" &&
+          (level !== "default" || this.reasoningEffort !== "none"));
+      const effort =
+        tamed ?? effortFor(level, !!this.endpoint) ?? this.reasoningEffort;
       appendServerLog(
         `[SHIELD] chat request, thinking ${thinks ? "on" : "off"}` +
           (this.nativeTools.length > 0
@@ -1210,6 +1298,13 @@ export class LlamaServerProvider {
           );
           throw REASONING_REFUSED;
         }
+        if (hosted && isRetryableStatus(response.status)) {
+          throw new ProviderBusyError(
+            this.httpError(response.status, text),
+            response.status,
+            parseRetryAfter(response.headers.get("retry-after"))
+          );
+        }
         const measured = this.endpoint ? null : overflowedPrompt(text);
         if (measured === null || this.refitting) {
           throw new Error(this.httpError(response.status, text));
@@ -1238,7 +1333,6 @@ export class LlamaServerProvider {
       let lastThoughtReport = 0;
       let thinkingSince = 0;
       let structuredDeltas = 0;
-      let finishReason = "";
       const calls = new NativeCallWriter(
         (tool) => this.toolServers.get(tool) ?? "filesystem"
       );
@@ -1348,9 +1442,15 @@ export class LlamaServerProvider {
         options.onToken?.(closing);
       }
     } catch (error) {
+      const failure =
+        this.endpoint && !signal.aborted && reply === ""
+          ? retryKind(error)
+          : null;
       if (error === REFIT || error === REASONING_REFUSED) {
         // Nothing was written; room is made, or it goes again, below
         if (error === REASONING_REFUSED) refusedReasoning = true;
+      } else if (failure) {
+        providerFailure = { kind: failure, error };
       } else if (rescued.signal.aborted && !signal.aborted) {
         console.log(
           `[LlamaServer] Request cut off by the user: ${this.rescueAction}`
@@ -1412,6 +1512,14 @@ export class LlamaServerProvider {
     }
     // Nothing of a dropped reply is kept: the history is as it was
     if (refusedReasoning) return this.chat(message, options, restarts);
+    if (providerFailure) {
+      return this.retryAfterProviderFailure(
+        message,
+        options,
+        restarts,
+        providerFailure
+      );
+    }
     if (refitFrom !== null) {
       // Room made from the server's own count, once: a prompt refused
       // again is more than clearing and a summary can bring down. The
@@ -1453,6 +1561,35 @@ export class LlamaServerProvider {
         restarts
       );
     }
+    // A hosted model thought until the reply limit and wrote nothing: GLM
+    // 5.3 Flash spent all 32,768 tokens (138K characters, 7 minutes) on
+    // the first step of a long task, then did it again with thinking off,
+    // and the turn ended with nothing said (2026-11-23). Once more with the
+    // least thinking and a note; then said plainly, not left silent.
+    if (
+      this.endpoint &&
+      !signal.aborted &&
+      finishReason === "length" &&
+      reply.trim() === "" &&
+      thinking.length > 0
+    ) {
+      if (this.root().thinkingLevel === "default") {
+        markOverthinks(this.endpoint);
+      }
+      if (!message.endsWith(THOUGHT_OUT_NOTE)) {
+        appendServerLog(
+          `[SHIELD] thinking used the whole reply limit (${thinking.length} chars) and nothing was written: sent once more at low effort with a note`
+        );
+        return this.chat(
+          message + THOUGHT_OUT_NOTE,
+          { ...options, thinking: true, effort: "low" },
+          restarts
+        );
+      }
+      throw new Error(
+        `${this.endpoint.model} spent its whole reply on thinking, twice, and wrote nothing. Set Thinking to Low or Instant for it, then ask again.`
+      );
+    }
     // Once: nothing at all came back (a hosted model too)
     if (
       reply.trim() === "" &&
@@ -1464,6 +1601,12 @@ export class LlamaServerProvider {
         message + EMPTY_REPLY_NOTE,
         { ...options, thinking: false },
         restarts
+      );
+    }
+    // Empty again: the turn ended with nothing said, and looked finished
+    if (this.endpoint && reply.trim() === "" && !signal.aborted) {
+      throw new Error(
+        `${this.endpoint.model} sent back an empty reply twice. Ask again, or try another model.`
       );
     }
 

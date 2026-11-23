@@ -13,11 +13,13 @@ export function HostedWaitLabel({
   provider,
   afterTools,
   since,
+  retry,
 }: {
   provider: string;
   afterTools: boolean;
   since: number;
+  retry?: { attempt: number; reason: string };
 }) {
   const seconds = useElapsed(since);
-  return <>{waitText(provider, afterTools, seconds)}</>;
+  return <>{waitText(provider, afterTools, seconds, retry)}</>;
 }

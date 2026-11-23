@@ -1,5 +1,6 @@
 import type { Message } from "../hooks/useLlama";
 import { withSteer } from "./steer";
+import { runRulesFor } from "./runRules";
 import type { ModelSettings } from "../types/settings";
 import { useSettingsStore } from "../store/settingsStore";
 import { orchestratorRounds } from "../agents/delegate";
@@ -79,8 +80,6 @@ import { kindOf } from "../lib/sessions";
 import { getModelById } from "../config/models";
 import type { ConversationKind } from "../types/conversation";
 
-/** A solo turn's tool rounds are checked for progress this often */
-const PROGRESS_CHECK_ROUNDS = 10;
 /** Least time between saves of the chat while a turn's tool rounds run */
 const MID_TURN_SAVE_MS = 15_000;
 
@@ -440,6 +439,11 @@ export function createMessageHandler({
       if (handleToolCallRequest) {
         // The first round saves at once: the message and first reply are kept
         let lastSavedAt = 0;
+        // Cloud models run without the local turn guards (runRules.ts)
+        const rules = runRulesFor(
+          currentModelId ??
+            useConversationStore.getState().currentConversation?.modelId
+        );
         await processMCPToolCalls(assistantMessage, {
           onToolCallDetected: handleToolCallRequest,
           addMessage,
@@ -453,7 +457,8 @@ export function createMessageHandler({
           maxToolRounds: teamMode
             ? orchestratorRounds(settings.mcp.maxToolRounds)
             : Infinity,
-          progressCheckEvery: teamMode ? undefined : PROGRESS_CHECK_ROUNDS,
+          progressCheckEvery: teamMode ? undefined : rules.progressCheckEvery,
+          nudgeEachRound: rules.nudgeEachRound,
           workspaceFolder: settings.mcp.workspaceFolder,
           isStopped: () => useGenerationStore.getState().turnOver(turn),
           readFile: readProjectFile,

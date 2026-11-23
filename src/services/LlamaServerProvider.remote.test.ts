@@ -194,6 +194,139 @@ describe("LlamaServerProvider on a hosted model", () => {
     expect((error as Error).message).not.toContain("xpl_");
   });
 
+  it("tries again after a rate limit, saying so, and keeps the chat as one turn", async () => {
+    vi.spyOn(Math, "random").mockReturnValue(0); // shortest waits
+    let calls = 0;
+    const ok = fakeProvider(zdrHeaders, "Done after the wait.");
+    const real = globalThis.fetch as unknown as (
+      url: string,
+      init: RequestInit
+    ) => Promise<Response>;
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: string, init: RequestInit) => {
+        calls++;
+        if (calls === 1)
+          return new Response(JSON.stringify({ error: "slow down" }), {
+            status: 429,
+            headers: { "retry-after": "0" },
+          });
+        if (calls === 2) {
+          throw Object.assign(new TypeError("fetch failed"), {
+            cause: Object.assign(new Error("reset"), { code: "ECONNRESET" }),
+          });
+        }
+        return real(url, init);
+      })
+    );
+    const provider = new LlamaServerProvider();
+    await provider.attach(endpoint, "p");
+    const progress: unknown[] = [];
+    const reply = await provider.chat("hi", {
+      onProgress: (p) => progress.push(p),
+    });
+    expect(reply).toBe("Done after the wait.");
+    expect(calls).toBe(3);
+    expect(ok).toHaveLength(1);
+    expect(progress).toContainEqual(
+      expect.objectContaining({
+        phase: "waiting",
+        retry: { attempt: 1, reason: "Rate limited" },
+      })
+    );
+    expect(progress).toContainEqual(
+      expect.objectContaining({
+        retry: { attempt: 2, reason: "Connection dropped" },
+      })
+    );
+    // One user message and one reply: the failed tries left nothing behind
+    const history = (provider as unknown as { history: unknown[] }).history;
+    expect(history).toHaveLength(2);
+  }, 15_000);
+
+  it("asks once more at low effort when thinking used the whole reply, then says so", async () => {
+    const bodies: Record<string, unknown>[] = [];
+    let thoughtOut = 2;
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (_url: string, init: RequestInit) => {
+        const body = JSON.parse(init.body as string) as Record<string, unknown>;
+        bodies.push(body);
+        const events =
+          thoughtOut-- > 0
+            ? [
+                {
+                  choices: [
+                    { delta: { reasoning_content: "hmm ".repeat(50) } },
+                  ],
+                },
+                { choices: [{ delta: {}, finish_reason: "length" }] },
+              ]
+            : [{ choices: [{ delta: { content: "Writing models.py." } }] }];
+        return new Response(
+          [...events.map((e) => `data: ${JSON.stringify(e)}`), "data: [DONE]"]
+            .map((line) => `${line}\n\n`)
+            .join(""),
+          { headers: zdrHeaders }
+        );
+      })
+    );
+    const provider = new LlamaServerProvider();
+    await provider.attach(endpoint, "p");
+    // Thought out once: sent again at low effort with the note, and answered
+    thoughtOut = 1;
+    expect(await provider.chat("build it")).toBe("Writing models.py.");
+    expect(bodies).toHaveLength(2);
+    expect(bodies[1]!.reasoning).toEqual({ effort: "low" });
+    const last = (bodies[1]!.messages as { content: string }[]).at(-1)!;
+    expect(last.content).toContain("whole reply limit");
+    // Remembered for this model on Default: the next request thinks low
+    expect(bodies[2]).toBeUndefined();
+    thoughtOut = 0;
+    await provider.chat("go on");
+    expect(bodies[2]!.reasoning).toEqual({ effort: "low" });
+    // Thought out both times: said plainly, not an empty turn
+    thoughtOut = 2;
+    await expect(provider.chat("next")).rejects.toThrow(
+      /whole reply on thinking, twice/
+    );
+  });
+
+  it("does not try again a request the provider refused as wrong", async () => {
+    let calls = 0;
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => {
+        calls++;
+        return new Response("{}", { status: 400 });
+      })
+    );
+    const provider = new LlamaServerProvider();
+    await provider.attach(endpoint, "p");
+    await expect(provider.chat("hi")).rejects.toThrow(/HTTP 400/);
+    expect(calls).toBe(1);
+  });
+
+  it("stops waiting to try again when the user presses Stop", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(
+        async () =>
+          new Response("{}", { status: 503, headers: { "retry-after": "60" } })
+      )
+    );
+    const provider = new LlamaServerProvider();
+    await provider.attach(endpoint, "p");
+    const stop = new AbortController();
+    const reply = provider.chat("hi", {
+      signal: stop.signal,
+      onProgress: (p) => {
+        if (p.phase === "waiting" && p.retry) stop.abort();
+      },
+    });
+    await expect(reply).resolves.toBe("");
+  });
+
   it("sends a title request the same way, and drops it if not confirmed", async () => {
     const sent = fakeProvider(zdrHeaders, "ok", "Weather in Paris");
     const provider = new LlamaServerProvider();

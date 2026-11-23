@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { resolveToolPolicy } from "./useToolPolicy";
+import { runCommandTool } from "../../electron/services/terminalTool";
 import type { ToolDefinition } from "@/types/prompts";
 
 const tool = (name: string): ToolDefinition => ({
@@ -476,5 +477,54 @@ describe("agent teams", () => {
       teamMode: true,
     });
     expect(names(policy.advertisedTools)).toEqual([]);
+  });
+});
+
+describe("background jobs", () => {
+  const terminal = (name: string, extra: Partial<ToolDefinition> = {}) => ({
+    ...tool(name),
+    serverName: "terminal",
+    ...extra,
+  });
+  const serverTools = [
+    terminal("run_command", {
+      description: runCommandTool("/bin/bash").description,
+      inputSchema: runCommandTool("/bin/bash").inputSchema,
+    }),
+    terminal("command_output", { annotations: { readOnlyHint: true } }),
+    terminal("stop_command"),
+  ];
+  const policy = (backgroundJobs: boolean, mode: "auto" | "ask" = "auto") =>
+    resolveToolPolicy({
+      mode,
+      allowedTools: [],
+      serverTools,
+      backgroundJobs,
+    });
+
+  it("are offered to a cloud model and run without asking", () => {
+    const cloud = policy(true, "ask");
+    expect(names(cloud.advertisedTools)).toEqual([
+      "run_command",
+      "command_output",
+      "stop_command",
+    ]);
+    expect(cloud.decide({ name: "command_output" })).toBe("run");
+    expect(cloud.decide({ name: "stop_command" })).toBe("run");
+  });
+
+  it("are left out for a local model, with run_command as it was", () => {
+    const local = policy(false);
+    expect(names(local.advertisedTools)).toEqual(["run_command"]);
+    const run = local.advertisedTools[0]!;
+    expect(run.description).toContain(
+      "no servers, watch modes or prompts for input. Output is cut"
+    );
+    expect(run.description).not.toContain("background");
+    expect(
+      Object.keys(
+        (run.inputSchema as { properties: Record<string, unknown> }).properties
+      )
+    ).toEqual(["command", "reason", "timeout_seconds"]);
   });
 });

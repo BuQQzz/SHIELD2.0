@@ -41,6 +41,11 @@ export interface SystemPromptConfig {
    * Plan mode: read tools can investigate; changes are described, not executed.
    */
   planOnly?: boolean;
+  /**
+   * Work on to the end of a long request without being told to after each
+   * step: cloud models, which run without SHIELD's turn guards (runRules)
+   */
+  seeItThrough?: boolean;
   /** Today, for the date line at the end; the current date when left out */
   today?: Date;
 }
