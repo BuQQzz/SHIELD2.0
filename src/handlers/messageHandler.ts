@@ -17,6 +17,7 @@ import { recallFor } from "./memoryRecall";
 import { parallelAgentsFor } from "../agents/parallel";
 import { checkPlan, planRemarks, takePlanNote } from "./sessionPlan";
 import { useConversationStore } from "@/stores/conversation-store";
+import { APP_RUN } from "@/lib/interruptedTurn";
 import { useMemoryNotesStore } from "@/stores/memory-notes-store";
 import { useTeamStore } from "@/stores/team-store";
 import { unbackedRoleNote } from "../agents/teamClaims";
@@ -78,6 +79,7 @@ import { parseAllThinking } from "../utils/thinkingParser";
 import { detectTruncation } from "../utils/messageTruncation";
 import { kindOf } from "../lib/sessions";
 import { getModelById } from "../config/models";
+import { askRepeat, idleCheck, spendCheck } from "../store/turnAskStore";
 import type { ConversationKind } from "../types/conversation";
 
 /** Least time between saves of the chat while a turn's tool rounds run */
@@ -200,6 +202,16 @@ export function createMessageHandler({
       addMessage(userMessage);
     }
     const turn = useGenerationStore.getState().beginTurn();
+    // Saved with the chat as the turn goes: found after a restart, the
+    // chat offers to carry on (lib/interruptedTurn.ts)
+    const turnChat = useConversationStore.getState().currentConversation?.id;
+    if (turnChat) {
+      useConversationStore.getState().updateConversation({
+        turnRunning: APP_RUN,
+        turnModel: currentModelId,
+      });
+      void saveCurrentConversation().catch(() => undefined);
+    }
 
     setIsGenerating(true);
     setStreamingContent("");
@@ -455,10 +467,20 @@ export function createMessageHandler({
           // still finding new pages, and stopped (2026-10-27). It is
           // checked for progress every 10 instead.
           maxToolRounds: teamMode
-            ? orchestratorRounds(settings.mcp.maxToolRounds)
+            ? orchestratorRounds(settings.mcp.maxToolRounds, rules.profile)
             : Infinity,
           progressCheckEvery: teamMode ? undefined : rules.progressCheckEvery,
           nudgeEachRound: rules.nudgeEachRound,
+          confirmRepeat: rules.askOnRepeat ? askRepeat : undefined,
+          checkIdle: rules.profile === "cloud" ? idleCheck() : undefined,
+          actNowEachStall: rules.profile === "cloud",
+          checkSpend:
+            rules.profile === "cloud"
+              ? spendCheck(
+                  settings.mcp.spendLimit,
+                  () => useGenerationStore.getState().turnCost
+                )
+              : undefined,
           workspaceFolder: settings.mcp.workspaceFolder,
           isStopped: () => useGenerationStore.getState().turnOver(turn),
           readFile: readProjectFile,
@@ -591,6 +613,13 @@ export function createMessageHandler({
       }
     } finally {
       setIsGenerating(false);
+      const open = useConversationStore.getState().currentConversation;
+      if (open && open.id === turnChat && open.turnRunning) {
+        useConversationStore
+          .getState()
+          .updateConversation({ turnRunning: undefined });
+        void saveCurrentConversation().catch(() => undefined);
+      }
     }
   };
 }

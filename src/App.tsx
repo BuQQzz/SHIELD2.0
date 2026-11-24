@@ -16,6 +16,9 @@ import { MessageList } from "./components/chat/MessageList";
 import { ChatInput, type ChatInputRef } from "./components/chat/ChatInput";
 import { LazySettingsDialog } from "./components/lazy";
 import { ToolPermissionBar } from "./components/chat/ToolPermissionBar";
+import { TurnAskBar } from "./components/chat/TurnAskBar";
+import { InterruptedBar } from "./components/chat/InterruptedBar";
+import { interrupted, RESUME_NOTE } from "./lib/interruptedTurn";
 import {
   MemoryCheckCard,
   RememberedNotice,
@@ -571,9 +574,9 @@ function App() {
   // A new user message lets the orchestrator delegate again
   const beginTurn = useCallback(() => {
     if (!currentConversation) return;
-    teamFor(currentConversation.id).beginTurn();
+    teamFor(currentConversation.id).beginTurn(runProfileFor(currentModelId));
     useTeamStore.getState().beginTurn(currentConversation.id);
-  }, [currentConversation]);
+  }, [currentConversation, currentModelId]);
 
   // What was sent or queued during a turn, once it ends - whichever handler
   // ran it: Continue and Regenerate mark the chat busy too
@@ -636,6 +639,45 @@ function App() {
     () => void handleSendMessage("continue"),
     [handleSendMessage]
   );
+  // A turn SHIELD closed in the middle of: carry on, with a note saying so
+  // After a restart no model is loaded, and a message sent then is dropped:
+  // the model the turn ran on is loaded first (live, 2026-11-23)
+  const modelLoadedRef = useRef(isModelLoaded);
+  modelLoadedRef.current = isModelLoaded;
+  const interruptedModel = modelOptions.find(
+    (m) => m.id === currentConversation?.turnModel
+  );
+  // Cloud models are listed once fetched, which a restart has not done yet
+  const turnModel = currentConversation?.turnModel;
+  const showInterrupted = interrupted(currentConversation?.turnRunning);
+  useEffect(() => {
+    if (showInterrupted && turnModel && !interruptedModel) {
+      void useCloudStore.getState().fetchModels();
+    }
+  }, [showInterrupted, turnModel, interruptedModel]);
+  const handleResumeInterrupted = useCallback(async () => {
+    if (
+      interruptedModel &&
+      (!isModelLoaded || currentModelId !== interruptedModel.id)
+    ) {
+      await handleModelSelect(interruptedModel);
+      // The send goes through the handler of the render that has it loaded
+      for (let i = 0; i < 100 && !modelLoadedRef.current; i++) {
+        await new Promise((resolve) => setTimeout(resolve, 100));
+      }
+    }
+    await handleSendMessage("Continue", { modelNote: RESUME_NOTE });
+  }, [
+    interruptedModel,
+    isModelLoaded,
+    currentModelId,
+    handleModelSelect,
+    handleSendMessage,
+  ]);
+  const dismissInterrupted = useCallback(() => {
+    updateConversation({ turnRunning: undefined });
+    void saveCurrentConversation().catch(() => undefined);
+  }, [updateConversation, saveCurrentConversation]);
   const handleContinueTurn = useCallback(
     async (messageId: string) => {
       await handleContinue(messageId);
@@ -840,6 +882,13 @@ function App() {
             request={pendingRequest}
             onApprove={handleApprove}
             onDeny={handleDeny}
+          />
+          <TurnAskBar />
+          <InterruptedBar
+            show={!isGenerating && showInterrupted}
+            model={interruptedModel?.displayName}
+            onContinue={() => void handleResumeInterrupted()}
+            onDismiss={dismissInterrupted}
           />
           <StuckBar isGenerating={isGenerating} />
           {!isGenerating && !pendingRequest && <MemoryCheckCard />}

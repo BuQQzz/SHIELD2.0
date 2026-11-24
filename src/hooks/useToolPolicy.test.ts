@@ -57,9 +57,16 @@ describe("the allowlist applies in every mode", () => {
 describe("ask mode", () => {
   const policy = policyFor("ask");
 
-  it("asks before every call", () => {
-    expect(policy.decide(tool("read_file"))).toBe("ask");
-    expect(policy.decide(tool("write_file"))).toBe("ask");
+  // The user's call (2026-11-24): only a delete asks
+  it("runs reads and edits, and asks before a delete", () => {
+    expect(policy.decide(tool("read_file"))).toBe("run");
+    expect(policy.decide(tool("write_file"))).toBe("run");
+    expect(policy.decide(tool("edit_file"))).toBe("run");
+    expect(policy.decide(tool("delete_file"))).toBe("ask");
+  });
+
+  it("still asks before a connected service's tool runs", () => {
+    expect(policy.decide({ name: "send_message" })).toBe("ask");
   });
 
   it("advertises everything allowed", () => {
@@ -238,8 +245,8 @@ describe("web tools", () => {
     }
   );
 
-  it("still ask in ask mode", () => {
-    expect(policy("ask", true).decide({ name: "web_search" })).toBe("ask");
+  it("run without asking in ask mode too", () => {
+    expect(policy("ask", true).decide({ name: "web_search" })).toBe("run");
   });
 });
 
@@ -390,15 +397,14 @@ describe("the terminal (run_command)", () => {
     );
   });
 
-  it("runs a read-only command in Auto and asks for any other", () => {
-    expect(policy("auto").decide(run("git status"))).toBe("run");
-    expect(policy("auto").decide(run("npm test"))).toBe("ask");
-    // A call without its arguments is never taken as read-only
-    expect(policy("auto").decide({ name: "run_command" })).toBe("ask");
-  });
-
-  it("asks for every command in Ask", () => {
-    expect(policy("ask").decide(run("git status"))).toBe("ask");
+  it("runs any command in Auto and Ask unless it deletes", () => {
+    for (const mode of ["auto", "ask"] as const) {
+      expect(policy(mode).decide(run("git status"))).toBe("run");
+      expect(policy(mode).decide(run("npm test"))).toBe("run");
+      expect(policy(mode).decide(run("pip install -e ."))).toBe("run");
+      expect(policy(mode).decide(run("rm -rf build"))).toBe("ask");
+      expect(policy(mode).decide(run("git reset --hard"))).toBe("ask");
+    }
   });
 
   it("runs read-only commands in Plan and Read-only and refuses the rest", () => {
@@ -505,12 +511,33 @@ describe("background jobs", () => {
   it("are offered to a cloud model and run without asking", () => {
     const cloud = policy(true, "ask");
     expect(names(cloud.advertisedTools)).toEqual([
-      "run_command",
+      "bash",
       "command_output",
       "stop_command",
     ]);
     expect(cloud.decide({ name: "command_output" })).toBe("run");
     expect(cloud.decide({ name: "stop_command" })).toBe("run");
+  });
+
+  // The user's call (2026-11-24): the terminal models know
+  it("gives a cloud model bash, and its calls reach the policy as run_command", () => {
+    const cloud = policy(true, "ask");
+    const bash = cloud.advertisedTools[0]!;
+    expect(bash.serverName).toBe("terminal");
+    expect(bash.description).toContain("set run_in_background: true instead");
+    expect(bash.description).not.toContain("set background: true");
+    expect(
+      Object.keys(
+        (bash.inputSchema as { properties: Record<string, unknown> }).properties
+      )
+    ).toEqual(["command", "description", "timeout", "run_in_background"]);
+    expect(cloud.allows("run_command")).toBe(true);
+    expect(
+      policy(true, "auto").decide({
+        name: "run_command",
+        arguments: { command: "npm test" },
+      })
+    ).toBe("run");
   });
 
   it("are left out for a local model, with run_command as it was", () => {
@@ -526,5 +553,31 @@ describe("background jobs", () => {
         (run.inputSchema as { properties: Record<string, unknown> }).properties
       )
     ).toEqual(["command", "reason", "timeout_seconds"]);
+  });
+});
+
+describe("useToolPolicy", () => {
+  // The hook passed every input but backgroundJobs on, so the cloud
+  // terminal was never offered in the app (2026-11-24)
+  it("passes every input on to the policy", async () => {
+    const { renderHook } = await import("@testing-library/react");
+    const { useToolPolicy } = await import("./useToolPolicy");
+    const serverTools = [
+      {
+        ...tool("run_command"),
+        serverName: "terminal",
+        description: runCommandTool("/bin/bash").description,
+        inputSchema: runCommandTool("/bin/bash").inputSchema,
+      },
+    ];
+    const { result } = renderHook(() =>
+      useToolPolicy({
+        mode: "auto",
+        allowedTools: [],
+        serverTools,
+        backgroundJobs: true,
+      })
+    );
+    expect(names(result.current.advertisedTools)).toEqual(["bash"]);
   });
 });

@@ -106,6 +106,14 @@ export interface Conversation {
   teamOverride?: string;
   /** What the team's agents did, for the Team panel after a restart */
   agentRuns?: AgentRunView[];
+  /**
+   * Set while a turn works, to the run of SHIELD it runs in; cleared when
+   * it ends. Left from an earlier run, the turn was cut off by SHIELD
+   * closing (lib/interruptedTurn.ts)
+   */
+  turnRunning?: string;
+  /** The model that turn ran on, loaded again to carry it on */
+  turnModel?: string;
 }
 
 export interface ConversationMetadata {

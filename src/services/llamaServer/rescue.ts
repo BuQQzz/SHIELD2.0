@@ -92,6 +92,13 @@ export const EMPTY_REPLY_NOTE =
 export const THOUGHT_OUT_NOTE =
   "\n\n[SHIELD: your thinking used up the whole reply limit and nothing was written. Think briefly, then make the next tool call. Do the work in small steps.]";
 
+/**
+ * A hosted reply reached its output limit in the middle of a tool call
+ * (LlamaServerProvider): the cut call was not run
+ */
+export const CUT_CALL_NOTE =
+  "\n\n[SHIELD: your last reply reached the output limit in the middle of a tool call, so that call was cut off and not run. Do it in smaller pieces: write a large file in parts (write_file for the first part, then append_file for the rest), or make several smaller edits.]";
+
 /** Where a skipped agent's reply was cut off */
 export const SKIPPED_BY_USER =
   "the user skipped it because it was taking too long";

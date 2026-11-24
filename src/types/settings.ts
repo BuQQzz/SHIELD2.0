@@ -69,6 +69,11 @@ export interface MCPSettings {
   /** Max tool -> result -> tool cycles in a single turn */
   maxToolRounds: number;
   /**
+   * Cloud models: US dollars one task may cost before SHIELD pauses it and
+   * asks whether to go on. Unset or 0: no limit.
+   */
+  spendLimit?: number;
+  /**
    * Folder file tools may use. Unset means the defaults (Documents and
    * Desktop). Chosen from the folder chip next to the composer.
    */

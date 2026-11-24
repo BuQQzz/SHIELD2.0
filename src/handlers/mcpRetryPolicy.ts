@@ -110,9 +110,18 @@ export function endsByAnnouncing(assistantContent: string): boolean {
     .filter((s) => s.trim() !== "");
   const last = sentences[sentences.length - 1]?.trim() ?? "";
   if (last === "" || last.endsWith("?")) return false;
+  // A reply that ends on a colon promised what comes next, and nothing
+  // came: GLM 5.3 Flash ended a turn on "Step 3 — create the `work`
+  // folder and cd into it:" with no call (2026-11-24)
+  // ...also when the line is bold: "**Step 2 — which python3 is used now:**"
+  if (last.replace(/[*_`\s]+$/, "").endsWith(":")) return true;
   return ANNOUNCED_STEP.test(last);
 }
 
-export function buildActNowPrompt(): string {
-  return "You said what you would do but made no tool call, so nothing has happened yet. Make the tool call now, with no other text.";
+export function buildActNowPrompt(cloud = false): string {
+  // "with no other text" left GLM 5.3 Flash with no thinking and broken
+  // 49-token replies (2026-11-24): a hosted model may think and talk
+  return cloud
+    ? "You said what you would do but made no tool call, so nothing has happened yet. Make that tool call now."
+    : "You said what you would do but made no tool call, so nothing has happened yet. Make the tool call now, with no other text.";
 }

@@ -14,6 +14,8 @@
 
 import { useMemo } from "react";
 import { isDeletionTool, isMutatingTool } from "@/config/toolClassification";
+import { isDeletingCommand } from "@/config/deletingCommand";
+import { BASH_TOOL_NAME, bashToolFrom } from "@/config/bashTool";
 import {
   isReadOnlyCommand,
   JOB_TOOL_NAMES,
@@ -91,9 +93,10 @@ export interface ToolPolicyInput {
    */
   memoryTools?: boolean;
   /**
-   * A cloud model (handlers/runRules.ts): it may run commands in the
-   * background (command_output, stop_command). Local models are offered
-   * run_command as it was, without them.
+   * A cloud model (handlers/runRules.ts): its terminal is bash, shaped as
+   * in Claude Code and opencode (config/bashTool.ts), and it may run
+   * commands in the background (command_output, stop_command). Local
+   * models are offered run_command as it was, without them.
    */
   backgroundJobs?: boolean;
 }
@@ -137,7 +140,9 @@ export function resolveToolPolicy({
   backgroundJobs = false,
 }: ToolPolicyInput): ToolPolicy {
   const offered = backgroundJobs
-    ? serverTools
+    ? serverTools.map((tool) =>
+        tool.name === RUN_COMMAND_TOOL_NAME ? bashToolFrom(tool) : tool
+      )
     : serverTools
         .filter((tool) => !JOB_TOOL_NAMES.has(tool.name))
         .map((tool) =>
@@ -164,6 +169,8 @@ export function resolveToolPolicy({
                 : fileTools && allowedTools.includes(tool.name)
   );
   const allowedNames = new Set(allowlisted.map((tool) => tool.name));
+  // A bash call reaches the policy as run_command (toolCallParsing.ts)
+  if (allowedNames.has(BASH_TOOL_NAME)) allowedNames.add(RUN_COMMAND_TOOL_NAME);
 
   // In readonly the model is never told mutating tools exist, so it does not
   // propose them and the user never sees a refusal for something it could
@@ -176,6 +183,7 @@ export function resolveToolPolicy({
           (tool) =>
             !isMutatingTool(tool) ||
             tool.name === RUN_COMMAND_TOOL_NAME ||
+            tool.name === BASH_TOOL_NAME ||
             JOB_TOOL_NAMES.has(tool.name)
         )
       : allowlisted;
@@ -204,6 +212,14 @@ export function resolveToolPolicy({
     // read-only hint (web_search and fetch_page declare one)
     const tool = serverTools.find((known) => known.name === call.name) ?? call;
     const mutating = isMutatingTool(tool);
+
+    // SHIELD's own file and web tools in Ask and Auto: only a delete asks
+    // (the user's call, 2026-11-24: an approval for nearly every edit was
+    // too much). A connected service's tools act outside the computer -
+    // sending an email - and keep asking in Ask
+    if ((mode === "ask" || mode === "auto") && ownTool(tool)) {
+      return isDeletionTool(tool) ? "ask" : "run";
+    }
 
     switch (mode) {
       case "ask":
@@ -247,14 +263,28 @@ export function resolveToolPolicy({
  * else asks in Auto (every time - see useMCPDialogs), is recorded in Plan
  * and refused in Read-only.
  */
+/**
+ * Ask and Auto: a command runs unless it deletes (deletingCommand.ts).
+ * Plan and Read-only: only a command that can just look runs.
+ */
 function decideCommand(
   mode: PermissionMode,
   command: string,
   folder?: string
 ): ToolDecision {
-  if (mode === "ask") return "ask";
-  if (isReadOnlyCommand(command, undefined, folder)) return "run";
-  return mode === "auto" ? "ask" : "block";
+  if (mode === "ask" || mode === "auto") {
+    return isDeletingCommand(command) ? "ask" : "run";
+  }
+  return isReadOnlyCommand(command, undefined, folder) ? "run" : "block";
+}
+
+/** SHIELD's own file and web tools, not a connected service's */
+function ownTool(tool: { name: string; serverName?: string }): boolean {
+  return (
+    FILESYSTEM_TOOLS.includes(tool.name) ||
+    tool.name === "web_search" ||
+    tool.name === "fetch_page"
+  );
 }
 
 /**
@@ -270,6 +300,7 @@ export function useToolPolicy(input: ToolPolicyInput): ToolPolicy {
     teamMode,
     folder,
     memoryTools,
+    backgroundJobs,
   } = input;
 
   return useMemo(
@@ -283,6 +314,9 @@ export function useToolPolicy(input: ToolPolicyInput): ToolPolicy {
         teamMode,
         folder,
         memoryTools,
+        // Left out until 2026-11-24: no cloud model was ever offered its
+        // background jobs or bash, though resolveToolPolicy's tests passed
+        backgroundJobs,
       }),
     [
       mode,
@@ -293,6 +327,7 @@ export function useToolPolicy(input: ToolPolicyInput): ToolPolicy {
       teamMode,
       folder,
       memoryTools,
+      backgroundJobs,
     ]
   );
 }

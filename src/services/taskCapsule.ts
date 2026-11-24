@@ -26,6 +26,8 @@ import {
 import { isToolResultTurn } from "./contextBreakdown.js";
 import type { HistoryEntry } from "./historyCompaction.js";
 import { trashName } from "../utils/platform.js";
+import { ProviderBusyError } from "./remote/providerRetry.js";
+import { UPDATE_PLAN_TOOL_NAME, type PlanStep } from "../config/plan.js";
 
 export interface CapsuleStep {
   /** "wrote", "read", "searched the web for" */
@@ -47,6 +49,13 @@ export interface Capsule {
   earlierSteps: number;
   /** The model's note: where the work stands, decisions, what is left */
   note: string;
+  /**
+   * The model's plan as its last removed update_plan call left it. Kept by
+   * SHIELD, as the lists are: DeepSeek V4.1 Flash, asked for a checklist
+   * line in its note on a 14-part task, folded it into its State line, and
+   * its update_plan calls had gone into the summary (2026-11-23)
+   */
+  plan?: PlanStep[];
 }
 
 /** Share of the window kept as it is after summarising, at most */
@@ -91,7 +100,11 @@ const MAX_REQUEST_CHARS = 300;
  */
 const MAX_LATEST_REQUEST_CHARS = 2000;
 const MAX_STEPS = 40;
-const MAX_NOTE_CHARS = 2000;
+/**
+ * A long-task note's checklist line runs long: 3000, so a 14-part task's
+ * fits. Local notes (360 tokens) stay well under either
+ */
+const MAX_NOTE_CHARS = 3000;
 
 /** Shortened replies in the kept part keep at least this much */
 const MIN_REPLY_CHARS = 1500;
@@ -109,8 +122,13 @@ const NOTE_PROSE_CHARS = 1000;
  */
 export function noteRequest(
   nextMessage: string,
-  remembered: string[] = []
+  remembered: string[] = [],
+  longTask = false
 ): string {
+  // A hosted model on a long task: the checklist and what fails now are
+  // what it works from after a summary (the plan's item H, 2026-11-23).
+  // Local models keep the five lines they were tuned with
+  const lines = 5 + (longTask ? 2 : 0) + (remembered.length > 0 ? 1 : 0);
   const next = isToolResultTurn(nextMessage)
     ? "The results of your latest tool calls come right after this note. You have not seen them yet, so do not say what they contain."
     : "The user's next message comes right after this note.";
@@ -118,8 +136,14 @@ export function noteRequest(
     "Pause the task: do not answer the user and do not continue the work.",
     "SHIELD is about to remove the messages above from your context to make room. Your most recent messages stay, and SHIELD keeps a list of the user's requests and of your tool calls.",
     next,
-    `Write a note to yourself for carrying on afterwards, as ${remembered.length > 0 ? "six" : "five"} short lines:`,
+    `Write a note to yourself for carrying on afterwards, as ${LINE_COUNTS[lines]} short lines${longTask ? ", each starting with its label" : ""}:`,
     "State: where the work stands.",
+    ...(longTask
+      ? [
+          "Checklist: every part of the user's request, each marked done or not done.",
+          'Failing: tests or commands that fail right now, with their error, or "none".',
+        ]
+      : []),
     'Decisions: what you decided and why, or "none".',
     'Next: what is still to do, or "nothing".',
     'Offered: ideas or options you suggested to the user that are not built yet, or "none". Keep the ones from your earlier note unless they are built now.',
@@ -140,6 +164,16 @@ export function noteRequest(
     "Plain text only. No headings, no code, no tool calls.",
   ].join("\n");
 }
+
+const LINE_COUNTS: Record<number, string> = {
+  5: "five",
+  6: "six",
+  7: "seven",
+  8: "eight",
+};
+
+/** A hosted model's note: room for its thinking and the longer note */
+export const HOSTED_NOTE_MAX_TOKENS = 4000;
 
 const VERBS: Record<string, string> = {
   read_file: "read",
@@ -267,7 +301,7 @@ function addStep(steps: CapsuleStep[], step: CapsuleStep): void {
 export function cleanNote(note: string): string {
   const text = stripToolCallMarkup(note);
   const fields = text.match(
-    /^[\s*_-]*(State|Decisions|Next|Offered|Facts)\b[^:\n]*:.*$/gim
+    /^[\s*_-]*(State|Checklist|Failing|Decisions|Next|Offered|Facts)\b[^:\n]*:.*$/gim
   );
   let kept: string;
   if (fields) {
@@ -310,8 +344,41 @@ export function addToCapsule(
     steps: steps.slice(droppedSteps),
     earlierSteps: (previous?.earlierSteps ?? 0) + droppedSteps,
     note: cleanNote(note) || previous?.note || "",
+    ...((planFrom(older) ?? previous?.plan)
+      ? { plan: planFrom(older) ?? previous?.plan }
+      : {}),
   };
 }
+
+/** The steps of the last update_plan call in `entries`, if any */
+export function planFrom(entries: HistoryEntry[]): PlanStep[] | undefined {
+  for (let i = entries.length - 1; i >= 0; i--) {
+    const entry = entries[i]!;
+    if (entry.role !== "assistant") continue;
+    const calls = extractToolCalls(entry.content).filter(
+      (call) => call.tool === UPDATE_PLAN_TOOL_NAME && !call.argumentsError
+    );
+    const steps = (calls.at(-1)?.arguments as { plan?: unknown } | undefined)
+      ?.plan;
+    if (!Array.isArray(steps)) continue;
+    const plan = steps
+      .filter(
+        (s): s is PlanStep =>
+          typeof s === "object" &&
+          s !== null &&
+          typeof (s as PlanStep).step === "string"
+      )
+      .map((s) => ({ step: s.step, status: s.status }));
+    if (plan.length > 0) return plan;
+  }
+  return undefined;
+}
+
+const PLAN_MARKS: Record<string, string> = {
+  completed: "done",
+  in_progress: "in progress",
+  pending: "not done",
+};
 
 function stepLine(step: CapsuleStep): string {
   const times = step.count > 1 ? ` (${step.count} times)` : "";
@@ -349,6 +416,12 @@ function compose(capsule: Capsule): string {
       lines.push(notListed(capsule.earlierSteps, "call"));
     }
     for (const step of capsule.steps) lines.push(stepLine(step));
+  }
+  if (capsule.plan?.length) {
+    lines.push("", "Your plan as you last updated it:");
+    for (const s of capsule.plan) {
+      lines.push(`- [${PLAN_MARKS[s.status] ?? s.status}] ${s.step}`);
+    }
   }
   if (capsule.note) lines.push("", "Your note:", capsule.note);
   return lines.join("\n");
@@ -507,6 +580,9 @@ export async function summariseOldest(
     if ((error as { name?: unknown } | null)?.name === "AbortError") {
       throw error;
     }
+    // A busy hosted provider: the request waits and goes again whole, so
+    // the note is written then rather than lost (providerRetry.ts)
+    if (error instanceof ProviderBusyError) throw error;
     console.warn("[TaskCapsule] No note from the model:", error);
   }
   return {

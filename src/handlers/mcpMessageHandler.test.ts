@@ -1131,6 +1131,174 @@ describe("repeated calls within a turn", () => {
     );
   });
 
+  it("asks before stopping a cloud model's repeats, and runs the call again when allowed", async () => {
+    const onToolCallDetected = vi
+      .fn()
+      .mockResolvedValue({ success: true, data: "server not up yet" });
+    const continueConversation = vi
+      .fn()
+      .mockResolvedValueOnce(listing)
+      .mockResolvedValueOnce(listing)
+      .mockResolvedValueOnce(listing)
+      .mockResolvedValueOnce(listing)
+      .mockResolvedValueOnce("It is up now.");
+    const confirmRepeat = vi.fn().mockResolvedValue(true);
+
+    await processMCPToolCalls(
+      { id: "c", role: "assistant", content: listing, timestamp: new Date() },
+      {
+        onToolCallDetected,
+        addMessage: vi.fn(),
+        continueConversation,
+        confirmRepeat,
+      }
+    );
+
+    expect(confirmRepeat).toHaveBeenCalledWith("list_directory C:/notes");
+    // The first run, three answers from memory, then allowed: the next
+    // repeat ran for real
+    expect(continueConversation).toHaveBeenCalledTimes(5);
+    expect(onToolCallDetected).toHaveBeenCalledTimes(2);
+  });
+
+  it("counts calls since the last file change for the idle check", async () => {
+    const read = (n: number) =>
+      call("read_text_file", JSON.stringify({ path: `C:/notes/${n}.md` }));
+    const write = call(
+      "write_file",
+      JSON.stringify({ path: "C:/notes/x.md", content: "x" })
+    );
+    const onToolCallDetected = vi
+      .fn()
+      .mockResolvedValue({ success: true, data: "text" });
+    const continueConversation = vi
+      .fn()
+      .mockResolvedValueOnce(read(2))
+      .mockResolvedValueOnce(write)
+      .mockResolvedValueOnce(read(3))
+      .mockResolvedValueOnce("Done.");
+    const seen: number[] = [];
+    // Said no to at the fourth check, after read 3
+    const checkIdle = vi.fn(async (calls: number) => {
+      seen.push(calls);
+      return seen.length < 4;
+    });
+    const added: { content: string }[] = [];
+
+    await processMCPToolCalls(
+      { id: "i", role: "assistant", content: read(1), timestamp: new Date() },
+      {
+        onToolCallDetected,
+        addMessage: (message) => added.push(message),
+        continueConversation,
+        checkIdle,
+      }
+    );
+
+    // read 1, read 2, the write (count back to 0), read 3
+    expect(seen).toEqual([1, 2, 0, 1]);
+    expect(added.at(-1)?.content).toContain(
+      "made 1 tool calls without changing a file"
+    );
+  });
+
+  it("asks a cloud model again for each announced step it then makes", async () => {
+    const step = (n: number) =>
+      call("read_text_file", JSON.stringify({ path: `C:/notes/${n}.md` }));
+    const onToolCallDetected = vi
+      .fn()
+      .mockResolvedValue({ success: true, data: "text" });
+    const continueConversation = vi
+      .fn()
+      .mockResolvedValueOnce("Step 2 — read the next file:")
+      .mockResolvedValueOnce(step(2))
+      .mockResolvedValueOnce("Step 3 — read the last file:")
+      .mockResolvedValueOnce(step(3))
+      .mockResolvedValueOnce("Done.");
+
+    await processMCPToolCalls(
+      { id: "a", role: "assistant", content: step(1), timestamp: new Date() },
+      {
+        onToolCallDetected,
+        addMessage: vi.fn(),
+        continueConversation,
+        actNowEachStall: true,
+      }
+    );
+
+    expect(onToolCallDetected).toHaveBeenCalledTimes(3);
+  });
+
+  it("asks a local model only once per turn", async () => {
+    const step = (n: number) =>
+      call("read_text_file", JSON.stringify({ path: `C:/notes/${n}.md` }));
+    const onToolCallDetected = vi
+      .fn()
+      .mockResolvedValue({ success: true, data: "text" });
+    const continueConversation = vi
+      .fn()
+      .mockResolvedValueOnce("Step 2 — read the next file:")
+      .mockResolvedValueOnce(step(2))
+      .mockResolvedValueOnce("Step 3 — read the last file:");
+
+    await processMCPToolCalls(
+      { id: "b", role: "assistant", content: step(1), timestamp: new Date() },
+      { onToolCallDetected, addMessage: vi.fn(), continueConversation }
+    );
+
+    expect(onToolCallDetected).toHaveBeenCalledTimes(2);
+  });
+
+  it("stops before the next round when the user stops at the spend limit", async () => {
+    const read = call("read_text_file", '{"path":"C:/notes/a.md"}');
+    const onToolCallDetected = vi
+      .fn()
+      .mockResolvedValue({ success: true, data: "text" });
+    const continueConversation = vi.fn().mockResolvedValue(read);
+    const added: { content: string }[] = [];
+    const checkSpend = vi
+      .fn()
+      .mockResolvedValueOnce(true)
+      .mockResolvedValueOnce(false);
+
+    await processMCPToolCalls(
+      { id: "e", role: "assistant", content: listing, timestamp: new Date() },
+      {
+        onToolCallDetected,
+        addMessage: (message) => added.push(message),
+        continueConversation,
+        checkSpend,
+      }
+    );
+
+    expect(checkSpend).toHaveBeenCalledTimes(2);
+    expect(continueConversation).toHaveBeenCalledTimes(1);
+    expect(added.at(-1)?.content).toContain("Stopped at your spend limit");
+  });
+
+  it("stops a cloud model's repeats when the user says stop", async () => {
+    const onToolCallDetected = vi
+      .fn()
+      .mockResolvedValue({ success: true, data: "a.md" });
+    const continueConversation = vi.fn().mockResolvedValue(listing);
+    const added: { content: string }[] = [];
+
+    await processMCPToolCalls(
+      { id: "d", role: "assistant", content: listing, timestamp: new Date() },
+      {
+        onToolCallDetected,
+        addMessage: (message) => added.push(message),
+        continueConversation,
+        confirmRepeat: vi.fn().mockResolvedValue(false),
+      }
+    );
+
+    expect(continueConversation).toHaveBeenCalledTimes(3);
+    expect(added.at(-1)?.content).toContain(
+      "you stopped the model repeating the same step"
+    );
+  });
+
   // Live (2026-10-25): the same delegate call three times after a run that
   // changed nothing, each answered with the same cached report
   it("answers a repeated delegation with what to do, not the old report", async () => {

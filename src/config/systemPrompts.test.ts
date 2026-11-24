@@ -601,3 +601,21 @@ describe("today's date", () => {
     expect(dateLine(today)).toContain("Thursday, October 29, 2026");
   });
 });
+
+describe("the check-your-work rule names the model's terminal", () => {
+  it("says bash to a model that has bash", async () => {
+    const { generateNativeToolPrompt } = await import("./systemPrompts");
+    const tool = (name: string) => ({
+      name,
+      description: name,
+      serverName: "terminal",
+      inputSchema: { type: "object" },
+    });
+    expect(generateNativeToolPrompt([tool("bash")], [])).toContain(
+      "run its tests or the script with bash"
+    );
+    expect(generateNativeToolPrompt([tool("run_command")], [])).toContain(
+      "run its tests or the script with run_command"
+    );
+  });
+});

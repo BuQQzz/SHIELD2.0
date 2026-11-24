@@ -4,6 +4,7 @@
  * report. Pure of React and Electron, so it is tested alone.
  */
 
+import { TEAM_LIMITS } from "../handlers/runRules";
 import type { MCPToolResult } from "../types/electron";
 import { runAgent, type AgentRunDeps } from "./agentRunner";
 import {
@@ -45,10 +46,14 @@ export async function handleDelegate(
     }
   }
 
-  if (!team.countDelegation(MAX_DELEGATIONS_PER_TURN)) {
+  const most =
+    team.profile === "cloud"
+      ? TEAM_LIMITS.cloud.delegations
+      : MAX_DELEGATIONS_PER_TURN;
+  if (!team.countDelegation(most)) {
     return {
       success: false,
-      error: `You have delegated ${MAX_DELEGATIONS_PER_TURN} times for this request, the most allowed. Stop delegating and tell the user where things stand: what is done, what was checked, and what is left.`,
+      error: `You have delegated ${most} times for this request, the most allowed. Stop delegating and tell the user where things stand: what is done, what was checked, and what is left.`,
     };
   }
 

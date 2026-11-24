@@ -97,6 +97,10 @@ export interface Conversation {
   teamOverride?: string;
   /** What the team's agents did, for the Team panel after a restart */
   agentRuns?: AgentRunView[];
+  /** Set while a turn works; left from an earlier run, it was cut off (see types/conversation) */
+  turnRunning?: string;
+  /** The model that turn ran on */
+  turnModel?: string;
 }
 
 export interface ConversationMetadata {
@@ -472,6 +476,7 @@ export interface AppSettings {
     auditLogRetentionDays: number;
     maxToolCallsPerTurn: number;
     maxToolRounds: number;
+    spendLimit?: number;
   };
 }
 

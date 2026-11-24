@@ -11,6 +11,8 @@ import { DENIED_BY_USER, describeWork } from "./handoff";
 import { AGENT_ROLES, type AgentReport, type AgentRole } from "./types";
 import { DELEGATE_TOOL_NAME, TEAM_NOTE_TOOL_NAME } from "./roles";
 
+import { TEAM_LIMITS, type RunProfile } from "../handlers/runRules";
+
 export const AGENTS_SERVER_NAME = "agents";
 export const MAX_TASK_CHARS = 6000;
 /**
@@ -20,8 +22,13 @@ export const MAX_TASK_CHARS = 6000;
  */
 export const MAX_ORCHESTRATOR_ROUNDS = 12;
 
-export const orchestratorRounds = (configured?: number) =>
-  Math.min(configured ?? MAX_ORCHESTRATOR_ROUNDS, MAX_ORCHESTRATOR_ROUNDS);
+export const orchestratorRounds = (
+  configured?: number,
+  profile: RunProfile = "local"
+) =>
+  profile === "cloud"
+    ? TEAM_LIMITS.cloud.orchestratorRounds
+    : Math.min(configured ?? MAX_ORCHESTRATOR_ROUNDS, MAX_ORCHESTRATOR_ROUNDS);
 
 /** Delegations in one user turn: a loop of re-delegating stops here */
 export const MAX_DELEGATIONS_PER_TURN = 12;

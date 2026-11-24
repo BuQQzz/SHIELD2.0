@@ -5,6 +5,7 @@
  */
 
 import { FileClaims } from "./parallel";
+import type { RunProfile } from "../handlers/runRules";
 import type { StoredHandoff } from "./types";
 
 export const MAX_NOTES = 30;
@@ -135,8 +136,12 @@ export class TeamRun {
     return this.handoffs.get(id);
   }
 
+  /** Cloud or local: which caps this turn's team works under (runRules.ts) */
+  profile: RunProfile = "local";
+
   /** A new user message: the orchestrator may delegate again */
-  beginTurn(): void {
+  beginTurn(profile: RunProfile = "local"): void {
+    this.profile = profile;
     this.delegations = 0;
     this.openPartials = [];
   }

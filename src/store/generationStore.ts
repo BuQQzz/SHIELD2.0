@@ -59,6 +59,11 @@ interface GenerationStore {
    * command's output into the new chat (2026-11-16).
    */
   turn: number;
+  /**
+   * What this turn has cost so far, in US dollars: every reply of a hosted
+   * model with known prices, its agents' included (for the spend limit)
+   */
+  turnCost: number;
   /** A new message: Stop cleared, and the turn it starts */
   beginTurn: () => number;
   /** Whether this turn was stopped, or a newer one has begun */
@@ -96,12 +101,13 @@ export const useGenerationStore = create<GenerationStore>((set, get) => ({
   lastSummary: null,
   lastCapsule: null,
   record: (stats, context, summary, capsule) =>
-    set({
+    set((state) => ({
+      turnCost: state.turnCost + (stats?.cost ?? 0),
       lastStats: stats ?? null,
       context: context ?? null,
       lastSummary: summary ?? null,
       lastCapsule: capsule ?? null,
-    }),
+    })),
   progress: null,
   hosted: false,
   setHosted: (hosted) => set({ hosted }),
@@ -117,9 +123,10 @@ export const useGenerationStore = create<GenerationStore>((set, get) => ({
   stopRequested: false,
   setStopRequested: (value) => set({ stopRequested: value }),
   turn: 0,
+  turnCost: 0,
   beginTurn: () => {
     const turn = get().turn + 1;
-    set({ turn, stopRequested: false });
+    set({ turn, stopRequested: false, turnCost: 0 });
     return turn;
   },
   turnOver: (turn) => get().stopRequested || get().turn !== turn,

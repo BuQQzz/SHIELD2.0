@@ -124,6 +124,18 @@ export const ANSWER_STYLE =
  * while removing them (g5 step 17); in the next run it seeded a temporary
  * file every time, so it knows how (2026-11-09).
  */
+/** The terminal's name: bash for a hosted model (config/bashTool.ts) */
+function terminalName(tools: { name: string }[]): string | null {
+  return tools.some((t) => t.name === "bash")
+    ? "bash"
+    : tools.some((t) => t.name === "run_command")
+      ? "run_command"
+      : null;
+}
+
+const checkYourWork = (terminal: string) =>
+  CHECK_YOUR_WORK.replace("with run_command", `with ${terminal}`);
+
 const CHECK_YOUR_WORK =
   "After changing code, run its tests or the script with run_command when the project has a way to, and fix what fails before you answer. Read the whole output, not just the exit code: a line that says something failed means it failed. Report what the command actually showed, and name every failure you did not fix; never say something passes or works without having run it. Test with throwaway data, such as a temporary file or folder, never the user's own data files. " +
   ANSWER_STYLE;
@@ -261,9 +273,8 @@ Always use a full path beginning with one of these. Never guess a path such as "
       " Use write_file only to create a new file." +
       "\n- When asked to fix, change or add something, make the change with these functions. Do not show the code for the user to apply unless they ask to see it first. When code is broken, fix the broken lines with edit_file - never write a new version of the whole file. Afterwards, say in a sentence or two what you changed."
     : "";
-  const commandRule = callableTools.some((tool) => tool.name === "run_command")
-    ? `\n- ${CHECK_YOUR_WORK}`
-    : "";
+  const terminal = terminalName(callableTools);
+  const commandRule = terminal ? `\n- ${checkYourWork(terminal)}` : "";
   const planRule = callableTools.some((tool) => tool.name === "update_plan")
     ? `\n- ${PLAN_RULE}`
     : "";
@@ -375,8 +386,9 @@ export function generateMCPToolPrompt(
    Use write_file only to create a new file.
 7. **MAKE THE CHANGE** - When asked to fix, change or add something, do it with edit_file or write_file. Do not show the code for the user to paste unless they ask to see it first. When code is broken, fix the broken lines with edit_file - never write a new version of the whole file. Afterwards, say in a sentence or two what you changed.`
     : "";
-  const commandRule = tools.some((t) => t.name === "run_command")
-    ? `\n${editRule ? 8 : 6}. **CHECK YOUR WORK** - ${CHECK_YOUR_WORK}`
+  const terminal = terminalName(tools);
+  const commandRule = terminal
+    ? `\n${editRule ? 8 : 6}. **CHECK YOUR WORK** - ${checkYourWork(terminal)}`
     : "";
   const planNumber = 6 + (editRule ? 2 : 0) + (commandRule ? 1 : 0);
   const planRule = tools.some((t) => t.name === "update_plan")

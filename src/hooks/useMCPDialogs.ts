@@ -518,18 +518,29 @@ export function useMCPDialogs({
       const advertised = policy.advertisedTools.find(
         (tool) => tool.name === request.tool
       );
+      const cleaned = oneReadRange(
+        request.tool,
+        joinSplitEdits(
+          request.tool,
+          cleanPaths(
+            argumentsForSchema(request.arguments, advertised?.inputSchema)
+          )
+        )
+      );
       const toolCall = {
         ...request,
         serverName: advertised?.serverName ?? request.serverName,
-        arguments: oneReadRange(
-          request.tool,
-          joinSplitEdits(
-            request.tool,
-            cleanPaths(
-              argumentsForSchema(request.arguments, advertised?.inputSchema)
-            )
-          )
-        ),
+        // The chat's own shell, which keeps its folder and variables
+        // between commands (electron/services/terminalTool.ts). Set here,
+        // after the model's arguments are cleaned, so a model cannot pick
+        // another chat's shell
+        arguments:
+          request.tool === RUN_COMMAND_TOOL_NAME
+            ? {
+                ...cleaned,
+                shell_session: `${useConversationStore.getState().currentConversation?.id ?? "none"}:${options.agent ?? "main"}`,
+              }
+            : cleaned,
       };
 
       // A removal note is never file content

@@ -84,12 +84,14 @@ export const ROLE_LABELS: Record<AgentRole, string> = {
   reviewer: "Reviewer",
 };
 
-export function roleSpec(role: AgentRole): RoleSpec {
+/** `scale`: a hosted team's agents get more room (runRules.ts TEAM_LIMITS) */
+export function roleSpec(role: AgentRole, scale = 1): RoleSpec {
   return {
     role,
     title: TITLES[role],
     prompt: `${COMMON.replace("{title}", TITLES[role])}\n\n${ROLE_TEXT[role]}`,
-    ...LIMITS[role],
+    maxRounds: LIMITS[role].maxRounds * scale,
+    maxCommands: LIMITS[role].maxCommands * scale,
   };
 }
 

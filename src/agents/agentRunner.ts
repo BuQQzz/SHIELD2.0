@@ -19,6 +19,7 @@
  * injected, so the same code runs in the app and in a headless test.
  */
 
+import { TEAM_LIMITS } from "../handlers/runRules";
 import { withSteer } from "../handlers/steer";
 import { SKIPPED_BY_USER } from "../services/llamaServer/rescue";
 import {
@@ -314,7 +315,7 @@ export async function runAgent(
   deps: AgentRunDeps
 ): Promise<AgentReport> {
   const { role, team } = input;
-  const spec = roleSpec(role);
+  const spec = roleSpec(role, TEAM_LIMITS[team.profile].agentScale);
   const checkpointAt = deps.checkpointAt ?? CHECKPOINT_AT;
   const handoffId = team.nextHandoffId();
   const work: VerifiedWork = {

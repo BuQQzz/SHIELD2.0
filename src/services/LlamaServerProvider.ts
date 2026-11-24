@@ -50,6 +50,11 @@ import {
 import { isToolResultTurn } from "./contextBreakdown.js";
 import { requestCost, type RequestCost, type Usage } from "./remote/cost.js";
 import {
+  callDropped,
+  cutCallStart,
+  hostedOverflow,
+} from "./remote/replyLimits.js";
+import {
   isRetryableStatus,
   nextRetryDelay,
   parseRetryAfter,
@@ -77,6 +82,7 @@ import {
   NUDGE_NOTE,
   EMPTY_REPLY_NOTE,
   THOUGHT_OUT_NOTE,
+  CUT_CALL_NOTE,
   type RequestStatus,
   type RescueAction,
 } from "./llamaServer/rescue.js";
@@ -95,6 +101,7 @@ import {
   keepCharsFor,
   latestExchange,
   NOTE_MAX_TOKENS,
+  HOSTED_NOTE_MAX_TOKENS,
   noteRequest,
   renderCapsule,
   restoreHistory,
@@ -193,6 +200,27 @@ export const HOSTED_TIDY_TOKENS = 128_000;
  * nothing (2026-11-16). A ceiling, so a short reply costs no more.
  */
 export const HOSTED_MIN_REPLY_TOKENS = 32_768;
+
+/**
+ * SHIELD_HOSTED_MAX_TOKENS=<n>: a hosted reply's limit for test runs, to
+ * see a reply cut at the limit handled live. Off by default.
+ */
+function testReplyLimit(): number | undefined {
+  return testNumber("SHIELD_HOSTED_MAX_TOKENS");
+}
+
+/**
+ * SHIELD_HOSTED_WINDOW=<n>: a hosted model's window for test runs, so a
+ * long task summarises several times. Off by default.
+ */
+function testWindow(): number | undefined {
+  return testNumber("SHIELD_HOSTED_WINDOW");
+}
+
+function testNumber(name: string): number | undefined {
+  const value = Number(process.env[name]);
+  return Number.isFinite(value) && value > 0 ? value : undefined;
+}
 
 /** A request sent again without its reasoning setting, which the provider refused */
 const REASONING_REFUSED = new Error("reasoning setting refused");
@@ -350,7 +378,8 @@ export function noteBody(
   nextMessage: string,
   tools: unknown[],
   thoughtFloor = 0,
-  remembered: string[] = []
+  remembered: string[] = [],
+  longTask = false
 ): { messages: unknown[]; tools?: unknown[]; tool_choice?: "none" } {
   const kept = withRequestThinking(turns, thoughtFloor);
   const wire = tools.length > 0 ? nativeHistory(kept) : kept;
@@ -358,7 +387,10 @@ export function noteBody(
     messages: [
       { role: "system", content: system },
       ...wire.map(asWire),
-      { role: "user", content: noteRequest(nextMessage, remembered) },
+      {
+        role: "user",
+        content: noteRequest(nextMessage, remembered, longTask),
+      },
     ],
     ...(tools.length > 0 ? { tools, tool_choice: "none" as const } : {}),
   };
@@ -686,8 +718,8 @@ export class LlamaServerProvider {
 
     this.remote = endpoint;
     this.loadOptions = null;
-    this.contextSize = endpoint.contextSize;
-    this.trainContextSize = endpoint.contextSize;
+    this.contextSize = testWindow() ?? endpoint.contextSize;
+    this.trainContextSize = this.contextSize;
     this.systemPrompt = systemPrompt;
     this.history = [];
     this.thoughtFloor = 0;
@@ -953,7 +985,17 @@ export class LlamaServerProvider {
       body: JSON.stringify(this.shape(body)),
     });
     if (!response.ok) {
-      throw new Error(this.httpError(response.status, await response.text()));
+      const text = await response.text();
+      // A busy provider during a summary or a title: tried again like a
+      // reply (retryAfterProviderFailure), not the end of the turn
+      if (this.endpoint && isRetryableStatus(response.status)) {
+        throw new ProviderBusyError(
+          this.httpError(response.status, text),
+          response.status,
+          parseRetryAfter(response.headers.get("retry-after"))
+        );
+      }
+      throw new Error(this.httpError(response.status, text));
     }
     const endpoint = this.endpoint;
     if (endpoint) checkPosture(endpoint, response.headers);
@@ -975,6 +1017,36 @@ export class LlamaServerProvider {
   /** The main session a forked one (an agent's) belongs to */
   private root(): LlamaServerProvider {
     return this.parent ? this.parent.root() : this;
+  }
+
+  /**
+   * A hosted request refused as over the window: the prompt's size to make
+   * room from (refitFrom), or null for any other refusal. When the provider
+   * gives the model's window and it is smaller than the one SHIELD knew,
+   * that one is used from now on.
+   */
+  private hostedOverflowSize(status: number, body: string): number | null {
+    const over = hostedOverflow(status, body);
+    if (!over) return null;
+    if (over.limit && over.limit < this.contextSize) {
+      appendServerLog(
+        `[SHIELD] ${this.endpoint?.model} has a window of ${over.limit} tokens, not ${this.contextSize}: using that from now on`
+      );
+      this.contextSize = over.limit;
+    }
+    return (
+      over.prompt ?? Math.max(this.contextSize, this.lastContextTokens) + 1
+    );
+  }
+
+  /** A request whose reply is dropped and sent again still cost money */
+  private carryCost(final: ChatStreamChunk | null): void {
+    if (!this.endpoint) return;
+    const cost = requestCost(
+      final?.usage as Usage | undefined,
+      this.endpoint.pricing
+    );
+    if (cost) this.root().addUnreportedCost(cost);
   }
 
   private addUnreportedCost(cost: RequestCost): void {
@@ -1236,13 +1308,14 @@ export class LlamaServerProvider {
         // too: deepseek-v4.1-flash's thinking and a test file's write_file
         // went past the 2,048 setting and the call was cut off (2026-11-15)
         max_tokens: this.endpoint
-          ? Math.min(
+          ? (testReplyLimit() ??
+            Math.min(
               Math.max(
                 replyTokenLimit(options.maxTokens),
                 HOSTED_MIN_REPLY_TOKENS
               ),
               this.endpoint.maxOutputTokens ?? Infinity
-            )
+            ))
           : replyTokenLimit(options.maxTokens),
         top_p: options.topP ?? 0.9,
         top_k: options.topK ?? 40,
@@ -1305,7 +1378,14 @@ export class LlamaServerProvider {
             parseRetryAfter(response.headers.get("retry-after"))
           );
         }
-        const measured = this.endpoint ? null : overflowedPrompt(text);
+        const measured = this.endpoint
+          ? this.hostedOverflowSize(response.status, text)
+          : overflowedPrompt(text);
+        if (measured !== null && this.refitting && this.endpoint) {
+          throw new Error(
+            `The conversation is too long for ${this.endpoint.model}, even after making room. Start a new chat for the next part of the work, or pick a model with a larger window.`
+          );
+        }
         if (measured === null || this.refitting) {
           throw new Error(this.httpError(response.status, text));
         }
@@ -1561,6 +1641,40 @@ export class LlamaServerProvider {
         restarts
       );
     }
+    // A hosted reply that reached max_tokens inside a tool call: the call's
+    // arguments end mid-value and would fail as malformed, and the model
+    // tends to send the same large call again. Dropped, and sent once more
+    // asking for smaller pieces, as opencode does on an output limit
+    // (research, 2026-11-23)
+    // A provider that drops a cut call leaves an empty reply: told from a
+    // thought-out one by where the tokens went (replyLimits.ts callDropped)
+    const atLimit =
+      this.endpoint !== null && !signal.aborted && finishReason === "length";
+    const cutAt = !atLimit
+      ? null
+      : reply.trim() !== ""
+        ? cutCallStart(reply)
+        : callDropped(
+              final?.usage as Usage | undefined,
+              thinking.length,
+              typeof requestBody.max_tokens === "number"
+                ? requestBody.max_tokens
+                : undefined
+            )
+          ? 0
+          : null;
+    if (this.endpoint && cutAt !== null) {
+      if (!message.endsWith(CUT_CALL_NOTE)) {
+        appendServerLog(
+          `[SHIELD] the reply reached its output limit inside a tool call (${reply.length - cutAt} chars of it): dropped and sent once more asking for smaller pieces`
+        );
+        this.carryCost(final);
+        return this.chat(message + CUT_CALL_NOTE, options, restarts);
+      }
+      throw new Error(
+        `${this.endpoint.model} reached its reply limit in the middle of a tool call, twice. Ask it to write the file in smaller parts.`
+      );
+    }
     // A hosted model thought until the reply limit and wrote nothing: GLM
     // 5.3 Flash spent all 32,768 tokens (138K characters, 7 minutes) on
     // the first step of a long task, then did it again with thinking off,
@@ -1580,6 +1694,7 @@ export class LlamaServerProvider {
         appendServerLog(
           `[SHIELD] thinking used the whole reply limit (${thinking.length} chars) and nothing was written: sent once more at low effort with a note`
         );
+        this.carryCost(final);
         return this.chat(
           message + THOUGHT_OUT_NOTE,
           { ...options, thinking: true, effort: "low" },
@@ -2022,11 +2137,14 @@ export class LlamaServerProvider {
           nextMessage,
           this.nativeTools,
           floor,
-          remembered
+          remembered,
+          Boolean(this.endpoint)
         ),
         cache_prompt: true,
         temperature: 0.2,
-        max_tokens: NOTE_MAX_TOKENS,
+        // A hosted model's thinking counts against it, even when asked not
+        // to think (thinksAnyway), and its note has the two longer lines
+        max_tokens: this.endpoint ? HOSTED_NOTE_MAX_TOKENS : NOTE_MAX_TOKENS,
         // With thinking on, Bonsai 2 spent the note's tokens thinking and
         // its note stopped mid-sentence, before the Offered and Facts
         // lines (growing-project g14, 2026-11-10)

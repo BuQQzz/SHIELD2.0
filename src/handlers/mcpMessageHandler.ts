@@ -63,6 +63,30 @@ export interface MCPMessageHandlerProps {
    */
   nudgeEachRound?: boolean;
   /**
+   * Asked when the model sends the same call a third time: true lets it
+   * run again, false ends the turn. Without it the turn ends (local
+   * models); cloud models ask (runRules.ts askOnRepeat).
+   */
+  confirmRepeat?: (call: string) => Promise<boolean>;
+  /**
+   * Before each next round: false when the user stopped the task at its
+   * spend limit (store/turnAskStore.ts spendCheck). Cloud models only.
+   */
+  checkSpend?: () => Promise<boolean>;
+  /**
+   * Before each next round, with the calls made since the last file
+   * change: false when the user stopped a model that kept working without
+   * changing anything (store/turnAskStore.ts idleCheck). Cloud models.
+   */
+  checkIdle?: (callsSinceChange: number) => Promise<boolean>;
+  /**
+   * Ask again for an announced call after each round that made one, not
+   * once per turn: GLM 5.3 Flash ended on "Step 3 — ...:" and, asked,
+   * made the call, then ended on "Step 4 — ...:" (2026-11-24). Two stops
+   * in a row with no call between still end the turn. Cloud models.
+   */
+  actNowEachStall?: boolean;
+  /**
    * The user's workspace folder. Relative paths are resolved against it when
    * deciding whether two calls are the same, as the main process does
    * before running them.
@@ -570,7 +594,7 @@ ${keep.join("\n")}
 Outline of the whole file (line: definition):
 ${listed}${more}
 
-To see another part, read that range: run_command with sed -n 'START,ENDp' ${path} (it runs without asking), or grep -n for a name first.`,
+To see another part, read that range with a command: sed -n 'START,ENDp' ${path}, or grep -n for a name first.`,
   };
 }
 
@@ -641,6 +665,10 @@ export async function processMCPToolCalls(
     maxToolRounds = 5,
     progressCheckEvery,
     nudgeEachRound = true,
+    confirmRepeat,
+    checkSpend,
+    checkIdle,
+    actNowEachStall = false,
     workspaceFolder,
     maxResultChars,
     isStopped,
@@ -665,6 +693,7 @@ export async function processMCPToolCalls(
   // model is stuck: Gemma sent one mistyped list_directory 20 times in a
   // row, past every "you already made this call" (2026-09-26)
   const repeats = new Map<string, number>();
+  let callsSinceChange = 0;
   // How often each call was sent back before running
   const bounces = new Map<string, number>();
   let stuckOn: ToolCallRequest | null = null;
@@ -732,7 +761,9 @@ export async function processMCPToolCalls(
       if (round > 1 && !toldToAct && endsByAnnouncing(content)) {
         toldToAct = true;
         console.warn("[MCP] Reply announced a step with no call; asked once");
-        const again = await continueConversation(buildActNowPrompt());
+        const again = await continueConversation(
+          buildActNowPrompt(actNowEachStall)
+        );
         if (typeof again === "string" && again.trim() !== "") {
           content = again;
           round--; // No call ran: the asking takes no round
@@ -897,6 +928,10 @@ export async function processMCPToolCalls(
         }
       }
 
+      callsSinceChange =
+        FILE_EDIT_TOOLS.has(toolCall.tool) && result.success
+          ? 0
+          : callsSinceChange + 1;
       const formatted = formatToolResult(toolCall, result, maxResultChars);
       const toolResultFormatted =
         previous && !toolCall.argumentsError
@@ -924,10 +959,32 @@ export async function processMCPToolCalls(
     }
 
     handledAnyToolCalls = true;
+    if (actNowEachStall) toldToAct = false;
 
     // Stop may arrive while a permission dialog or tool is awaited. Keep
     // its result in the visible history, but never restart generation.
     if (isStopped?.()) break;
+
+    // A hosted model is asked about, not stopped: allowed, the call runs
+    // for real next time, and three more repeats ask again
+    if (stuckOn && !stuckUnreadable && confirmRepeat) {
+      const signature = callSignature(stuckOn, workspaceFolder);
+      if (await confirmRepeat(describeCall(stuckOn))) {
+        repeats.delete(signature);
+        bounces.delete(signature);
+        completedCalls.delete(signature);
+        stuckOn = null;
+      } else {
+        addMessage({
+          id: `${Date.now()}-tool-repeats`,
+          role: "assistant",
+          content: `Stopped: you stopped the model repeating the same step (${describeCall(stuckOn)}).`,
+          timestamp: new Date(),
+          resumable: true,
+        });
+        break;
+      }
+    }
 
     if (stuckOn) {
       console.warn(
@@ -939,6 +996,29 @@ export async function processMCPToolCalls(
         content: stuckUnreadable
           ? `Stopped: the model kept sending a ${stuckOn.tool} call that could not be read. Try the request again, or rephrase it.`
           : `Stopped: the model kept repeating the same step (${describeCall(stuckOn)}) instead of using its result. Try rephrasing the request or giving the exact file or folder.`,
+        timestamp: new Date(),
+        resumable: true,
+      });
+      break;
+    }
+
+    if (checkIdle && !(await checkIdle(callsSinceChange))) {
+      addMessage({
+        id: `${Date.now()}-idle`,
+        role: "assistant",
+        content: `Stopped: the model made ${callsSinceChange} tool calls without changing a file. If it kept reading the same files, its window may be too small for this task: a model with a larger one may get further. Press Continue to let it go on.`,
+        timestamp: new Date(),
+        resumable: true,
+      });
+      break;
+    }
+
+    if (checkSpend && !(await checkSpend())) {
+      addMessage({
+        id: `${Date.now()}-spend-limit`,
+        role: "assistant",
+        content:
+          "Stopped at your spend limit. Press Continue to let the model go on.",
         timestamp: new Date(),
         resumable: true,
       });
