@@ -51,6 +51,7 @@ import { isToolResultTurn } from "./contextBreakdown.js";
 import { requestCost, type RequestCost, type Usage } from "./remote/cost.js";
 import {
   callDropped,
+  callLost,
   cutCallStart,
   hostedOverflow,
 } from "./remote/replyLimits.js";
@@ -83,6 +84,7 @@ import {
   EMPTY_REPLY_NOTE,
   THOUGHT_OUT_NOTE,
   CUT_CALL_NOTE,
+  LOST_CALL_NOTE,
   type RequestStatus,
   type RescueAction,
 } from "./llamaServer/rescue.js";
@@ -1330,6 +1332,11 @@ export class LlamaServerProvider {
             ? { reasoning_effort: effort }
             : {}),
       });
+      if (this.endpoint) {
+        appendServerLog(
+          `[SHIELD] hosted request: max_tokens ${String(requestBody.max_tokens)}, reasoning ${JSON.stringify(requestBody.reasoning ?? null)}, tool_choice ${JSON.stringify(requestBody.tool_choice ?? null)}`
+        );
+      }
       // A hosted model reports no reading progress: say what it is doing
       if (this.endpoint) {
         options.onProgress?.({
@@ -1664,7 +1671,7 @@ export class LlamaServerProvider {
           ? 0
           : null;
     if (this.endpoint && cutAt !== null) {
-      if (!message.endsWith(CUT_CALL_NOTE)) {
+      if (!message.includes(CUT_CALL_NOTE)) {
         appendServerLog(
           `[SHIELD] the reply reached its output limit inside a tool call (${reply.length - cutAt} chars of it): dropped and sent once more asking for smaller pieces`
         );
@@ -1675,6 +1682,41 @@ export class LlamaServerProvider {
         `${this.endpoint.model} reached its reply limit in the middle of a tool call, twice. Ask it to write the file in smaller parts.`
       );
     }
+    // "length" far short of the limit: the provider ended the reply, not the
+    // limit. GLM 5.3 Flash's replies ended at ~50 of 32,768 tokens again and
+    // again, with max_tokens 32768 sent (2026-11-24)
+    const spentTokens =
+      (final?.usage as Usage | undefined)?.completion_tokens ?? 0;
+    const endedEarly =
+      finishReason === "length" &&
+      typeof requestBody.max_tokens === "number" &&
+      spentTokens > 0 &&
+      spentTokens < requestBody.max_tokens / 2;
+    // Each note below is sent at most once per message (includes, not
+    // endsWith): the lost-call and empty-reply notes took turns at the end
+    // of the message and resent GLM 5.3 Flash's step 183 times (2026-11-24)
+    // A call the provider lost on the way: the reply ended normally, with no
+    // call, though far more was written than its thinking and text
+    // (replyLimits.ts callLost). Asked for again, once per message
+    if (
+      this.endpoint &&
+      !signal.aborted &&
+      // "length" at the limit is a cut call (above); far short of it, the
+      // provider ended a call it lost: GLM 5.3 Flash, 46 of 32,768 tokens
+      (finishReason !== "length" ||
+        (typeof requestBody.max_tokens === "number" &&
+          ((final?.usage as Usage | undefined)?.completion_tokens ?? 0) <
+            requestBody.max_tokens / 2)) &&
+      !reply.includes("<tool_call>") &&
+      !message.includes(LOST_CALL_NOTE) &&
+      callLost(final?.usage as Usage | undefined, thinking.length, reply.length)
+    ) {
+      appendServerLog(
+        `[SHIELD] the reply ended with no call though ${(final?.usage as Usage | undefined)?.completion_tokens} tokens were written (${reply.length} chars of text): the provider lost a call, asked for it again`
+      );
+      this.carryCost(final);
+      return this.chat(message + LOST_CALL_NOTE, options, restarts);
+    }
     // A hosted model thought until the reply limit and wrote nothing: GLM
     // 5.3 Flash spent all 32,768 tokens (138K characters, 7 minutes) on
     // the first step of a long task, then did it again with thinking off,
@@ -1684,13 +1726,14 @@ export class LlamaServerProvider {
       this.endpoint &&
       !signal.aborted &&
       finishReason === "length" &&
+      !endedEarly &&
       reply.trim() === "" &&
       thinking.length > 0
     ) {
       if (this.root().thinkingLevel === "default") {
         markOverthinks(this.endpoint);
       }
-      if (!message.endsWith(THOUGHT_OUT_NOTE)) {
+      if (!message.includes(THOUGHT_OUT_NOTE)) {
         appendServerLog(
           `[SHIELD] thinking used the whole reply limit (${thinking.length} chars) and nothing was written: sent once more at low effort with a note`
         );
@@ -1709,7 +1752,7 @@ export class LlamaServerProvider {
     if (
       reply.trim() === "" &&
       !signal.aborted &&
-      !message.endsWith(EMPTY_REPLY_NOTE)
+      !message.includes(EMPTY_REPLY_NOTE)
     ) {
       appendServerLog("[SHIELD] empty reply: sent once more with a note");
       return this.chat(
@@ -1721,7 +1764,9 @@ export class LlamaServerProvider {
     // Empty again: the turn ended with nothing said, and looked finished
     if (this.endpoint && reply.trim() === "" && !signal.aborted) {
       throw new Error(
-        `${this.endpoint.model} sent back an empty reply twice. Ask again, or try another model.`
+        endedEarly
+          ? `${this.serverName()} keeps ending ${this.endpoint.model}'s replies early (at ${spentTokens} of ${String(requestBody.max_tokens)} tokens), before its tool call comes through. This is on the provider's side: ask again later, or use another model for this task.`
+          : `${this.endpoint.model} sent back an empty reply twice. Ask again, or try another model.`
       );
     }
 

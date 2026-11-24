@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { callDropped, cutCallStart, hostedOverflow } from "./replyLimits";
+import {
+  callDropped,
+  callLost,
+  cutCallStart,
+  hostedOverflow,
+} from "./replyLimits";
 
 describe("hostedOverflow", () => {
   it("reads OpenAI and OpenRouter wording", () => {
@@ -94,5 +99,38 @@ describe("callDropped", () => {
   it("needs a token count", () => {
     expect(callDropped(undefined, 0)).toBe(false);
     expect(callDropped({}, 0)).toBe(false);
+  });
+});
+
+describe("callLost", () => {
+  const usage = (completion: number, reasoning: number) => ({
+    completion_tokens: completion,
+    completion_tokens_details: { reasoning_tokens: reasoning },
+  });
+
+  it("takes a short reply with far more tokens than its text and thinking", () => {
+    // GLM 5.3 Flash (2026-11-24)
+    const text = "Now inside `work/`. Creating notes.txt with one line:";
+    expect(callLost(usage(222, 0), 0, text.length)).toBe(true);
+    expect(callLost(usage(213, 0), 0, 0)).toBe(true);
+    // Ended as "length" at 46 tokens, nothing shown
+    expect(callLost(usage(46, 0), 0, 0)).toBe(true);
+  });
+
+  it("leaves answers, thinking and short replies alone", () => {
+    // A 1,000-token answer, code-heavy at 2.5 characters a token
+    expect(callLost(usage(1000, 0), 0, 2500)).toBe(false);
+    // Mostly thinking
+    expect(callLost(usage(2000, 1900), 0, 300)).toBe(false);
+    expect(callLost(usage(2000, 0), 7600, 300)).toBe(false);
+    // Too few tokens to hold a call
+    expect(callLost(usage(15, 0), 0, 0)).toBe(false);
+    // A short answer
+    expect(callLost(usage(80, 0), 0, 320)).toBe(false);
+  });
+
+  it("needs the provider to say how much was thinking", () => {
+    expect(callLost({ completion_tokens: 213 }, 0, 0)).toBe(false);
+    expect(callLost(undefined, 0, 0)).toBe(false);
   });
 });

@@ -390,6 +390,83 @@ describe("LlamaServerProvider on a hosted model", () => {
     expect(last).not.toContain("whole reply limit");
   });
 
+  it("asks again for a call the provider lost on the way", async () => {
+    const bodies: Sent["body"][] = [];
+    let lost = 1;
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (_url: string, init: RequestInit) => {
+        bodies.push(JSON.parse(init.body as string) as Sent["body"]);
+        const events =
+          lost-- > 0
+            ? [
+                {
+                  choices: [
+                    { delta: { content: "Creating notes.txt with one line:" } },
+                  ],
+                },
+                { choices: [{ delta: {}, finish_reason: "stop" }] },
+                {
+                  choices: [],
+                  usage: {
+                    prompt_tokens: 50,
+                    completion_tokens: 222,
+                    completion_tokens_details: { reasoning_tokens: 0 },
+                  },
+                },
+              ]
+            : [{ choices: [{ delta: { content: "Made it." } }] }];
+        return new Response(
+          [...events.map((e) => `data: ${JSON.stringify(e)}`), "data: [DONE]"]
+            .map((line) => `${line}\n\n`)
+            .join(""),
+          { headers: zdrHeaders }
+        );
+      })
+    );
+    const provider = new LlamaServerProvider();
+    await provider.attach(endpoint, "p");
+    expect(await provider.chat("next step")).toBe("Made it.");
+    expect(bodies).toHaveLength(2);
+    expect(bodies[1]!.messages.at(-1)!.content).toContain(
+      "the provider lost it on the way"
+    );
+  });
+
+  it("sends each note once, so a provider that keeps losing calls cannot loop", async () => {
+    let requests = 0;
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => {
+        requests++;
+        const events = [
+          { choices: [{ delta: {}, finish_reason: "length" }] },
+          {
+            choices: [],
+            usage: {
+              prompt_tokens: 50,
+              completion_tokens: 46,
+              completion_tokens_details: { reasoning_tokens: 0 },
+            },
+          },
+        ];
+        return new Response(
+          [...events.map((e) => `data: ${JSON.stringify(e)}`), "data: [DONE]"]
+            .map((line) => `${line}\n\n`)
+            .join(""),
+          { headers: zdrHeaders }
+        );
+      })
+    );
+    const provider = new LlamaServerProvider();
+    await provider.attach(endpoint, "p");
+    await expect(provider.chat("next step")).rejects.toThrow(
+      /keeps ending deepseek-v4's replies early \(at 46 of 32768 tokens\)/
+    );
+    // The first try, the lost-call note, the empty-reply note
+    expect(requests).toBe(3);
+  });
+
   it("makes room and sends once more when the provider says the prompt is too long", async () => {
     const sent = fakeProvider(zdrHeaders, "Fits now.");
     const real = globalThis.fetch as unknown as (

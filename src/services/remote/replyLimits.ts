@@ -128,3 +128,46 @@ export function callDropped(
   );
   return spent - thought > spent / 2;
 }
+
+/** Visible text per token, counted high so text is never undercounted */
+const TEXT_CHARS_PER_TOKEN = 3;
+/**
+ * Fewest unseen tokens taken for a lost call: GLM 5.3 Flash's calls that
+ * came through were 25 to 122 tokens, and two it lost were 46 (2026-11-24)
+ */
+const LOST_CALL_MIN_TOKENS = 20;
+
+/**
+ * A reply that ended normally with no call, though far more was written
+ * than its thinking and its text: the provider lost a call on the way.
+ * GLM 5.3 Flash wrote "Now inside work/. Creating notes.txt with one
+ * line:" and stopped - 222 tokens, no thinking, about 20 of them text; its
+ * next replies were 213 and 210 tokens with nothing at all (2026-11-24).
+ * Counted generously for text, so a long answer is never taken for one.
+ */
+export function callLost(
+  usage:
+    | {
+        completion_tokens?: number;
+        completion_tokens_details?: { reasoning_tokens?: number } | null;
+      }
+    | undefined,
+  thinkingChars: number,
+  textChars: number
+): boolean {
+  const spent = usage?.completion_tokens;
+  // Only a provider that says how much was thinking: hidden thinking it
+  // does not count would look like a lost call
+  if (
+    !spent ||
+    typeof usage.completion_tokens_details?.reasoning_tokens !== "number"
+  ) {
+    return false;
+  }
+  const thought = Math.max(
+    usage.completion_tokens_details?.reasoning_tokens ?? 0,
+    thinkingChars / THINKING_CHARS_PER_TOKEN
+  );
+  const unseen = spent - thought - textChars / TEXT_CHARS_PER_TOKEN;
+  return unseen > Math.max(LOST_CALL_MIN_TOKENS, spent * 0.3);
+}
