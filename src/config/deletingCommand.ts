@@ -20,7 +20,9 @@ import { hostOs, type HostOs } from "../utils/platform";
 const AT = String.raw`(?:^|[;&|(\x60\n]\s*|\b(?:sudo|doas|xargs|exec|env|command|nohup|time|then|do)\s+(?:-\S+\s+)*)`;
 
 const POSIX: RegExp[] = [
-  new RegExp(`${AT}(?:\\S*/)?(?:rm|rmdir|unlink|shred|srm|trash|trash-put|gio\\s+(?:trash|remove))\\b`),
+  new RegExp(
+    `${AT}(?:\\S*/)?(?:rm|rmdir|unlink|shred|srm|trash|trash-put|gio\\s+(?:trash|remove))\\b`
+  ),
   /\bfind\b[^;&|\n]*\s-delete\b/,
   /-exec(?:dir)?\s+(?:\S*\/)?rm\b/,
 ];

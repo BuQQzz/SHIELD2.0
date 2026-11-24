@@ -18,7 +18,7 @@ describe("isDeletingCommand", () => {
     "git restore .",
     "git branch -D feature",
     "git stash drop",
-    'python3 -c "import os; os.remove(\'a.txt\')"',
+    "python3 -c \"import os; os.remove('a.txt')\"",
     "python3 -c 'import shutil; shutil.rmtree(\"build\")'",
     "node -e \"require('fs').rmSync('dist', {recursive: true})\"",
   ])("asks for %s", (command) => {
@@ -42,7 +42,9 @@ describe("isDeletingCommand", () => {
   });
 
   it("knows PowerShell's deletes on Windows", () => {
-    expect(isDeletingCommand("Remove-Item -Recurse dist", "windows")).toBe(true);
+    expect(isDeletingCommand("Remove-Item -Recurse dist", "windows")).toBe(
+      true
+    );
     expect(isDeletingCommand("Get-ChildItem; del a.txt", "windows")).toBe(true);
     expect(isDeletingCommand("Get-Content a.txt", "windows")).toBe(false);
   });

@@ -34,7 +34,8 @@ const MODES: ModeOption[] = [
   {
     value: "auto",
     label: "Auto",
-    description: "Runs everything, connected services too; asks before deleting",
+    description:
+      "Runs everything, connected services too; asks before deleting",
   },
   {
     value: "plan",
