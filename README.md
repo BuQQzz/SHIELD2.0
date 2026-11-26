@@ -113,13 +113,14 @@ Bring your own API key in **Settings › Providers** to run the same harness on 
 
 Measured on consumer GPUs (RTX 2070 SUPER 8 GB, RTX 4070 12 GB):
 
-| Model                   | Notes                                                                                             |
-| ----------------------- | ------------------------------------------------------------------------------------------------- |
-| **Bonsai 2 27B** PTQ1_0 | Default. Fully on GPU with a 32K context on 8 GB, ~36-42 tok/s, best tool-call reliability so far |
-| Qwen3.8 27B IQ1_M       | Fits on 8 GB with a shorter window; marked with a caution label                                   |
-| LFM3 1.7B               | A small, fast chat model                                                                          |
-| Gemma 4 12B Q4_K_M      | ~42 tok/s on 12 GB, 8/8 on the GPU smoke test                                                     |
-| Qwen3-Coder 30B         | Works, spills into system RAM on 12 GB                                                            |
+| Model                     | Notes                                                                                                                                               |
+| ------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Bonsai 2.5 27B** PTQ1_0 | Default. Same size as Bonsai 2, fully on GPU with a 32K context on 8 GB, ~35-42 tok/s; steadier than Bonsai 2 on long coding tasks (tested on 8 GB) |
+| Bonsai 2 27B PTQ1_0       | The previous default, same footprint and speed                                                                                                      |
+| Qwen3.8 27B IQ1_M         | Fits on 8 GB with a shorter window; marked with a caution label                                                                                     |
+| LFM3 1.7B                 | A small, fast chat model                                                                                                                            |
+| Gemma 4 12B Q4_K_M        | ~42 tok/s on 12 GB, 8/8 on the GPU smoke test                                                                                                       |
+| Qwen3-Coder 30B           | Works, spills into system RAM on 12 GB                                                                                                              |
 
 ## 🧪 Research and experimental work
 

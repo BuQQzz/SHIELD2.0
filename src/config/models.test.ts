@@ -55,7 +55,12 @@ describe("the library", () => {
   });
 
   it("runs Bonsai through a SHIELD-managed llama-server", () => {
-    for (const id of ["bonsai-2-9b", "bonsai-8b", "bonsai-2-27b"]) {
+    for (const id of [
+      "bonsai-2-9b",
+      "bonsai-8b",
+      "bonsai-2-27b",
+      "bonsai-2.5-27b",
+    ]) {
       const model = getModelById(id)!;
       expect(model.runtime).toBe("prism-llama-server");
       expect(isRuntimeAvailable(model)).toBe(true);
@@ -75,6 +80,7 @@ describe("the library", () => {
     expect(names).toEqual(
       expect.arrayContaining([
         "prism-ml/Ternary-Bonsai-2-27B-gguf/Ternary-Bonsai-2-27B-PTQ1_0.gguf",
+        "prism-ml/Ternary-Bonsai-2.5-27B-GGUF/Ternary-Bonsai-2.5-27B-PTQ1_0.gguf",
         "prism-ml/Bonsai-8B-gguf/Bonsai-8B-Q1_0.gguf",
         "prism-ml/Ternary-Bonsai-2-9B-gguf/Ternary-Bonsai-2-9B-PQ2_0.gguf",
       ])
@@ -185,7 +191,7 @@ describe("fit and recommendations", () => {
       )?.id;
     expect(pick("qwen")).toBe("qwen3-coder-30b");
     expect(pick("gemma")).toBe("gemma-4-12b");
-    expect(pick("bonsai")).toBe("bonsai-2-27b");
+    expect(pick("bonsai")).toBe("bonsai-2.5-27b");
   });
 
   it("recommends the small Gemma on a small GPU, and no Qwen", () => {
