@@ -66,9 +66,20 @@ function timeoutSeconds(value: unknown): number | undefined {
   return n <= 600 ? n : Math.ceil(n / 1000);
 }
 
+/**
+ * A call to "terminal", the shell's server name, with bash's command:
+ * DeepSeek V4.1 Flash wrote two of these in one run (2026-11-26) and got
+ * "no tool called 'terminal'". It means bash, so it runs as bash.
+ */
+function isTerminalAsBash(call: ToolCallRequest): boolean {
+  return (
+    call.tool === "terminal" && typeof call.arguments?.command === "string"
+  );
+}
+
 /** A bash call as the run_command SHIELD runs; any other call as it is */
 export function fromBashCall(call: ToolCallRequest): ToolCallRequest {
-  if (call.tool !== BASH_TOOL_NAME) return call;
+  if (call.tool !== BASH_TOOL_NAME && !isTerminalAsBash(call)) return call;
   const args = call.arguments ?? {};
   const command = typeof args.command === "string" ? args.command : "";
   const description =

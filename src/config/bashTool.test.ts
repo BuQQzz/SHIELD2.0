@@ -53,6 +53,20 @@ describe("fromBashCall", () => {
     expect(fromBashCall(call)).toBe(call);
   });
 
+  it("runs a call to the terminal server's own name as bash", () => {
+    const [call] = extractToolCalls(
+      '<tool_call>\n<server>filesystem</server>\n<tool>terminal</tool>\n<arguments>{"command":"ls","description":"List files"}</arguments>\n</tool_call>'
+    );
+    expect(call).toMatchObject({
+      serverName: "terminal",
+      tool: "run_command",
+      arguments: { command: "ls", reason: "List files" },
+    });
+    // Without a command it is not a shell call, and stays unknown
+    const odd = { serverName: "x", tool: "terminal", arguments: {} };
+    expect(fromBashCall(odd)).toBe(odd);
+  });
+
   it("is applied by the parser, so the rest of SHIELD sees run_command", () => {
     const [call] = extractToolCalls(
       '<tool_call>\n<server>terminal</server>\n<tool>bash</tool>\n<arguments>{"command":"ls","description":"List files"}</arguments>\n</tool_call>'
