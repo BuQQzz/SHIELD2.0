@@ -18,6 +18,10 @@ export interface Message {
     durationMs: number;
     /** For a hosted model: who answered, and whether it reported zero retention */
     servedBy?: { provider?: string; zdr?: boolean };
+    /** For a hosted model with known prices: what it cost, in US dollars */
+    cost?: number;
+    /** The same at the provider's listed prices */
+    listedCost?: number;
   };
   /**
    * The model's history was too full before this reply, and its oldest
@@ -102,6 +106,14 @@ export interface Conversation {
   teamOverride?: string;
   /** What the team's agents did, for the Team panel after a restart */
   agentRuns?: AgentRunView[];
+  /**
+   * Set while a turn works, to the run of SHIELD it runs in; cleared when
+   * it ends. Left from an earlier run, the turn was cut off by SHIELD
+   * closing (lib/interruptedTurn.ts)
+   */
+  turnRunning?: string;
+  /** The model that turn ran on, loaded again to carry it on */
+  turnModel?: string;
 }
 
 export interface ConversationMetadata {

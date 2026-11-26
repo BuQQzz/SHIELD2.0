@@ -526,3 +526,54 @@ describe("the [Current folder] note", () => {
     );
   });
 });
+
+describe("a turn's running mark", () => {
+  it("is set and saved while the turn works, and cleared when it ends", async () => {
+    const { useConversationStore } =
+      await import("@/stores/conversation-store");
+    const { APP_RUN } = await import("@/lib/interruptedTurn");
+    useConversationStore.setState({
+      currentConversation: {
+        id: "c1",
+        title: "t",
+        messages: [],
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      },
+    });
+    const marks: (string | undefined)[] = [];
+    const saveCurrentConversation = vi.fn(async () => {
+      marks.push(
+        useConversationStore.getState().currentConversation?.turnRunning
+      );
+    });
+    let duringTurn: string | undefined;
+    const handler = createMessageHandler({
+      isModelLoaded: true,
+      currentConversation: { id: "c1", messages: [] },
+      setMessages: vi.fn(),
+      setIsGenerating: vi.fn(),
+      setStreamingContent: vi.fn(),
+      streamingContentRef: { current: "" },
+      sendStreamingMessage: vi.fn(async () => {
+        duringTurn =
+          useConversationStore.getState().currentConversation?.turnRunning;
+        return "Hello.";
+      }),
+      addMessage: vi.fn(),
+      generateTitle: vi.fn().mockResolvedValue(null),
+      updateTitle: vi.fn(),
+      saveCurrentConversation,
+      modelSettings: DEFAULT_SETTINGS.model,
+    });
+
+    await handler("hi");
+
+    expect(duringTurn).toBe(APP_RUN);
+    expect(marks[0]).toBe(APP_RUN);
+    expect(marks.at(-1)).toBeUndefined();
+    expect(
+      useConversationStore.getState().currentConversation?.turnRunning
+    ).toBeUndefined();
+  });
+});

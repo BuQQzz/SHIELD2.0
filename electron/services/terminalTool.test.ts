@@ -419,9 +419,63 @@ describe.runIf(process.platform !== "win32")(
 );
 
 describe("runCommandTool description", () => {
-  it("says each call starts a new shell (g13 step 20)", () => {
+  // Persistent on Linux and macOS since 2026-11-24; fresh on Windows
+  it("says whether the shell keeps its state between calls", () => {
     expect(runCommandTool().description).toContain(
-      "Each call starts a new shell in the project folder: a cd, export or variable from one call is gone in the next"
+      process.platform === "win32"
+        ? "Each call starts a new shell in the project folder"
+        : "The shell keeps its state between calls"
+    );
+    expect(runCommandTool().description).toContain(
+      "except one that deletes files"
     );
   });
+});
+
+describe.skipIf(process.platform === "win32")("the persistent shell", () => {
+  let dir = "";
+  beforeAll(async () => {
+    dir = await fs.mkdtemp(path.join(os.tmpdir(), "shield-shell-test-"));
+    await fs.mkdir(path.join(dir, "sub"));
+  });
+  afterAll(async () => {
+    await fs.rm(dir, { recursive: true, force: true });
+  });
+
+  it("keeps a cd and an export for the chat's next command", async () => {
+    const first = await runCommand(
+      { command: "cd sub && export GREETING=hello", shell_session: "chat-a" },
+      dir
+    );
+    expect(text(first)).toContain(
+      `[The shell is now in ${path.join(dir, "sub")}.]`
+    );
+    const second = await runCommand(
+      { command: 'pwd; echo "$GREETING"', shell_session: "chat-a" },
+      dir
+    );
+    expect(text(second)).toContain(path.join(dir, "sub"));
+    expect(text(second)).toContain("hello");
+  }, 30_000);
+
+  it("gives another chat its own shell", async () => {
+    const other = await runCommand(
+      { command: 'pwd; echo "[$GREETING]"', shell_session: "chat-b" },
+      dir
+    );
+    expect(text(other)).not.toContain(path.join(dir, "sub"));
+    expect(text(other)).toContain("[]");
+  }, 30_000);
+
+  it("keeps quotes and exit codes as the command wrote them", async () => {
+    const run = await runCommand(
+      {
+        command: "printf '[%s]' \"two  spaces\" 'it''s'; exit 3",
+        shell_session: "chat-c",
+      },
+      dir
+    );
+    expect(text(run)).toMatch(/^Exit code 3 · /);
+    expect(text(run)).toContain("[two  spaces][its]");
+  }, 30_000);
 });

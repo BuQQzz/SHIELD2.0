@@ -5,6 +5,7 @@ import {
   generateMCPToolPrompt,
   generatePlanModePrompt,
   generateNativeToolPrompt,
+  SEE_IT_THROUGH,
   usesNativeToolCalling,
 } from "./systemPrompts";
 import type {
@@ -495,6 +496,19 @@ describe("check-your-work rule", () => {
     parameters: [],
   };
 
+  it("tells a cloud model to see a long request through, not a local one", () => {
+    expect(generateNativeToolPrompt([runCommand])).not.toContain(
+      SEE_IT_THROUGH
+    );
+    expect(generateNativeToolPrompt([runCommand], [], false, true)).toContain(
+      SEE_IT_THROUGH
+    );
+    // Plan mode only plans
+    expect(
+      generateNativeToolPrompt([runCommand], [], true, true)
+    ).not.toContain(SEE_IT_THROUGH);
+  });
+
   it("comes with the terminal, numbered after the rules before it", () => {
     expect(generateMCPToolPrompt([editFile, runCommand])).toContain(
       "8. **CHECK YOUR WORK**"
@@ -585,5 +599,23 @@ describe("today's date", () => {
 
   it("names the weekday, month, day and year", () => {
     expect(dateLine(today)).toContain("Thursday, October 29, 2026");
+  });
+});
+
+describe("the check-your-work rule names the model's terminal", () => {
+  it("says bash to a model that has bash", async () => {
+    const { generateNativeToolPrompt } = await import("./systemPrompts");
+    const tool = (name: string) => ({
+      name,
+      description: name,
+      serverName: "terminal",
+      inputSchema: { type: "object" },
+    });
+    expect(generateNativeToolPrompt([tool("bash")], [])).toContain(
+      "run its tests or the script with bash"
+    );
+    expect(generateNativeToolPrompt([tool("run_command")], [])).toContain(
+      "run its tests or the script with run_command"
+    );
   });
 });

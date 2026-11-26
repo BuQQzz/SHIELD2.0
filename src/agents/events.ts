@@ -4,7 +4,7 @@
  * who listens.
  */
 
-import type { AgentRole, AgentStatus } from "./types";
+import type { AgentRole, AgentStatus, VerifiedWork } from "./types";
 
 export type AgentEvent =
   | {
@@ -12,6 +12,8 @@ export type AgentEvent =
       runId: string;
       role: AgentRole;
       task: string;
+      /** What the user sees for the task, when the orchestrator gave one */
+      title?: string;
       /** The hand-off this run continues, when it does */
       continuesFrom?: string;
     }
@@ -44,9 +46,13 @@ export type AgentEvent =
       runId: string;
       status: AgentStatus;
       summary: string;
+      /** A sentence or two for the user: the hand-off's SUMMARY, else the report's start */
+      brief?: string;
       reason?: string;
       /** SHIELD's own record, one line each (files, commands, refusals) */
       workLines: string[];
+      /** The same record as data, for the panel to lay out */
+      work?: VerifiedWork;
       steps: number;
       contextPercent: number;
     };

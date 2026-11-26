@@ -123,6 +123,16 @@ export function MCPSettings({ settings, currentModel }: MCPSettingsProps) {
     });
   };
 
+  const handleSpendLimitChange = async (value: string) => {
+    const parsed = Number.parseFloat(value);
+    await updateSettings({
+      mcp: {
+        ...settings,
+        spendLimit: Number.isFinite(parsed) && parsed > 0 ? parsed : undefined,
+      },
+    });
+  };
+
   return (
     <div className="space-y-6">
       <div>
@@ -184,6 +194,24 @@ export function MCPSettings({ settings, currentModel }: MCPSettingsProps) {
           onChange={(event) => handleMaxToolCallsChange(event.target.value)}
           className="w-32"
         />
+      </div>
+
+      <div className="space-y-2">
+        <Label htmlFor="spend-limit">Spend limit per task (cloud models)</Label>
+        <Input
+          id="spend-limit"
+          type="number"
+          min={0}
+          step={0.5}
+          placeholder="No limit"
+          value={settings.spendLimit ?? ""}
+          onChange={(event) => handleSpendLimitChange(event.target.value)}
+          className="w-32"
+        />
+        <p className="text-xs text-muted-foreground">
+          US dollars. When a task on a cloud model costs more, SHIELD pauses it
+          and asks whether to go on. Empty for no limit.
+        </p>
       </div>
 
       <div className="text-xs text-muted-foreground space-y-1">

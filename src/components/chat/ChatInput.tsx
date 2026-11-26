@@ -1,5 +1,6 @@
 "use client";
 
+import { RunningTasks } from "./RunningTasks";
 import {
   useState,
   useRef,
@@ -15,6 +16,7 @@ import { PermissionModeSelector } from "./PermissionModeSelector";
 import { WorkspaceSelector } from "./WorkspaceSelector";
 import { TeamToggle } from "./TeamToggle";
 import { ComposerModelPicker } from "./ComposerModelPicker";
+import { ThinkingPicker } from "./ThinkingPicker";
 import type { TeamAvailability } from "@/agents/teamFit";
 import { type ModelOption } from "@/config/models";
 import { ContextRing } from "./ContextRing";
@@ -155,6 +157,7 @@ export const ChatInput = forwardRef<ChatInputRef, ChatInputProps>(
     return (
       <div className="bg-background px-4 pb-4 pt-2">
         <div className="mx-auto max-w-3xl">
+          <RunningTasks />
           {queue.length > 0 && (
             <div
               className="mb-1.5 flex flex-col gap-1"
@@ -220,6 +223,7 @@ export const ChatInput = forwardRef<ChatInputRef, ChatInputProps>(
                     onOpenSettings={onOpenSettings}
                   />
                 )}
+                <ThinkingPicker modelId={modelId} />
                 <span className="flex-1" />
                 <ContextRing />
                 {isGenerating && input.trim() && onQueue && (

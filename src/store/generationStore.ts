@@ -33,6 +33,13 @@ interface GenerationStore {
   ) => void;
   /** The request in progress: summarising, reading or writing, live */
   progress: ChatProgress | null;
+  /**
+   * The loaded model is hosted. Between its steps, with no progress to show,
+   * the label says "Working…": "Reading the conversation…" flashed as each
+   * hosted reply ended (2026-11-16), and is only true of a local server
+   */
+  hosted: boolean;
+  setHosted: (hosted: boolean) => void;
   /** Also moves the context ring, which otherwise updates after a reply */
   setProgress: (progress: ChatProgress | null) => void;
   setContext: (context: ContextUsage | null | undefined) => void;
@@ -45,6 +52,22 @@ interface GenerationStore {
    */
   stopRequested: boolean;
   setStopRequested: (value: boolean) => void;
+  /**
+   * Counts the user's messages. A turn's tool loop and agents stop when it
+   * changes: Stop is cleared by the next message, and a loop of a stopped
+   * Code session, still waiting on its command, went on and sent the
+   * command's output into the new chat (2026-11-16).
+   */
+  turn: number;
+  /**
+   * What this turn has cost so far, in US dollars: every reply of a hosted
+   * model with known prices, its agents' included (for the spend limit)
+   */
+  turnCost: number;
+  /** A new message: Stop cleared, and the turn it starts */
+  beginTurn: () => number;
+  /** Whether this turn was stopped, or a newer one has begun */
+  turnOver: (turn: number) => boolean;
   /**
    * The user skipped the running agent's step in the stuck bar. Ends that
    * agent's run only; cleared when the next agent starts.
@@ -78,24 +101,35 @@ export const useGenerationStore = create<GenerationStore>((set, get) => ({
   lastSummary: null,
   lastCapsule: null,
   record: (stats, context, summary, capsule) =>
-    set({
+    set((state) => ({
+      turnCost: state.turnCost + (stats?.cost ?? 0),
       lastStats: stats ?? null,
       context: context ?? null,
       lastSummary: summary ?? null,
       lastCapsule: capsule ?? null,
-    }),
+    })),
   progress: null,
+  hosted: false,
+  setHosted: (hosted) => set({ hosted }),
   setProgress: (progress) =>
     set((state) => ({
       progress,
       context:
-        progress && progress.phase !== "summarising" && state.context
+        progress && "contextUsed" in progress && state.context
           ? { ...state.context, used: progress.contextUsed }
           : state.context,
     })),
   setContext: (context) => set({ context: context ?? null }),
   stopRequested: false,
   setStopRequested: (value) => set({ stopRequested: value }),
+  turn: 0,
+  turnCost: 0,
+  beginTurn: () => {
+    const turn = get().turn + 1;
+    set({ turn, stopRequested: false, turnCost: 0 });
+    return turn;
+  },
+  turnOver: (turn) => get().stopRequested || get().turn !== turn,
   skipRequested: false,
   setSkipRequested: (value) => set({ skipRequested: value }),
   steer: [],

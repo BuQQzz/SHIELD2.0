@@ -4,7 +4,7 @@
  */
 
 import type { AgentEvent } from "./events";
-import type { AgentRole, AgentStatus } from "./types";
+import type { AgentRole, AgentStatus, VerifiedWork } from "./types";
 
 export type RunStep =
   | { kind: "say"; id: string; text: string }
@@ -23,6 +23,8 @@ export interface AgentRunView {
   id: string;
   role: AgentRole;
   task: string;
+  /** What the user sees for the task (runTitle falls back to the task) */
+  title?: string;
   continuesFrom?: string;
   status: "running" | AgentStatus;
   steps: RunStep[];
@@ -33,9 +35,13 @@ export interface AgentRunView {
   /** The agent was told to stop and hand over */
   checkpointed: boolean;
   summary?: string;
+  /** What the panel shows first (agentRunner's briefOf) */
+  brief?: string;
   reason?: string;
   /** SHIELD's record of what the agent did */
   workLines: string[];
+  /** The same as data (runs saved before 2026-11-16 have only the lines) */
+  work?: VerifiedWork;
   startedAt: number;
   endedAt?: number;
 }
@@ -61,6 +67,7 @@ export function applyAgentEvent(
           id: event.runId,
           role: event.role,
           task: event.task,
+          ...(event.title ? { title: event.title } : {}),
           continuesFrom: event.continuesFrom,
           status: "running",
           steps: [],
@@ -134,8 +141,10 @@ export function applyAgentEvent(
         status: event.status,
         live: "",
         summary: event.summary,
+        ...(event.brief ? { brief: event.brief } : {}),
         reason: event.reason,
         workLines: event.workLines,
+        ...(event.work ? { work: event.work } : {}),
         contextPercent: event.contextPercent || run.contextPercent,
         endedAt: now,
         // a tool that never got its result (a crash) is not still running

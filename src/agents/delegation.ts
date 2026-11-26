@@ -4,6 +4,7 @@
  * report. Pure of React and Electron, so it is tested alone.
  */
 
+import { TEAM_LIMITS } from "../handlers/runRules";
 import type { MCPToolResult } from "../types/electron";
 import { runAgent, type AgentRunDeps } from "./agentRunner";
 import {
@@ -26,7 +27,7 @@ export async function handleDelegate(
 ): Promise<MCPToolResult> {
   const parsed = parseDelegateArgs(args);
   if (!parsed.ok) return { success: false, error: parsed.error };
-  const { role, task, continueFrom } = parsed.value;
+  const { role, task, title, continueFrom } = parsed.value;
 
   let earlier;
   let attached = false;
@@ -45,18 +46,24 @@ export async function handleDelegate(
     }
   }
 
-  if (!team.countDelegation(MAX_DELEGATIONS_PER_TURN)) {
+  const most =
+    team.profile === "cloud"
+      ? TEAM_LIMITS.cloud.delegations
+      : MAX_DELEGATIONS_PER_TURN;
+  if (!team.countDelegation(most)) {
     return {
       success: false,
-      error: `You have delegated ${MAX_DELEGATIONS_PER_TURN} times for this request, the most allowed. Stop delegating and tell the user where things stand: what is done, what was checked, and what is left.`,
+      error: `You have delegated ${most} times for this request, the most allowed. Stop delegating and tell the user where things stand: what is done, what was checked, and what is left.`,
     };
   }
 
+  // Taken before the run: another agent started alongside it (parallel.ts)
+  // must not pick up the same hand-off
+  if (earlier) team.markContinued(earlier.id);
   const report = await runAgent(
-    { role, task, continueFrom: earlier, team },
+    { role, task, title, continueFrom: earlier, team },
     deps
   );
-  if (earlier) team.markContinued(earlier.id);
   if (attached && earlier && report.status !== "FAILED") {
     report.reason = [
       report.reason,

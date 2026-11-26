@@ -7,6 +7,7 @@
 import { stoppedForLooping } from "../utils/loopGuard";
 import { normaliseDsml, splitToolCallName, withoutDsmlTags } from "./dsml";
 import { connectorServerName, splitConnectorTool } from "../config/connectors";
+import { fromBashCall } from "../config/bashTool";
 
 export interface ToolCallRequest {
   serverName: string;
@@ -1122,7 +1123,11 @@ export function extractToolCalls(
     ? extractOpenAIToolCalls(content)
     : [];
   const xmlToolCalls = enableXmlToolCalls ? extractXmlToolCalls(content) : [];
-  return deduplicateToolCalls([...openAIToolCalls, ...xmlToolCalls]);
+  // A hosted model's bash call is run_command to the rest of SHIELD
+  // (config/bashTool.ts)
+  return deduplicateToolCalls([...openAIToolCalls, ...xmlToolCalls]).map(
+    fromBashCall
+  );
 }
 
 /**
@@ -1159,6 +1164,10 @@ export function stripToolCallMarkup(content: string): string {
       // A stray closer the model appends after its calls (some write one
       // more </tool_call> at the end of every reply)
       .replace(/\s*<\/?tool_call[^>]*>/g, "")
+      // DeepSeek's closers without their DSML marker, left after a call it
+      // wrote half in SHIELD's form: "...look at what exists. </invoke>"
+      // (deepseek-v4.1-flash, 2026-11-15)
+      .replace(/\s*<\/(?:invoke|parameter|function_calls)>/g, "")
       .replace(/\n{3,}/g, "\n\n")
       .trim()
   );

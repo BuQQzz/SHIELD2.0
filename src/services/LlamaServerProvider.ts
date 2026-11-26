@@ -25,10 +25,16 @@ import {
 } from "./llamaServer/launch.js";
 import {
   chunkProgress,
+  deltaThought,
   SseParser,
   type ChatStreamChunk,
 } from "./llamaServer/sse.js";
-import { RepetitionWatch } from "./llamaServer/repetition.js";
+import { effortFor, type ThinkingLevel } from "../config/thinking.js";
+import {
+  HOSTED_REPEAT_TIMES,
+  HOSTED_REPEAT_WINDOW,
+  RepetitionWatch,
+} from "./llamaServer/repetition.js";
 import { unswallowQwenCalls } from "../handlers/toolCallParsing.js";
 import {
   NativeCallWriter,
@@ -42,19 +48,43 @@ import {
   type WireMessage,
 } from "./llamaServer/nativeHistory.js";
 import { isToolResultTurn } from "./contextBreakdown.js";
+import { requestCost, type RequestCost, type Usage } from "./remote/cost.js";
+import {
+  callDropped,
+  callLost,
+  cutCallStart,
+  hostedOverflow,
+} from "./remote/replyLimits.js";
+import {
+  isRetryableStatus,
+  nextRetryDelay,
+  parseRetryAfter,
+  ProviderBusyError,
+  retryKind,
+  retryReason,
+  waitOrAbort,
+  type RetryKind,
+} from "./remote/providerRetry.js";
 import type { ToolDefinition } from "../types/prompts.js";
 import {
   adaptRequestBody,
   checkPosture,
   completionsUrl,
   describeHttpError,
+  markOverthinks,
+  markThinksAnyway,
+  overthinks,
   requestHeaders,
+  thinksAnyway,
   type GatewayPosture,
   type RemoteEndpoint,
 } from "./remote/remoteEndpoint.js";
 import {
   NUDGE_NOTE,
   EMPTY_REPLY_NOTE,
+  THOUGHT_OUT_NOTE,
+  CUT_CALL_NOTE,
+  LOST_CALL_NOTE,
   type RequestStatus,
   type RescueAction,
 } from "./llamaServer/rescue.js";
@@ -73,6 +103,7 @@ import {
   keepCharsFor,
   latestExchange,
   NOTE_MAX_TOKENS,
+  HOSTED_NOTE_MAX_TOKENS,
   noteRequest,
   renderCapsule,
   restoreHistory,
@@ -138,6 +169,20 @@ export interface ServerLoadOptions {
 export const STALL_MS = 5 * 60 * 1000;
 
 /**
+ * The same for a hosted model. One that keeps its thinking to itself sends
+ * nothing while it thinks, and at a high setting may think past 5 minutes:
+ * given up on, that is a model at work called frozen. A dead connection
+ * still ends; the chat offers "Ask again" at 5 minutes (HOSTED_QUIET_MS).
+ */
+/**
+ * Thinking past this in a reply asked for none: the model does not take
+ * "none" (DeepSeek V4.1 Flash streams nothing at all then)
+ */
+const THOUGHT_DESPITE_OFF_CHARS = 1000;
+
+export const HOSTED_STALL_MS = 10 * 60 * 1000;
+
+/**
  * The fewest tokens a chat reply gets, whatever Max Tokens says. Bonsai
  * 27B's thought counts against the limit: at the default 2,048 it thought
  * until the limit and wrote no answer, or was cut off partway through a
@@ -147,6 +192,40 @@ export const STALL_MS = 5 * 60 * 1000;
  * A ceiling, not a target: a short answer still ends when it is done.
  */
 export const MIN_REPLY_TOKENS = 8192;
+
+/** Where a hosted model's history is tidied, whatever its window (tidySize) */
+export const HOSTED_TIDY_TOKENS = 128_000;
+
+/**
+ * The least a hosted reply may be. Its thinking counts against max_tokens:
+ * deepseek-v4.1-flash-1017 thought for all 8,192 tokens, twice, and wrote
+ * nothing (2026-11-16). A ceiling, so a short reply costs no more.
+ */
+export const HOSTED_MIN_REPLY_TOKENS = 32_768;
+
+/**
+ * SHIELD_HOSTED_MAX_TOKENS=<n>: a hosted reply's limit for test runs, to
+ * see a reply cut at the limit handled live. Off by default.
+ */
+function testReplyLimit(): number | undefined {
+  return testNumber("SHIELD_HOSTED_MAX_TOKENS");
+}
+
+/**
+ * SHIELD_HOSTED_WINDOW=<n>: a hosted model's window for test runs, so a
+ * long task summarises several times. Off by default.
+ */
+function testWindow(): number | undefined {
+  return testNumber("SHIELD_HOSTED_WINDOW");
+}
+
+function testNumber(name: string): number | undefined {
+  const value = Number(process.env[name]);
+  return Number.isFinite(value) && value > 0 ? value : undefined;
+}
+
+/** A request sent again without its reasoning setting, which the provider refused */
+const REASONING_REFUSED = new Error("reasoning setting refused");
 
 /**
  * SHIELD's memory notes (src/config/memoryNotes.ts), set by the main
@@ -162,6 +241,20 @@ let memoryHooks: MemoryHooks | null = null;
 
 export function setMemoryHooks(hooks: MemoryHooks | null): void {
   memoryHooks = hooks;
+}
+
+/**
+ * Whether memory may go to a hosted model (ProviderStore.sharesMemory),
+ * asked when a summary is written so a change in Settings counts at once.
+ * Unset, no hosted model gets it.
+ */
+let memorySharing: ((providerId: string, model: string) => boolean) | null =
+  null;
+
+export function setMemorySharing(
+  check: ((providerId: string, model: string) => boolean) | null
+): void {
+  memorySharing = check;
 }
 
 /**
@@ -287,7 +380,8 @@ export function noteBody(
   nextMessage: string,
   tools: unknown[],
   thoughtFloor = 0,
-  remembered: string[] = []
+  remembered: string[] = [],
+  longTask = false
 ): { messages: unknown[]; tools?: unknown[]; tool_choice?: "none" } {
   const kept = withRequestThinking(turns, thoughtFloor);
   const wire = tools.length > 0 ? nativeHistory(kept) : kept;
@@ -295,7 +389,10 @@ export function noteBody(
     messages: [
       { role: "system", content: system },
       ...wire.map(asWire),
-      { role: "user", content: noteRequest(nextMessage, remembered) },
+      {
+        role: "user",
+        content: noteRequest(nextMessage, remembered, longTask),
+      },
     ],
     ...(tools.length > 0 ? { tools, tool_choice: "none" as const } : {}),
   };
@@ -434,6 +531,13 @@ export class LlamaServerProvider {
   }
   /** How the provider said the last request was served (hosted models only) */
   private lastServedBy: GatewayPosture | null = null;
+  /** The user's thinking level for the loaded model (config/thinking.ts); agents use the main session's */
+  private thinkingLevel: ThinkingLevel = "default";
+  /**
+   * What hosted requests outside the chat's own (summaries, titles) cost
+   * since the last reply's stats: added to the next one's
+   */
+  private unreportedCost = { charged: 0, listed: 0 };
   private ownBaseUrl = "";
   /** A forked session follows its parent's server, also across a restart */
   private get baseUrl(): string {
@@ -616,8 +720,8 @@ export class LlamaServerProvider {
 
     this.remote = endpoint;
     this.loadOptions = null;
-    this.contextSize = endpoint.contextSize;
-    this.trainContextSize = endpoint.contextSize;
+    this.contextSize = testWindow() ?? endpoint.contextSize;
+    this.trainContextSize = this.contextSize;
     this.systemPrompt = systemPrompt;
     this.history = [];
     this.thoughtFloor = 0;
@@ -810,6 +914,7 @@ export class LlamaServerProvider {
       phase: flight.phase,
       elapsedMs: now - flight.startedAt,
       idleMs: now - flight.lastProgressAt,
+      ...(flight.session.endpoint ? { hosted: true } : {}),
     };
   }
 
@@ -882,13 +987,73 @@ export class LlamaServerProvider {
       body: JSON.stringify(this.shape(body)),
     });
     if (!response.ok) {
-      throw new Error(this.httpError(response.status, await response.text()));
+      const text = await response.text();
+      // A busy provider during a summary or a title: tried again like a
+      // reply (retryAfterProviderFailure), not the end of the turn
+      if (this.endpoint && isRetryableStatus(response.status)) {
+        throw new ProviderBusyError(
+          this.httpError(response.status, text),
+          response.status,
+          parseRetryAfter(response.headers.get("retry-after"))
+        );
+      }
+      throw new Error(this.httpError(response.status, text));
     }
     const endpoint = this.endpoint;
     if (endpoint) checkPosture(endpoint, response.headers);
-    return (await response.json()) as {
+    const result = (await response.json()) as {
       choices?: { message?: { content?: string } }[];
+      usage?: Usage;
     };
+    const cost = endpoint
+      ? requestCost(result.usage, endpoint.pricing)
+      : undefined;
+    if (cost) (this.parent ? this.root() : this).addUnreportedCost(cost);
+    return result;
+  }
+
+  setThinkingLevel(level: ThinkingLevel): void {
+    this.thinkingLevel = level;
+  }
+
+  /** The main session a forked one (an agent's) belongs to */
+  private root(): LlamaServerProvider {
+    return this.parent ? this.parent.root() : this;
+  }
+
+  /**
+   * A hosted request refused as over the window: the prompt's size to make
+   * room from (refitFrom), or null for any other refusal. When the provider
+   * gives the model's window and it is smaller than the one SHIELD knew,
+   * that one is used from now on.
+   */
+  private hostedOverflowSize(status: number, body: string): number | null {
+    const over = hostedOverflow(status, body);
+    if (!over) return null;
+    if (over.limit && over.limit < this.contextSize) {
+      appendServerLog(
+        `[SHIELD] ${this.endpoint?.model} has a window of ${over.limit} tokens, not ${this.contextSize}: using that from now on`
+      );
+      this.contextSize = over.limit;
+    }
+    return (
+      over.prompt ?? Math.max(this.contextSize, this.lastContextTokens) + 1
+    );
+  }
+
+  /** A request whose reply is dropped and sent again still cost money */
+  private carryCost(final: ChatStreamChunk | null): void {
+    if (!this.endpoint) return;
+    const cost = requestCost(
+      final?.usage as Usage | undefined,
+      this.endpoint.pricing
+    );
+    if (cost) this.root().addUnreportedCost(cost);
+  }
+
+  private addUnreportedCost(cost: RequestCost): void {
+    this.unreportedCost.charged += cost.charged;
+    this.unreportedCost.listed += cost.listed ?? 0;
   }
 
   /** How the provider said the last request was served; null for a local server */
@@ -944,6 +1109,68 @@ export class LlamaServerProvider {
     );
   }
 
+  /**
+   * The provider failed before anything was shown (providerRetry.ts): wait
+   * and send the same message again, or give up with the provider's error.
+   * Stop during the wait ends the turn as Stop does.
+   */
+  private async retryAfterProviderFailure(
+    message: string,
+    options: ChatOptions,
+    restarts: number,
+    failure: { kind: RetryKind; error: unknown }
+  ): Promise<string> {
+    const state = options.providerRetry ?? { attempt: 0, since: Date.now() };
+    const retryAfterMs =
+      failure.error instanceof ProviderBusyError
+        ? failure.error.retryAfterMs
+        : undefined;
+    const delay = nextRetryDelay(failure.kind, state, retryAfterMs);
+    const detail =
+      failure.error instanceof Error
+        ? failure.error.message
+        : String(failure.error);
+    if (delay === null) {
+      appendServerLog(
+        `[SHIELD] provider failed ${state.attempt + 1} times (${failure.kind}): giving up. ${detail.slice(0, 200)}`
+      );
+      throw failure.error instanceof ProviderBusyError
+        ? new Error(detail)
+        : new Error(
+            `${this.serverName()} could not be reached, also after ${state.attempt} more tries: ${detail}`
+          );
+    }
+    appendServerLog(
+      `[SHIELD] provider failed (${failure.kind}, try ${state.attempt + 1}): trying again in ${Math.round(delay / 1000)} s. ${detail.slice(0, 200)}`
+    );
+    const waiting = new AbortController();
+    this.abortController = waiting;
+    options.onProgress?.({
+      phase: "waiting",
+      provider: this.serverName(),
+      afterTools: /<tool_result\b|^You executed \d+ tool call/.test(message),
+      since: Date.now(),
+      retry: {
+        attempt: state.attempt + 1,
+        reason: retryReason(failure.kind, failure.error),
+      },
+    });
+    const stop = options.signal
+      ? AbortSignal.any([options.signal, waiting.signal])
+      : waiting.signal;
+    await waitOrAbort(delay, stop);
+    if (this.abortController === waiting) this.abortController = null;
+    if (stop.aborted) return "";
+    return this.chat(
+      message,
+      {
+        ...options,
+        providerRetry: { attempt: state.attempt + 1, since: state.since },
+      },
+      restarts
+    );
+  }
+
   /** `restarts`: times the server was restarted after a stall during this message */
   async chat(
     message: string,
@@ -975,12 +1202,19 @@ export class LlamaServerProvider {
     // Thought going round in circles: dropped, and the message sent again
     // without thinking (repetition.ts)
     const looping = new AbortController();
-    const thoughtWatch = new RepetitionWatch();
+    // Once per message (ChatOptions.afterLoop); a hosted model's long
+    // thinking is held to a stricter test (repetition.ts)
+    const thoughtWatch = options.afterLoop
+      ? null
+      : this.endpoint
+        ? new RepetitionWatch(HOSTED_REPEAT_WINDOW, HOSTED_REPEAT_TIMES)
+        : new RepetitionWatch();
     let stallTimer: ReturnType<typeof setTimeout> | undefined;
+    const stallMs = this.endpoint ? HOSTED_STALL_MS : STALL_MS;
     const watchForStall = () => {
       flight.lastProgressAt = Date.now();
       clearTimeout(stallTimer);
-      stallTimer = setTimeout(() => stalled.abort(), STALL_MS);
+      stallTimer = setTimeout(() => stalled.abort(), stallMs);
     };
     /**
      * The most prompt read and tokens written so far, kept apart: one mark
@@ -1001,6 +1235,11 @@ export class LlamaServerProvider {
     let restartAfterStall = false;
     /** The prompt's size as the server counted it, when it refused it as too long */
     let refitFrom: number | null = null;
+    let refusedReasoning = false;
+    /** How the reply ended, as the server said ("length": at max_tokens) */
+    let finishReason = "";
+    /** The provider failed before anything was shown: tried again below */
+    let providerFailure: { kind: RetryKind; error: unknown } | null = null;
     let rescue: RescueAction | null = null;
     /** What was sent, kept for the server log when it stalls */
     let requestBody: Record<string, unknown> = {};
@@ -1034,11 +1273,28 @@ export class LlamaServerProvider {
       flight.phase = "reading";
 
       watchForStall();
-      // "none" in the catalog: never thinks
+      // "none" in the catalog: never thinks. The user's level comes first,
+      // except that SHIELD may still ask for no thinking (a retry, a note)
+      const level = this.root().thinkingLevel;
+      // A hosted model that thought to the reply limit on Default thinks
+      // low from then on (overthinks); a level the user chose is kept
+      const tamed =
+        options.effort ??
+        (level === "default" && this.endpoint && overthinks(this.endpoint)
+          ? ("low" as const)
+          : undefined);
       const thinks =
-        options.thinking !== false && this.reasoningEffort !== "none";
+        (tamed !== undefined && options.thinking !== false) ||
+        (options.thinking !== false &&
+          level !== "instant" &&
+          (level !== "default" || this.reasoningEffort !== "none"));
+      const effort =
+        tamed ?? effortFor(level, !!this.endpoint) ?? this.reasoningEffort;
       appendServerLog(
-        `[SHIELD] chat request, thinking ${thinks ? "on" : "off"}`
+        `[SHIELD] chat request, thinking ${thinks ? "on" : "off"}` +
+          (this.nativeTools.length > 0
+            ? `, ${this.nativeTools.length} native tools`
+            : "")
       );
       requestBody = this.shape({
         messages: this.messages(userMessage),
@@ -1050,9 +1306,18 @@ export class LlamaServerProvider {
         timings_per_token: true,
         cache_prompt: true,
         temperature: options.temperature ?? 0.7,
-        // The local minimum only: a hosted model is billed per token
+        // A ceiling, so a short reply costs no more. Hosted models need it
+        // too: deepseek-v4.1-flash's thinking and a test file's write_file
+        // went past the 2,048 setting and the call was cut off (2026-11-15)
         max_tokens: this.endpoint
-          ? (options.maxTokens ?? 512)
+          ? (testReplyLimit() ??
+            Math.min(
+              Math.max(
+                replyTokenLimit(options.maxTokens),
+                HOSTED_MIN_REPLY_TOKENS
+              ),
+              this.endpoint.maxOutputTokens ?? Infinity
+            ))
           : replyTokenLimit(options.maxTokens),
         top_p: options.topP ?? 0.9,
         top_k: options.topK ?? 40,
@@ -1063,10 +1328,26 @@ export class LlamaServerProvider {
         ...(this.nativeTools.length > 0 ? { tools: this.nativeTools } : {}),
         ...(!thinks
           ? { chat_template_kwargs: { enable_thinking: false } }
-          : this.reasoningEffort
-            ? { reasoning_effort: this.reasoningEffort }
+          : effort && effort !== "none"
+            ? { reasoning_effort: effort }
             : {}),
       });
+      if (this.endpoint) {
+        appendServerLog(
+          `[SHIELD] hosted request: max_tokens ${String(requestBody.max_tokens)}, reasoning ${JSON.stringify(requestBody.reasoning ?? null)}, tool_choice ${JSON.stringify(requestBody.tool_choice ?? null)}`
+        );
+      }
+      // A hosted model reports no reading progress: say what it is doing
+      if (this.endpoint) {
+        options.onProgress?.({
+          phase: "waiting",
+          provider: this.endpoint.providerName,
+          afterTools: /<tool_result\b|^You executed \d+ tool call/.test(
+            message
+          ),
+          since: Date.now(),
+        });
+      }
       const response = await fetch(this.chatUrl(), {
         method: "POST",
         headers: this.chatHeaders(),
@@ -1080,7 +1361,38 @@ export class LlamaServerProvider {
       });
       if (!response.ok || !response.body) {
         const text = await response.text();
-        const measured = this.endpoint ? null : overflowedPrompt(text);
+        // A model that will not take the reasoning setting (one that must
+        // think, say): once, without it, and not again for this model
+        const hosted = this.endpoint;
+        if (
+          hosted &&
+          !hosted.reasoningRejected &&
+          response.status === 400 &&
+          /reason|effort|thinking/i.test(text) &&
+          // As sent: already in the provider's form (adaptRequestBody)
+          requestBody.reasoning !== undefined
+        ) {
+          hosted.reasoningRejected = true;
+          appendServerLog(
+            `[SHIELD] the provider refused the reasoning setting: sent again without it (${text.slice(0, 160)})`
+          );
+          throw REASONING_REFUSED;
+        }
+        if (hosted && isRetryableStatus(response.status)) {
+          throw new ProviderBusyError(
+            this.httpError(response.status, text),
+            response.status,
+            parseRetryAfter(response.headers.get("retry-after"))
+          );
+        }
+        const measured = this.endpoint
+          ? this.hostedOverflowSize(response.status, text)
+          : overflowedPrompt(text);
+        if (measured !== null && this.refitting && this.endpoint) {
+          throw new Error(
+            `The conversation is too long for ${this.endpoint.model}, even after making room. Start a new chat for the next part of the work, or pick a model with a larger window.`
+          );
+        }
         if (measured === null || this.refitting) {
           throw new Error(this.httpError(response.status, text));
         }
@@ -1105,6 +1417,9 @@ export class LlamaServerProvider {
       const reader = response.body.getReader();
       /** The reply's own text (not its calls), for the result-framing check */
       let written = "";
+      let lastThoughtReport = 0;
+      let thinkingSince = 0;
+      let structuredDeltas = 0;
       const calls = new NativeCallWriter(
         (tool) => this.toolServers.get(tool) ?? "filesystem"
       );
@@ -1114,9 +1429,21 @@ export class LlamaServerProvider {
         for (const chunk of parser.push(
           decoder.decode(value, { stream: true })
         )) {
-          const thought = chunk.choices?.[0]?.delta?.reasoning_content;
+          const thought = deltaThought(chunk.choices?.[0]?.delta);
           if (thought) thinking += thought;
-          if (thought && thoughtWatch.push(thought)) looping.abort();
+          if (thought && this.endpoint) {
+            const now = Date.now();
+            if (now - lastThoughtReport > 250) {
+              lastThoughtReport = now;
+              options.onProgress?.({
+                phase: "thinking",
+                // ~4 characters a token: the provider counts only at the end
+                thought: Math.round(thinking.length / 4),
+                since: thinkingSince || (thinkingSince = now),
+              });
+            }
+          }
+          if (thought && thoughtWatch?.push(thought)) looping.abort();
           const deltas = (
             chunk.choices?.[0]?.delta as { tool_calls?: ToolCallDelta[] }
           )?.tool_calls;
@@ -1167,6 +1494,33 @@ export class LlamaServerProvider {
           if (progress) options.onProgress?.(progress);
           if (chunk.timings || chunk.usage)
             final = { ...(final ?? {}), ...chunk };
+          if (deltas) structuredDeltas++;
+          const ended = (
+            chunk.choices?.[0] as { finish_reason?: string | null } | undefined
+          )?.finish_reason;
+          if (ended) finishReason = ended;
+        }
+      }
+      if (this.endpoint) {
+        // What the provider sent back: structured calls, or calls written
+        // into the text (a gateway that does not parse the model's markup)
+        appendServerLog(
+          `[SHIELD] hosted reply: ${structuredDeltas} tool-call chunks, ` +
+            `DSML in text: ${reply.includes("DSML") ? "yes" : "no"}, ` +
+            `finish: ${finishReason || "none"}, thinking streamed: ${thinking.length} chars, ` +
+            `usage ${JSON.stringify(final?.usage ?? null)}`
+        );
+        // Asked not to think, and thought anyway: "no thinking" is the
+        // least effort for this model from now on (remoteEndpoint.ts)
+        if (
+          !thinks &&
+          thinking.length > THOUGHT_DESPITE_OFF_CHARS &&
+          !thinksAnyway(this.endpoint)
+        ) {
+          markThinksAnyway(this.endpoint);
+          appendServerLog(
+            `[SHIELD] ${this.endpoint.model} thought ${thinking.length} chars when asked not to: "no thinking" is sent as effort low from now on`
+          );
         }
       }
       const closing = calls.finish();
@@ -1175,8 +1529,15 @@ export class LlamaServerProvider {
         options.onToken?.(closing);
       }
     } catch (error) {
-      if (error === REFIT) {
-        // Nothing was written; room is made below
+      const failure =
+        this.endpoint && !signal.aborted && reply === ""
+          ? retryKind(error)
+          : null;
+      if (error === REFIT || error === REASONING_REFUSED) {
+        // Nothing was written; room is made, or it goes again, below
+        if (error === REASONING_REFUSED) refusedReasoning = true;
+      } else if (failure) {
+        providerFailure = { kind: failure, error };
       } else if (rescued.signal.aborted && !signal.aborted) {
         console.log(
           `[LlamaServer] Request cut off by the user: ${this.rescueAction}`
@@ -1190,7 +1551,7 @@ export class LlamaServerProvider {
           "[LlamaServer] The model's thinking repeated itself; sending the message again without thinking"
         );
         appendServerLog(
-          "[SHIELD] thinking repeated itself: request aborted, sending it again without thinking"
+          `[SHIELD] thinking repeated itself after ${thinking.length} chars: request aborted, sending it again without thinking. Its end: ${JSON.stringify(thinking.slice(-400))}`
         );
         retryWithoutThinking = true;
       }
@@ -1214,7 +1575,7 @@ export class LlamaServerProvider {
         if (restarts > 0) {
           throw new Error(
             this.endpoint
-              ? `${this.serverName()} made no progress for ${STALL_MS / 60000} minutes, also on a second try, and was given up on.`
+              ? `${this.serverName()} made no progress for ${stallMs / 60000} minutes, also on a second try, and was given up on.`
               : `llama-server made no progress for ${STALL_MS / 60000} minutes, also after a restart, and was given up on. Stop and reload the model.`
           );
         }
@@ -1237,6 +1598,15 @@ export class LlamaServerProvider {
       }
     }
     // Nothing of a dropped reply is kept: the history is as it was
+    if (refusedReasoning) return this.chat(message, options, restarts);
+    if (providerFailure) {
+      return this.retryAfterProviderFailure(
+        message,
+        options,
+        restarts,
+        providerFailure
+      );
+    }
     if (refitFrom !== null) {
       // Room made from the server's own count, once: a prompt refused
       // again is more than clearing and a summary can bring down. The
@@ -1272,20 +1642,131 @@ export class LlamaServerProvider {
     }
     // "skip" goes on like Stop: what was written is kept
     if (retryWithoutThinking) {
-      return this.chat(message, { ...options, thinking: false }, restarts);
+      return this.chat(
+        message,
+        { ...options, thinking: false, afterLoop: true },
+        restarts
+      );
     }
-    // Once, on SHIELD's own server: nothing at all came back
+    // A hosted reply that reached max_tokens inside a tool call: the call's
+    // arguments end mid-value and would fail as malformed, and the model
+    // tends to send the same large call again. Dropped, and sent once more
+    // asking for smaller pieces, as opencode does on an output limit
+    // (research, 2026-11-23)
+    // A provider that drops a cut call leaves an empty reply: told from a
+    // thought-out one by where the tokens went (replyLimits.ts callDropped)
+    const atLimit =
+      this.endpoint !== null && !signal.aborted && finishReason === "length";
+    const cutAt = !atLimit
+      ? null
+      : reply.trim() !== ""
+        ? cutCallStart(reply)
+        : callDropped(
+              final?.usage as Usage | undefined,
+              thinking.length,
+              typeof requestBody.max_tokens === "number"
+                ? requestBody.max_tokens
+                : undefined
+            )
+          ? 0
+          : null;
+    if (this.endpoint && cutAt !== null) {
+      if (!message.includes(CUT_CALL_NOTE)) {
+        appendServerLog(
+          `[SHIELD] the reply reached its output limit inside a tool call (${reply.length - cutAt} chars of it): dropped and sent once more asking for smaller pieces`
+        );
+        this.carryCost(final);
+        return this.chat(message + CUT_CALL_NOTE, options, restarts);
+      }
+      throw new Error(
+        `${this.endpoint.model} reached its reply limit in the middle of a tool call, twice. Ask it to write the file in smaller parts.`
+      );
+    }
+    // "length" far short of the limit: the provider ended the reply, not the
+    // limit. GLM 5.3 Flash's replies ended at ~50 of 32,768 tokens again and
+    // again, with max_tokens 32768 sent (2026-11-24)
+    const spentTokens =
+      (final?.usage as Usage | undefined)?.completion_tokens ?? 0;
+    const endedEarly =
+      finishReason === "length" &&
+      typeof requestBody.max_tokens === "number" &&
+      spentTokens > 0 &&
+      spentTokens < requestBody.max_tokens / 2;
+    // Each note below is sent at most once per message (includes, not
+    // endsWith): the lost-call and empty-reply notes took turns at the end
+    // of the message and resent GLM 5.3 Flash's step 183 times (2026-11-24)
+    // A call the provider lost on the way: the reply ended normally, with no
+    // call, though far more was written than its thinking and text
+    // (replyLimits.ts callLost). Asked for again, once per message
     if (
-      !this.endpoint &&
+      this.endpoint &&
+      !signal.aborted &&
+      // "length" at the limit is a cut call (above); far short of it, the
+      // provider ended a call it lost: GLM 5.3 Flash, 46 of 32,768 tokens
+      (finishReason !== "length" ||
+        (typeof requestBody.max_tokens === "number" &&
+          ((final?.usage as Usage | undefined)?.completion_tokens ?? 0) <
+            requestBody.max_tokens / 2)) &&
+      !reply.includes("<tool_call>") &&
+      !message.includes(LOST_CALL_NOTE) &&
+      callLost(final?.usage as Usage | undefined, thinking.length, reply.length)
+    ) {
+      appendServerLog(
+        `[SHIELD] the reply ended with no call though ${(final?.usage as Usage | undefined)?.completion_tokens} tokens were written (${reply.length} chars of text): the provider lost a call, asked for it again`
+      );
+      this.carryCost(final);
+      return this.chat(message + LOST_CALL_NOTE, options, restarts);
+    }
+    // A hosted model thought until the reply limit and wrote nothing: GLM
+    // 5.3 Flash spent all 32,768 tokens (138K characters, 7 minutes) on
+    // the first step of a long task, then did it again with thinking off,
+    // and the turn ended with nothing said (2026-11-23). Once more with the
+    // least thinking and a note; then said plainly, not left silent.
+    if (
+      this.endpoint &&
+      !signal.aborted &&
+      finishReason === "length" &&
+      !endedEarly &&
+      reply.trim() === "" &&
+      thinking.length > 0
+    ) {
+      if (this.root().thinkingLevel === "default") {
+        markOverthinks(this.endpoint);
+      }
+      if (!message.includes(THOUGHT_OUT_NOTE)) {
+        appendServerLog(
+          `[SHIELD] thinking used the whole reply limit (${thinking.length} chars) and nothing was written: sent once more at low effort with a note`
+        );
+        this.carryCost(final);
+        return this.chat(
+          message + THOUGHT_OUT_NOTE,
+          { ...options, thinking: true, effort: "low" },
+          restarts
+        );
+      }
+      throw new Error(
+        `${this.endpoint.model} spent its whole reply on thinking, twice, and wrote nothing. Set Thinking to Low or Instant for it, then ask again.`
+      );
+    }
+    // Once: nothing at all came back (a hosted model too)
+    if (
       reply.trim() === "" &&
       !signal.aborted &&
-      !message.endsWith(EMPTY_REPLY_NOTE)
+      !message.includes(EMPTY_REPLY_NOTE)
     ) {
       appendServerLog("[SHIELD] empty reply: sent once more with a note");
       return this.chat(
         message + EMPTY_REPLY_NOTE,
         { ...options, thinking: false },
         restarts
+      );
+    }
+    // Empty again: the turn ended with nothing said, and looked finished
+    if (this.endpoint && reply.trim() === "" && !signal.aborted) {
+      throw new Error(
+        endedEarly
+          ? `${this.serverName()} keeps ending ${this.endpoint.model}'s replies early (at ${spentTokens} of ${String(requestBody.max_tokens)} tokens), before its tool call comes through. This is on the provider's side: ask again later, or use another model for this task.`
+          : `${this.endpoint.model} sent back an empty reply twice. Ask again, or try another model.`
       );
     }
 
@@ -1301,7 +1782,6 @@ export class LlamaServerProvider {
       .reverse()
       .find((m) => m.role === "assistant");
     if (
-      !this.endpoint &&
       !this.varying &&
       !signal.aborted &&
       content.includes("<tool_call>") &&
@@ -1340,6 +1820,22 @@ export class LlamaServerProvider {
     const outputTokens =
       final?.timings?.predicted_n ?? final?.usage?.completion_tokens ?? 0;
     const hostedBy = this.endpoint ? this.lastServedBy : null;
+    let spent = this.endpoint
+      ? requestCost(final?.usage as Usage | undefined, this.endpoint.pricing)
+      : undefined;
+    // An agent's requests are not chat messages: their cost goes on the
+    // main session's next reply, so the chat's total counts the team
+    if (spent && this.parent) {
+      this.root().addUnreportedCost(spent);
+      spent = undefined;
+    }
+    const cost = spent && {
+      cost: spent.charged + this.unreportedCost.charged,
+      ...(spent.listed !== undefined
+        ? { listedCost: spent.listed + this.unreportedCost.listed }
+        : {}),
+    };
+    if (cost) this.unreportedCost = { charged: 0, listed: 0 };
     this.lastStats = {
       outputTokens,
       tokensPerSecond:
@@ -1358,6 +1854,7 @@ export class LlamaServerProvider {
       ...(hostedBy
         ? { servedBy: { provider: hostedBy.provider, zdr: hostedBy.zdr } }
         : {}),
+      ...(cost ?? {}),
     };
     const readingSeconds = ((firstTokenAt ?? endedAt) - startedAt) / 1000;
     console.log(
@@ -1427,6 +1924,13 @@ export class LlamaServerProvider {
    * each costs a slower read of the shortened history - which is why none
    * runs until needed.
    */
+  /** Memory may go with this session's requests: local, or shared hosted */
+  private memoryAllowed(): boolean {
+    const endpoint = this.endpoint;
+    if (!endpoint) return true;
+    return memorySharing?.(endpoint.providerId, endpoint.model) ?? false;
+  }
+
   private async makeRoom(
     nextMessage: string,
     signal: AbortSignal,
@@ -1438,8 +1942,10 @@ export class LlamaServerProvider {
     if (this.makeRoomCheaply(nextMessage.length)) return;
 
     onProgress?.({ phase: "summarising" });
-    // Hosted models get no memory check: the notes would leave the PC
-    const checked = this.endpoint
+    // A hosted model gets the memory check only when memory may go to it
+    // (zero retention, or the user shared it): the notes leave the PC
+    const memory = this.memoryAllowed();
+    const checked = !memory
       ? []
       : await (memoryHooks?.notesToCheck() ?? Promise.resolve([])).catch(
           () => []
@@ -1463,7 +1969,7 @@ export class LlamaServerProvider {
         ))
     );
     if (!summarised) return;
-    if (written && !this.endpoint) memoryHooks?.onNote(written, checked);
+    if (written && memory) memoryHooks?.onNote(written, checked);
 
     const removed = this.history.length - summarised.history.length;
     this.history = summarised.history;
@@ -1493,19 +1999,37 @@ export class LlamaServerProvider {
    * leaves room for a message of `nextMessageChars`.
    */
   private makeRoomCheaply(nextMessageChars: number): boolean {
+    const chars = this.historyChars();
+    const tokens = this.lastContextTokens;
+    const done = this.clearForRoom(nextMessageChars);
+    const freed = chars - this.historyChars();
+    if (freed > 0) {
+      appendServerLog(
+        `[SHIELD] made room: cleared ${freed} characters at ~${tokens} tokens ` +
+          `(tidying from ${this.tidySize()}, window ${this.contextSize})`
+      );
+    }
+    return done;
+  }
+
+  private clearForRoom(nextMessageChars: number): boolean {
     if (this.keepWholeHistory) return true;
+    // Clearing works to the tidying size; a summary waits for the window
+    const size = this.tidySize();
     const under = (limit: number) =>
+      !shouldCompact(this.lastContextTokens, nextMessageChars, size, limit);
+    const underWindow = () =>
       !shouldCompact(
         this.lastContextTokens,
         nextMessageChars,
         this.contextSize,
-        limit
+        COMPACT_AT
       );
     if (under(COMPACT_AT)) return true;
 
     // Below mustAt the request still fits: clear only if it frees enough
     // to be worth the re-read, else send it as it is (clearingWorthIt)
-    const mustAt = mustCompactAt(this.contextSize, MIN_REPLY_TOKENS);
+    const mustAt = mustCompactAt(size, MIN_REPLY_TOKENS);
     const before = {
       history: this.history,
       tokens: this.lastContextTokens,
@@ -1534,13 +2058,7 @@ export class LlamaServerProvider {
     if (optional) {
       const freed = before.chars - this.historyChars();
       if (
-        !clearingWorthIt(
-          before.tokens,
-          nextMessageChars,
-          this.contextSize,
-          mustAt,
-          freed
-        )
+        !clearingWorthIt(before.tokens, nextMessageChars, size, mustAt, freed)
       ) {
         this.history = before.history;
         this.lastContextTokens = before.tokens;
@@ -1551,8 +2069,26 @@ export class LlamaServerProvider {
       }
       return true;
     }
-    if (under(COMPACT_AT)) return true;
-    return this.useSavedCapsule() && under(COMPACT_AT);
+    // A hosted model past the tidying size but well inside its window: what
+    // clearing could not free stays, and no summary is written yet
+    if (under(COMPACT_AT) || (size < this.contextSize && underWindow())) {
+      return true;
+    }
+    return this.useSavedCapsule() && underWindow();
+  }
+
+  /**
+   * Where making room starts. A local model's window. A hosted model's up to
+   * HOSTED_TIDY_TOKENS: past it the cheap steps run as for a local model
+   * (older thinking, outdated file copies, old tool output), though the
+   * window may be far larger (deepseek-v4.1-flash: 655,360 input tokens),
+   * since every request sends the whole history and is billed for it. The
+   * summary, which loses detail, still waits for the window itself.
+   */
+  private tidySize(): number {
+    return this.endpoint
+      ? Math.min(this.contextSize, HOSTED_TIDY_TOKENS)
+      : this.contextSize;
   }
 
   /**
@@ -1646,11 +2182,14 @@ export class LlamaServerProvider {
           nextMessage,
           this.nativeTools,
           floor,
-          remembered
+          remembered,
+          Boolean(this.endpoint)
         ),
         cache_prompt: true,
         temperature: 0.2,
-        max_tokens: NOTE_MAX_TOKENS,
+        // A hosted model's thinking counts against it, even when asked not
+        // to think (thinksAnyway), and its note has the two longer lines
+        max_tokens: this.endpoint ? HOSTED_NOTE_MAX_TOKENS : NOTE_MAX_TOKENS,
         // With thinking on, Bonsai 2 spent the note's tokens thinking and
         // its note stopped mid-sentence, before the Offered and Facts
         // lines (growing-project g14, 2026-11-10)

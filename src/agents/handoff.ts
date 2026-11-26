@@ -13,6 +13,7 @@ import type { AgentStatus, ParsedHandoff, VerifiedWork } from "./types";
 /** What the agent is told to write, in its prompt and at a checkpoint */
 export const HANDOFF_FORMAT = `HANDOFF
 STATUS: DONE | PARTIAL | BLOCKED
+SUMMARY: one or two plain sentences for the user: what you did and how it ended, without commands or paths
 DONE: what is finished, one line each
 IN PROGRESS: what you were in the middle of
 NEXT: the exact next step for whoever continues
@@ -20,6 +21,7 @@ NOTES: anything they must know (a failing test's name, a decision, a gotcha)`;
 
 const FIELDS = [
   ["status", /^STATUS\s*:\s*(.*)$/i],
+  ["brief", /^SUMMARY\s*:\s*(.*)$/i],
   ["done", /^DONE\s*:\s*(.*)$/i],
   ["inProgress", /^IN[ -]PROGRESS\s*:\s*(.*)$/i],
   ["next", /^NEXT(?: STEP)?\s*:\s*(.*)$/i],
@@ -51,6 +53,7 @@ export function parseHandoff(text: string): ParsedHandoff {
 
   const values: Record<Field, string[]> = {
     status: [],
+    brief: [],
     done: [],
     inProgress: [],
     next: [],
@@ -79,6 +82,7 @@ export function parseHandoff(text: string): ParsedHandoff {
     inProgress: join("inProgress"),
     next: join("next"),
     notes: join("notes"),
+    ...(values.brief.length ? { brief: join("brief") } : {}),
   };
 }
 
@@ -90,6 +94,15 @@ export function stripHandoff(text: string): string {
     if (HEADING.test(line)) start = i;
   });
   return (start < 0 ? text : lines.slice(0, start).join("\n")).trim();
+}
+
+/**
+ * Whether a command's exit code is its own. Piped, it is the last
+ * command's: "python3 -m pytest … | tail -40" exited 0 with pytest not
+ * installed, and showed as Passed (2026-11-16).
+ */
+export function exitCodeIsItsOwn(command: string): boolean {
+  return !/(^|[^|])\|(?!\|)/.test(command.replace(/'[^']*'|"[^"]*"/g, ""));
 }
 
 const action = (file: VerifiedWork["files"][number]) =>
@@ -116,6 +129,10 @@ export function describeWork(work: VerifiedWork): string[] {
           .map(
             (c) =>
               `${c.command} -> ${c.exitCode === null ? "no exit code" : `exit ${c.exitCode}`}${
+                c.exitCode !== null && !exitCodeIsItsOwn(c.command)
+                  ? " (piped: the exit code is the last command's, not this one's; read the output)"
+                  : ""
+              }${
                 c.suspectLines > 0
                   ? ` (${c.suspectLines} output line${c.suspectLines === 1 ? "" : "s"} looked like failures)`
                   : ""

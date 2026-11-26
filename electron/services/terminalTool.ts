@@ -10,15 +10,34 @@
  * Which commands run without asking is decided in the renderer, with every
  * other permission (src/config/commandSafety.ts); this file only runs them.
  * There is no input - stdin is closed, so a command that prompts fails
- * instead of waiting - and no background processes: a command must end on
- * its own within its timeout, and Stop ends it and everything it started.
+ * instead of waiting. A command ends on its own within its timeout, or runs
+ * in the background as a job (backgroundJobs.ts); Stop ends it and
+ * everything it started.
  */
 
 import { spawn, type ChildProcess } from "child_process";
+import { createHash } from "crypto";
 import fs from "fs";
+import os from "os";
 import path from "path";
 import { StringDecoder } from "string_decoder";
 import type { MCPToolResult } from "./MCPServerConfig.js";
+import {
+  COMMAND_OUTPUT_TOOL,
+  COMMAND_OUTPUT_TOOL_NAME,
+  jobOutput,
+  startJob,
+  STOP_COMMAND_TOOL,
+  STOP_COMMAND_TOOL_NAME,
+  stopAllJobs,
+  stopJob,
+} from "./backgroundJobs.js";
+import {
+  leftoverNote,
+  newTaskId,
+  settledLeftovers,
+  TASK_ID_VAR,
+} from "./runningTasks.js";
 
 export const TERMINAL_SERVER_NAME = "terminal";
 export const RUN_COMMAND_TOOL_NAME = "run_command";
@@ -35,7 +54,102 @@ export const OUTPUT_HEAD_CHARS = 2000;
 export const OUTPUT_TAIL_CHARS = 6000;
 
 export function isTerminalTool(name: string): boolean {
-  return name === RUN_COMMAND_TOOL_NAME;
+  return (
+    name === RUN_COMMAND_TOOL_NAME ||
+    name === COMMAND_OUTPUT_TOOL_NAME ||
+    name === STOP_COMMAND_TOOL_NAME
+  );
+}
+
+/** The terminal server's tools: run_command and its background jobs */
+export function terminalTools(powershell = findPowerShell()) {
+  return [runCommandTool(powershell), COMMAND_OUTPUT_TOOL, STOP_COMMAND_TOOL];
+}
+
+/** A terminal tool call, by name. Never throws. */
+export function callTerminalTool(
+  tool: string,
+  args: Record<string, unknown>,
+  cwd: string | null
+): Promise<MCPToolResult> {
+  if (tool === COMMAND_OUTPUT_TOOL_NAME) return jobOutput(args);
+  if (tool === STOP_COMMAND_TOOL_NAME) {
+    return Promise.resolve(stopJob(args, killTree));
+  }
+  return runCommand(args, cwd);
+}
+
+/**
+ * The shell's state between commands (Linux and macOS): each command still
+ * runs in a process of its own, so a timeout, Stop and Tasks running work
+ * as before, but it starts in the folder and with the exported variables
+ * the last one left - a cd, an export, an activated virtualenv carry over,
+ * as in the terminals models are trained on (the user's call, 2026-11-24).
+ * Bonsai 2 had exported a profile path in one call and run its test in
+ * the next, which then wrote to the real profile (g13 step 20, 2026-11-09).
+ * One state per chat (`shell_session`, set by the app) and project folder.
+ */
+const SHELL_STATE_DIR = path.join(os.tmpdir(), `shield-shell-${process.pid}`);
+
+/** Where one chat's shell keeps its folder (.cwd) and variables (.env) */
+export function shellStateBase(cwd: string, session: unknown): string {
+  const key = createHash("sha1")
+    .update(`${cwd}\0${typeof session === "string" ? session : ""}`)
+    .digest("hex")
+    .slice(0, 16);
+  return path.join(SHELL_STATE_DIR, key);
+}
+
+/** A single-quoted sh word */
+function shQuote(text: string): string {
+  return `'${text.replace(/'/g, `'\\''`)}'`;
+}
+
+/**
+ * The script that runs `$SHIELD_COMMAND` in the saved folder with the
+ * saved variables, then saves both (unless `save` is false: a background
+ * job). SHIELD's own variables and the shell's bookkeeping are not saved.
+ */
+export function persistentScript(stateBase: string, save = true): string {
+  const s = shQuote(stateBase);
+  return [
+    `__shield_s=${s}`,
+    `[ -f "$__shield_s.env" ] && . "$__shield_s.env" >/dev/null 2>&1`,
+    `[ -f "$__shield_s.cwd" ] && cd "$(cat "$__shield_s.cwd")" 2>/dev/null`,
+    `eval "$SHIELD_COMMAND"`,
+    ...(save
+      ? [
+          `__shield_status=$?`,
+          `pwd > "$__shield_s.cwd" 2>/dev/null`,
+          `export -p | grep -v -E '^(declare -x|export) (SHIELD_|PWD=|OLDPWD=|SHLVL=|_=|__shield)' > "$__shield_s.env" 2>/dev/null`,
+          `exit $__shield_status`,
+        ]
+      : []),
+  ].join("\n");
+}
+
+/** The folder a chat's shell is in now, or null when it has not moved */
+export function shellFolder(
+  stateBase: string,
+  projectFolder: string
+): string | null {
+  try {
+    const now = fs.readFileSync(`${stateBase}.cwd`, "utf8").trim();
+    return now && path.resolve(now) !== path.resolve(projectFolder)
+      ? now
+      : null;
+  } catch {
+    return null;
+  }
+}
+
+/** SHIELD is closing: the saved shell states go */
+export function clearShellState(): void {
+  try {
+    fs.rmSync(SHELL_STATE_DIR, { recursive: true, force: true });
+  } catch {
+    // Temporary files only
+  }
 }
 
 /** PowerShell 7 when it is installed, else Windows PowerShell 5.1 */
@@ -87,7 +201,7 @@ const WINDOWS_RULES =
 export function runCommandTool(powershell = findPowerShell()) {
   return {
     name: RUN_COMMAND_TOOL_NAME,
-    description: `Run a command in the project folder and get its output and exit code. Commands run ${shellGuidance(powershell)} Use it to run the project's tests, a script you wrote or changed, a build or a linter, and to look around with git (git status, git diff, git log) or search the files (${process.platform === "win32" ? "Select-String" : "grep -rn"}). Commands that only read, like those, run at once; any other command waits for the user to allow it, showing them your reason. Each call starts a new shell in the project folder: a cd, export or variable from one call is gone in the next, so set what a command needs in that same call. The command must finish on its own: no servers, watch modes or prompts for input. Output is cut to its first ${OUTPUT_HEAD_CHARS.toLocaleString("en-US")} and last ${OUTPUT_TAIL_CHARS.toLocaleString("en-US")} characters.${process.platform === "win32" ? WINDOWS_RULES : ""}`,
+    description: `Run a command in the project folder and get its output and exit code. Commands run ${shellGuidance(powershell)} Use it to run the project's tests, a script you wrote or changed, a build or a linter, and to look around with git (git status, git diff, git log) or search the files (${process.platform === "win32" ? "Select-String" : "grep -rn"}). Commands run at once, except one that deletes files, which waits for the user to allow it, showing them your reason. ${process.platform === "win32" ? "Each call starts a new shell in the project folder: a cd, export or variable from one call is gone in the next, so set what a command needs in that same call." : "The shell keeps its state between calls, like a terminal: a cd, an export or an activated virtualenv carries over to your next command. A chat's shell starts in the project folder."} The command must finish on its own: no watch modes or prompts for input. To keep one running, such as a server to try with curl, set background: true instead of using & or nohup: SHIELD keeps its output for command_output. It keeps running after your turn: stop it with stop_command when you are done. Output is cut to its first ${OUTPUT_HEAD_CHARS.toLocaleString("en-US")} and last ${OUTPUT_TAIL_CHARS.toLocaleString("en-US")} characters.${process.platform === "win32" ? WINDOWS_RULES : ""}`,
     inputSchema: {
       type: "object",
       properties: {
@@ -103,6 +217,11 @@ export function runCommandTool(powershell = findPowerShell()) {
         timeout_seconds: {
           type: "number",
           description: `Stop the command after this many seconds (default ${DEFAULT_TIMEOUT_SECONDS}, at most ${MAX_TIMEOUT_SECONDS})`,
+        },
+        background: {
+          type: "boolean",
+          description:
+            "Keep it running and return at once with a job number, for a server or watcher. Stop it with stop_command when you are done.",
         },
       },
       required: ["command", "reason"],
@@ -160,9 +279,14 @@ export function shellInvocation(
  * because a repository's own config could otherwise start a program on
  * `git status`.
  */
-export function commandEnv(base: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
+export function commandEnv(
+  base: NodeJS.ProcessEnv,
+  taskId?: string
+): NodeJS.ProcessEnv {
   return {
     ...base,
+    // What the command leaves running is found by this (runningTasks.ts)
+    ...(taskId ? { [TASK_ID_VAR]: taskId } : {}),
     CI: "1",
     GIT_PAGER: "cat",
     PAGER: "cat",
@@ -328,7 +452,7 @@ const running = new Set<ChildProcess>();
 const stoppedByUser = new WeakSet<ChildProcess>();
 
 /** Ends a command and every process it started */
-function killTree(child: ChildProcess): void {
+export function killTree(child: ChildProcess): void {
   if (child.pid === undefined) return;
   if (process.platform === "win32") {
     spawn("taskkill", ["/pid", String(child.pid), "/T", "/F"], {
@@ -354,6 +478,16 @@ export function stopRunningCommands(): number {
   return count;
 }
 
+/** SHIELD is closing: its own background jobs end. Returns how many ran. */
+export function stopBackgroundJobs(): number {
+  return stopAllJobs(killTree);
+}
+
+/** Where the shell is now, when a cd left it outside the project folder's top */
+export function folderNote(folder: string | null): string {
+  return folder ? `\n[The shell is now in ${folder}.]` : "";
+}
+
 /** Run a command. Never throws: failures come back as tool errors. */
 export function runCommand(
   args: Record<string, unknown>,
@@ -371,20 +505,36 @@ export function runCommand(
 
   const timeout = clampTimeout(args.timeout_seconds);
   const powershell = findPowerShell();
-  const { file, args: shellArgs } = shellInvocation(
-    command,
-    process.platform,
-    powershell,
-    findPosixShell()
-  );
+  const persistent = process.platform !== "win32";
+  const stateBase = shellStateBase(cwd, args.shell_session);
+  if (persistent) fs.mkdirSync(path.dirname(stateBase), { recursive: true });
+  const background = args.background === true;
+  const { file, args: shellArgs } = persistent
+    ? {
+        file: findPosixShell(),
+        args: ["-c", persistentScript(stateBase, !background)],
+      }
+    : shellInvocation(command, process.platform, powershell, findPosixShell());
+  const withCommand = (env: NodeJS.ProcessEnv): NodeJS.ProcessEnv =>
+    persistent ? { ...env, SHIELD_COMMAND: command } : env;
+  if (background) {
+    return startJob(
+      command,
+      { file, args: shellArgs },
+      cwd,
+      withCommand(commandEnv(process.env)),
+      { spawn, kill: killTree }
+    );
+  }
   const started = Date.now();
+  const taskId = newTaskId();
 
   return new Promise((resolve) => {
     let child: ChildProcess;
     try {
       child = spawn(file, shellArgs, {
         cwd,
-        env: commandEnv(process.env),
+        env: withCommand(commandEnv(process.env, taskId)),
         stdio: ["ignore", "pipe", "pipe"],
         windowsHide: true,
         // Its own process group, so the whole tree can be ended
@@ -425,7 +575,7 @@ export function runCommand(
     child.on("error", (error) =>
       finish(fail(`Could not start the command: ${error.message}`))
     );
-    child.on("close", (code) => {
+    child.on("close", async (code) => {
       const elapsed = Date.now() - started;
       const text = output.toString();
       const soFar = text ? `\nOutput so far:\n${text}` : "";
@@ -438,6 +588,14 @@ export function runCommand(
           )
         );
       } else {
+        // What it left running (nohup ... &) goes on Tasks running, and
+        // the model is told it is still going (runningTasks.ts)
+        const still = await settledLeftovers(
+          taskId,
+          child.pid,
+          command,
+          started
+        );
         finish({
           success: true,
           data: {
@@ -446,7 +604,9 @@ export function runCommand(
                 type: "text",
                 text:
                   formatRun(code, elapsed, text) +
-                  windowsPowerShellNote(command, powershell),
+                  windowsPowerShellNote(command, powershell) +
+                  leftoverNote(still) +
+                  folderNote(persistent ? shellFolder(stateBase, cwd) : null),
               },
             ],
           },

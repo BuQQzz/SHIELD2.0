@@ -9,6 +9,7 @@
  * a new local model gets the whole GPU.
  */
 
+import type { ThinkingLevel } from "../config/thinking.js";
 import { execFileSync } from "child_process";
 import fs from "fs";
 import path from "path";
@@ -249,6 +250,10 @@ export class ModelRuntime {
         model: parsed.model,
         contextSize,
         requireZdr,
+        ...(catalog?.pricing ? { pricing: catalog.pricing } : {}),
+        ...(catalog?.maxOutputTokens
+          ? { maxOutputTokens: catalog.maxOutputTokens }
+          : {}),
       },
       this.systemPrompt
     );
@@ -505,6 +510,12 @@ export class ModelRuntime {
     }
   }
 
+  /** The user's thinking level for the loaded model; both providers keep it */
+  setThinkingLevel(level: ThinkingLevel): void {
+    this.server.setThinkingLevel(level);
+    this.remote.setThinkingLevel(level);
+  }
+
   /** Both providers keep it, so a model switch starts with the right prompt */
   async applySystemPrompt(
     prompt: string,
@@ -512,7 +523,7 @@ export class ModelRuntime {
   ): Promise<void> {
     this.systemPrompt = prompt;
     this.server.applySystemPrompt(prompt, tools);
-    this.remote.applySystemPrompt(prompt);
+    this.remote.applySystemPrompt(prompt, tools);
   }
 
   getSystemPrompt(): string {

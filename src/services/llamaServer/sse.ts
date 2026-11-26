@@ -9,7 +9,13 @@ import type { ChatProgress } from "../chatTypes.js";
 
 export interface ChatStreamChunk {
   choices?: {
-    delta?: { content?: string | null; reasoning_content?: string | null };
+    delta?: {
+      content?: string | null;
+      reasoning_content?: string | null;
+      /** A hosted gateway's name for the same (OpenRouter's form) */
+      reasoning?: string | null;
+      reasoning_details?: { text?: string; summary?: string }[] | null;
+    };
     finish_reason?: string | null;
   }[];
   usage?: { prompt_tokens: number; completion_tokens: number };
@@ -90,4 +96,25 @@ export class SseParser {
     }
     return chunks;
   }
+}
+
+/**
+ * The thinking in a stream delta, whichever name it comes under:
+ * llama-server's reasoning_content, or a gateway's reasoning or
+ * reasoning_details. Read only as reasoning_content, a hosted model thought
+ * for 37 s while the chat said "Reading the conversation…" (2026-11-16).
+ */
+export function deltaThought(
+  delta:
+    | NonNullable<NonNullable<ChatStreamChunk["choices"]>[number]["delta"]>
+    | undefined
+): string {
+  if (!delta) return "";
+  if (delta.reasoning_content) return delta.reasoning_content;
+  if (typeof delta.reasoning === "string" && delta.reasoning) {
+    return delta.reasoning;
+  }
+  return (delta.reasoning_details ?? [])
+    .map((detail) => detail?.text ?? detail?.summary ?? "")
+    .join("");
 }

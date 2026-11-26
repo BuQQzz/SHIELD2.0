@@ -432,6 +432,10 @@ export interface TurnStats {
    * over every generation in the reply. Zero retention only if each one was.
    */
   servedBy?: { provider?: string; zdr?: boolean };
+  /** What the reply's hosted requests cost, in US dollars, when known */
+  cost?: number;
+  /** The same at the provider's listed prices */
+  listedCost?: number;
 }
 
 /** One line for the whole reply: every generation in it, summed */
@@ -439,7 +443,12 @@ export function turnStats(messages: Message[]): TurnStats | null {
   let outputTokens = 0;
   let durationMs = 0;
   let servedBy: TurnStats["servedBy"];
+  let cost: number | undefined;
+  let listedCost: number | undefined;
   for (const m of messages) {
+    if (typeof m.stats?.cost === "number") cost = (cost ?? 0) + m.stats.cost;
+    if (typeof m.stats?.listedCost === "number")
+      listedCost = (listedCost ?? 0) + m.stats.listedCost;
     if (!m.stats || m.stats.outputTokens <= 0) continue;
     outputTokens += m.stats.outputTokens;
     durationMs += m.stats.durationMs;
@@ -467,5 +476,22 @@ export function turnStats(messages: Message[]): TurnStats | null {
     durationMs,
     tokensPerSecond: outputTokens / (durationMs / 1000),
     ...(servedBy ? { servedBy } : {}),
+    ...(cost !== undefined ? { cost } : {}),
+    ...(listedCost !== undefined ? { listedCost } : {}),
   };
+}
+
+/** What a conversation's hosted requests cost, in US dollars; undefined if none is known */
+export function conversationCost(
+  messages: Message[]
+): { cost: number; listedCost?: number } | undefined {
+  let cost: number | undefined;
+  let listedCost: number | undefined;
+  for (const m of messages) {
+    if (typeof m.stats?.cost === "number") cost = (cost ?? 0) + m.stats.cost;
+    if (typeof m.stats?.listedCost === "number")
+      listedCost = (listedCost ?? 0) + m.stats.listedCost;
+  }
+  if (cost === undefined) return undefined;
+  return { cost, ...(listedCost !== undefined ? { listedCost } : {}) };
 }

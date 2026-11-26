@@ -2,6 +2,7 @@ import { app, ipcMain, safeStorage } from "electron";
 import path from "path";
 import type { ModelRuntime } from "../../src/services/ModelRuntime.js";
 import { listRemoteModels } from "../../src/services/remote/remoteModels.js";
+import { setMemorySharing } from "../../src/services/LlamaServerProvider.js";
 import type {
   ProviderInput,
   ProviderTestResult,
@@ -37,6 +38,9 @@ export function registerProviderHandlers(runtime: ModelRuntime): ProviderStore {
     systemCipher
   );
   runtime.setProviderSource(store);
+  setMemorySharing((providerId, model) =>
+    store.sharesMemory(providerId, model)
+  );
 
   ipcMain.handle("providers:list", () => ({
     success: true,
@@ -73,6 +77,20 @@ export function registerProviderHandlers(runtime: ModelRuntime): ProviderStore {
         return {
           success: true,
           provider: store.setAllowedModel(id, modelId, allowed),
+        };
+      } catch (error) {
+        return failure(error);
+      }
+    }
+  );
+
+  ipcMain.handle(
+    "providers:share-memory",
+    (_event, id: string, modelId: string, shared: boolean) => {
+      try {
+        return {
+          success: true,
+          provider: store.setSharedMemory(id, modelId, shared),
         };
       } catch (error) {
         return failure(error);

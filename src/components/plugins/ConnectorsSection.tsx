@@ -537,8 +537,8 @@ function ManualDialog({
               <p className="flex items-start gap-2 text-xs text-amber-600 dark:text-amber-400">
                 <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
                 SHIELD runs this command with your account's access. Add only
-                servers you trust. Its tools still ask before they run, except
-                in modes that run everything.
+                servers you trust. Its tools ask before they run in Ask mode; in
+                Auto only the ones that delete ask.
               </p>
             </>
           )}

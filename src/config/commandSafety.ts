@@ -1,11 +1,13 @@
 /**
  * Which terminal commands may run without asking
  *
- * run_command (electron/services/terminalTool.ts) runs a command unprompted
- * in Auto, Plan and Read-only only when it can only look: git status, diff
- * and log, listing, reading and searching files. Every other command asks
- * in Auto and shows the exact command, as deletes do (decided with the
- * user, 2026-09-26).
+ * In Plan and Read-only, run_command (electron/services/terminalTool.ts)
+ * runs a command only when it can only look: git status, diff and log,
+ * listing, reading and searching files; any other is recorded, not run.
+ * In Ask and Auto every command runs and only one that deletes asks
+ * (deletingCommand.ts; the user's call, 2026-11-24, replacing the
+ * 2026-09-26 rule that asked for every command that could change
+ * anything).
  *
  * The check errs towards asking. A command it cannot fully read - a second
  * command, a redirect, a variable, an expression, a path outside the
@@ -18,6 +20,13 @@ import { hostOs, type HostOs } from "../utils/platform";
 
 export const TERMINAL_SERVER_NAME = "terminal";
 export const RUN_COMMAND_TOOL_NAME = "run_command";
+/** Background jobs (electron/services/backgroundJobs.ts): cloud models only */
+export const COMMAND_OUTPUT_TOOL_NAME = "command_output";
+export const STOP_COMMAND_TOOL_NAME = "stop_command";
+export const JOB_TOOL_NAMES = new Set([
+  COMMAND_OUTPUT_TOOL_NAME,
+  STOP_COMMAND_TOOL_NAME,
+]);
 
 /**
  * Anything that could start a second command, redirect output, expand a

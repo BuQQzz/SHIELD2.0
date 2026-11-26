@@ -29,6 +29,15 @@ import type {
 
 export type { SavedCapsule };
 
+/** Something the model started that is still running (electron/services/runningTasks.ts) */
+export interface RunningTask {
+  id: string;
+  kind: "job" | "left";
+  command: string;
+  startedAt: number;
+  processes: string[];
+}
+
 export interface ModelConfig {
   /** Library model id (src/config/models.ts) */
   id: string;
@@ -88,6 +97,10 @@ export interface Conversation {
   teamOverride?: string;
   /** What the team's agents did, for the Team panel after a restart */
   agentRuns?: AgentRunView[];
+  /** Set while a turn works; left from an earlier run, it was cut off (see types/conversation) */
+  turnRunning?: string;
+  /** The model that turn ran on */
+  turnModel?: string;
 }
 
 export interface ConversationMetadata {
@@ -123,6 +136,10 @@ export interface GenerationStats {
   durationMs: number;
   /** For a hosted model: who answered, and whether it reported zero retention */
   servedBy?: { provider?: string; zdr?: boolean };
+  /** For a hosted model with known prices: what it cost, in US dollars */
+  cost?: number;
+  /** The same at the provider's listed prices */
+  listedCost?: number;
 }
 
 /** How full the model's context window is */
@@ -223,6 +240,16 @@ export interface ProvidersAPI {
     provider?: ProviderSummary;
     error?: string;
   }>;
+  /** Share the user's memory with one model that is not held to zero retention */
+  shareMemory: (
+    id: string,
+    modelId: string,
+    shared: boolean
+  ) => Promise<{
+    success: boolean;
+    provider?: ProviderSummary;
+    error?: string;
+  }>;
 }
 
 /**
@@ -231,6 +258,22 @@ export interface ProvidersAPI {
  */
 export type ChatProgress =
   | { phase: "summarising" }
+  /**
+   * A hosted model has the request and has not written yet. It reports no
+   * reading progress, and may think for minutes without streaming it: shown
+   * as "Reading the conversation…" the whole time, it looked stuck
+   * (2026-11-16). `afterTools`: it is looking at tool results.
+   */
+  | {
+      phase: "waiting";
+      provider: string;
+      afterTools: boolean;
+      since: number;
+      /** Waiting to try again after the provider failed */
+      retry?: { attempt: number; reason: string };
+    }
+  /** A hosted model's streamed thinking, about `thought` tokens so far */
+  | { phase: "thinking"; thought: number; since: number }
   | {
       phase: "reading";
       done: number;
@@ -342,6 +385,10 @@ export interface LlamaAPI {
     prompt: string,
     tools?: ToolDefinition[]
   ) => Promise<{ success: boolean; error?: string }>;
+  /** How long the model thinks: a level from src/config/thinking.ts */
+  setThinkingLevel: (
+    level: string
+  ) => Promise<{ success: boolean; error?: string }>;
   getSystemPrompt: () => Promise<{
     success: boolean;
     prompt?: string;
@@ -429,6 +476,7 @@ export interface AppSettings {
     auditLogRetentionDays: number;
     maxToolCallsPerTurn: number;
     maxToolRounds: number;
+    spendLimit?: number;
   };
 }
 
@@ -637,6 +685,10 @@ export interface MCPAPI {
   ) => Promise<{ success: boolean; folder?: string | null; error?: string }>;
   /** Ends any command run_command is running, and what it started */
   stopCommands: () => Promise<{ success: boolean; stopped?: number }>;
+  /** What the model started that is still running (Tasks running) */
+  listTasks: () => Promise<{ success: boolean; tasks?: RunningTask[] }>;
+  /** The user stops one of them */
+  stopTask: (id: string) => Promise<{ success: boolean }>;
   /** SHIELD's memory notes (src/config/memoryNotes.ts) */
   notes: {
     /** Whose notes the open conversation uses: its folder, or the user's */

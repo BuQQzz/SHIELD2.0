@@ -16,6 +16,7 @@ import {
 import { isMutatingTool } from "@/config/toolClassification";
 import { instructionsSection, listingSection } from "@/config/agentsMd";
 import type { SystemPromptConfig, ToolDefinition } from "@/types/prompts";
+import { runProfileFor } from "@/handlers/runRules";
 
 interface UseMCPSystemPromptProps {
   isModelLoaded: boolean;
@@ -78,6 +79,7 @@ export function useMCPSystemPrompt({
     [modelCapabilities]
   );
   const nativeTools = usesNativeToolCalling(modelName ?? "");
+  const seeItThrough = runProfileFor(modelName) === "cloud";
 
   useEffect(() => {
     console.log("[MCP] System prompt effect triggered", {
@@ -126,6 +128,7 @@ export function useMCPSystemPrompt({
         availableTools: offeredTools,
         allowedPaths,
         planOnly,
+        seeItThrough,
       };
 
       const {
@@ -187,6 +190,7 @@ export function useMCPSystemPrompt({
     toolsLoading,
     allowedPaths,
     planOnly,
+    seeItThrough,
     projectInstructions,
     projectListing,
     memoryNotes,

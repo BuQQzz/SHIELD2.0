@@ -103,6 +103,16 @@ Response Style:
 // =============================================================================
 
 /**
+ * How a Code session's answer reads after the work. Answers had become a
+ * transcript: every command with its cd and 2>&1, exit codes, test counts
+ * per file and full paths, each in backticks. The user found Team and Code
+ * answers messy and unappealing (2026-11-16). The facts stay; the noise
+ * goes, unless something failed or the user asks.
+ */
+export const ANSWER_STYLE =
+  'When you answer, give the outcome, not a transcript: start with one line on what is done, then a few short points, one per change, naming files by name (not full path). Give the test result in one line, like "All 22 tests pass". Leave out the commands you ran, exit codes and per-file counts unless something failed or the user asks for them.';
+
+/**
  * With a terminal (run_command, Code sessions). Models wrote scripts they
  * never ran - Qwen's lint-scripts.ps1 crashed on the one path that mattered
  * (2026-09-26) - and reported fixes as working without testing them. Given
@@ -114,8 +124,21 @@ Response Style:
  * while removing them (g5 step 17); in the next run it seeded a temporary
  * file every time, so it knows how (2026-11-09).
  */
+/** The terminal's name: bash for a hosted model (config/bashTool.ts) */
+function terminalName(tools: { name: string }[]): string | null {
+  return tools.some((t) => t.name === "bash")
+    ? "bash"
+    : tools.some((t) => t.name === "run_command")
+      ? "run_command"
+      : null;
+}
+
+const checkYourWork = (terminal: string) =>
+  CHECK_YOUR_WORK.replace("with run_command", `with ${terminal}`);
+
 const CHECK_YOUR_WORK =
-  "After changing code, run its tests or the script with run_command when the project has a way to, and fix what fails before you answer. Read the whole output, not just the exit code: a line that says something failed means it failed. Report what the command actually showed, and name every failure you did not fix; never say something passes or works without having run it. Test with throwaway data, such as a temporary file or folder, never the user's own data files.";
+  "After changing code, run its tests or the script with run_command when the project has a way to, and fix what fails before you answer. Read the whole output, not just the exit code: a line that says something failed means it failed. Report what the command actually showed, and name every failure you did not fix; never say something passes or works without having run it. Test with throwaway data, such as a temporary file or folder, never the user's own data files. " +
+  ANSWER_STYLE;
 
 /**
  * With update_plan (Code sessions). The user found themselves asking cloud
@@ -206,10 +229,18 @@ When asked for structured data (JSON, lists, tables):
  * Native function definitions come from the runtime's chat template. Keep
  * behavioral instructions here without teaching a competing call syntax.
  */
+/**
+ * For a long request on a cloud model, which SHIELD does not nudge after
+ * each step (handlers/runRules.ts). The user can still steer or stop it.
+ */
+export const SEE_IT_THROUGH =
+  "For a request with several parts, keep working until every part is done and checked: a failed command or test is a step to fix, not a reason to stop. End your turn only when the whole request is done, or when you need the user to decide something.";
+
 export function generateNativeToolPrompt(
   tools: ToolDefinition[],
   allowedPaths: string[] = [],
-  planOnly = false
+  planOnly = false,
+  seeItThrough = false
 ): string {
   if (tools.length === 0 && !planOnly) return "";
 
@@ -242,9 +273,8 @@ Always use a full path beginning with one of these. Never guess a path such as "
       " Use write_file only to create a new file." +
       "\n- When asked to fix, change or add something, make the change with these functions. Do not show the code for the user to apply unless they ask to see it first. When code is broken, fix the broken lines with edit_file - never write a new version of the whole file. Afterwards, say in a sentence or two what you changed."
     : "";
-  const commandRule = callableTools.some((tool) => tool.name === "run_command")
-    ? `\n- ${CHECK_YOUR_WORK}`
-    : "";
+  const terminal = terminalName(callableTools);
+  const commandRule = terminal ? `\n- ${checkYourWork(terminal)}` : "";
   const planRule = callableTools.some((tool) => tool.name === "update_plan")
     ? `\n- ${PLAN_RULE}`
     : "";
@@ -256,7 +286,7 @@ Always use a full path beginning with one of these. Never guess a path such as "
 - Make a native function call, then wait for its real result. Never invent a tool result or claim success before a successful result arrives.
 - After a result arrives, either call the next function needed for the request or answer the user.
 - Do not repeat a call that already succeeded; use its result.
-- Once you can answer, answer without making another call.${editRule}${commandRule}${planRule}`
+- Once you can answer, answer without making another call.${seeItThrough && !planOnly ? `\n- ${SEE_IT_THROUGH}` : ""}${editRule}${commandRule}${planRule}`
       : "\nNo read functions are currently available. Base the plan on the information already provided and identify anything that still needs inspection.";
   const planSection = planOnly
     ? `
@@ -356,8 +386,9 @@ export function generateMCPToolPrompt(
    Use write_file only to create a new file.
 7. **MAKE THE CHANGE** - When asked to fix, change or add something, do it with edit_file or write_file. Do not show the code for the user to paste unless they ask to see it first. When code is broken, fix the broken lines with edit_file - never write a new version of the whole file. Afterwards, say in a sentence or two what you changed.`
     : "";
-  const commandRule = tools.some((t) => t.name === "run_command")
-    ? `\n${editRule ? 8 : 6}. **CHECK YOUR WORK** - ${CHECK_YOUR_WORK}`
+  const terminal = terminalName(tools);
+  const commandRule = terminal
+    ? `\n${editRule ? 8 : 6}. **CHECK YOUR WORK** - ${checkYourWork(terminal)}`
     : "";
   const planNumber = 6 + (editRule ? 2 : 0) + (commandRule ? 1 : 0);
   const planRule = tools.some((t) => t.name === "update_plan")
@@ -590,7 +621,12 @@ export function buildSystemPrompt(config: SystemPromptConfig): BuiltPrompt {
   ) {
     if (config.nativeTools) {
       parts.push(
-        generateNativeToolPrompt(tools, config.allowedPaths, config.planOnly)
+        generateNativeToolPrompt(
+          tools,
+          config.allowedPaths,
+          config.planOnly,
+          config.seeItThrough
+        )
       );
       includedModules.push(config.planOnly ? "plan-mode" : "tool-calling");
       includedModules.push("native-tools");
@@ -643,9 +679,15 @@ export function detectModelFamily(modelName: string): ModelFamily {
   return "generic";
 }
 
-/** Native tool transport is supported only for the Gemma 4 model family. */
+/**
+ * Tools go as native function definitions for Gemma 4, catalog models that
+ * set nativeToolCalls, and every hosted model. A hosted API returns structured
+ * calls; asked for SHIELD's text form instead, deepseek-v4.1-flash mixed in its
+ * own DSML markup and 5 of its calls failed in two short sessions
+ * (Experiential, 2026-11-15).
+ */
 export function usesNativeToolCalling(modelName: string): boolean {
-  if (modelName.toLowerCase().startsWith("remote:")) return false;
+  if (modelName.toLowerCase().startsWith("remote:")) return true;
   return (
     /(?:^|[^a-z0-9])gemma[-_ ]?4(?=$|[^a-z0-9])/i.test(modelName) ||
     MODEL_CATALOG.some(

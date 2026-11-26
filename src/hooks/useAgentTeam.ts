@@ -105,6 +105,8 @@ export function useAgentTeam({
 }: UseAgentTeamProps) {
   /** What the running sub-agent last did, for the UI */
   const [activity, setActivity] = useState<string | null>(null);
+  /** Agents working now: with several at once, the chat says how many */
+  const [working, setWorking] = useState(0);
 
   // Text a sub-agent's model is writing, for the Team panel
   useEffect(
@@ -119,6 +121,8 @@ export function useAgentTeam({
     async (request: ToolCallRequest): Promise<MCPToolResult> => {
       if (!isDelegateTool(request.tool)) return handleToolCallRequest(request);
       const team = teamFor(conversationId ?? "no-conversation");
+      // The turn this delegation belongs to: a newer message ends it too
+      const turn = useGenerationStore.getState().turn;
       // Agents call tools natively when the model does, as the main session
       const native = usesNativeToolCalling(modelName ?? "");
       const roleTools = (spec: {
@@ -156,11 +160,23 @@ export function useAgentTeam({
         closeSession: async (sessionId) => {
           await window.llama.agentClose(sessionId);
         },
-        execute: (call, context) =>
-          handleToolCallRequest(call, {
+        execute: async (call, context) => {
+          // Agents at the same time never change one file (parallel.ts)
+          const taken =
+            context?.runId &&
+            team.claims.claim(
+              context.runId,
+              context.role,
+              call.tool,
+              call.arguments ?? {},
+              workspaceFolder
+            );
+          if (taken) return { success: false, error: taken };
+          return handleToolCallRequest(call, {
             policy: workerPolicy,
             agent: context?.role,
-          }),
+          });
+        },
         buildPrompt: (spec) =>
           buildSystemPrompt({
             modelFamily: detectModelFamily(modelName ?? "generic"),
@@ -175,15 +191,20 @@ export function useAgentTeam({
         nativeToolsFor: (spec) => (native ? roleTools(spec) : []),
         workspaceFolder,
         readFile: readProjectFile,
-        isStopped: () => useGenerationStore.getState().stopRequested,
+        isStopped: () => useGenerationStore.getState().turnOver(turn),
         isSkipped: () => useGenerationStore.getState().skipRequested,
         takeSteer: () => useGenerationStore.getState().takeSteer(),
         onProgress: setActivity,
         onEvent: (event) => {
           const id = conversationId ?? "no-conversation";
           useTeamStore.getState().record(id, event);
+          if (event.type === "start") setWorking((n) => n + 1);
+          if (event.type === "end") setWorking((n) => Math.max(0, n - 1));
           if (event.type === "start" || event.type === "end") syncPlan(id);
-          if (event.type === "end") saveRuns(id);
+          if (event.type === "end") {
+            team.claims.release(event.runId);
+            saveRuns(id);
+          }
         },
       };
 
@@ -205,5 +226,14 @@ export function useAgentTeam({
     ]
   );
 
-  return { handleToolCall, activity };
+  // "Delegating to 4 agents · latest: coder: read_text_file words.py": with
+  // one line per agent overwriting the last, the chat named one of four
+  // agents working at once as if it were the only one (2026-11-21)
+  return {
+    handleToolCall,
+    activity:
+      working > 1
+        ? `${working} agents · latest: ${activity ?? "starting"}`
+        : activity,
+  };
 }

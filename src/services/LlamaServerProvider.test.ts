@@ -759,6 +759,59 @@ describe("LlamaServerProvider thinking in circles", () => {
   });
 });
 
+describe("LlamaServerProvider thinking in circles, asked not to think", () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  it("resends once: a model that thinks anyway is not dropped again", async () => {
+    const provider = new LlamaServerProvider();
+    Object.assign(provider, {
+      process: { exitCode: null },
+      baseUrl: "http://server",
+      contextSize: 32768,
+    });
+    const loop =
+      "Let me draft models.py again. Actually the first draft was fine. ";
+    let requests = 0;
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (_url: string, init: RequestInit) => {
+        requests++;
+        const resend = requests > 1;
+        const encoder = new TextEncoder();
+        const event = (delta: object) =>
+          encoder.encode(
+            `data: ${JSON.stringify({ choices: [{ delta }] })}\n\n`
+          );
+        // Thinks in circles both times; the resend ends after a while,
+        // as a hosted reply does at its limit
+        return new Response(
+          new ReadableStream({
+            start(controller) {
+              let sent = 0;
+              const timer = setInterval(() => {
+                if (resend && sent++ > 40) {
+                  clearInterval(timer);
+                  controller.enqueue(event({ content: "Writing models.py." }));
+                  controller.close();
+                  return;
+                }
+                controller.enqueue(event({ reasoning_content: loop }));
+              }, 1);
+              init.signal?.addEventListener("abort", () => {
+                clearInterval(timer);
+                controller.error(new DOMException("aborted", "AbortError"));
+              });
+            },
+          })
+        );
+      })
+    );
+
+    expect(await provider.chat("next step?")).toBe("Writing models.py.");
+    expect(requests).toBe(2);
+  });
+});
+
 describe("LlamaServerProvider SHIELD_SERVER_LOG", () => {
   afterEach(() => {
     vi.unstubAllGlobals();

@@ -25,7 +25,20 @@ export interface RequestStatus {
   elapsedMs: number;
   /** Since the server last reported progress: a token, thought or prompt read */
   idleMs: number;
+  /**
+   * A hosted model's request. It thinks for minutes at a high setting, and
+   * a gateway may hold the thinking back until it is done: the local rules
+   * showed "the server may have frozen" and "Restart and retry" while
+   * deepseek-v4.1-flash-1017 thought on Extra high (2026-11-16)
+   */
+  hosted?: boolean;
 }
+
+/**
+ * A hosted request with nothing at all back for this long: worth asking
+ * again. Shorter waits are thinking, which its status line counts.
+ */
+export const HOSTED_QUIET_MS = 5 * 60 * 1000;
 
 /**
  * No progress for this long: the server has probably frozen. A normal step
@@ -40,10 +53,16 @@ export const SLOW_AFTER_MS = 3 * 60 * 1000;
 const SHOW_AFTER_MS = 30 * 1000;
 
 /** What the stuck bar shows for the request in progress */
-export type StuckState = "hidden" | "timer" | "frozen" | "slow";
+/** "quiet": a hosted request with nothing back for HOSTED_QUIET_MS */
+export type StuckState = "hidden" | "timer" | "frozen" | "slow" | "quiet";
 
 export function stuckState(status: RequestStatus | null): StuckState {
   if (!status) return "hidden";
+  // No timer and no "may be stuck": the status line shows the seconds, and
+  // there is no server of the user's to restart
+  if (status.hosted) {
+    return status.idleMs >= HOSTED_QUIET_MS ? "quiet" : "hidden";
+  }
   // Summarising is one request with no live progress to watch
   if (status.phase !== "summarising" && status.idleMs >= FROZEN_AFTER_MS) {
     return "frozen";
@@ -68,6 +87,24 @@ export const NUDGE_NOTE =
  */
 export const EMPTY_REPLY_NOTE =
   "\n\n[SHIELD: your last reply to this was empty. Make your next tool call now, or, if the work is done, give your answer.]";
+
+/** A hosted model's thinking used the whole reply limit (LlamaServerProvider) */
+export const THOUGHT_OUT_NOTE =
+  "\n\n[SHIELD: your thinking used up the whole reply limit and nothing was written. Think briefly, then make the next tool call. Do the work in small steps.]";
+
+/**
+ * A hosted reply reached its output limit in the middle of a tool call
+ * (LlamaServerProvider): the cut call was not run
+ */
+export const CUT_CALL_NOTE =
+  "\n\n[SHIELD: your last reply reached the output limit in the middle of a tool call, so that call was cut off and not run. Do it in smaller pieces: write a large file in parts (write_file for the first part, then append_file for the rest), or make several smaller edits.]";
+
+/**
+ * A hosted reply whose tool call the provider lost on the way
+ * (LlamaServerProvider, replyLimits.ts callLost)
+ */
+export const LOST_CALL_NOTE =
+  "\n\n[SHIELD: your last reply ended without its tool call reaching SHIELD: the provider lost it on the way, so nothing was run. Make that tool call again.]";
 
 /** Where a skipped agent's reply was cut off */
 export const SKIPPED_BY_USER =

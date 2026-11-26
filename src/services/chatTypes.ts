@@ -25,6 +25,13 @@ export interface GenerationStats {
    * data retention. Absent for a model that runs on this machine.
    */
   servedBy?: { provider?: string; zdr?: boolean };
+  /**
+   * For a hosted model with known prices: what this request cost in US
+   * dollars, with any summary or title request made since the last one
+   */
+  cost?: number;
+  /** The same at the provider's listed prices */
+  listedCost?: number;
 }
 
 /** How full the model's context window is */
@@ -48,6 +55,24 @@ export interface ChatOptions {
    * orchestrator only routes work, and thought made a greeting take 60 s.
    */
   thinking?: boolean;
+  /**
+   * SHIELD's own resend after the thinking went round in circles: it is
+   * not watched again. A hosted model may think anyway when asked not to,
+   * and each resend was dropped the same way, with no end (GLM 5.3 Flash,
+   * 2026-11-22). A loop now runs to the reply limit instead.
+   */
+  afterLoop?: boolean;
+  /**
+   * SHIELD's own tries again after the provider failed (a rate limit, a
+   * 5xx, a dropped connection): how many so far, and since when
+   * (remote/providerRetry.ts)
+   */
+  providerRetry?: { attempt: number; since: number };
+  /**
+   * SHIELD's own thinking effort for this request, over the user's level:
+   * "low" after a hosted model thought until the reply limit
+   */
+  effort?: "low";
 }
 
 /**
@@ -57,6 +82,22 @@ export interface ChatOptions {
 export type ChatProgress =
   /** The history was too full: the model is summarising older turns */
   | { phase: "summarising" }
+  /**
+   * A hosted model has the request and has not written yet. It reports no
+   * reading progress, and may think for minutes without streaming it: shown
+   * as "Reading the conversation…" the whole time, it looked stuck
+   * (2026-11-16). `afterTools`: it is looking at tool results.
+   */
+  | {
+      phase: "waiting";
+      provider: string;
+      afterTools: boolean;
+      since: number;
+      /** Waiting to try again after the provider failed */
+      retry?: { attempt: number; reason: string };
+    }
+  /** A hosted model's streamed thinking, about `thought` tokens so far */
+  | { phase: "thinking"; thought: number; since: number }
   /** Reading the prompt (llama-server); `done` includes the `cached` part */
   | {
       phase: "reading";

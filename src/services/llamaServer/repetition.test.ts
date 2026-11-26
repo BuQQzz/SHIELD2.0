@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { isLooping, RepetitionWatch, REPEAT_WINDOW } from "./repetition";
+import {
+  HOSTED_REPEAT_TIMES,
+  HOSTED_REPEAT_WINDOW,
+  isLooping,
+  RepetitionWatch,
+  REPEAT_WINDOW,
+} from "./repetition";
 
 const cycle =
   "Wait, the file is calc.py, not calcul.py. Let me read calc.py again. Actually, I listed the folder and saw calc.py, so I should read it. ";
@@ -58,5 +64,44 @@ describe("RepetitionWatch", () => {
     }
     expect(firedAt).toBeGreaterThan(cycle.length * 2);
     expect(firedAt).toBeLessThan(cycle.length * 5);
+  });
+});
+
+describe("isLooping, a hosted model's stricter test", () => {
+  const strict = (text: string) =>
+    isLooping(text, HOSTED_REPEAT_WINDOW, HOSTED_REPEAT_TIMES);
+
+  it("lets a file drafted three times through, and still catches a loop", () => {
+    const draft =
+      "def add(self, item):\n    cur = self.conn.execute('INSERT INTO items (sku, name, quantity) VALUES (?, ?, ?)', (item.sku, item.name, item.quantity))\n    self.conn.commit()\n    return cur.lastrowid\n";
+    const thinking = [1, 2, 3]
+      .map(
+        (n) =>
+          `Draft ${n} of storage.add, with a change after it:\n${draft}Hmm, check ${n}.\n`
+      )
+      .join("");
+    // As it streams, a piece at a time
+    const fires = (watch: RepetitionWatch) => {
+      for (let i = 0; i < thinking.length; i += 20)
+        if (watch.push(thinking.slice(i, i + 20))) return true;
+      return false;
+    };
+    expect(fires(new RepetitionWatch())).toBe(true);
+    expect(
+      fires(new RepetitionWatch(HOSTED_REPEAT_WINDOW, HOSTED_REPEAT_TIMES))
+    ).toBe(false);
+    expect(strict(cycle.repeat(20))).toBe(true);
+  });
+
+  it("is what a watch made with it uses", () => {
+    const watch = new RepetitionWatch(
+      HOSTED_REPEAT_WINDOW,
+      HOSTED_REPEAT_TIMES
+    );
+    let fired = false;
+    for (let i = 0; i < 4 && !fired; i++) fired = watch.push(cycle.repeat(2));
+    expect(fired).toBe(false);
+    for (let i = 0; i < 20 && !fired; i++) fired = watch.push(cycle);
+    expect(fired).toBe(true);
   });
 });

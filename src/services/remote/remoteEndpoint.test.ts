@@ -7,6 +7,9 @@ import {
   describeHttpError,
   gatewayPosture,
   isRemoteModelId,
+  markThinksAnyway,
+  thinksAnyway,
+  memorySharedWith,
   normaliseBaseUrl,
   parseRemoteModelId,
   remoteModelId,
@@ -116,7 +119,38 @@ describe("adaptRequestBody", () => {
       temperature: 0.7,
       max_tokens: 512,
       top_p: 0.9,
+      // llama-server's "no thinking" switch, as the gateway takes it
+      reasoning: { effort: "none" },
     });
+  });
+
+  it("sends no thinking as the least effort to a model that thinks anyway", () => {
+    const glm = { ...endpoint, providerId: "p-glm", model: "glm-flash" };
+    expect(adaptRequestBody(llamaBody, glm).reasoning).toEqual({
+      effort: "none",
+    });
+    markThinksAnyway(glm);
+    expect(adaptRequestBody(llamaBody, glm).reasoning).toEqual({
+      effort: "low",
+    });
+    // Kept for the model, also on the endpoint a reload makes
+    expect(thinksAnyway({ ...glm, thinksAnyway: undefined })).toBe(true);
+    expect(
+      thinksAnyway({ ...glm, model: "other", thinksAnyway: undefined })
+    ).toBe(false);
+  });
+
+  it("sends a thinking effort as the gateway's reasoning setting", () => {
+    expect(
+      adaptRequestBody({ messages: [], reasoning_effort: "high" }, endpoint)
+        .reasoning
+    ).toEqual({ effort: "high" });
+  });
+
+  it("leaves the reasoning setting out once the provider refused it", () => {
+    expect(
+      adaptRequestBody(llamaBody, { ...endpoint, reasoningRejected: true })
+    ).not.toHaveProperty("reasoning");
   });
 
   it("asks for zero data retention when it is required", () => {
@@ -138,6 +172,80 @@ describe("adaptRequestBody", () => {
       "model",
       "provider",
     ]);
+  });
+});
+
+describe("thinking sent back within a request", () => {
+  it("is left out of messages for a hosted provider", () => {
+    const body = {
+      messages: [
+        { role: "user", content: "fix it" },
+        {
+          role: "assistant",
+          content: "<tool_call>...</tool_call>",
+          reasoning_content: "the bug is on line 3",
+        },
+        { role: "user", content: "<tool_result>ok</tool_result>" },
+      ],
+    };
+    const adapted = adaptRequestBody(body, endpoint) as {
+      messages: Record<string, unknown>[];
+    };
+    expect(adapted.messages.some((m) => "reasoning_content" in m)).toBe(false);
+    expect(adapted.messages[1]).toEqual({
+      role: "assistant",
+      content: "<tool_call>...</tool_call>",
+    });
+    // The original request is not changed
+    expect("reasoning_content" in body.messages[1]!).toBe(true);
+  });
+});
+
+describe("native tool calls", () => {
+  const tools = [
+    {
+      type: "function",
+      function: { name: "read_text_file", description: "Read", parameters: {} },
+    },
+  ];
+
+  it("sends the tools and the calls in the history", () => {
+    const body = {
+      messages: [
+        { role: "user", content: "read a.py" },
+        {
+          role: "assistant",
+          content: "",
+          tool_calls: [
+            {
+              id: "call_1_0",
+              type: "function",
+              function: {
+                name: "read_text_file",
+                arguments: '{"path":"a.py"}',
+              },
+            },
+          ],
+          reasoning: "read it first",
+        },
+        { role: "tool", tool_call_id: "call_1_0", content: "print(1)" },
+      ],
+      tools,
+      tool_choice: "auto",
+    };
+    const adapted = adaptRequestBody(body, endpoint) as {
+      messages: Record<string, unknown>[];
+      tools: unknown;
+      tool_choice: unknown;
+    };
+    expect(adapted.tools).toEqual(tools);
+    expect(adapted.tool_choice).toBe("auto");
+    expect(adapted.messages[1]).toEqual({
+      role: "assistant",
+      content: "",
+      tool_calls: body.messages[1]!.tool_calls,
+    });
+    expect(adapted.messages[2]).toEqual(body.messages[2]);
   });
 });
 
@@ -211,5 +319,25 @@ describe("describeHttpError", () => {
     expect(describeHttpError("X", 400, "a".repeat(2000)).length).toBeLessThan(
       400
     );
+  });
+});
+
+describe("memorySharedWith", () => {
+  it("shares with zero-retention models and the ones the user chose", () => {
+    expect(memorySharedWith({ requireZdr: true }, "m")).toBe(true);
+    // Allowed without a zero-retention route: no longer held to it
+    expect(memorySharedWith({ requireZdr: true, allowNoZdr: ["m"] }, "m")).toBe(
+      false
+    );
+    expect(memorySharedWith({ requireZdr: false }, "m")).toBe(false);
+    expect(
+      memorySharedWith({ requireZdr: false, shareMemory: ["m"] }, "m")
+    ).toBe(true);
+    expect(
+      memorySharedWith(
+        { requireZdr: true, allowNoZdr: ["m"], shareMemory: ["m"] },
+        "m"
+      )
+    ).toBe(true);
   });
 });

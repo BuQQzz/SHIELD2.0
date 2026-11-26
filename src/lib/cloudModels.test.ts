@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { cloudLine, cloudModelOptions } from "./cloudModels";
+import { cloudLine, cloudModelOptions, sharesMemory } from "./cloudModels";
 import { canHostAgents, isRuntimeAvailable } from "@/config/models";
 import { teamAvailability } from "@/agents/teamFit";
 import { isCodingModel } from "./sessions";
@@ -177,9 +177,55 @@ describe("a hosted model among the app's rules", () => {
     expect(isCodingModel(option?.id)).toBe(true);
   });
 
-  it("gets the generic prompt, whatever the model is called", () => {
+  it("gets the generic prompt and native tool calls, whatever the model is called", () => {
     expect(detectModelFamily(option!.name)).toBe("generic");
-    expect(usesNativeToolCalling(option!.name)).toBe(false);
+    expect(usesNativeToolCalling(option!.name)).toBe(true);
     expect(detectModelFamily("Qwen3 Coder 30B")).toBe("qwen");
+  });
+});
+
+describe("sharesMemory", () => {
+  const models = { "exp-1": { models: [{ id: "deepseek-v4", zdr: true }] } };
+  const option = (overrides: Partial<ProviderSummary>) =>
+    cloudModelOptions([provider(overrides)], models)[0];
+
+  it("shares with local models and hosted ones held to zero retention", () => {
+    expect(sharesMemory({})).toBe(true);
+    expect(sharesMemory(option({ requireZdr: true }))).toBe(true);
+  });
+
+  it("does not share with a model whose requests are not held to it", () => {
+    expect(sharesMemory(option({ requireZdr: false }))).toBe(false);
+    // Allowed without zero retention: its requests do not ask for it
+    expect(
+      sharesMemory(option({ requireZdr: true, allowNoZdr: ["deepseek-v4"] }))
+    ).toBe(false);
+  });
+
+  it("shares when the user chose to, for that model only", () => {
+    expect(
+      sharesMemory(option({ requireZdr: false, shareMemory: ["deepseek-v4"] }))
+    ).toBe(true);
+    expect(
+      sharesMemory(option({ requireZdr: false, shareMemory: ["other"] }))
+    ).toBe(false);
+  });
+});
+
+describe("the hosted list", () => {
+  it("leaves out models that do not chat, unless one is loaded", () => {
+    const fetched = {
+      "exp-1": {
+        models: [{ id: "deepseek-v4" }, { id: "tts-1", chat: false }],
+      },
+    };
+    expect(
+      cloudModelOptions([provider()], fetched).map((o) => o.displayName)
+    ).toEqual(["deepseek-v4"]);
+    expect(
+      cloudModelOptions([provider()], fetched, {
+        id: "remote:exp-1:tts-1",
+      }).map((o) => o.displayName)
+    ).toContain("tts-1");
   });
 });

@@ -112,6 +112,11 @@ describe("TeamPanel", () => {
       end("h1")
     );
     const detail = screen.getByTestId("agent-detail");
+    // Finished: the result first, its activity folded until opened
+    expect(
+      within(detail).queryByText("Found it: line 2 subtracts.")
+    ).toBeNull();
+    fireEvent.click(within(detail).getByRole("button", { name: /Activity/ }));
     expect(
       within(detail).getByText("Found it: line 2 subtracts.")
     ).toBeTruthy();
@@ -119,7 +124,7 @@ describe("TeamPanel", () => {
     expect(within(detail).getByText("@@ -1 +1 @@ diff")).toBeTruthy();
     expect(within(detail).getByText("h1 summary")).toBeTruthy();
     expect(within(detail).getByText("Checked by SHIELD")).toBeTruthy();
-    expect(within(detail).getByText("- files: calc.py edited")).toBeTruthy();
+    expect(within(detail).getByText("files: calc.py edited")).toBeTruthy();
     expect(within(detail).getByText("Done")).toBeTruthy();
   });
 
@@ -145,6 +150,7 @@ describe("TeamPanel", () => {
       { type: "checkpoint", runId: "h2", percent: 72 },
       { ...end("h2", "PARTIAL"), reason: "its context reached 70%" }
     );
+    fireEvent.click(screen.getByRole("button", { name: /Activity/ }));
     expect(screen.getByText(/not allowed/)).toBeTruthy();
     expect(screen.getByText(/reached the checkpoint/)).toBeTruthy();
     expect(screen.getByText("its context reached 70%")).toBeTruthy();
@@ -240,5 +246,20 @@ describe("TeamPanel", () => {
     cleanup();
     render(<TeamPanel conversationId="another" teamMode />);
     expect(screen.getByText(/No agents yet/)).toBeTruthy();
+  });
+
+  it("shows an agent's brief first, and its full report on request", () => {
+    panel();
+    record(coder, {
+      ...end("h1"),
+      summary:
+        "Fixed the sign in calc.py.\n\nThe long story of how it was found.",
+      brief: "Fixed the sign in calc.py.",
+    });
+    const result = screen.getByTestId("agent-result");
+    expect(within(result).getByText("Fixed the sign in calc.py.")).toBeTruthy();
+    expect(within(result).queryByText(/long story/)).toBeNull();
+    fireEvent.click(within(result).getByText("Show the full report"));
+    expect(within(result).getByText(/long story/)).toBeTruthy();
   });
 });

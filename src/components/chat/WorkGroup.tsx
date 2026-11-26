@@ -18,6 +18,7 @@ import { stripToolCallMarkup } from "@/handlers/toolCallParsing";
 import { useGenerationStore } from "@/store/generationStore";
 import { useSummaryFocus } from "@/stores/summary-focus-store";
 import { AnimatedCount } from "./AnimatedCount";
+import { HostedWaitLabel } from "./HostedWaitLabel";
 import { SummaryStep, ToolStep } from "./ToolStep";
 import { stepLabel, workLabel, type WorkItem } from "./turns";
 
@@ -79,6 +80,7 @@ function useLiveLabel(
   live: LiveWork | null | undefined
 ): { key: string; text: ReactNode } | null {
   const progress = useGenerationStore((state) => state.progress);
+  const hosted = useGenerationStore((state) => state.hosted);
   const tool = useHeldTool(live?.runningTool);
   if (!live) return null;
   if (tool) {
@@ -90,6 +92,32 @@ function useLiveLabel(
   if (!live.busy) return null;
   if (progress?.phase === "summarising") {
     return { key: "summarising", text: "Summarising earlier turns…" };
+  }
+  // A hosted model: its streamed thinking, else what it is waiting on
+  if (progress?.phase === "thinking") {
+    return {
+      key: "thinking",
+      text: (
+        <>
+          Thinking · ↓{" "}
+          <AnimatedCount value={progress.thought} format={formatTokens} />{" "}
+          tokens…
+        </>
+      ),
+    };
+  }
+  if (progress?.phase === "waiting") {
+    return {
+      key: "waiting",
+      text: (
+        <HostedWaitLabel
+          provider={progress.provider}
+          afterTools={progress.afterTools}
+          since={progress.since}
+          retry={progress.retry}
+        />
+      ),
+    };
   }
   if (progress?.phase === "writing" && progress.generated > 2) {
     return {
@@ -117,6 +145,8 @@ function useLiveLabel(
       ),
     };
   }
+  // Between a hosted model's steps: nothing it reports to name
+  if (hosted) return { key: "working", text: "Working…" };
   return { key: "reading", text: "Reading the conversation…" };
 }
 

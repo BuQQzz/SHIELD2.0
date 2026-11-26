@@ -71,6 +71,7 @@ describe("LlamaServerProvider on a hosted model", () => {
     vi.spyOn(console, "log").mockImplementation(() => {});
   });
   afterEach(() => {
+    vi.unstubAllEnvs();
     vi.unstubAllGlobals();
     vi.restoreAllMocks();
   });
@@ -106,7 +107,8 @@ describe("LlamaServerProvider on a hosted model", () => {
       model: "deepseek-v4",
       stream: true,
       temperature: 0.2,
-      max_tokens: 100,
+      // Raised to the hosted floor: its thinking counts against it
+      max_tokens: 32768,
       provider: { zdr: true },
     });
     expect(request?.body.messages).toEqual([
@@ -193,6 +195,362 @@ describe("LlamaServerProvider on a hosted model", () => {
     expect((error as Error).message).not.toContain("xpl_");
   });
 
+  it("tries again after a rate limit, saying so, and keeps the chat as one turn", async () => {
+    vi.spyOn(Math, "random").mockReturnValue(0); // shortest waits
+    let calls = 0;
+    const ok = fakeProvider(zdrHeaders, "Done after the wait.");
+    const real = globalThis.fetch as unknown as (
+      url: string,
+      init: RequestInit
+    ) => Promise<Response>;
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: string, init: RequestInit) => {
+        calls++;
+        if (calls === 1)
+          return new Response(JSON.stringify({ error: "slow down" }), {
+            status: 429,
+            headers: { "retry-after": "0" },
+          });
+        if (calls === 2) {
+          throw Object.assign(new TypeError("fetch failed"), {
+            cause: Object.assign(new Error("reset"), { code: "ECONNRESET" }),
+          });
+        }
+        return real(url, init);
+      })
+    );
+    const provider = new LlamaServerProvider();
+    await provider.attach(endpoint, "p");
+    const progress: unknown[] = [];
+    const reply = await provider.chat("hi", {
+      onProgress: (p) => progress.push(p),
+    });
+    expect(reply).toBe("Done after the wait.");
+    expect(calls).toBe(3);
+    expect(ok).toHaveLength(1);
+    expect(progress).toContainEqual(
+      expect.objectContaining({
+        phase: "waiting",
+        retry: { attempt: 1, reason: "Rate limited" },
+      })
+    );
+    expect(progress).toContainEqual(
+      expect.objectContaining({
+        retry: { attempt: 2, reason: "Connection dropped" },
+      })
+    );
+    // One user message and one reply: the failed tries left nothing behind
+    const history = (provider as unknown as { history: unknown[] }).history;
+    expect(history).toHaveLength(2);
+  }, 15_000);
+
+  it("asks once more at low effort when thinking used the whole reply, then says so", async () => {
+    const bodies: Record<string, unknown>[] = [];
+    let thoughtOut = 2;
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (_url: string, init: RequestInit) => {
+        const body = JSON.parse(init.body as string) as Record<string, unknown>;
+        bodies.push(body);
+        const events =
+          thoughtOut-- > 0
+            ? [
+                {
+                  choices: [
+                    { delta: { reasoning_content: "hmm ".repeat(50) } },
+                  ],
+                },
+                { choices: [{ delta: {}, finish_reason: "length" }] },
+              ]
+            : [{ choices: [{ delta: { content: "Writing models.py." } }] }];
+        return new Response(
+          [...events.map((e) => `data: ${JSON.stringify(e)}`), "data: [DONE]"]
+            .map((line) => `${line}\n\n`)
+            .join(""),
+          { headers: zdrHeaders }
+        );
+      })
+    );
+    const provider = new LlamaServerProvider();
+    await provider.attach(endpoint, "p");
+    // Thought out once: sent again at low effort with the note, and answered
+    thoughtOut = 1;
+    expect(await provider.chat("build it")).toBe("Writing models.py.");
+    expect(bodies).toHaveLength(2);
+    expect(bodies[1]!.reasoning).toEqual({ effort: "low" });
+    const last = (bodies[1]!.messages as { content: string }[]).at(-1)!;
+    expect(last.content).toContain("whole reply limit");
+    // Remembered for this model on Default: the next request thinks low
+    expect(bodies[2]).toBeUndefined();
+    thoughtOut = 0;
+    await provider.chat("go on");
+    expect(bodies[2]!.reasoning).toEqual({ effort: "low" });
+    // Thought out both times: said plainly, not an empty turn
+    thoughtOut = 2;
+    await expect(provider.chat("next")).rejects.toThrow(
+      /whole reply on thinking, twice/
+    );
+  });
+
+  it("drops a call cut off by the reply limit and asks once for smaller pieces", async () => {
+    const bodies: Sent["body"][] = [];
+    let cut = 1;
+    const piece = (args: string, name?: string) => ({
+      choices: [
+        {
+          delta: {
+            tool_calls: [{ index: 0, function: { name, arguments: args } }],
+          },
+        },
+      ],
+    });
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (_url: string, init: RequestInit) => {
+        bodies.push(JSON.parse(init.body as string) as Sent["body"]);
+        const events =
+          cut-- > 0
+            ? [
+                piece(
+                  '{"path":"/p/big.js","content":"line 1\\nline',
+                  "write_file"
+                ),
+                { choices: [{ delta: {}, finish_reason: "length" }] },
+              ]
+            : [
+                piece('{"path":"/p/big.js","content":"part 1"}', "write_file"),
+                { choices: [{ delta: {}, finish_reason: "tool_calls" }] },
+              ];
+        return new Response(
+          [...events.map((e) => `data: ${JSON.stringify(e)}`), "data: [DONE]"]
+            .map((line) => `${line}\n\n`)
+            .join(""),
+          { headers: zdrHeaders }
+        );
+      })
+    );
+    const provider = new LlamaServerProvider();
+    await provider.attach(endpoint, "p");
+    provider.applySystemPrompt("p", [
+      {
+        name: "write_file",
+        description: "Write",
+        inputSchema: { type: "object" },
+      },
+    ]);
+    const reply = await provider.chat("write big.js");
+    expect(bodies).toHaveLength(2);
+    expect(bodies[1]!.messages.at(-1)!.content).toContain(
+      "cut off and not run"
+    );
+    expect(reply).toContain('"content":"part 1"}');
+    expect(reply).not.toContain("line 1");
+    // Cut both times: said plainly
+    cut = 2;
+    await expect(provider.chat("write more")).rejects.toThrow(
+      /reply limit in the middle of a tool call, twice/
+    );
+  });
+
+  it("takes an empty reply whose tokens went into an unseen call as a cut call", async () => {
+    // At the limit: 2,000 of 2,000 tokens
+    vi.stubEnv("SHIELD_HOSTED_MAX_TOKENS", "2000");
+    const bodies: Sent["body"][] = [];
+    let dropped = 1;
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (_url: string, init: RequestInit) => {
+        bodies.push(JSON.parse(init.body as string) as Sent["body"]);
+        const events =
+          dropped-- > 0
+            ? [
+                { choices: [{ delta: { reasoning_content: "Plan it." } }] },
+                { choices: [{ delta: {}, finish_reason: "length" }] },
+                {
+                  choices: [],
+                  usage: { prompt_tokens: 50, completion_tokens: 2000 },
+                },
+              ]
+            : [{ choices: [{ delta: { content: "Writing it in parts." } }] }];
+        return new Response(
+          [...events.map((e) => `data: ${JSON.stringify(e)}`), "data: [DONE]"]
+            .map((line) => `${line}\n\n`)
+            .join(""),
+          { headers: zdrHeaders }
+        );
+      })
+    );
+    const provider = new LlamaServerProvider();
+    await provider.attach(endpoint, "p");
+    expect(await provider.chat("write words.py")).toBe("Writing it in parts.");
+    expect(bodies).toHaveLength(2);
+    const last = bodies[1]!.messages.at(-1)!.content;
+    expect(last).toContain("cut off and not run");
+    expect(last).not.toContain("whole reply limit");
+  });
+
+  it("asks again for a call the provider lost on the way", async () => {
+    const bodies: Sent["body"][] = [];
+    let lost = 1;
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (_url: string, init: RequestInit) => {
+        bodies.push(JSON.parse(init.body as string) as Sent["body"]);
+        const events =
+          lost-- > 0
+            ? [
+                {
+                  choices: [
+                    { delta: { content: "Creating notes.txt with one line:" } },
+                  ],
+                },
+                { choices: [{ delta: {}, finish_reason: "stop" }] },
+                {
+                  choices: [],
+                  usage: {
+                    prompt_tokens: 50,
+                    completion_tokens: 222,
+                    completion_tokens_details: { reasoning_tokens: 0 },
+                  },
+                },
+              ]
+            : [{ choices: [{ delta: { content: "Made it." } }] }];
+        return new Response(
+          [...events.map((e) => `data: ${JSON.stringify(e)}`), "data: [DONE]"]
+            .map((line) => `${line}\n\n`)
+            .join(""),
+          { headers: zdrHeaders }
+        );
+      })
+    );
+    const provider = new LlamaServerProvider();
+    await provider.attach(endpoint, "p");
+    expect(await provider.chat("next step")).toBe("Made it.");
+    expect(bodies).toHaveLength(2);
+    expect(bodies[1]!.messages.at(-1)!.content).toContain(
+      "the provider lost it on the way"
+    );
+  });
+
+  it("sends each note once, so a provider that keeps losing calls cannot loop", async () => {
+    let requests = 0;
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => {
+        requests++;
+        const events = [
+          { choices: [{ delta: {}, finish_reason: "length" }] },
+          {
+            choices: [],
+            usage: {
+              prompt_tokens: 50,
+              completion_tokens: 46,
+              completion_tokens_details: { reasoning_tokens: 0 },
+            },
+          },
+        ];
+        return new Response(
+          [...events.map((e) => `data: ${JSON.stringify(e)}`), "data: [DONE]"]
+            .map((line) => `${line}\n\n`)
+            .join(""),
+          { headers: zdrHeaders }
+        );
+      })
+    );
+    const provider = new LlamaServerProvider();
+    await provider.attach(endpoint, "p");
+    await expect(provider.chat("next step")).rejects.toThrow(
+      /keeps ending deepseek-v4's replies early \(at 46 of 32768 tokens\)/
+    );
+    // The first try, the lost-call note, the empty-reply note
+    expect(requests).toBe(3);
+  });
+
+  it("makes room and sends once more when the provider says the prompt is too long", async () => {
+    const sent = fakeProvider(zdrHeaders, "Fits now.");
+    const real = globalThis.fetch as unknown as (
+      url: string,
+      init: RequestInit
+    ) => Promise<Response>;
+    let refused = 1;
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: string, init: RequestInit) => {
+        const body = JSON.parse(init.body as string) as { stream?: boolean };
+        if (body.stream && refused-- > 0)
+          return new Response(
+            JSON.stringify({
+              error: {
+                message:
+                  "This endpoint's maximum context length is 24000 tokens. However, you requested about 30000 tokens.",
+              },
+            }),
+            { status: 400 }
+          );
+        return real(url, init);
+      })
+    );
+    const provider = new LlamaServerProvider();
+    await provider.attach(endpoint, "p");
+    const history: { role: "user" | "assistant"; content: string }[] = [];
+    for (let i = 0; i < 8; i++) {
+      history.push(
+        { role: "user", content: `step ${i} ` + "x".repeat(8000) },
+        { role: "assistant", content: `did step ${i}` }
+      );
+    }
+    provider.setChatHistory(
+      history as Parameters<typeof provider.setChatHistory>[0]
+    );
+    expect(await provider.chat("next")).toBe("Fits now.");
+    // The provider's own window from now on
+    expect(provider.getContextSize()).toBe(24000);
+    // The request that went through was smaller than the refused one
+    const last = sent.filter((s) => s.body.stream).at(-1)!;
+    expect(JSON.stringify(last.body.messages).length).toBeLessThan(64000);
+    // Refused again after making room: said plainly
+    refused = 2;
+    await expect(provider.chat("again")).rejects.toThrow(
+      /too long for deepseek-v4, even after making room/
+    );
+  });
+
+  it("does not try again a request the provider refused as wrong", async () => {
+    let calls = 0;
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => {
+        calls++;
+        return new Response("{}", { status: 400 });
+      })
+    );
+    const provider = new LlamaServerProvider();
+    await provider.attach(endpoint, "p");
+    await expect(provider.chat("hi")).rejects.toThrow(/HTTP 400/);
+    expect(calls).toBe(1);
+  });
+
+  it("stops waiting to try again when the user presses Stop", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(
+        async () =>
+          new Response("{}", { status: 503, headers: { "retry-after": "60" } })
+      )
+    );
+    const provider = new LlamaServerProvider();
+    await provider.attach(endpoint, "p");
+    const stop = new AbortController();
+    const reply = provider.chat("hi", {
+      signal: stop.signal,
+      onProgress: (p) => {
+        if (p.phase === "waiting" && p.retry) stop.abort();
+      },
+    });
+    await expect(reply).resolves.toBe("");
+  });
+
   it("sends a title request the same way, and drops it if not confirmed", async () => {
     const sent = fakeProvider(zdrHeaders, "ok", "Weather in Paris");
     const provider = new LlamaServerProvider();
@@ -264,6 +622,50 @@ describe("LlamaServerProvider on a hosted model", () => {
     expect(sent[0]?.body.provider).toEqual({ zdr: true });
   });
 
+  it("puts an agent's cost on the main session's next reply", async () => {
+    const sent = fakeProvider(zdrHeaders);
+    const provider = new LlamaServerProvider();
+    await provider.attach(
+      { ...endpoint, pricing: { input: 1, output: 1 } },
+      "orchestrator"
+    );
+    const agent = provider.fork("coder", { keepWholeHistory: true });
+    await agent.chat("write it");
+    // 120 + 6 tokens at $1 per million each
+    expect(agent.getLastStats()?.cost).toBeUndefined();
+    await provider.chat("go on");
+    expect(provider.getLastStats()?.cost).toBeCloseTo(2 * 126e-6, 12);
+    expect(sent).toHaveLength(2);
+  });
+
+  it("sends the user's thinking level, and goes on without it when refused", async () => {
+    const sent: Sent["body"][] = [];
+    let refuse = true;
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (_url: string, init: RequestInit) => {
+        const body = JSON.parse(init.body as string) as Sent["body"];
+        sent.push(body);
+        if (refuse) {
+          refuse = false;
+          return new Response('{"error":"reasoning effort not supported"}', {
+            status: 400,
+          });
+        }
+        return new Response(
+          `data: ${JSON.stringify({ choices: [{ delta: { content: "ok" } }] })}\n\ndata: [DONE]\n\n`,
+          { headers: zdrHeaders }
+        );
+      })
+    );
+    const provider = new LlamaServerProvider();
+    await provider.attach({ ...endpoint }, "You are SHIELD.");
+    provider.setThinkingLevel("max");
+    expect(await provider.chat("hi")).toBe("ok");
+    expect(sent[0]?.reasoning).toEqual({ effort: "max" });
+    expect(sent[1]).not.toHaveProperty("reasoning");
+  });
+
   it("sizes the context from estimates, asking the provider for no tokenizer", async () => {
     vi.stubGlobal(
       "fetch",
@@ -280,6 +682,61 @@ describe("LlamaServerProvider on a hosted model", () => {
     const breakdown = await provider.getContextBreakdown();
     expect(breakdown?.size).toBe(32768);
     expect(breakdown?.used).toBeGreaterThan(150);
+  });
+
+  it("tidies a long chat at 128K though the window is larger, and writes no summary", async () => {
+    const sent = fakeProvider(zdrHeaders);
+    const provider = new LlamaServerProvider();
+    await provider.attach(
+      { ...endpoint, contextSize: 655360 },
+      "You are SHIELD."
+    );
+    const call = (file: string) =>
+      `<tool_call>\n<server>filesystem</server>\n<tool>read_text_file</tool>\n<arguments>{"path":"C:/p/${file}"}</arguments>\n</tool_call>`;
+    const result = (body: string) =>
+      `<tool_result trusted="false">\n<tool>read_text_file</tool>\n<result>\n${body}\n</result>\n</tool_result>`;
+    // ~120K tokens: past 60% of 128K, far inside 60% of the window
+    const history: { role: "user" | "assistant"; content: string }[] = [
+      { role: "user", content: "read the files" },
+    ];
+    for (const file of ["a", "b", "c", "d", "e", "f"]) {
+      history.push(
+        { role: "assistant", content: call(`${file}.js`) },
+        { role: "user", content: result(file.repeat(60000)) }
+      );
+    }
+    history.push({ role: "assistant", content: "Read them all." });
+    provider.setChatHistory(
+      history as Parameters<typeof provider.setChatHistory>[0]
+    );
+    await provider.chat("thanks");
+
+    // One streamed request: no summary was asked for
+    expect(sent).toHaveLength(1);
+    const turns = sent[0]!.body.messages.slice(1).map((m) => m.content);
+    expect(turns[2]).toContain("removed from your context to save space");
+    expect(turns.at(-3)).toContain("f".repeat(60000));
+  });
+
+  it("asks a hosted model for a long-task note, with room for it", async () => {
+    const sent = fakeProvider(zdrHeaders, "Next step.", "State: half done");
+    const provider = new LlamaServerProvider();
+    await provider.attach({ ...endpoint, contextSize: 8000 }, "p");
+    const history: { role: "user" | "assistant"; content: string }[] = [];
+    for (let i = 0; i < 10; i++) {
+      history.push(
+        { role: "user", content: `part ${i} ` + "x".repeat(2500) },
+        { role: "assistant", content: `did part ${i} ` + "y".repeat(1500) }
+      );
+    }
+    provider.setChatHistory(
+      history as Parameters<typeof provider.setChatHistory>[0]
+    );
+    await provider.chat("go on");
+    const note = sent.find((s) => !s.body.stream)!;
+    expect(note.body.max_tokens).toBe(4000);
+    expect(note.body.messages.at(-1)!.content).toContain("Checklist:");
+    expect(note.body.messages.at(-1)!.content).toContain("Failing:");
   });
 
   it("has no server to restart: a restart leaves the chat as it is", async () => {

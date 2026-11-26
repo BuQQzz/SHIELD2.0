@@ -288,6 +288,21 @@ describe("cleanNote", () => {
       "I need to explain how the components work together."
     );
   });
+
+  // The long-task lines were dropped as unknown: both DeepSeek and Gemini
+  // notes came back with only the five older lines (2026-11-23)
+  it("keeps a long-task note's checklist and failing lines", () => {
+    const note = [
+      "State: tests written, 7 failing.",
+      "Checklist: 1 done, 2 done, 3 not done.",
+      "Failing: test_history (expected 2 entries, got 4).",
+      "Decisions: none",
+      "Next: fix history tests.",
+      "Offered: none",
+      "Facts: run python3 -m unittest.",
+    ].join("\n");
+    expect(cleanNote(note)).toBe(note);
+  });
 });
 
 describe("renderCapsule", () => {
@@ -392,6 +407,38 @@ describe("noteRequest", () => {
     expect(noteRequest("and what about MCP?")).toContain(
       "The user's next message comes right after this note."
     );
+  });
+
+  it("asks a hosted model on a long task for its checklist and failures", () => {
+    const local = noteRequest("next");
+    expect(local).toContain("as five short lines");
+    expect(local).not.toContain("Checklist:");
+    const hosted = noteRequest("next", [], true);
+    expect(hosted).toContain("as seven short lines");
+    expect(hosted).toContain("Checklist: every part of the user's request");
+    expect(hosted).toContain("Failing:");
+    expect(noteRequest("next", ["a note"], true)).toContain(
+      "as eight short lines"
+    );
+  });
+});
+
+describe("summariseOldest and a busy provider", () => {
+  it("passes the busy provider up instead of dropping the note", async () => {
+    const { ProviderBusyError } = await import("./remote/providerRetry");
+    const { summariseOldest } = await import("./taskCapsule");
+    const history: HistoryEntry[] = [];
+    for (let i = 0; i < 12; i++) {
+      history.push(
+        { role: "user", content: `step ${i} ` + "x".repeat(3000) },
+        { role: "assistant", content: `did ${i} ` + "y".repeat(1500) }
+      );
+    }
+    await expect(
+      summariseOldest(history, null, 6000, async () => {
+        throw new ProviderBusyError("busy", 503);
+      })
+    ).rejects.toThrow("busy");
   });
 });
 
@@ -718,5 +765,68 @@ describe("keepCharsFor", () => {
 
   it("always keeps a little, however small the window", () => {
     expect(keepCharsFor(8192, 20_000, 0.4)).toBeCloseTo(8192 * 3 * 0.1);
+  });
+});
+
+describe("the plan in the capsule", () => {
+  const planCall = (plan: { step: string; status: string }[]) =>
+    `<tool_call>\n<server>plan</server>\n<tool>update_plan</tool>\n<arguments>${JSON.stringify({ plan })}</arguments>\n</tool_call>`;
+
+  it("keeps the last removed update_plan and shows it before the note", () => {
+    const older: HistoryEntry[] = [
+      { role: "user", content: "build kanban" },
+      {
+        role: "assistant",
+        content: planCall([{ step: "models", status: "in_progress" }]),
+      },
+      { role: "user", content: "<tool_result>ok</tool_result>" },
+      {
+        role: "assistant",
+        content: planCall([
+          { step: "models", status: "completed" },
+          { step: "server", status: "in_progress" },
+          { step: "README", status: "pending" },
+        ]),
+      },
+    ];
+    const capsule = addToCapsule(null, older, "State: server next.");
+    expect(capsule.plan).toEqual([
+      { step: "models", status: "completed" },
+      { step: "server", status: "in_progress" },
+      { step: "README", status: "pending" },
+    ]);
+    const text = renderCapsule(capsule);
+    expect(text).toContain("Your plan as you last updated it:");
+    expect(text).toContain("- [done] models");
+    expect(text).toContain("- [in progress] server");
+    expect(text).toContain("- [not done] README");
+    expect(text.indexOf("Your plan")).toBeLessThan(text.indexOf("Your note"));
+  });
+
+  it("keeps the earlier plan when the removed turns have none", () => {
+    const first = addToCapsule(
+      null,
+      [
+        {
+          role: "assistant",
+          content: planCall([{ step: "tests", status: "pending" }]),
+        },
+      ],
+      "n"
+    );
+    const second = addToCapsule(
+      first,
+      [{ role: "assistant", content: "Reading the file." }],
+      ""
+    );
+    expect(second.plan).toEqual([{ step: "tests", status: "pending" }]);
+    expect(addToCapsule(null, [], "n").plan).toBeUndefined();
+  });
+
+  it("asks a long-task note for labelled lines", () => {
+    expect(noteRequest("next", [], true)).toContain(
+      "each starting with its label"
+    );
+    expect(noteRequest("next")).not.toContain("each starting with its label");
   });
 });

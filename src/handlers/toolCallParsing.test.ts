@@ -323,6 +323,12 @@ describe("stripToolCallMarkup", () => {
       'Reading it now.\n```markdown\n<server>filesystem</server>\n<tool>read_text_file</tool>\n<arguments>{"path":"C:/a.md"}</arguments>\n```';
     expect(stripToolCallMarkup(raw)).toBe("Reading it now.");
   });
+
+  it("hides DeepSeek closers left without their DSML marker", () => {
+    const raw =
+      'Let me look at what exists. <tool_call> <server>filesystem</server> <tool>search_files</tool> <arguments>{"path": "/p", "pattern": "*"}</arguments> </tool_call> </invoke> </tool_call>';
+    expect(stripToolCallMarkup(raw)).toBe("Let me look at what exists.");
+  });
 });
 
 describe("cutOffToolCall", () => {

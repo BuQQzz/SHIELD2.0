@@ -16,10 +16,14 @@ import { MessageList } from "./components/chat/MessageList";
 import { ChatInput, type ChatInputRef } from "./components/chat/ChatInput";
 import { LazySettingsDialog } from "./components/lazy";
 import { ToolPermissionBar } from "./components/chat/ToolPermissionBar";
+import { TurnAskBar } from "./components/chat/TurnAskBar";
+import { InterruptedBar } from "./components/chat/InterruptedBar";
+import { interrupted, RESUME_NOTE } from "./lib/interruptedTurn";
 import {
   MemoryCheckCard,
   RememberedNotice,
 } from "./components/chat/MemoryCheckCard";
+import { MemoryWithheldNotice } from "./components/chat/MemoryWithheldNotice";
 import { StuckBar } from "./components/chat/StuckBar";
 import { ThemeProvider } from "./components/theme/ThemeProvider";
 import { toast } from "sonner";
@@ -44,11 +48,12 @@ import { useGenerationStore } from "./store/generationStore";
 import { sendWhatWaits } from "./handlers/steer";
 import { generateMessageId } from "./handlers/messageHandler";
 import { restoreRuns } from "./agents/runView";
-import { ORCHESTRATOR_PROMPT } from "./agents/roles";
+import { orchestratorPrompt } from "./agents/roles";
+import { parallelAgentsFor } from "./agents/parallel";
 import { teamFor } from "./agents/team";
 import { useInstalledModels } from "./hooks/useInstalledModels";
 import { useCloudStore } from "./stores/cloud-store";
-import { cloudModelOptions } from "./lib/cloudModels";
+import { cloudModelOptions, sharesMemory } from "./lib/cloudModels";
 import { useRecommendedSampling } from "./hooks/useRecommendedSampling";
 import { effectiveSampling } from "./services/modelSampling";
 import { sameFolder, useApplyWorkspace } from "./hooks/useApplyWorkspace";
@@ -65,6 +70,7 @@ import {
 import { editPlan } from "./handlers/sessionPlan";
 import { useInstructionsStore } from "./stores/instructions-store";
 import { useMemoryNotesStore } from "./stores/memory-notes-store";
+import { levelFor, useThinkingStore } from "./stores/thinking-store";
 import { DRAFT_REQUEST, draftNote } from "./config/agentsMd";
 import { useChatStore } from "./stores/chat-store";
 import { ModelLibraryPage } from "./components/library/ModelLibraryPage";
@@ -77,6 +83,7 @@ import {
 } from "./config/models";
 import { createAppShortcuts } from "./config/shortcuts";
 import { shouldTurnTeamOff, teamAvailability } from "./agents/teamFit";
+import { runProfileFor } from "./handlers/runRules";
 import "./App.css";
 
 function App() {
@@ -189,13 +196,23 @@ function App() {
       "Team turned off: this model is not suited to leading a team. You can turn it on anyway from the Team button."
     );
   }, [teamMustGoOff, updateConversation]);
+  // The user's memory goes to this model (sharesMemory): local models, and
+  // hosted ones held to zero retention or that the user shared it with
+  const memoryShared = sharesMemory(
+    modelOptions.find((m) => m.id === currentModelId)
+  );
+  useEffect(() => {
+    useMemoryNotesStore.getState().setShared(memoryShared);
+  }, [memoryShared]);
   const policyInput = {
+    memoryTools: memoryShared,
     mode: settings.mcp?.mode ?? "ask",
     allowedTools: settings.mcp?.allowedTools ?? [],
     serverTools: mcpServerTools,
     webSearchEnabled: settings.webSearch?.enabled ?? false,
     fileTools: isCodeSession,
     folder: isCodeSession ? currentConversation?.folder : undefined,
+    backgroundJobs: runProfileFor(currentModelId) === "cloud",
   };
   const workerPolicy = useToolPolicy(policyInput);
   const toolPolicy = useToolPolicy({ ...policyInput, teamMode });
@@ -244,6 +261,14 @@ function App() {
     autoInitializeMCP();
   }, [isMCPReady, isMCPInitializing, initializeMCP]);
 
+  // The thinking level picked for this model goes to every request
+  const thinkingLevel = useThinkingStore((state) =>
+    levelFor(state.levels, currentModelId)
+  );
+  useEffect(() => {
+    void window.llama?.setThinkingLevel?.(thinkingLevel);
+  }, [thinkingLevel, currentModelId]);
+
   // MCP system prompt management - builds model-specific prompts
   const currentModelConfig = modelOptions.find((m) => m.id === currentModelId);
   // The open code session's AGENTS.md, read into its prompt
@@ -258,7 +283,7 @@ function App() {
     // A chat without web search has no tools at all
     mcpEnabled: isCodeSession || toolPolicy.advertisedTools.length > 0,
     baseSystemPrompt: teamMode
-      ? ORCHESTRATOR_PROMPT
+      ? orchestratorPrompt(parallelAgentsFor(currentModelId))
       : settings.system.systemPrompt,
     setSystemPrompt,
     modelName: currentModelConfig?.name,
@@ -269,7 +294,7 @@ function App() {
     toolsLoading: !mcpToolsSettled,
     projectInstructions: isCodeSession ? projectInstructions : "",
     projectListing: isCodeSession ? projectListing : undefined,
-    memoryNotes: teamMode ? "" : memoryNotes,
+    memoryNotes: teamMode || !memoryShared ? "" : memoryNotes,
   });
 
   // Initialize a new conversation if none exists
@@ -549,9 +574,9 @@ function App() {
   // A new user message lets the orchestrator delegate again
   const beginTurn = useCallback(() => {
     if (!currentConversation) return;
-    teamFor(currentConversation.id).beginTurn();
+    teamFor(currentConversation.id).beginTurn(runProfileFor(currentModelId));
     useTeamStore.getState().beginTurn(currentConversation.id);
-  }, [currentConversation]);
+  }, [currentConversation, currentModelId]);
 
   // What was sent or queued during a turn, once it ends - whichever handler
   // ran it: Continue and Regenerate mark the chat busy too
@@ -614,6 +639,45 @@ function App() {
     () => void handleSendMessage("continue"),
     [handleSendMessage]
   );
+  // A turn SHIELD closed in the middle of: carry on, with a note saying so
+  // After a restart no model is loaded, and a message sent then is dropped:
+  // the model the turn ran on is loaded first (live, 2026-11-23)
+  const modelLoadedRef = useRef(isModelLoaded);
+  modelLoadedRef.current = isModelLoaded;
+  const interruptedModel = modelOptions.find(
+    (m) => m.id === currentConversation?.turnModel
+  );
+  // Cloud models are listed once fetched, which a restart has not done yet
+  const turnModel = currentConversation?.turnModel;
+  const showInterrupted = interrupted(currentConversation?.turnRunning);
+  useEffect(() => {
+    if (showInterrupted && turnModel && !interruptedModel) {
+      void useCloudStore.getState().fetchModels();
+    }
+  }, [showInterrupted, turnModel, interruptedModel]);
+  const handleResumeInterrupted = useCallback(async () => {
+    if (
+      interruptedModel &&
+      (!isModelLoaded || currentModelId !== interruptedModel.id)
+    ) {
+      await handleModelSelect(interruptedModel);
+      // The send goes through the handler of the render that has it loaded
+      for (let i = 0; i < 100 && !modelLoadedRef.current; i++) {
+        await new Promise((resolve) => setTimeout(resolve, 100));
+      }
+    }
+    await handleSendMessage("Continue", { modelNote: RESUME_NOTE });
+  }, [
+    interruptedModel,
+    isModelLoaded,
+    currentModelId,
+    handleModelSelect,
+    handleSendMessage,
+  ]);
+  const dismissInterrupted = useCallback(() => {
+    updateConversation({ turnRunning: undefined });
+    void saveCurrentConversation().catch(() => undefined);
+  }, [updateConversation, saveCurrentConversation]);
   const handleContinueTurn = useCallback(
     async (messageId: string) => {
       await handleContinue(messageId);
@@ -819,9 +883,17 @@ function App() {
             onApprove={handleApprove}
             onDeny={handleDeny}
           />
+          <TurnAskBar />
+          <InterruptedBar
+            show={!isGenerating && showInterrupted}
+            model={interruptedModel?.displayName}
+            onContinue={() => void handleResumeInterrupted()}
+            onDismiss={dismissInterrupted}
+          />
           <StuckBar isGenerating={isGenerating} />
           {!isGenerating && !pendingRequest && <MemoryCheckCard />}
           <RememberedNotice />
+          <MemoryWithheldNotice model={currentModelConfig} />
           {isCodeSession &&
             isModelLoaded &&
             folderReady &&

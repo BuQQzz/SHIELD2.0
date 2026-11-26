@@ -57,3 +57,17 @@ describe("generation store", () => {
     expect(store().lastSummary).toBeNull();
   });
 });
+
+describe("turn cost", () => {
+  it("adds up a turn's replies and starts again with the next message", () => {
+    const store = () => useGenerationStore.getState();
+    store().beginTurn();
+    const stats = { outputTokens: 1, tokensPerSecond: 1, durationMs: 1 };
+    store().record({ ...stats, cost: 0.25 }, null);
+    store().record({ ...stats, cost: 0.5 }, null);
+    store().record(stats, null);
+    expect(store().turnCost).toBeCloseTo(0.75);
+    store().beginTurn();
+    expect(store().turnCost).toBe(0);
+  });
+});

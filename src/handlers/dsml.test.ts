@@ -165,3 +165,26 @@ ${close("calls")}`
     expect(withoutDsmlTags("DSML is a word")).toBe("DSML is a word");
   });
 });
+
+describe("a DSML call without its closing invoke tag", () => {
+  const reply =
+    `Fixing it.\n<${B}DSML${B} calls>\n<${B}DSML${B} invoke name="edit_file">\n` +
+    `<${B}DSML${B} parameter name="path" string="true">/p/budget.py</${B}DSML${B} parameter>\n` +
+    `<${B}DSML${B} parameter name="edits" string="false">[{"oldText": "a + 1", "newText": "a"}]</${B}DSML${B} parameter>\n` +
+    `</${B}DSML${B} calls>`;
+
+  it("ends at the set's closing tag and runs", () => {
+    const calls = extractToolCalls(reply);
+    expect(calls).toHaveLength(1);
+    expect(calls[0]!.tool).toBe("edit_file");
+    expect(calls[0]!.arguments).toEqual({
+      path: "/p/budget.py",
+      edits: [{ oldText: "a + 1", newText: "a" }],
+    });
+  });
+
+  it("is not read as complete when the reply simply stops", () => {
+    const cut = reply.slice(0, reply.lastIndexOf("</"));
+    expect(normaliseDsml(cut)).not.toContain("<tool_call>");
+  });
+});

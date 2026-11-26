@@ -45,6 +45,8 @@ export interface ParsedHandoff {
   inProgress: string;
   next: string;
   notes: string;
+  /** SUMMARY: what the agent did and how it ended, for the user */
+  brief?: string;
 }
 
 /** A hand-off kept by the team, so a PARTIAL run can be continued */

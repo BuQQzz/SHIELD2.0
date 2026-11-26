@@ -18,12 +18,14 @@ import {
   WEB_TOOLS,
 } from "../services/webTools.js";
 import {
+  callTerminalTool,
   isTerminalTool,
-  runCommand,
-  runCommandTool,
+  killTree,
   stopRunningCommands,
+  terminalTools,
   TERMINAL_SERVER_NAME,
 } from "../services/terminalTool.js";
+import { runningTasks, stopTask } from "../services/runningTasks.js";
 import {
   isMemoryTool,
   MEMORY_SERVER_NAME,
@@ -138,7 +140,8 @@ export async function registerMcpHandlers() {
         : request.serverName === WEB_SERVER_NAME || isWebTool(request.tool)
           ? await callWebTool(request)
           : isTerminalTool(request.tool)
-            ? await runCommand(
+            ? await callTerminalTool(
+                request.tool,
                 request.arguments ?? {},
                 mcpService.getWorkspaceFolder()
               )
@@ -191,7 +194,7 @@ export async function registerMcpHandlers() {
         : serverName === WEB_SERVER_NAME
           ? WEB_TOOLS
           : serverName === TERMINAL_SERVER_NAME
-            ? [runCommandTool()]
+            ? terminalTools()
             : serverName === MEMORY_SERVER_NAME
               ? MEMORY_TOOLS
               : serverName === PLAN_SERVER_NAME
@@ -242,6 +245,16 @@ export async function registerMcpHandlers() {
   ipcMain.handle("mcp:stop-commands", async () => ({
     success: true,
     stopped: stopRunningCommands(),
+  }));
+
+  // Tasks running: what the model started that is still going, and the
+  // user's Stop on one (runningTasks.ts)
+  ipcMain.handle("mcp:list-tasks", async () => ({
+    success: true,
+    tasks: runningTasks(),
+  }));
+  ipcMain.handle("mcp:stop-task", async (_event, id: unknown) => ({
+    success: typeof id === "string" && stopTask(id, killTree),
   }));
 
   ipcMain.handle("mcp:get-server-config", async (_event, serverName) => {

@@ -14,8 +14,11 @@
 
 import { useMemo } from "react";
 import { isDeletionTool, isMutatingTool } from "@/config/toolClassification";
+import { isDeletingCommand } from "@/config/deletingCommand";
+import { BASH_TOOL_NAME, bashToolFrom } from "@/config/bashTool";
 import {
   isReadOnlyCommand,
+  JOB_TOOL_NAMES,
   RUN_COMMAND_TOOL_NAME,
   TERMINAL_SERVER_NAME,
 } from "@/config/commandSafety";
@@ -83,6 +86,35 @@ export interface ToolPolicyInput {
   teamMode?: boolean;
   /** The Code session's project folder: read-only commands may name it in full */
   folder?: string;
+  /**
+   * The memory search tools (search_memory, open_memory) are offered: off for
+   * a hosted model the user's memory is not shared with (sharesMemory).
+   * remember stays: it only adds a note.
+   */
+  memoryTools?: boolean;
+  /**
+   * A cloud model (handlers/runRules.ts): its terminal is bash, shaped as
+   * in Claude Code and opencode (config/bashTool.ts), and it may run
+   * commands in the background (command_output, stop_command). Local
+   * models are offered run_command as it was, without them.
+   */
+  backgroundJobs?: boolean;
+}
+
+/** run_command as offered to a model with no background jobs */
+export function withoutBackground(tool: ToolDefinition): ToolDefinition {
+  const schema = tool.inputSchema as
+    { properties?: Record<string, unknown> } | undefined;
+  if (!schema?.properties || !("background" in schema.properties)) return tool;
+  const { background: _background, ...properties } = schema.properties;
+  return {
+    ...tool,
+    description: tool.description.replace(
+      /no watch modes or prompts for input\. To keep one running[\s\S]*?when you are done\./,
+      "no servers, watch modes or prompts for input."
+    ),
+    inputSchema: { ...schema, properties },
+  };
 }
 
 /** SHIELD's own web tools come from this server (electron/services/webTools) */
@@ -104,10 +136,21 @@ export function resolveToolPolicy({
   fileTools = true,
   teamMode = false,
   folder,
+  memoryTools = true,
+  backgroundJobs = false,
 }: ToolPolicyInput): ToolPolicy {
+  const offered = backgroundJobs
+    ? serverTools.map((tool) =>
+        tool.name === RUN_COMMAND_TOOL_NAME ? bashToolFrom(tool) : tool
+      )
+    : serverTools
+        .filter((tool) => !JOB_TOOL_NAMES.has(tool.name))
+        .map((tool) =>
+          tool.name === RUN_COMMAND_TOOL_NAME ? withoutBackground(tool) : tool
+        );
   // The allowlist applies in every mode - a mode can narrow what the user
   // permitted, never widen it.
-  const allowlisted = serverTools.filter((tool) =>
+  const allowlisted = offered.filter((tool) =>
     tool.serverName === AGENTS_SERVER_NAME
       ? teamMode && fileTools
       : teamMode
@@ -119,13 +162,15 @@ export function resolveToolPolicy({
           : tool.serverName === WEB_SERVER_NAME
             ? webSearchEnabled
             : tool.serverName === MEMORY_SERVER_NAME
-              ? true
+              ? memoryTools || tool.name === "remember"
               : tool.serverName === TERMINAL_SERVER_NAME ||
                   tool.serverName === PLAN_SERVER_NAME
                 ? fileTools
                 : fileTools && allowedTools.includes(tool.name)
   );
   const allowedNames = new Set(allowlisted.map((tool) => tool.name));
+  // A bash call reaches the policy as run_command (toolCallParsing.ts)
+  if (allowedNames.has(BASH_TOOL_NAME)) allowedNames.add(RUN_COMMAND_TOOL_NAME);
 
   // In readonly the model is never told mutating tools exist, so it does not
   // propose them and the user never sees a refusal for something it could
@@ -135,7 +180,11 @@ export function resolveToolPolicy({
   const advertisedTools =
     mode === "readonly"
       ? allowlisted.filter(
-          (tool) => !isMutatingTool(tool) || tool.name === RUN_COMMAND_TOOL_NAME
+          (tool) =>
+            !isMutatingTool(tool) ||
+            tool.name === RUN_COMMAND_TOOL_NAME ||
+            tool.name === BASH_TOOL_NAME ||
+            JOB_TOOL_NAMES.has(tool.name)
         )
       : allowlisted;
 
@@ -149,6 +198,9 @@ export function resolveToolPolicy({
     // Handing work over changes nothing itself: the agent's own calls are
     // decided by the policy it works under
     if (call.name === DELEGATE_TOOL_NAME) return "run";
+    // A job's output, or stopping it: only what the model itself started,
+    // which was decided on when run_command started it
+    if (JOB_TOOL_NAMES.has(call.name)) return "run";
     if (call.name === RUN_COMMAND_TOOL_NAME) {
       const command =
         "arguments" in call && typeof call.arguments?.command === "string"
@@ -160,6 +212,14 @@ export function resolveToolPolicy({
     // read-only hint (web_search and fetch_page declare one)
     const tool = serverTools.find((known) => known.name === call.name) ?? call;
     const mutating = isMutatingTool(tool);
+
+    // SHIELD's own file and web tools in Ask and Auto: only a delete asks
+    // (the user's call, 2026-11-24: an approval for nearly every edit was
+    // too much). A connected service's tools act outside the computer -
+    // sending an email - and keep asking in Ask
+    if ((mode === "ask" || mode === "auto") && ownTool(tool)) {
+      return isDeletionTool(tool) ? "ask" : "run";
+    }
 
     switch (mode) {
       case "ask":
@@ -203,14 +263,28 @@ export function resolveToolPolicy({
  * else asks in Auto (every time - see useMCPDialogs), is recorded in Plan
  * and refused in Read-only.
  */
+/**
+ * Ask and Auto: a command runs unless it deletes (deletingCommand.ts).
+ * Plan and Read-only: only a command that can just look runs.
+ */
 function decideCommand(
   mode: PermissionMode,
   command: string,
   folder?: string
 ): ToolDecision {
-  if (mode === "ask") return "ask";
-  if (isReadOnlyCommand(command, undefined, folder)) return "run";
-  return mode === "auto" ? "ask" : "block";
+  if (mode === "ask" || mode === "auto") {
+    return isDeletingCommand(command) ? "ask" : "run";
+  }
+  return isReadOnlyCommand(command, undefined, folder) ? "run" : "block";
+}
+
+/** SHIELD's own file and web tools, not a connected service's */
+function ownTool(tool: { name: string; serverName?: string }): boolean {
+  return (
+    FILESYSTEM_TOOLS.includes(tool.name) ||
+    tool.name === "web_search" ||
+    tool.name === "fetch_page"
+  );
 }
 
 /**
@@ -225,6 +299,8 @@ export function useToolPolicy(input: ToolPolicyInput): ToolPolicy {
     fileTools,
     teamMode,
     folder,
+    memoryTools,
+    backgroundJobs,
   } = input;
 
   return useMemo(
@@ -237,6 +313,10 @@ export function useToolPolicy(input: ToolPolicyInput): ToolPolicy {
         fileTools,
         teamMode,
         folder,
+        memoryTools,
+        // Left out until 2026-11-24: no cloud model was ever offered its
+        // background jobs or bash, though resolveToolPolicy's tests passed
+        backgroundJobs,
       }),
     [
       mode,
@@ -246,6 +326,8 @@ export function useToolPolicy(input: ToolPolicyInput): ToolPolicy {
       fileTools,
       teamMode,
       folder,
+      memoryTools,
+      backgroundJobs,
     ]
   );
 }

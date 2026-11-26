@@ -2,7 +2,11 @@ import path from "path";
 import { app, BrowserWindow } from "electron";
 import { SettingsStorageService } from "./services/SettingsStorageService.js";
 import { mcpService } from "./services/MCPService.js";
-import { stopRunningCommands } from "./services/terminalTool.js";
+import {
+  stopBackgroundJobs,
+  clearShellState,
+  stopRunningCommands,
+} from "./services/terminalTool.js";
 import { createMainWindow } from "./setup/windowSetup.js";
 import { registerLlamaHandlers } from "./ipc/llamaHandlers.js";
 import { registerConversationHandlers } from "./ipc/conversationHandlers.js";
@@ -151,6 +155,10 @@ app.on("window-all-closed", async () => {
     }
   }
   stopRunningCommands();
+  // SHIELD's own background jobs end with it; what a command left running
+  // with nohup is the model's and the user's (runningTasks.ts)
+  stopBackgroundJobs();
+  clearShellState();
   await mcpService.shutdown();
   await getConnectorService()?.shutdown();
   if (process.platform !== "darwin") {

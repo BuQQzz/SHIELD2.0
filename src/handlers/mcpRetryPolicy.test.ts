@@ -57,6 +57,22 @@ describe("endsByAnnouncing", () => {
     expect(endsByAnnouncing("Let me read it first.")).toBe(true);
   });
 
+  it("takes a reply that ends on a colon, with nothing after it", () => {
+    expect(
+      endsByAnnouncing(
+        "Activation works — `which python3` points into `.venv`. Step 3 — create the `work` folder and cd into it:"
+      )
+    ).toBe(true);
+    expect(
+      endsByAnnouncing(
+        "Venv created and activated. **Step 2 — which python3 is used now:**"
+      )
+    ).toBe(true);
+    expect(
+      endsByAnnouncing("Here is what changed:\n- a.py: fixed the parser")
+    ).toBe(false);
+  });
+
   it("leaves answers, questions and earlier announcements alone", () => {
     expect(endsByAnnouncing("Let me know if you want changes.")).toBe(false);
     expect(
@@ -68,5 +84,14 @@ describe("endsByAnnouncing", () => {
     expect(
       endsByAnnouncing("Let me read the file. Done: the section is added.")
     ).toBe(false);
+  });
+});
+
+describe("buildActNowPrompt", () => {
+  it("leaves out 'no other text' for a hosted model", async () => {
+    const { buildActNowPrompt } = await import("./mcpRetryPolicy");
+    expect(buildActNowPrompt()).toContain("with no other text");
+    expect(buildActNowPrompt(true)).not.toContain("with no other text");
+    expect(buildActNowPrompt(true)).toContain("Make that tool call now.");
   });
 });
