@@ -422,7 +422,7 @@ export const MODEL_FAMILIES: ModelFamilyEntry[] = [
             // Code task, 2026-11-06: 1 of 3 with thinking off, 3 of 3 with
             // capped thinking at up to 281 s; Bonsai 2 27B 2 of 2 at ~1 min
             caution:
-              "Below 10 GB of GPU memory this is a 1-bit version: slower (often 1-4 minutes a step) and less steady on longer coding tasks. Bonsai 2 27B is the steadier choice on this card.",
+              "Below 10 GB of GPU memory this is a 1-bit version: slower (often 1-4 minutes a step) and less steady on longer coding tasks. Bonsai 2.5 27B is the steadier choice on this card.",
             // 12k with an 8-bit cache and 256-token batches: 7.39 GB peak
             // in a bare server with a 13k-character-deep recall, ~7.54 in
             // the app, whose own window takes ~145 MB of the GPU. 16k with
@@ -605,6 +605,67 @@ export const MODEL_FAMILIES: ModelFamilyEntry[] = [
             // at 66-148 s, split, code 1 of 1 each, ~70 s. g26 step 16
             // (2026-11-11): 939 of 1,452 s in thoughts cut at 1,536, each
             // cut followed by re-reading and re-deciding; trying 2,560
+            reasoningBudget: 2560,
+          },
+        ],
+        capabilities: {
+          toolCalling: true,
+          complexReasoning: true,
+          webSearch: true,
+          structuredOutput: true,
+          longContext: true,
+          codeGeneration: true,
+          multilingual: "good",
+          temperatureRange: { min: 0.1, max: 1.0, default: 0.7 },
+        },
+        hardware: {
+          minVRAM: 8,
+          recommendedVRAM: 12,
+          minRAM: 16,
+          recommendedRAM: 32,
+        },
+      },
+      {
+        id: "bonsai-2.5-27b",
+        name: "Ternary-Bonsai-2.5-27B",
+        displayName: "Bonsai 2.5 27B",
+        description:
+          "Bonsai 2 27B retrained for agent work: steadier on long, many-step coding tasks, in the same 6 GB. Runs fully on an 8 GB GPU with a 32k context window, about 40 tok/s on an RTX 2070 SUPER.",
+        // Bonsai 2 27B's architecture and weight format, so its placement:
+        // 32k with an 8-bit cache used 7.3-7.6 GB in the app on an 8 GB
+        // RTX 2070 SUPER (2026-11-25/26)
+        contextSize: 32768,
+        serverPlacement: {
+          allLayersOnGpu: true,
+          ubatchSize: 512,
+          kvCacheType: "q8_0",
+          cudaGraphs: false,
+        },
+        // Bonsai 2's settings, kept (not tuned for 2.5 yet). With them, side
+        // by side with Bonsai 2 on the same build: write, code, fix, split
+        // and a build-and-review task, 10 of 10 with no failed calls (Bonsai
+        // 2 timed out on the long task twice); growing-project step 17 2 of
+        // 2 at 594 and 1,210 s (Bonsai 2 1,340 s) (2026-11-25/26)
+        reasoningEffort: "medium",
+        nativeToolCalls: true,
+        remindToRun: true,
+        // As for Bonsai 2: without it, Bonsai 2 looped on the write task
+        presencePenalty: 1.5,
+        provider: "PrismML",
+        chatTemplate: "generic",
+        roles: ["agent", "coding", "long-context", "chat"],
+        runtime: "prism-llama-server",
+        team: {
+          fit: "untested",
+          note: "Passed all ten solo Code runs of a five-task comparison with Bonsai 2 27B, with no failed calls (2026-11-25). Not run as a team yet.",
+        },
+        files: [
+          {
+            name: "Ternary-Bonsai-2.5-27B-PTQ1_0.gguf",
+            hfRepo: "prism-ml/Ternary-Bonsai-2.5-27B-GGUF",
+            sizeBytes: 5_990_000_000,
+            minVRAM: 0,
+            // Bonsai 2's budget, kept for now
             reasoningBudget: 2560,
           },
         ],
