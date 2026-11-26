@@ -17,6 +17,7 @@
     "preview": "vite preview",
     "test": "vitest",
     "lint": "eslint . --ext ts,tsx --report-unused-disable-directives --max-warnings 0",
+    "ci": "npm run lint && tsc --noEmit && vitest run && prettier --check \"**/*.{ts,tsx,js,json,md,yml}\" --ignore-path .gitignore && vite build",
     "format": "prettier --write \"src/**/*.{ts,tsx,css,md}\"",
     "download-model": "tsx scripts/download-model.ts",
     "test:inference": "tsx scripts/test-inference.ts",

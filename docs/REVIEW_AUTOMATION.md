@@ -1,5 +1,7 @@
 # 🤖 Automated Review System
 
+> **Note:** the CI and PR review workflows (`ci.yml`, `pr-review.yml`) have been removed to save GitHub Actions minutes. Run the same checks locally before each push with `npm run ci` (lint, type check, tests, Prettier, build). The PR review sections below describe the removed workflow.
+
 SHIELD 2.0 uses automated workflows to streamline PR and issue reviews, ensuring consistent code quality and faster feedback loops.
 
 ## 📋 Table of Contents
